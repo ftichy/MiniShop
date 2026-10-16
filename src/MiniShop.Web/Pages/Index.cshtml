@@ -1,0 +1,35 @@
+@page
+@{
+    ViewData["Title"] = "Úvod";
+}
+<h1>MiniShop</h1>
+<p class="lead">Jednoduchý e-shop pro výuku: ASP.NET Core, EF Core + SQLite, vrstvená architektura a SOLID.</p>
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">Webové rozhraní</h5>
+                <ul>
+                    <li><a asp-page="/Products/Index">Produkty</a> – katalog, přidání, naskladnění</li>
+                    <li><a asp-page="/Orders/Index">Objednávky</a> – vytvoření, vyřízení, zrušení</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">REST API</h5>
+                <ul class="mb-2">
+                    <li><code>GET/POST /api/products</code></li>
+                    <li><code>GET/PUT/DELETE /api/products/{id}</code></li>
+                    <li><code>POST /api/products/{id}/stock</code></li>
+                    <li><code>GET/POST /api/orders</code></li>
+                    <li><code>POST /api/orders/{id}/complete</code> | <code>/cancel</code></li>
+                </ul>
+                <a href="/openapi/v1.json">OpenAPI dokument</a> · ukázkové požadavky v souboru <code>MiniShop.Web.http</code>
+            </div>
+        </div>
+    </div>
+</div>

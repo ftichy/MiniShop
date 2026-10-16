@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] – MiniShop</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" />
+</head>
+<body>
+    <nav class="navbar navbar-expand navbar-dark bg-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" asp-page="/Index">MiniShop</a>
+            <ul class="navbar-nav">
+                <li class="nav-item"><a class="nav-link" asp-page="/Products/Index">Produkty</a></li>
+                <li class="nav-item"><a class="nav-link" asp-page="/Orders/Index">Objednávky</a></li>
+            </ul>
+        </div>
+    </nav>
+    <main class="container">
+        @RenderBody()
+    </main>
+</body>
+</html>

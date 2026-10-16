@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Infrastruktura: implementace rozhraní z aplikační vrstvy (EF Core + SQLite, notifikace). -->
+  <ItemGroup>
+    <ProjectReference Include="..\MiniShop.Application\MiniShop.Application.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.13" />
+  </ItemGroup>
+</Project>

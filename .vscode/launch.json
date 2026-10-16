@@ -1,0 +1,28 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "MiniShop.Web (C# Dev Kit)",
+      "type": "dotnet",
+      "request": "launch",
+      "projectPath": "${workspaceFolder}/src/MiniShop.Web/MiniShop.Web.csproj"
+    },
+    {
+      "name": "MiniShop.Web (coreclr)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/MiniShop.Web/bin/Debug/net10.0/MiniShop.Web.dll",
+      "cwd": "${workspaceFolder}/src/MiniShop.Web",
+      "stopAtEntry": false,
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
+      },
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "https://localhost:7180;http://localhost:5180"
+      }
+    }
+  ]
+}

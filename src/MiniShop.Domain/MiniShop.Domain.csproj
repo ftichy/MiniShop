@@ -1,0 +1,3 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Doménová vrstva: čistá business logika, žádné závislosti na frameworku ani databázi. -->
+</Project>

@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- Prezentační vrstva: REST API (controllery) + jednoduché UI (Razor Pages). Zde se skládá DI (composition root). -->
+  <ItemGroup>
+    <ProjectReference Include="..\MiniShop.Application\MiniShop.Application.csproj" />
+    <ProjectReference Include="..\MiniShop.Infrastructure\MiniShop.Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.1" />
+  </ItemGroup>
+</Project>

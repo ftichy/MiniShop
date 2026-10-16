@@ -1,0 +1,96 @@
+@page
+@model MiniShop.Web.Pages.Orders.IndexModel
+@{
+    ViewData["Title"] = "Objednávky";
+}
+<h1>Objednávky</h1>
+
+<partial name="_StatusMessage" model="Model.StatusMessage" />
+<div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+<h2 class="h4">Nová objednávka</h2>
+<p class="text-muted small">Od 10 ks jednoho produktu se uplatní množstevní sleva 10 %.</p>
+<form method="post" asp-page-handler="Create" class="row g-2 mb-4">
+    <div class="col-md-3">
+        <label asp-for="Input.CustomerName" class="form-label"></label>
+        <input asp-for="Input.CustomerName" class="form-control" />
+        <span asp-validation-for="Input.CustomerName" class="text-danger small"></span>
+    </div>
+    <div class="col-md-3">
+        <label asp-for="Input.CustomerEmail" class="form-label"></label>
+        <input asp-for="Input.CustomerEmail" class="form-control" />
+        <span asp-validation-for="Input.CustomerEmail" class="text-danger small"></span>
+    </div>
+    <div class="col-md-3">
+        <label asp-for="Input.ProductId" class="form-label"></label>
+        <select asp-for="Input.ProductId" asp-items="Model.ProductOptions" class="form-select">
+            <option value="0">-- vyberte --</option>
+        </select>
+        <span asp-validation-for="Input.ProductId" class="text-danger small"></span>
+    </div>
+    <div class="col-md-2">
+        <label asp-for="Input.Quantity" class="form-label"></label>
+        <input asp-for="Input.Quantity" class="form-control" />
+        <span asp-validation-for="Input.Quantity" class="text-danger small"></span>
+    </div>
+    <div class="col-md-1 d-flex align-items-end">
+        <button type="submit" class="btn btn-primary w-100">Objednat</button>
+    </div>
+</form>
+
+@if (Model.Orders.Count == 0)
+{
+    <p>Zatím žádné objednávky.</p>
+}
+
+@foreach (var order in Model.Orders)
+{
+    <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>
+                <strong>Objednávka č. @order.Id</strong> –
+                @order.CustomerName (@order.CustomerEmail),
+                @order.CreatedAtUtc.ToLocalTime().ToString("g")
+            </span>
+            <span>
+                <span class="badge bg-secondary me-2">@IndexModel.StatusText(order.Status)</span>
+                @if (order.Status == "Created")
+                {
+                    <form method="post" asp-page-handler="Complete" asp-route-id="@order.Id" class="d-inline">
+                        <button type="submit" class="btn btn-sm btn-success">Vyřídit</button>
+                    </form>
+                    <form method="post" asp-page-handler="Cancel" asp-route-id="@order.Id" class="d-inline">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">Zrušit</button>
+                    </form>
+                }
+            </span>
+        </div>
+        <table class="table table-sm mb-0">
+            <thead>
+                <tr>
+                    <th>Produkt</th>
+                    <th class="num">Cena/ks</th>
+                    <th class="num">Množství</th>
+                    <th class="num">Sleva</th>
+                    <th class="num">Celkem</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in order.Items)
+                {
+                    <tr>
+                        <td>@item.ProductName</td>
+                        <td class="num">@item.UnitPrice.ToString("N2") Kč</td>
+                        <td class="num">@item.Quantity</td>
+                        <td class="num">@(item.Discount > 0 ? $"-{item.Discount:N2} Kč" : "")</td>
+                        <td class="num">@item.LineTotal.ToString("N2") Kč</td>
+                    </tr>
+                }
+                <tr class="fw-bold">
+                    <td colspan="4">Celkem</td>
+                    <td class="num">@order.TotalPrice.ToString("N2") Kč</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+}

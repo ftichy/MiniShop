@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Aplikační vrstva: use-casy (služby), rozhraní pro infrastrukturu, DTO. Nezná EF Core ani ASP.NET. -->
+  <ItemGroup>
+    <ProjectReference Include="..\MiniShop.Domain\MiniShop.Domain.csproj" />
+  </ItemGroup>
+</Project>

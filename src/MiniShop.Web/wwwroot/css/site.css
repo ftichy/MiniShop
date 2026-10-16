@@ -1,0 +1,3 @@
+body { padding-bottom: 3rem; }
+.table td, .table th { vertical-align: middle; }
+.num { text-align: right; white-space: nowrap; }

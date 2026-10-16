@@ -1,0 +1,72 @@
+@page
+@model MiniShop.Web.Pages.Products.IndexModel
+@{
+    ViewData["Title"] = "Produkty";
+}
+<h1>Produkty</h1>
+
+<partial name="_StatusMessage" model="Model.StatusMessage" />
+<div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Název</th>
+            <th>Popis</th>
+            <th class="num">Cena</th>
+            <th class="num">Skladem</th>
+            <th>Naskladnit</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var p in Model.Products)
+        {
+            <tr>
+                <td>@p.Id</td>
+                <td>@p.Name</td>
+                <td class="text-muted">@p.Description</td>
+                <td class="num">@p.Price.ToString("N2") Kč</td>
+                <td class="num">@p.StockQuantity ks</td>
+                <td>
+                    <form method="post" asp-page-handler="AddStock" asp-route-id="@p.Id" class="d-flex gap-1">
+                        <input type="number" name="quantity" value="10" min="1" class="form-control form-control-sm" style="width: 6rem" />
+                        <button type="submit" class="btn btn-sm btn-outline-primary">+</button>
+                    </form>
+                </td>
+                <td>
+                    <form method="post" asp-page-handler="Delete" asp-route-id="@p.Id">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">Smazat</button>
+                    </form>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<h2 class="h4 mt-4">Nový produkt</h2>
+<form method="post" asp-page-handler="Create" class="row g-2">
+    <div class="col-md-3">
+        <label asp-for="NewProduct.Name" class="form-label"></label>
+        <input asp-for="NewProduct.Name" class="form-control" />
+        <span asp-validation-for="NewProduct.Name" class="text-danger small"></span>
+    </div>
+    <div class="col-md-4">
+        <label asp-for="NewProduct.Description" class="form-label"></label>
+        <input asp-for="NewProduct.Description" class="form-control" />
+    </div>
+    <div class="col-md-2">
+        <label asp-for="NewProduct.Price" class="form-label"></label>
+        <input asp-for="NewProduct.Price" class="form-control" />
+        <span asp-validation-for="NewProduct.Price" class="text-danger small"></span>
+    </div>
+    <div class="col-md-2">
+        <label asp-for="NewProduct.StockQuantity" class="form-label"></label>
+        <input asp-for="NewProduct.StockQuantity" class="form-control" />
+        <span asp-validation-for="NewProduct.StockQuantity" class="text-danger small"></span>
+    </div>
+    <div class="col-md-1 d-flex align-items-end">
+        <button type="submit" class="btn btn-primary w-100">Přidat</button>
+    </div>
+</form>

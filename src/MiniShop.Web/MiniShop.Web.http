@@ -1,0 +1,72 @@
+# Ukázkové požadavky na API. Ve Visual Studiu / VS Code klikněte na "Send Request" nad požadavkem.
+@host = https://localhost:7180
+
+### Seznam produktů
+GET {{host}}/api/products
+
+### Detail produktu
+GET {{host}}/api/products/1
+
+### Nový produkt
+POST {{host}}/api/products
+Content-Type: application/json
+
+{
+  "name": "Webkamera",
+  "description": "Full HD 1080p",
+  "price": 1290.00,
+  "stockQuantity": 20
+}
+
+### Úprava produktu
+PUT {{host}}/api/products/1
+Content-Type: application/json
+
+{
+  "name": "Mechanická klávesnice",
+  "description": "Hnědé spínače, CZ layout, podsvícení",
+  "price": 2390.00
+}
+
+### Naskladnění
+POST {{host}}/api/products/1/stock
+Content-Type: application/json
+
+{
+  "quantity": 10
+}
+
+### Smazání produktu
+DELETE {{host}}/api/products/6
+
+### Seznam objednávek
+GET {{host}}/api/orders
+
+### Nová objednávka (10 ks kabelů => množstevní sleva 10 %)
+POST {{host}}/api/orders
+Content-Type: application/json
+
+{
+  "customerName": "Jan Novák",
+  "customerEmail": "jan.novak@example.com",
+  "items": [
+    { "productId": 1, "quantity": 1 },
+    { "productId": 4, "quantity": 10 }
+  ]
+}
+
+### Objednávka s nedostatkem zboží => 400 Bad Request
+POST {{host}}/api/orders
+Content-Type: application/json
+
+{
+  "customerName": "Petra Malá",
+  "customerEmail": "petra@example.com",
+  "items": [ { "productId": 3, "quantity": 999 } ]
+}
+
+### Vyřízení objednávky
+POST {{host}}/api/orders/1/complete
+
+### Zrušení objednávky (vrátí zboží na sklad)
+POST {{host}}/api/orders/1/cancel

@@ -18,6 +18,7 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(o => o.CreatedAtUtc)
             .HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
         builder.Ignore(o => o.TotalPrice);
+        builder.Ignore(o => o.DomainEvents);
 
         // Položky jsou uložené v privátním poli _items, EF k nim přistupuje přímo.
         builder.HasMany(o => o.Items)

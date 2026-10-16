@@ -52,7 +52,7 @@ public sealed class OrderService(
         var productsById = (await products.GetByIdsAsync(requestedItems.Select(i => i.ProductId), cancellationToken))
             .ToDictionary(p => p.Id);
 
-        var order = new Order(request.CustomerName, request.CustomerEmail, timeProvider.GetUtcNow().UtcDateTime);
+        var order = new Order(request.CustomerName, request.CustomerEmail, UtcNow);
 
         foreach (var (productId, quantity) in requestedItems)
         {
@@ -75,7 +75,7 @@ public sealed class OrderService(
     public async Task<OrderDto> CompleteAsync(int id, CancellationToken cancellationToken = default)
     {
         var order = await GetOrderAsync(id, cancellationToken);
-        order.Complete();
+        order.Complete(UtcNow);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         await notifier.OrderCompletedAsync(order, cancellationToken);
@@ -86,7 +86,7 @@ public sealed class OrderService(
     public async Task<OrderDto> CancelAsync(int id, CancellationToken cancellationToken = default)
     {
         var order = await GetOrderAsync(id, cancellationToken);
-        order.Cancel();
+        order.Cancel(UtcNow);
 
         // Vrácení zboží na sklad (produkt mezitím mohl být smazán – ten přeskočíme).
         var productsById = (await products.GetByIdsAsync(order.Items.Select(i => i.ProductId), cancellationToken))
@@ -105,6 +105,8 @@ public sealed class OrderService(
 
         return order.ToDto();
     }
+
+    private DateTime UtcNow => timeProvider.GetUtcNow().UtcDateTime;
 
     // Uplatní se nejvýhodnější sleva ze všech pravidel (slevy se nesčítají).
     private decimal CalculateDiscount(Product product, int quantity) =>

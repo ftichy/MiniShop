@@ -1,3 +1,4 @@
+using MiniShop.Domain.Common;
 using MiniShop.Domain.Exceptions;
 
 namespace MiniShop.Domain.Products;
@@ -6,7 +7,7 @@ namespace MiniShop.Domain.Products;
 /// Produkt v nabídce obchodu. Stav se mění jen přes metody, které hlídají business pravidla
 /// (zapouzdření – settery jsou privátní).
 /// </summary>
-public class Product
+public class Product : Entity
 {
     // Konstruktor pro EF Core.
     private Product()

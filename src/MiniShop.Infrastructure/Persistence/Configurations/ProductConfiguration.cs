@@ -13,5 +13,8 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Property(p => p.Name).IsRequired().HasMaxLength(100);
         builder.Property(p => p.Description).HasMaxLength(500);
         builder.Property(p => p.Price).HasPrecision(18, 2);
+
+        // Doménové události se neukládají jako sloupce (v kroku 4 půjdou do tabulky outboxu).
+        builder.Ignore(p => p.DomainEvents);
     }
 }

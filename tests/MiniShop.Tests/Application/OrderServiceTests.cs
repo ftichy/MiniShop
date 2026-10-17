@@ -1,12 +1,17 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using MiniShop.Application.Abstractions;
 using MiniShop.Application.Contracts;
 using MiniShop.Application.Exceptions;
+using MiniShop.Application.Orders.EventHandlers;
 using MiniShop.Application.Pricing;
 using MiniShop.Application.Services;
 using MiniShop.Domain.Exceptions;
 using MiniShop.Domain.Orders.Events;
 using MiniShop.Domain.Products;
+using MiniShop.Infrastructure.Events;
 using MiniShop.Infrastructure.Persistence;
 using MiniShop.Infrastructure.Repositories;
 using MiniShop.Tests.TestDoubles;
@@ -15,6 +20,8 @@ namespace MiniShop.Tests.Application;
 
 /// <summary>
 /// Testy OrderService nad skutečnou SQLite databází v paměti.
+/// Používají skutečný dispatcher a skutečné handlery z kroku 3, takže testují celou cestu
+/// "OrderService → událost → dispatcher → handler".
 /// </summary>
 public sealed class OrderServiceTests : IDisposable
 {
@@ -23,13 +30,25 @@ public sealed class OrderServiceTests : IDisposable
     private readonly SqliteConnection _connection;
     private readonly MiniShopDbContext _db;
     private readonly RecordingOrderNotifier _notifier = new();
-    private readonly RecordingDomainEventDispatcher _dispatcher = new();
+    private readonly RecordingDomainEventDispatcher _dispatcher;
     private readonly OrderService _service;
 
     public OrderServiceTests()
     {
         _connection = new SqliteConnection("DataSource=:memory:");
         _connection.Open();
+
+        // Stejné handlery jako v aplikaci (ApplicationServiceCollectionExtensions), jen nad testovací DB.
+        var services = new ServiceCollection();
+        services.AddSingleton<IOrderNotifier>(_notifier);
+        services.AddScoped<IProductRepository>(_ => new ProductRepository(_db));
+        services.AddScoped<IUnitOfWork>(_ => _db);
+        services.AddScoped<IDomainEventHandler<OrderPlaced>, SendOrderConfirmationHandler>();
+        services.AddScoped<IDomainEventHandler<OrderCompleted>, SendCompletionNoticeHandler>();
+        services.AddScoped<IDomainEventHandler<OrderCancelled>, ReturnStockOnOrderCancelledHandler>();
+        services.AddScoped<IDomainEventHandler<OrderCancelled>, SendCancellationNoticeHandler>();
+        var realDispatcher = new DomainEventDispatcher(services.BuildServiceProvider(), NullLogger<DomainEventDispatcher>.Instance);
+        _dispatcher = new RecordingDomainEventDispatcher(realDispatcher);
 
         var options = new DbContextOptionsBuilder<MiniShopDbContext>().UseSqlite(_connection).Options;
         _db = new MiniShopDbContext(options, _dispatcher);
@@ -40,7 +59,6 @@ public sealed class OrderServiceTests : IDisposable
             new ProductRepository(_db),
             _db,
             [new QuantityDiscountPolicy(minimumQuantity: 10, percentage: 0.10m)],
-            _notifier,
             new FixedTimeProvider(Now));
     }
 
@@ -155,6 +173,32 @@ public sealed class OrderServiceTests : IDisposable
             () => _service.PlaceOrderAsync(CreateRequest((product.Id, 3))));
 
         Assert.Empty(_dispatcher.Dispatched.OfType<OrderPlaced>());
+    }
+
+    [Fact]
+    public async Task Complete_PosleOznameniPresHandler()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await _service.PlaceOrderAsync(CreateRequest((product.Id, 1)));
+
+        await _service.CompleteAsync(order.Id);
+
+        Assert.Contains($"completed:{order.Id}", _notifier.Events);
+        Assert.Equal(4, (await _db.Products.SingleAsync()).StockQuantity);   // vyřízení sklad nemění
+    }
+
+    [Fact]
+    public async Task Cancel_SmazanyProdukt_HandlerHoPreskoci()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await _service.PlaceOrderAsync(CreateRequest((product.Id, 2)));
+        _db.Products.Remove(product);
+        await _db.SaveChangesAsync();
+
+        var cancelled = await _service.CancelAsync(order.Id);
+
+        Assert.Equal("Cancelled", cancelled.Status);
+        Assert.Contains($"cancelled:{order.Id}", _notifier.Events);   // ostatní handlery proběhly
     }
 
     private async Task<Product> AddProductAsync(decimal price, int stock)

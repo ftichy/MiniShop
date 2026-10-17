@@ -13,15 +13,16 @@ namespace MiniShop.Application.Services;
 /// Use-casy objednávek. Všechny závislosti jsou abstrakce předané konstruktorem (Dependency Inversion).
 /// </summary>
 /// <remarks>
-/// Teď je vše synchronní v jedné transakci: objednávka + odečtení skladu + notifikace.
-/// V EDA verzi se odečtení skladu a notifikace přesunou do samostatných handlerů události OrderPlaced.
+/// Od kroku 3 řeší jen objednávku samotnou. Vedlejší účinky (notifikace, vrácení skladu při zrušení)
+/// obstarávají handlery doménových událostí ve složce Orders/EventHandlers.
+/// Odečtení skladu při vytvoření zůstává tady: kontrola dostupnosti musí proběhnout PŘED přijetím objednávky
+/// (asynchronní rezervaci přinese sága v kroku 9).
 /// </remarks>
 public sealed class OrderService(
     IOrderRepository orders,
     IProductRepository products,
     IUnitOfWork unitOfWork,
     IEnumerable<IDiscountPolicy> discountPolicies,
-    IOrderNotifier notifier,
     TimeProvider timeProvider) : IOrderService
 {
     public async Task<IReadOnlyList<OrderDto>> GetAllAsync(CancellationToken cancellationToken = default)
@@ -66,8 +67,7 @@ public sealed class OrderService(
         }
 
         orders.Add(order);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-        await notifier.OrderPlacedAsync(order, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);   // → OrderPlaced → handlery
 
         return order.ToDto();
     }
@@ -75,10 +75,9 @@ public sealed class OrderService(
     public async Task<OrderDto> CompleteAsync(int id, CancellationToken cancellationToken = default)
     {
         var order = await GetOrderAsync(id, cancellationToken);
-        order.Complete(UtcNow);
+        order.Complete(UtcNow);                                  // vyvolá OrderCompleted
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-        await notifier.OrderCompletedAsync(order, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);   // → handlery
 
         return order.ToDto();
     }
@@ -86,22 +85,10 @@ public sealed class OrderService(
     public async Task<OrderDto> CancelAsync(int id, CancellationToken cancellationToken = default)
     {
         var order = await GetOrderAsync(id, cancellationToken);
-        order.Cancel(UtcNow);
+        order.Cancel(UtcNow);                                    // vyvolá OrderCancelled
 
-        // Vrácení zboží na sklad (produkt mezitím mohl být smazán – ten přeskočíme).
-        var productsById = (await products.GetByIdsAsync(order.Items.Select(i => i.ProductId), cancellationToken))
-            .ToDictionary(p => p.Id);
-
-        foreach (var item in order.Items)
-        {
-            if (productsById.TryGetValue(item.ProductId, out var product))
-            {
-                product.AddStock(item.Quantity);
-            }
-        }
-
+        // Vrácení zboží a oznámení zákazníkovi zajistí handlery OrderCancelled.
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        await notifier.OrderCancelledAsync(order, cancellationToken);
 
         return order.ToDto();
     }

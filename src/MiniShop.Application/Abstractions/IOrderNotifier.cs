@@ -3,8 +3,9 @@ using MiniShop.Domain.Orders;
 namespace MiniShop.Application.Abstractions;
 
 /// <summary>
-/// Oznámení o změnách objednávek (e-mail, log, ...).
-/// Při přechodu na EDA se z tohoto místa stane publikování událostí (OrderPlaced, OrderCancelled).
+/// Kanál pro oznámení zákazníkovi (dnes log, později třeba e-mail).
+/// Od kroku 3 ho nevolá OrderService, ale handlery událostí (Orders/EventHandlers):
+/// handler rozhoduje KDY zprávu poslat, notifier JAK ji poslat.
 /// </summary>
 public interface IOrderNotifier
 {

@@ -3,6 +3,7 @@ using MiniShop.Application.Abstractions;
 using MiniShop.Domain.Common;
 using MiniShop.Domain.Orders;
 using MiniShop.Domain.Products;
+using MiniShop.Infrastructure.Inbox;
 using MiniShop.Infrastructure.Outbox;
 
 namespace MiniShop.Infrastructure.Persistence;
@@ -15,6 +16,7 @@ public sealed class MiniShopDbContext(DbContextOptions<MiniShopDbContext> option
     public DbSet<Product> Products => Set<Product>();
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    public DbSet<ProcessedMessage> ProcessedMessages => Set<ProcessedMessage>();
 
     /// <summary>
     /// Outbox (krok 4): v JEDNÉ transakci uloží změny entit i řádky outboxu – buď obojí, nebo nic.
@@ -35,7 +37,11 @@ public sealed class MiniShopDbContext(DbContextOptions<MiniShopDbContext> option
 
         var domainEvents = entities.SelectMany(entity => entity.DomainEvents).ToList();
 
-        await using var transaction = await Database.BeginTransactionAsync(cancellationToken);
+        // Když už transakce běží (např. z IdempotentDomainEventHandler, krok 6), přidáme se k ní –
+        // potvrdí ji ten, kdo ji začal. Jinak si začneme vlastní.
+        await using var ownTransaction = Database.CurrentTransaction is null
+            ? await Database.BeginTransactionAsync(cancellationToken)
+            : null;
 
         // Nejdřív entity – nová objednávka tím dostane ID, které potřebuje payload v outboxu.
         var result = await base.SaveChangesAsync(cancellationToken);
@@ -43,9 +49,12 @@ public sealed class MiniShopDbContext(DbContextOptions<MiniShopDbContext> option
         OutboxMessages.AddRange(domainEvents.Select(OutboxMessageFactory.Create));
         await base.SaveChangesAsync(cancellationToken);
 
-        await transaction.CommitAsync(cancellationToken);
+        if (ownTransaction is not null)
+        {
+            await ownTransaction.CommitAsync(cancellationToken);
+        }
 
-        // Vyčistit až po commitu: když uložení selže, události zůstanou u entit.
+        // Vyčistit až po uložení: když selže, události zůstanou u entit.
         entities.ForEach(entity => entity.ClearDomainEvents());
 
         return result;

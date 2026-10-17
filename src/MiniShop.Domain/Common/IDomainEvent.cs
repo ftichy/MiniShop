@@ -6,5 +6,11 @@ namespace MiniShop.Domain.Common;
 /// </summary>
 public interface IDomainEvent
 {
+    /// <summary>
+    /// Jednoznačné "číslo zásilky" (krok 6). Při opakovaném doručení z outboxu zůstává stejné,
+    /// takže handler pozná, že tuhle událost už zpracoval.
+    /// </summary>
+    Guid EventId { get; }
+
     DateTime OccurredAtUtc { get; }
 }

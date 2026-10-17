@@ -13,15 +13,19 @@ namespace MiniShop.Infrastructure.Outbox;
 /// Payload nese jen OrderId, ale handlery čekají událost s celou entitou Order.
 /// Objednávku proto načteme z DB – handlery tak zůstávají beze změny.
 /// Pozor: handler uvidí AKTUÁLNÍ stav objednávky, ne stav v okamžiku události.
+/// EventId se převezme z řádku – při každém opakování je stejné, takže inbox (krok 6) pozná duplicitu.
 /// </remarks>
 public sealed class OutboxEventReader(IOrderRepository orders)
 {
     public async Task<IDomainEvent> ReadAsync(OutboxMessage message, CancellationToken cancellationToken = default) =>
         message.Type switch
         {
-            nameof(OrderPlaced) => new OrderPlaced(await LoadOrderAsync(message, cancellationToken), message.OccurredAtUtc),
-            nameof(OrderCompleted) => new OrderCompleted(await LoadOrderAsync(message, cancellationToken), message.OccurredAtUtc),
-            nameof(OrderCancelled) => new OrderCancelled(await LoadOrderAsync(message, cancellationToken), message.OccurredAtUtc),
+            nameof(OrderPlaced) => new OrderPlaced(await LoadOrderAsync(message, cancellationToken), message.OccurredAtUtc)
+                { EventId = message.Id },
+            nameof(OrderCompleted) => new OrderCompleted(await LoadOrderAsync(message, cancellationToken), message.OccurredAtUtc)
+                { EventId = message.Id },
+            nameof(OrderCancelled) => new OrderCancelled(await LoadOrderAsync(message, cancellationToken), message.OccurredAtUtc)
+                { EventId = message.Id },
             _ => throw new InvalidOperationException($"Neznámý typ zprávy v outboxu: {message.Type}.")
         };
 

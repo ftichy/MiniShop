@@ -9,7 +9,8 @@ namespace MiniShop.Application.Orders.EventHandlers;
 /// <remarks>
 /// Běží na pozadí (worker outboxu, krok 5) a ukládá ve vlastním SaveChangesAsync.
 /// Když tady něco selže, zpráva v outboxu zůstane nezpracovaná a worker ji zkusí znovu (max. 5×).
-/// Pozor: opakování spustí znovu i ostatní handlery OrderCancelled – idempotenci řeší krok 6.
+/// Že se zboží při opakování nevrátí dvakrát, hlídá dekorátor IdempotentDomainEventHandler (krok 6) –
+/// tenhle handler o tom nemusí nic vědět.
 /// </remarks>
 public sealed class ReturnStockOnOrderCancelledHandler(IProductRepository products, IUnitOfWork unitOfWork)
     : IDomainEventHandler<OrderCancelled>

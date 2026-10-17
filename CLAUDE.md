@@ -13,9 +13,9 @@ Cíl: postupně ho převést na EDA podle plánu v `docs/EDA-roadmap.md`.
 ```
 src/MiniShop.Domain          entity (Product, Order, OrderItem), doménové události, žádné závislosti
 src/MiniShop.Application     služby, rozhraní (repozitáře, IUnitOfWork, IOrderNotifier, IDomainEvent*), handlery událostí
-src/MiniShop.Infrastructure  EF Core, repozitáře, DomainEventDispatcher, Outbox, LoggingOrderNotifier
+src/MiniShop.Infrastructure  EF Core, repozitáře, DomainEventDispatcher, Outbox, Inbox, LoggingOrderNotifier
 src/MiniShop.Web             API controllery, Razor Pages, OutboxWorker, Program.cs (composition root)
-tests/MiniShop.Tests         testy domény, OrderService (SQLite in-memory), dispatcheru, outboxu
+tests/MiniShop.Tests         testy domény, OrderService (SQLite in-memory), dispatcheru, outboxu, inboxu
 docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), diagramy/
 ```
 
@@ -42,6 +42,8 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   Služby skládají přes `AddInfrastructure` nad sdílenou SQLite v paměti (`InMemoryDatabase`), každá akce
   běží ve vlastním scope a outbox se zpracuje ručně přes `ProcessOutboxAsync()` – žádné čekání na workera.
 - Handlery běží asynchronně (krok 5): `SaveChangesAsync` jen ukládá do outboxu, doručuje `OutboxWorker`.
+- Handlery doménových událostí se registrují **jen přes `AddDomainEventHandler<TEvent, THandler>()`**
+  (Infrastructure) – obalí je dekorátorem `IdempotentDomainEventHandler` (krok 6). Nikdy ne přímo `AddScoped<IDomainEventHandler<…>>`.
 
 ## Stav EDA (viz `docs/EDA-roadmap.md`)
 | Krok | Stav | Souhrn |
@@ -51,11 +53,12 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
 | 3. Handlery místo přímých volání v `OrderService` | hotovo | `docs/kroky/krok-03-handlery.md` |
 | 4. Outbox pattern (`OutboxMessages` v téže transakci jako data) | hotovo | `docs/kroky/krok-04-outbox.md` |
 | 5. Background worker (`OutboxWorker` → `OutboxProcessor`, jediná cesta doručení, retry max. 5×) | hotovo | `docs/kroky/krok-05-worker.md` |
-| 6. Idempotentní handlery (inbox) | **další na řadě** | |
-| 7.–11. | čeká | |
+| 6. Idempotentní handlery (`EventId`, inbox `ProcessedMessages`, dekorátor `IdempotentDomainEventHandler`) | hotovo | `docs/kroky/krok-06-inbox.md` |
+| 7. Integrační události a kontrakty | **další na řadě** | |
+| 8.–11. | čeká | |
 
-Známé omezení po kroku 5: opakované doručení spustí znovu všechny handlery události (notifikace odejde
-vícekrát) – řeší krok 6. Worker počítá s jednou instancí aplikace, retry je bez backoffu.
+Známé omezení po kroku 6: vnější akce (notifikace) nejsou v transakci – při pádu mezi odesláním a zápisem
+do inboxu odejdou znovu. Inbox se nečistí. Worker počítá s jednou instancí aplikace, retry je bez backoffu.
 `OutboxEventReader` převádí payload zpět na událost načtením `Order` podle `OrderId`.
 
 ## Postup práce na dalším kroku EDA

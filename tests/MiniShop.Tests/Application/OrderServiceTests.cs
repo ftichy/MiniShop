@@ -45,10 +45,10 @@ public sealed class OrderServiceTests : IDisposable
         // Stejné služby a handlery jako v aplikaci (ApplicationServiceCollectionExtensions).
         services.AddScoped<IOrderService, OrderService>();
         services.AddSingleton<IDiscountPolicy>(new QuantityDiscountPolicy(minimumQuantity: 10, percentage: 0.10m));
-        services.AddScoped<IDomainEventHandler<OrderPlaced>, SendOrderConfirmationHandler>();
-        services.AddScoped<IDomainEventHandler<OrderCompleted>, SendCompletionNoticeHandler>();
-        services.AddScoped<IDomainEventHandler<OrderCancelled>, ReturnStockOnOrderCancelledHandler>();
-        services.AddScoped<IDomainEventHandler<OrderCancelled>, SendCancellationNoticeHandler>();
+        services.AddDomainEventHandler<OrderPlaced, SendOrderConfirmationHandler>();
+        services.AddDomainEventHandler<OrderCompleted, SendCompletionNoticeHandler>();
+        services.AddDomainEventHandler<OrderCancelled, ReturnStockOnOrderCancelledHandler>();
+        services.AddDomainEventHandler<OrderCancelled, SendCancellationNoticeHandler>();
 
         // Testovací náhrady: notifikace do seznamu, skutečný dispatcher obalený záznamníkem.
         services.AddSingleton<IOrderNotifier>(_notifier);
@@ -229,6 +229,30 @@ public sealed class OrderServiceTests : IDisposable
         Assert.Equal("Cancelled", cancelled.Status);
         Assert.Contains($"cancelled:{order.Id}", _notifier.Events);   // ostatní handlery proběhly
         Assert.All(await Db(db => db.OutboxMessages.ToListAsync()), m => Assert.Null(m.Error));
+    }
+
+    [Fact]
+    public async Task Cancel_NotifikacePoprveSelze_PriOpakovaniSeZboziNevratiDvakrat()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 2))));
+        _notifier.CancellationFailuresLeft = 1;
+
+        await Orders(s => s.CancelAsync(order.Id));
+
+        // 1. kolo workera: vrácení skladu uspěje, notifikace selže → zpráva zůstane nezpracovaná.
+        await ProcessOutboxAsync();
+        Assert.Equal(5, await StockAsync());
+        Assert.DoesNotContain($"cancelled:{order.Id}", _notifier.Events);
+
+        // 2. kolo: inbox vrácení skladu přeskočí (krok 6), notifikace tentokrát projde.
+        await ProcessOutboxAsync();
+        Assert.Equal(5, await StockAsync());   // bez inboxu by tu bylo 7
+        Assert.Contains($"cancelled:{order.Id}", _notifier.Events);
+
+        var message = await Db(db => db.OutboxMessages.SingleAsync(m => m.Type == "OrderCancelled"));
+        Assert.NotNull(message.ProcessedAtUtc);
+        Assert.Equal(1, message.Attempts);
     }
 
     /// <summary>Zpracuje outbox, dokud v něm něco je – jako několik kol OutboxWorkeru.</summary>

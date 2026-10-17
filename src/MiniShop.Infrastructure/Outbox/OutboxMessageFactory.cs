@@ -17,7 +17,7 @@ public static class OutboxMessageFactory
 {
     public static OutboxMessage Create(IDomainEvent domainEvent) => new()
     {
-        Id = Guid.NewGuid(),
+        Id = domainEvent.EventId,   // ID řádku = ID události, aby ho worker mohl vrátit do znovu sestavené události
         Type = domainEvent.GetType().Name,
         Payload = JsonSerializer.Serialize(ToPayload(domainEvent)),
         OccurredAtUtc = domainEvent.OccurredAtUtc

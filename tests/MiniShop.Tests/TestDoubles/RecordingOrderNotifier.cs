@@ -10,6 +10,9 @@ public sealed class RecordingOrderNotifier : IOrderNotifier
 {
     public List<string> Events { get; } = new();
 
+    /// <summary>Kolikrát má oznámení o zrušení ještě selhat – simuluje nedostupný e-mailový server.</summary>
+    public int CancellationFailuresLeft { get; set; }
+
     public Task OrderPlacedAsync(Order order, CancellationToken cancellationToken = default)
     {
         Events.Add($"placed:{order.Id}");
@@ -18,6 +21,12 @@ public sealed class RecordingOrderNotifier : IOrderNotifier
 
     public Task OrderCancelledAsync(Order order, CancellationToken cancellationToken = default)
     {
+        if (CancellationFailuresLeft > 0)
+        {
+            CancellationFailuresLeft--;
+            throw new InvalidOperationException("E-mailový server nedostupný");
+        }
+
         Events.Add($"cancelled:{order.Id}");
         return Task.CompletedTask;
     }

@@ -1,8 +1,8 @@
-using MiniShop.Application.Abstractions;
 using MiniShop.Application.Orders.EventHandlers;
 using MiniShop.Application.Pricing;
 using MiniShop.Application.Services;
 using MiniShop.Domain.Orders.Events;
+using MiniShop.Infrastructure;
 
 namespace MiniShop.Web.Extensions;
 
@@ -22,10 +22,11 @@ public static class ApplicationServiceCollectionExtensions
         services.AddSingleton(TimeProvider.System);
 
         // Handlery doménových událostí (krok 3). Na jednu událost může poslouchat více handlerů.
-        services.AddScoped<IDomainEventHandler<OrderPlaced>, SendOrderConfirmationHandler>();
-        services.AddScoped<IDomainEventHandler<OrderCompleted>, SendCompletionNoticeHandler>();
-        services.AddScoped<IDomainEventHandler<OrderCancelled>, ReturnStockOnOrderCancelledHandler>();
-        services.AddScoped<IDomainEventHandler<OrderCancelled>, SendCancellationNoticeHandler>();
+        // AddDomainEventHandler je obalí dekorátorem, který hlídá opakované doručení (krok 6).
+        services.AddDomainEventHandler<OrderPlaced, SendOrderConfirmationHandler>();
+        services.AddDomainEventHandler<OrderCompleted, SendCompletionNoticeHandler>();
+        services.AddDomainEventHandler<OrderCancelled, ReturnStockOnOrderCancelledHandler>();
+        services.AddDomainEventHandler<OrderCancelled, SendCancellationNoticeHandler>();
 
         return services;
     }

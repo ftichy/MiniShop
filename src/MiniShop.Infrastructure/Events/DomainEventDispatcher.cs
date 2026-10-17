@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MiniShop.Application.Abstractions;
 using MiniShop.Domain.Common;
+using MiniShop.Infrastructure.Inbox;
 
 namespace MiniShop.Infrastructure.Events;
 
@@ -57,8 +58,10 @@ public sealed class DomainEventDispatcher(IServiceProvider serviceProvider, ILog
                 }
                 catch (Exception ex)
                 {
+                    // U dekorátoru (krok 6) logujeme skutečný handler, ne obal.
+                    var handlerType = (handler as IDomainEventHandlerDecorator)?.InnerHandlerType ?? handler.GetType();
                     logger.LogError(ex, "Handler {Handler} selhal při zpracování události {Event}",
-                        handler.GetType().Name, typeof(TEvent).Name);
+                        handlerType.Name, typeof(TEvent).Name);
                     failures.Add(ex);
                 }
             }

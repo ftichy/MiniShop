@@ -77,7 +77,7 @@ public class DomainEventDispatcherTests
     }
 
     [Fact]
-    public async Task Dispatch_ChybaVJednomHandleru_OstatniBeziDal()
+    public async Task Dispatch_ChybaVJednomHandleru_OstatniBeziDalAChybaSeNahlasi()
     {
         var (dispatcher, recorder) = Create(s =>
         {
@@ -85,8 +85,11 @@ public class DomainEventDispatcherTests
             s.AddScoped<IDomainEventHandler<OrderPlaced>, SecondPlacedHandler>();
         });
 
-        await dispatcher.DispatchAsync(new IDomainEvent[] { new OrderPlaced(NewOrder(), Now) });
+        // Krok 4: chyba se na konci nahlásí, aby outbox nechal událost jako nezpracovanou.
+        var error = await Assert.ThrowsAsync<AggregateException>(
+            () => dispatcher.DispatchAsync(new IDomainEvent[] { new OrderPlaced(NewOrder(), Now) }));
 
         Assert.Equal(new[] { "second:placed" }, recorder.Calls);
+        Assert.IsType<InvalidOperationException>(Assert.Single(error.InnerExceptions));
     }
 }

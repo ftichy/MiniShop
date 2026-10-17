@@ -41,8 +41,9 @@ public sealed class OrderServiceTests : IDisposable
         // Stejné handlery jako v aplikaci (ApplicationServiceCollectionExtensions), jen nad testovací DB.
         var services = new ServiceCollection();
         services.AddSingleton<IOrderNotifier>(_notifier);
-        services.AddScoped<IProductRepository>(_ => new ProductRepository(_db));
-        services.AddScoped<IUnitOfWork>(_ => _db);
+        // _db se přiřadí až níže (potřebuje dispatcher), lambdy se ale volají až při dispatchi – tehdy už existuje.
+        services.AddScoped<IProductRepository>(_ => new ProductRepository(_db!));
+        services.AddScoped<IUnitOfWork>(_ => _db!);
         services.AddScoped<IDomainEventHandler<OrderPlaced>, SendOrderConfirmationHandler>();
         services.AddScoped<IDomainEventHandler<OrderCompleted>, SendCompletionNoticeHandler>();
         services.AddScoped<IDomainEventHandler<OrderCancelled>, ReturnStockOnOrderCancelledHandler>();
@@ -51,7 +52,7 @@ public sealed class OrderServiceTests : IDisposable
         _dispatcher = new RecordingDomainEventDispatcher(realDispatcher);
 
         var options = new DbContextOptionsBuilder<MiniShopDbContext>().UseSqlite(_connection).Options;
-        _db = new MiniShopDbContext(options, _dispatcher);
+        _db = new MiniShopDbContext(options, _dispatcher, new FixedTimeProvider(Now));
         _db.Database.EnsureCreated();
 
         _service = new OrderService(
@@ -107,6 +108,7 @@ public sealed class OrderServiceTests : IDisposable
             () => _service.PlaceOrderAsync(CreateRequest((product.Id, 3))));
 
         Assert.Empty(await _db.Orders.ToListAsync());
+        Assert.Empty(await _db.OutboxMessages.ToListAsync());
         Assert.Empty(_notifier.Events);
     }
 
@@ -162,6 +164,22 @@ public sealed class OrderServiceTests : IDisposable
 
         var cancelled = Assert.Single(_dispatcher.Dispatched.OfType<OrderCancelled>());
         Assert.Equal(order.Id, cancelled.Order.Id);
+    }
+
+    [Fact]
+    public async Task Cancel_UdalostVOutboxuJeZpracovanaAZboziVraceno()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await _service.PlaceOrderAsync(CreateRequest((product.Id, 2)));
+
+        await _service.CancelAsync(order.Id);
+
+        // Krok 4: stejná cesta jako dřív, jen s pojistkou v outboxu.
+        // Čas je v testu pevný, takže pořadí podle OccurredAtUtc nerozhodne – porovnáme seřazené typy.
+        var messages = await _db.OutboxMessages.AsNoTracking().ToListAsync();
+        Assert.Equal(new[] { "OrderCancelled", "OrderPlaced" }, messages.Select(m => m.Type).Order());
+        Assert.All(messages, m => Assert.NotNull(m.ProcessedAtUtc));
+        Assert.Equal(5, (await _db.Products.AsNoTracking().SingleAsync()).StockQuantity);
     }
 
     [Fact]

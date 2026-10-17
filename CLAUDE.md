@@ -13,9 +13,9 @@ Cíl: postupně ho převést na EDA podle plánu v `docs/EDA-roadmap.md`.
 ```
 src/MiniShop.Domain          entity (Product, Order, OrderItem), doménové události, žádné závislosti
 src/MiniShop.Application     služby, rozhraní (repozitáře, IUnitOfWork, IOrderNotifier, IDomainEvent*), handlery událostí
-src/MiniShop.Infrastructure  EF Core, repozitáře, DomainEventDispatcher, LoggingOrderNotifier
+src/MiniShop.Infrastructure  EF Core, repozitáře, DomainEventDispatcher, Outbox, LoggingOrderNotifier
 src/MiniShop.Web             API controllery, Razor Pages, Program.cs (composition root)
-tests/MiniShop.Tests         testy domény, OrderService (SQLite in-memory), dispatcheru
+tests/MiniShop.Tests         testy domény, OrderService (SQLite in-memory), dispatcheru, outboxu
 docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), diagramy/
 ```
 
@@ -43,11 +43,13 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
 | 1. Doménové události (`Entity`, `IDomainEvent`, `OrderPlaced/Completed/Cancelled`) | hotovo | — |
 | 2. In-process dispatcher (`DomainEventDispatcher`, dispatch po `SaveChangesAsync`) | hotovo | `docs/kroky/krok-02-dispatcher.md` |
 | 3. Handlery místo přímých volání v `OrderService` | hotovo | `docs/kroky/krok-03-handlery.md` |
-| 4. Outbox pattern | **další na řadě** | |
-| 5.–11. | čeká | |
+| 4. Outbox pattern (`OutboxMessages` v téže transakci, dispatch hned po commitu) | hotovo | `docs/kroky/krok-04-outbox.md` |
+| 5. Background worker pro outbox | **další na řadě** | |
+| 6.–11. | čeká | |
 
-Známé omezení po kroku 3: `ReturnStockOnOrderCancelledHandler` ukládá ve druhém `SaveChangesAsync`
-a dispatcher chyby handlerů jen loguje → při chybě se zboží nevrátí (dual-write). Řeší krok 4 + 5.
+Známé omezení po kroku 4: řádky outboxu se `Error` a `ProcessedAtUtc = NULL` nikdo znovu nezpracuje
+(krok 5) a opakování by spustilo i handlery, které už uspěly (krok 6). Payload v outboxu je JSON
+`OrderPayload` – worker ho bude muset převést zpět na doménovou událost (např. načtením `Order` podle `OrderId`).
 
 ## Postup práce na dalším kroku EDA
 1. Nejdřív **shrň**, co se bude přidávat/měnit a **proč** (teorie + konkrétní případ v MiniShopu),

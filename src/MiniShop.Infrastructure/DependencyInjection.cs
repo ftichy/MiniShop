@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using MiniShop.Application.Abstractions;
 using MiniShop.Domain.Orders.Events;
 using MiniShop.Infrastructure.Events;
@@ -14,6 +15,8 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, string connectionString)
     {
+        // DbContext potřebuje čas pro ProcessedAtUtc v outboxu (krok 4). Obvykle ho už zaregistrovala aplikační vrstva.
+        services.TryAddSingleton(TimeProvider.System);
         services.AddDbContext<MiniShopDbContext>(options => options.UseSqlite(connectionString));
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<MiniShopDbContext>());
 

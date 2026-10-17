@@ -11,7 +11,7 @@ namespace MiniShop.Infrastructure.Events;
 /// </summary>
 /// <remarks>
 /// Chyba v jednom handleru se zaloguje a ostatní handlery běží dál – data už jsou v tuto chvíli uložená.
-/// Událost, jejíž handler selhal, se ale ztratí. To vyřeší outbox v kroku 4.
+/// Na konci se selhání nahlásí výjimkou, aby outbox (krok 4) nechal událost jako nezpracovanou.
 /// </remarks>
 public sealed class DomainEventDispatcher(IServiceProvider serviceProvider, ILogger<DomainEventDispatcher> logger)
     : IDomainEventDispatcher
@@ -21,24 +21,33 @@ public sealed class DomainEventDispatcher(IServiceProvider serviceProvider, ILog
 
     public async Task DispatchAsync(IEnumerable<IDomainEvent> domainEvents, CancellationToken cancellationToken = default)
     {
+        var failures = new List<Exception>();
+
         foreach (var domainEvent in domainEvents)
         {
             var invoker = Invokers.GetOrAdd(
                 domainEvent.GetType(),
                 eventType => (HandlerInvoker)Activator.CreateInstance(typeof(HandlerInvoker<>).MakeGenericType(eventType))!);
 
-            await invoker.InvokeAsync(serviceProvider, domainEvent, logger, cancellationToken);
+            await invoker.InvokeAsync(serviceProvider, domainEvent, logger, failures, cancellationToken);
+        }
+
+        if (failures.Count > 0)
+        {
+            throw new AggregateException("Některé handlery doménových událostí selhaly.", failures);
         }
     }
 
     internal abstract class HandlerInvoker
     {
-        public abstract Task InvokeAsync(IServiceProvider services, IDomainEvent domainEvent, ILogger logger, CancellationToken cancellationToken);
+        public abstract Task InvokeAsync(
+            IServiceProvider services, IDomainEvent domainEvent, ILogger logger, List<Exception> failures, CancellationToken cancellationToken);
     }
 
     internal sealed class HandlerInvoker<TEvent> : HandlerInvoker where TEvent : IDomainEvent
     {
-        public override async Task InvokeAsync(IServiceProvider services, IDomainEvent domainEvent, ILogger logger, CancellationToken cancellationToken)
+        public override async Task InvokeAsync(
+            IServiceProvider services, IDomainEvent domainEvent, ILogger logger, List<Exception> failures, CancellationToken cancellationToken)
         {
             foreach (var handler in services.GetServices<IDomainEventHandler<TEvent>>())
             {
@@ -50,6 +59,7 @@ public sealed class DomainEventDispatcher(IServiceProvider serviceProvider, ILog
                 {
                     logger.LogError(ex, "Handler {Handler} selhal při zpracování události {Event}",
                         handler.GetType().Name, typeof(TEvent).Name);
+                    failures.Add(ex);
                 }
             }
         }

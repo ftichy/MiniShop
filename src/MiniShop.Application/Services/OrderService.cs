@@ -15,6 +15,8 @@ namespace MiniShop.Application.Services;
 /// <remarks>
 /// Od kroku 3 řeší jen objednávku samotnou. Vedlejší účinky (notifikace, vrácení skladu při zrušení)
 /// obstarávají handlery doménových událostí ve složce Orders/EventHandlers.
+/// Od kroku 5 běží handlery asynchronně: SaveChangesAsync uloží událost do outboxu a worker ji
+/// doručí o chvilku později (eventual consistency).
 /// Odečtení skladu při vytvoření zůstává tady: kontrola dostupnosti musí proběhnout PŘED přijetím objednávky
 /// (asynchronní rezervaci přinese sága v kroku 9).
 /// </remarks>
@@ -67,7 +69,7 @@ public sealed class OrderService(
         }
 
         orders.Add(order);
-        await unitOfWork.SaveChangesAsync(cancellationToken);   // → OrderPlaced → handlery
+        await unitOfWork.SaveChangesAsync(cancellationToken);   // → OrderPlaced do outboxu → později handlery
 
         return order.ToDto();
     }
@@ -77,7 +79,7 @@ public sealed class OrderService(
         var order = await GetOrderAsync(id, cancellationToken);
         order.Complete(UtcNow);                                  // vyvolá OrderCompleted
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);   // → handlery
+        await unitOfWork.SaveChangesAsync(cancellationToken);   // → outbox → později handlery
 
         return order.ToDto();
     }
@@ -87,7 +89,7 @@ public sealed class OrderService(
         var order = await GetOrderAsync(id, cancellationToken);
         order.Cancel(UtcNow);                                    // vyvolá OrderCancelled
 
-        // Vrácení zboží a oznámení zákazníkovi zajistí handlery OrderCancelled.
+        // Vrácení zboží a oznámení zákazníkovi zajistí handlery OrderCancelled (o chvilku později, přes outbox).
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return order.ToDto();

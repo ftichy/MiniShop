@@ -6,7 +6,7 @@ namespace MiniShop.Infrastructure.Outbox;
 /// </summary>
 /// <remarks>
 /// ProcessedAtUtc = null znamená "ještě nedoručeno" (nebo doručení selhalo, viz Error).
-/// Takové řádky bude v kroku 5 opakovaně zpracovávat worker na pozadí.
+/// Takové řádky zpracovává <see cref="OutboxProcessor"/> (krok 5), dokud neuspěje nebo nevyčerpá pokusy.
 /// </remarks>
 public sealed class OutboxMessage
 {
@@ -25,4 +25,10 @@ public sealed class OutboxMessage
 
     /// <summary>Text poslední chyby při doručení; null = bez chyby.</summary>
     public string? Error { get; set; }
+
+    /// <summary>
+    /// Počet neúspěšných pokusů o doručení. Po <see cref="OutboxProcessor.MaxAttempts"/> se zpráva
+    /// přestane zkoušet ("poison message") a čeká, až se na ni podívá člověk.
+    /// </summary>
+    public int Attempts { get; set; }
 }

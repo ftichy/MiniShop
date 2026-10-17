@@ -6,6 +6,7 @@ using MiniShop.Domain.Orders.Events;
 using MiniShop.Infrastructure.Events;
 using MiniShop.Infrastructure.Events.Handlers;
 using MiniShop.Infrastructure.Notifications;
+using MiniShop.Infrastructure.Outbox;
 using MiniShop.Infrastructure.Persistence;
 using MiniShop.Infrastructure.Repositories;
 
@@ -15,8 +16,6 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, string connectionString)
     {
-        // DbContext potřebuje čas pro ProcessedAtUtc v outboxu (krok 4). Obvykle ho už zaregistrovala aplikační vrstva.
-        services.TryAddSingleton(TimeProvider.System);
         services.AddDbContext<MiniShopDbContext>(options => options.UseSqlite(connectionString));
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<MiniShopDbContext>());
 
@@ -25,11 +24,17 @@ public static class DependencyInjection
         services.AddScoped<IOrderNotifier, LoggingOrderNotifier>();
 
         // Doménové události (krok 2): dispatcher + handlery.
-        // Scoped – handlery tak sdílejí stejný DbContext jako požadavek, který událost vyvolal.
+        // Scoped – handlery sdílejí DbContext se scope, ve kterém OutboxProcessor zprávu zpracovává.
         services.AddScoped<IDomainEventDispatcher, DomainEventDispatcher>();
         services.AddScoped<IDomainEventHandler<OrderPlaced>, OrderEventsLogHandler>();
         services.AddScoped<IDomainEventHandler<OrderCompleted>, OrderEventsLogHandler>();
         services.AddScoped<IDomainEventHandler<OrderCancelled>, OrderEventsLogHandler>();
+
+        // Outbox (kroky 4 a 5): procesor je singleton a pro každou zprávu si otevře vlastní scope.
+        // Čas pro ProcessedAtUtc; obvykle ho už zaregistrovala aplikační vrstva.
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddScoped<OutboxEventReader>();
+        services.AddSingleton<OutboxProcessor>();
 
         return services;
     }

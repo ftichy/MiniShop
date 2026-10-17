@@ -1,6 +1,6 @@
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using MiniShop.Application.Abstractions;
 using MiniShop.Application.Contracts;
@@ -8,59 +8,56 @@ using MiniShop.Application.Exceptions;
 using MiniShop.Application.Orders.EventHandlers;
 using MiniShop.Application.Pricing;
 using MiniShop.Application.Services;
+using MiniShop.Domain.Common;
 using MiniShop.Domain.Exceptions;
 using MiniShop.Domain.Orders.Events;
 using MiniShop.Domain.Products;
+using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Events;
+using MiniShop.Infrastructure.Outbox;
 using MiniShop.Infrastructure.Persistence;
-using MiniShop.Infrastructure.Repositories;
 using MiniShop.Tests.TestDoubles;
 
 namespace MiniShop.Tests.Application;
 
 /// <summary>
 /// Testy OrderService nad skutečnou SQLite databází v paměti.
-/// Používají skutečný dispatcher a skutečné handlery z kroku 3, takže testují celou cestu
-/// "OrderService → událost → dispatcher → handler".
+/// Skládají stejné služby jako aplikace (AddInfrastructure + handlery z kroku 3) a každá akce běží
+/// ve vlastním scope jako HTTP požadavek. Od kroku 5 handlery neběží hned – test proto po akci
+/// "zavolá pošťáka" (<see cref="ProcessOutboxAsync"/>), stejně jako by to udělal OutboxWorker.
 /// </summary>
 public sealed class OrderServiceTests : IDisposable
 {
     private static readonly DateTimeOffset Now = new(2026, 1, 15, 10, 0, 0, TimeSpan.Zero);
 
-    private readonly SqliteConnection _connection;
-    private readonly MiniShopDbContext _db;
+    private readonly InMemoryDatabase _database = new();
     private readonly RecordingOrderNotifier _notifier = new();
-    private readonly RecordingDomainEventDispatcher _dispatcher;
-    private readonly OrderService _service;
+    private readonly List<IDomainEvent> _dispatched = new();
+    private readonly ServiceProvider _services;
 
     public OrderServiceTests()
     {
-        _connection = new SqliteConnection("DataSource=:memory:");
-        _connection.Open();
-
-        // Stejné handlery jako v aplikaci (ApplicationServiceCollectionExtensions), jen nad testovací DB.
         var services = new ServiceCollection();
-        services.AddSingleton<IOrderNotifier>(_notifier);
-        // _db se přiřadí až níže (potřebuje dispatcher), lambdy se ale volají až při dispatchi – tehdy už existuje.
-        services.AddScoped<IProductRepository>(_ => new ProductRepository(_db!));
-        services.AddScoped<IUnitOfWork>(_ => _db!);
+        services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
+        services.AddSingleton<TimeProvider>(new FixedTimeProvider(Now));
+        services.AddInfrastructure(_database.ConnectionString);
+
+        // Stejné služby a handlery jako v aplikaci (ApplicationServiceCollectionExtensions).
+        services.AddScoped<IOrderService, OrderService>();
+        services.AddSingleton<IDiscountPolicy>(new QuantityDiscountPolicy(minimumQuantity: 10, percentage: 0.10m));
         services.AddScoped<IDomainEventHandler<OrderPlaced>, SendOrderConfirmationHandler>();
         services.AddScoped<IDomainEventHandler<OrderCompleted>, SendCompletionNoticeHandler>();
         services.AddScoped<IDomainEventHandler<OrderCancelled>, ReturnStockOnOrderCancelledHandler>();
         services.AddScoped<IDomainEventHandler<OrderCancelled>, SendCancellationNoticeHandler>();
-        var realDispatcher = new DomainEventDispatcher(services.BuildServiceProvider(), NullLogger<DomainEventDispatcher>.Instance);
-        _dispatcher = new RecordingDomainEventDispatcher(realDispatcher);
 
-        var options = new DbContextOptionsBuilder<MiniShopDbContext>().UseSqlite(_connection).Options;
-        _db = new MiniShopDbContext(options, _dispatcher, new FixedTimeProvider(Now));
-        _db.Database.EnsureCreated();
+        // Testovací náhrady: notifikace do seznamu, skutečný dispatcher obalený záznamníkem.
+        services.AddSingleton<IOrderNotifier>(_notifier);
+        services.AddScoped<DomainEventDispatcher>();
+        services.AddScoped<IDomainEventDispatcher>(sp =>
+            new RecordingDomainEventDispatcher(_dispatched, sp.GetRequiredService<DomainEventDispatcher>()));
 
-        _service = new OrderService(
-            new OrderRepository(_db),
-            new ProductRepository(_db),
-            _db,
-            [new QuantityDiscountPolicy(minimumQuantity: 10, percentage: 0.10m)],
-            new FixedTimeProvider(Now));
+        _services = services.BuildServiceProvider();
+        Db(db => db.Database.EnsureCreatedAsync()).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -68,13 +65,27 @@ public sealed class OrderServiceTests : IDisposable
     {
         var product = await AddProductAsync(price: 100m, stock: 5);
 
-        var order = await _service.PlaceOrderAsync(CreateRequest((product.Id, 3)));
+        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 3))));
+        await ProcessOutboxAsync();
 
         Assert.True(order.Id > 0);
         Assert.Equal(300m, order.TotalPrice);
         Assert.Equal(Now.UtcDateTime, order.CreatedAtUtc);
-        Assert.Equal(2, (await _db.Products.SingleAsync()).StockQuantity);
+        Assert.Equal(2, await StockAsync());
         Assert.Contains($"placed:{order.Id}", _notifier.Events);
+    }
+
+    [Fact]
+    public async Task PlaceOrder_PredZpracovanimOutboxu_HandleryJesteNeprobehly()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+
+        await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 1))));
+
+        // Krok 5: požadavek skončil hned po uložení, událost čeká v outboxu na workera.
+        Assert.Empty(_notifier.Events);
+        var message = await Db(db => db.OutboxMessages.SingleAsync());
+        Assert.Null(message.ProcessedAtUtc);
     }
 
     [Fact]
@@ -82,7 +93,7 @@ public sealed class OrderServiceTests : IDisposable
     {
         var product = await AddProductAsync(price: 100m, stock: 50);
 
-        var order = await _service.PlaceOrderAsync(CreateRequest((product.Id, 10)));
+        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 10))));
 
         Assert.Equal(100m, order.Items.Single().Discount);
         Assert.Equal(900m, order.TotalPrice);
@@ -93,7 +104,7 @@ public sealed class OrderServiceTests : IDisposable
     {
         var product = await AddProductAsync(price: 100m, stock: 50);
 
-        var order = await _service.PlaceOrderAsync(CreateRequest((product.Id, 4), (product.Id, 6)));
+        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 4), (product.Id, 6))));
 
         var item = Assert.Single(order.Items);
         Assert.Equal(10, item.Quantity);
@@ -105,30 +116,48 @@ public sealed class OrderServiceTests : IDisposable
         var product = await AddProductAsync(price: 100m, stock: 2);
 
         await Assert.ThrowsAsync<InsufficientStockException>(
-            () => _service.PlaceOrderAsync(CreateRequest((product.Id, 3))));
+            () => Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 3)))));
+        await ProcessOutboxAsync();
 
-        Assert.Empty(await _db.Orders.ToListAsync());
-        Assert.Empty(await _db.OutboxMessages.ToListAsync());
+        Assert.Empty(await Db(db => db.Orders.ToListAsync()));
+        Assert.Empty(await Db(db => db.OutboxMessages.ToListAsync()));
         Assert.Empty(_notifier.Events);
+        Assert.Empty(_dispatched);
     }
 
     [Fact]
     public async Task PlaceOrder_NeexistujiciProdukt_VyhodiNotFound()
     {
         await Assert.ThrowsAsync<NotFoundException>(
-            () => _service.PlaceOrderAsync(CreateRequest((999, 1))));
+            () => Orders(s => s.PlaceOrderAsync(CreateRequest((999, 1)))));
+    }
+
+    [Fact]
+    public async Task PlaceOrder_WorkerRozesleOrderPlacedSeZnamymId()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+
+        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 1))));
+        await ProcessOutboxAsync();
+
+        var placed = Assert.Single(_dispatched.OfType<OrderPlaced>());
+        Assert.Equal(order.Id, placed.Order.Id);
+        Assert.Single(placed.Order.Items);   // objednávka znovu načtená z DB i s položkami
     }
 
     [Fact]
     public async Task Cancel_VratiZboziNaSklad()
     {
         var product = await AddProductAsync(price: 100m, stock: 5);
-        var order = await _service.PlaceOrderAsync(CreateRequest((product.Id, 5)));
+        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 5))));
 
-        var cancelled = await _service.CancelAsync(order.Id);
+        var cancelled = await Orders(s => s.CancelAsync(order.Id));
+        Assert.Equal(0, await StockAsync());   // eventual consistency: zboží se ještě nevrátilo
+
+        await ProcessOutboxAsync();
 
         Assert.Equal("Cancelled", cancelled.Status);
-        Assert.Equal(5, (await _db.Products.SingleAsync()).StockQuantity);
+        Assert.Equal(5, await StockAsync());
         Assert.Contains($"cancelled:{order.Id}", _notifier.Events);
     }
 
@@ -136,96 +165,104 @@ public sealed class OrderServiceTests : IDisposable
     public async Task Cancel_VyrizenouObjednavku_VyhodiDomainException()
     {
         var product = await AddProductAsync(price: 100m, stock: 5);
-        var order = await _service.PlaceOrderAsync(CreateRequest((product.Id, 1)));
-        await _service.CompleteAsync(order.Id);
+        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 1))));
+        await Orders(s => s.CompleteAsync(order.Id));
 
-        await Assert.ThrowsAsync<DomainException>(() => _service.CancelAsync(order.Id));
+        await Assert.ThrowsAsync<DomainException>(() => Orders(s => s.CancelAsync(order.Id)));
     }
 
     [Fact]
-    public async Task PlaceOrder_PoUlozeniRozesleOrderPlacedSeZnamymId()
+    public async Task Cancel_WorkerRozesleOrderCancelled()
     {
         var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 1))));
 
-        var order = await _service.PlaceOrderAsync(CreateRequest((product.Id, 1)));
+        await Orders(s => s.CancelAsync(order.Id));
+        await ProcessOutboxAsync();
 
-        var placed = Assert.Single(_dispatcher.Dispatched.OfType<OrderPlaced>());
-        Assert.Equal(order.Id, placed.Order.Id);   // ID existuje => dispatch proběhl až po uložení
-        Assert.Empty(placed.Order.DomainEvents);    // události se po rozeslání vyčistily
-    }
-
-    [Fact]
-    public async Task Cancel_RozesleOrderCancelled()
-    {
-        var product = await AddProductAsync(price: 100m, stock: 5);
-        var order = await _service.PlaceOrderAsync(CreateRequest((product.Id, 1)));
-
-        await _service.CancelAsync(order.Id);
-
-        var cancelled = Assert.Single(_dispatcher.Dispatched.OfType<OrderCancelled>());
+        var cancelled = Assert.Single(_dispatched.OfType<OrderCancelled>());
         Assert.Equal(order.Id, cancelled.Order.Id);
     }
 
     [Fact]
-    public async Task Cancel_UdalostVOutboxuJeZpracovanaAZboziVraceno()
+    public async Task Cancel_UdalostiVOutboxuJsouPoZpracovaniOznacene()
     {
         var product = await AddProductAsync(price: 100m, stock: 5);
-        var order = await _service.PlaceOrderAsync(CreateRequest((product.Id, 2)));
+        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 2))));
+        await Orders(s => s.CancelAsync(order.Id));
 
-        await _service.CancelAsync(order.Id);
+        await ProcessOutboxAsync();
 
-        // Krok 4: stejná cesta jako dřív, jen s pojistkou v outboxu.
         // Čas je v testu pevný, takže pořadí podle OccurredAtUtc nerozhodne – porovnáme seřazené typy.
-        var messages = await _db.OutboxMessages.AsNoTracking().ToListAsync();
+        var messages = await Db(db => db.OutboxMessages.ToListAsync());
         Assert.Equal(new[] { "OrderCancelled", "OrderPlaced" }, messages.Select(m => m.Type).Order());
-        Assert.All(messages, m => Assert.NotNull(m.ProcessedAtUtc));
-        Assert.Equal(5, (await _db.Products.AsNoTracking().SingleAsync()).StockQuantity);
-    }
-
-    [Fact]
-    public async Task NeuspesneUlozeni_NicNerozesle()
-    {
-        var product = await AddProductAsync(price: 100m, stock: 2);
-
-        await Assert.ThrowsAsync<InsufficientStockException>(
-            () => _service.PlaceOrderAsync(CreateRequest((product.Id, 3))));
-
-        Assert.Empty(_dispatcher.Dispatched.OfType<OrderPlaced>());
+        Assert.All(messages, m => Assert.Equal(Now.UtcDateTime, m.ProcessedAtUtc));
     }
 
     [Fact]
     public async Task Complete_PosleOznameniPresHandler()
     {
         var product = await AddProductAsync(price: 100m, stock: 5);
-        var order = await _service.PlaceOrderAsync(CreateRequest((product.Id, 1)));
+        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 1))));
 
-        await _service.CompleteAsync(order.Id);
+        await Orders(s => s.CompleteAsync(order.Id));
+        await ProcessOutboxAsync();
 
         Assert.Contains($"completed:{order.Id}", _notifier.Events);
-        Assert.Equal(4, (await _db.Products.SingleAsync()).StockQuantity);   // vyřízení sklad nemění
+        Assert.Equal(4, await StockAsync());   // vyřízení sklad nemění
     }
 
     [Fact]
     public async Task Cancel_SmazanyProdukt_HandlerHoPreskoci()
     {
         var product = await AddProductAsync(price: 100m, stock: 5);
-        var order = await _service.PlaceOrderAsync(CreateRequest((product.Id, 2)));
-        _db.Products.Remove(product);
-        await _db.SaveChangesAsync();
+        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 2))));
+        await Db(async db =>
+        {
+            db.Products.Remove(await db.Products.SingleAsync());
+            return await db.SaveChangesAsync();
+        });
 
-        var cancelled = await _service.CancelAsync(order.Id);
+        var cancelled = await Orders(s => s.CancelAsync(order.Id));
+        await ProcessOutboxAsync();
 
         Assert.Equal("Cancelled", cancelled.Status);
         Assert.Contains($"cancelled:{order.Id}", _notifier.Events);   // ostatní handlery proběhly
+        Assert.All(await Db(db => db.OutboxMessages.ToListAsync()), m => Assert.Null(m.Error));
     }
 
-    private async Task<Product> AddProductAsync(decimal price, int stock)
+    /// <summary>Zpracuje outbox, dokud v něm něco je – jako několik kol OutboxWorkeru.</summary>
+    private async Task ProcessOutboxAsync()
+    {
+        var processor = _services.GetRequiredService<OutboxProcessor>();
+        while (await processor.ProcessPendingAsync() == OutboxProcessor.BatchSize)
+        {
+        }
+    }
+
+    /// <summary>Zavolá OrderService ve vlastním scope – jako jeden HTTP požadavek.</summary>
+    private async Task<T> Orders<T>(Func<IOrderService, Task<T>> action)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await action(scope.ServiceProvider.GetRequiredService<IOrderService>());
+    }
+
+    /// <summary>Přímý přístup k DB ve vlastním scope (čerstvý DbContext, žádná data z cache).</summary>
+    private async Task<T> Db<T>(Func<MiniShopDbContext, Task<T>> action)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await action(scope.ServiceProvider.GetRequiredService<MiniShopDbContext>());
+    }
+
+    private Task<int> StockAsync() => Db(async db => (await db.Products.SingleAsync()).StockQuantity);
+
+    private Task<Product> AddProductAsync(decimal price, int stock) => Db(async db =>
     {
         var product = new Product("Testovací produkt", null, price, stock);
-        _db.Products.Add(product);
-        await _db.SaveChangesAsync();
+        db.Products.Add(product);
+        await db.SaveChangesAsync();
         return product;
-    }
+    });
 
     private static CreateOrderRequest CreateRequest(params (int ProductId, int Quantity)[] items) => new()
     {
@@ -236,7 +273,7 @@ public sealed class OrderServiceTests : IDisposable
 
     public void Dispose()
     {
-        _db.Dispose();
-        _connection.Dispose();
+        _services.Dispose();
+        _database.Dispose();
     }
 }

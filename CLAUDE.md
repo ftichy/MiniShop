@@ -14,7 +14,7 @@ Cíl: postupně ho převést na EDA podle plánu v `docs/EDA-roadmap.md`.
 src/MiniShop.Domain          entity (Product, Order, OrderItem), doménové události, žádné závislosti
 src/MiniShop.Application     služby, rozhraní (repozitáře, IUnitOfWork, IOrderNotifier, IDomainEvent*), handlery událostí
 src/MiniShop.Infrastructure  EF Core, repozitáře, DomainEventDispatcher, Outbox, LoggingOrderNotifier
-src/MiniShop.Web             API controllery, Razor Pages, Program.cs (composition root)
+src/MiniShop.Web             API controllery, Razor Pages, OutboxWorker, Program.cs (composition root)
 tests/MiniShop.Tests         testy domény, OrderService (SQLite in-memory), dispatcheru, outboxu
 docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), diagramy/
 ```
@@ -33,9 +33,15 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   `src/MiniShop.Infrastructure/DependencyInjection.cs`.
 - Entity mění stav jen přes metody s business pravidly; čas se předává parametrem (z `TimeProvider`),
   doména nevolá `DateTime.UtcNow`.
+- Logování přes **Serilog** (jen v `MiniShop.Web`): konzole + denní soubor `src/MiniShop.Web/logs/minishop-RRRRMMDD.log`
+  (7 dní, v `.gitignore`). Úrovně a cíle v sekci `Serilog` v appsettings, ne v `Logging`. Ostatní vrstvy
+  logují přes `ILogger<T>` a o Serilogu nevědí.
 - Databáze vzniká přes `EnsureCreated` (bez migrací). **Při změně schématu** (nová tabulka/sloupec)
   je potřeba smazat `src/MiniShop.Web/minishop.db` – upozorni na to uživatele.
 - Testy OrderService používají skutečný dispatcher a skutečné handlery (testují celou cestu).
+  Služby skládají přes `AddInfrastructure` nad sdílenou SQLite v paměti (`InMemoryDatabase`), každá akce
+  běží ve vlastním scope a outbox se zpracuje ručně přes `ProcessOutboxAsync()` – žádné čekání na workera.
+- Handlery běží asynchronně (krok 5): `SaveChangesAsync` jen ukládá do outboxu, doručuje `OutboxWorker`.
 
 ## Stav EDA (viz `docs/EDA-roadmap.md`)
 | Krok | Stav | Souhrn |
@@ -43,13 +49,14 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
 | 1. Doménové události (`Entity`, `IDomainEvent`, `OrderPlaced/Completed/Cancelled`) | hotovo | — |
 | 2. In-process dispatcher (`DomainEventDispatcher`, dispatch po `SaveChangesAsync`) | hotovo | `docs/kroky/krok-02-dispatcher.md` |
 | 3. Handlery místo přímých volání v `OrderService` | hotovo | `docs/kroky/krok-03-handlery.md` |
-| 4. Outbox pattern (`OutboxMessages` v téže transakci, dispatch hned po commitu) | hotovo | `docs/kroky/krok-04-outbox.md` |
-| 5. Background worker pro outbox | **další na řadě** | |
-| 6.–11. | čeká | |
+| 4. Outbox pattern (`OutboxMessages` v téže transakci jako data) | hotovo | `docs/kroky/krok-04-outbox.md` |
+| 5. Background worker (`OutboxWorker` → `OutboxProcessor`, jediná cesta doručení, retry max. 5×) | hotovo | `docs/kroky/krok-05-worker.md` |
+| 6. Idempotentní handlery (inbox) | **další na řadě** | |
+| 7.–11. | čeká | |
 
-Známé omezení po kroku 4: řádky outboxu se `Error` a `ProcessedAtUtc = NULL` nikdo znovu nezpracuje
-(krok 5) a opakování by spustilo i handlery, které už uspěly (krok 6). Payload v outboxu je JSON
-`OrderPayload` – worker ho bude muset převést zpět na doménovou událost (např. načtením `Order` podle `OrderId`).
+Známé omezení po kroku 5: opakované doručení spustí znovu všechny handlery události (notifikace odejde
+vícekrát) – řeší krok 6. Worker počítá s jednou instancí aplikace, retry je bez backoffu.
+`OutboxEventReader` převádí payload zpět na událost načtením `Order` podle `OrderId`.
 
 ## Postup práce na dalším kroku EDA
 1. Nejdřív **shrň**, co se bude přidávat/měnit a **proč** (teorie + konkrétní případ v MiniShopu),

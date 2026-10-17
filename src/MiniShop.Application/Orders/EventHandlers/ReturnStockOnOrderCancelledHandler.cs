@@ -7,9 +7,9 @@ namespace MiniShop.Application.Orders.EventHandlers;
 /// Po zrušení objednávky vrátí zboží z jejích položek zpět na sklad.
 /// </summary>
 /// <remarks>
-/// Běží až PO uložení zrušené objednávky a ukládá ve vlastním, druhém SaveChangesAsync.
-/// Když tady něco selže, zboží se zatím nevrátí – ale díky outboxu (krok 4) zůstane v tabulce
-/// OutboxMessages nezpracovaný řádek s chybou, takže se na to nezapomene. Opakování přinese krok 5.
+/// Běží na pozadí (worker outboxu, krok 5) a ukládá ve vlastním SaveChangesAsync.
+/// Když tady něco selže, zpráva v outboxu zůstane nezpracovaná a worker ji zkusí znovu (max. 5×).
+/// Pozor: opakování spustí znovu i ostatní handlery OrderCancelled – idempotenci řeší krok 6.
 /// </remarks>
 public sealed class ReturnStockOnOrderCancelledHandler(IProductRepository products, IUnitOfWork unitOfWork)
     : IDomainEventHandler<OrderCancelled>

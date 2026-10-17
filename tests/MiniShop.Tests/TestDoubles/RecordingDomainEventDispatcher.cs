@@ -4,16 +4,16 @@ using MiniShop.Domain.Common;
 namespace MiniShop.Tests.TestDoubles;
 
 /// <summary>
-/// Testovací dispatcher – zapamatuje si rozeslané události a volitelně je předá skutečnému dispatcheru.
+/// Testovací dispatcher – zapíše rozeslané události do sdíleného seznamu a volitelně je předá skutečnému dispatcheru.
+/// Seznam je sdílený, protože dispatcher je scoped a každá zpráva z outboxu dostane vlastní instanci.
 /// </summary>
-public sealed class RecordingDomainEventDispatcher(IDomainEventDispatcher? inner = null) : IDomainEventDispatcher
+public sealed class RecordingDomainEventDispatcher(List<IDomainEvent> dispatched, IDomainEventDispatcher? inner = null)
+    : IDomainEventDispatcher
 {
-    public List<IDomainEvent> Dispatched { get; } = new();
-
     public async Task DispatchAsync(IEnumerable<IDomainEvent> domainEvents, CancellationToken cancellationToken = default)
     {
         var list = domainEvents.ToList();
-        Dispatched.AddRange(list);
+        dispatched.AddRange(list);
 
         if (inner is not null)
         {

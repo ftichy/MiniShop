@@ -1,7 +1,6 @@
 using MiniShop.Domain.Common;
 using MiniShop.Domain.Exceptions;
 using MiniShop.Domain.Orders.Events;
-using MiniShop.Domain.Products;
 
 namespace MiniShop.Domain.Orders;
 
@@ -59,9 +58,15 @@ public class Order : Entity
 
     public decimal TotalPrice => _items.Sum(i => i.LineTotal);
 
-    public void AddItem(Product product, int quantity, decimal discount)
+    /// <summary>Název a cena se berou z lokální kopie katalogu (krok 10) a uloží se jako snímek v položce.</summary>
+    public void AddItem(CatalogProduct product, int quantity, decimal discount)
     {
         EnsureStatus(OrderStatus.Pending, "Položky lze přidávat jen do nové objednávky.");
+        if (product.IsRemoved)
+        {
+            throw new DomainException($"Produkt {product.Name} už není v nabídce.");
+        }
+
         _items.Add(new OrderItem(product.Id, product.Name, product.Price, quantity, discount));
     }
 

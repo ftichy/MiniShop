@@ -5,10 +5,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using MiniShop.Application.Abstractions;
 using MiniShop.Domain.Orders;
 using MiniShop.Domain.Orders.Events;
-using MiniShop.Domain.Products;
 using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Inbox;
-using MiniShop.Infrastructure.Persistence;
+using MiniShop.Infrastructure.Ordering;
 using MiniShop.Tests.TestDoubles;
 
 namespace MiniShop.Tests.Infrastructure;
@@ -21,7 +20,8 @@ public sealed class IdempotentHandlerTests : IDisposable
 {
     private static readonly DateTimeOffset Now = new(2026, 1, 15, 10, 0, 0, TimeSpan.Zero);
 
-    private readonly InMemoryDatabase _database = new();
+    private readonly InMemoryDatabase _ordering = new();
+    private readonly InMemoryDatabase _inventory = new();
     private readonly Switch _switch = new();
     private readonly ServiceProvider _services;
 
@@ -31,13 +31,14 @@ public sealed class IdempotentHandlerTests : IDisposable
         public int Calls { get; set; }
     }
 
-    /// <summary>Handler, který přičte 1 ks na sklad, uloží – a na povel pak selže (změna už je v DB, ale nepotvrzená).</summary>
-    private sealed class AddOneToStockHandler(MiniShopDbContext db, Switch @switch) : IDomainEventHandler<OrderCancelled>
+    /// <summary>Handler, který zvýší cenu v kopii katalogu o 1 Kč, uloží – a na povel pak selže (změna už je v DB, ale nepotvrzená).</summary>
+    private sealed class AddOneToPriceHandler(OrderingDbContext db, Switch @switch) : IDomainEventHandler<OrderCancelled>
     {
         public async Task HandleAsync(OrderCancelled domainEvent, CancellationToken cancellationToken)
         {
             @switch.Calls++;
-            (await db.Products.SingleAsync(cancellationToken)).AddStock(1);
+            var product = await db.CatalogProducts.SingleAsync(cancellationToken);
+            product.Apply(product.Name, product.Price + 1, product.ChangedAtUtc);
             await db.SaveChangesAsync(cancellationToken);
 
             if (@switch.FailAfterSave)
@@ -62,7 +63,7 @@ public sealed class IdempotentHandlerTests : IDisposable
         var services = new ServiceCollection();
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         services.AddSingleton<TimeProvider>(new FixedTimeProvider(Now));
-        services.AddInfrastructure(_database.ConnectionString);
+        services.AddInfrastructure(_ordering.ConnectionString, _inventory.ConnectionString);
         services.AddSingleton(_switch);
 
         _services = services.BuildServiceProvider();
@@ -72,47 +73,47 @@ public sealed class IdempotentHandlerTests : IDisposable
     [Fact]
     public async Task StejnaUdalostDvakrat_HandlerProbehneJenJednou()
     {
-        using var services = BuildWith(s => s.AddDomainEventHandler<OrderCancelled, AddOneToStockHandler>());
+        using var services = BuildWith(s => s.AddDomainEventHandler<OrderCancelled, AddOneToPriceHandler>());
         var cancelled = await CreateCancelledEventAsync();
 
         await DispatchAsync(services, cancelled);
         await DispatchAsync(services, cancelled);   // opakované doručení – stejné EventId
 
         Assert.Equal(1, _switch.Calls);
-        Assert.Equal(6, await StockAsync());   // 5 + 1, ne 5 + 2
-        var processed = Assert.Single(await InboxOfAsync<AddOneToStockHandler>());
+        Assert.Equal(101m, await PriceAsync());   // 100 + 1, ne 100 + 2
+        var processed = Assert.Single(await InboxOfAsync<AddOneToPriceHandler>());
         Assert.Equal(cancelled.EventId, processed.EventId);
     }
 
     [Fact]
     public async Task JinaUdalost_HandlerProbehneZnovu()
     {
-        using var services = BuildWith(s => s.AddDomainEventHandler<OrderCancelled, AddOneToStockHandler>());
+        using var services = BuildWith(s => s.AddDomainEventHandler<OrderCancelled, AddOneToPriceHandler>());
         var cancelled = await CreateCancelledEventAsync();
 
         await DispatchAsync(services, cancelled);
         await DispatchAsync(services, cancelled with { EventId = Guid.NewGuid() });
 
         Assert.Equal(2, _switch.Calls);
-        Assert.Equal(7, await StockAsync());
+        Assert.Equal(102m, await PriceAsync());
     }
 
     [Fact]
     public async Task ChybaHandleru_ZmenySeVratiANicSeNeodskrtne()
     {
-        using var services = BuildWith(s => s.AddDomainEventHandler<OrderCancelled, AddOneToStockHandler>());
+        using var services = BuildWith(s => s.AddDomainEventHandler<OrderCancelled, AddOneToPriceHandler>());
         var cancelled = await CreateCancelledEventAsync();
         _switch.FailAfterSave = true;
 
         await Assert.ThrowsAsync<AggregateException>(() => DispatchAsync(services, cancelled));
 
-        Assert.Equal(5, await StockAsync());   // SaveChanges handleru proběhl, ale transakce se vrátila
-        Assert.Empty(await InboxOfAsync<AddOneToStockHandler>());
+        Assert.Equal(100m, await PriceAsync());   // SaveChanges handleru proběhl, ale transakce se vrátila
+        Assert.Empty(await InboxOfAsync<AddOneToPriceHandler>());
 
         // Opakování po odstranění chyby projde a změnu uloží.
         _switch.FailAfterSave = false;
         await DispatchAsync(services, cancelled);
-        Assert.Equal(6, await StockAsync());
+        Assert.Equal(101m, await PriceAsync());
     }
 
     [Fact]
@@ -120,7 +121,7 @@ public sealed class IdempotentHandlerTests : IDisposable
     {
         using var services = BuildWith(s =>
         {
-            s.AddDomainEventHandler<OrderCancelled, AddOneToStockHandler>();
+            s.AddDomainEventHandler<OrderCancelled, AddOneToPriceHandler>();
             s.AddDomainEventHandler<OrderCancelled, CountingHandler>();
         });
         var cancelled = await CreateCancelledEventAsync();
@@ -138,7 +139,7 @@ public sealed class IdempotentHandlerTests : IDisposable
         var services = new ServiceCollection();
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         services.AddSingleton<TimeProvider>(new FixedTimeProvider(Now));
-        services.AddInfrastructure(_database.ConnectionString);
+        services.AddInfrastructure(_ordering.ConnectionString, _inventory.ConnectionString);
         services.AddSingleton(_switch);
         register(services);
         return services.BuildServiceProvider();
@@ -153,8 +154,7 @@ public sealed class IdempotentHandlerTests : IDisposable
 
     private Task<OrderCancelled> CreateCancelledEventAsync() => Db(async db =>
     {
-        var product = new Product("Testovací produkt", null, 100m, 5);
-        db.Products.Add(product);
+        db.CatalogProducts.Add(new CatalogProduct(1, "Testovací produkt", 100m, Now.UtcDateTime));
         var order = new Order("Jan Novák", "jan@example.com", Now.UtcDateTime);
         db.Orders.Add(order);
         await db.SaveChangesAsync();
@@ -167,17 +167,18 @@ public sealed class IdempotentHandlerTests : IDisposable
             .Where(m => m.Handler == typeof(THandler).FullName)
             .ToList();
 
-    private Task<int> StockAsync() => Db(async db => (await db.Products.SingleAsync()).StockQuantity);
+    private Task<decimal> PriceAsync() => Db(async db => (await db.CatalogProducts.SingleAsync()).Price);
 
-    private async Task<T> Db<T>(Func<MiniShopDbContext, Task<T>> action)
+    private async Task<T> Db<T>(Func<OrderingDbContext, Task<T>> action)
     {
         await using var scope = _services.CreateAsyncScope();
-        return await action(scope.ServiceProvider.GetRequiredService<MiniShopDbContext>());
+        return await action(scope.ServiceProvider.GetRequiredService<OrderingDbContext>());
     }
 
     public void Dispose()
     {
         _services.Dispose();
-        _database.Dispose();
+        _ordering.Dispose();
+        _inventory.Dispose();
     }
 }

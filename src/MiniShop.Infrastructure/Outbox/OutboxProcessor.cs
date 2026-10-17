@@ -16,18 +16,16 @@ namespace MiniShop.Infrastructure.Outbox;
 /// Singleton – DbContext a handlery jsou scoped, proto si pro každou zprávu vytvoří nový scope (nový DbContext).
 /// Rozpracované změny handleru, který selhal, se tak nepřenesou do zpracování další zprávy.
 /// Počítá s jedinou instancí aplikace; při více instancích by bylo potřeba zprávy zamykat.
+/// Od kroku 10 má každý modul vlastní outbox (TDbContext) a vlastního pošťáka – OutboxWorker volá všechny.
 /// </remarks>
-public sealed class OutboxProcessor(
+public sealed class OutboxProcessor<TDbContext>(
     IServiceScopeFactory scopeFactory,
     TimeProvider timeProvider,
-    ILogger<OutboxProcessor> logger)
+    ILogger<OutboxProcessor<TDbContext>> logger) : IOutboxProcessor
+    where TDbContext : ModuleDbContext
 {
-    /// <summary>Kolik zpráv se zpracuje v jednom kole.</summary>
-    public const int BatchSize = 20;
-
-    /// <summary>Po tolika neúspěšných pokusech se zpráva přestane zkoušet (poison message).</summary>
-    public const int MaxAttempts = 5;
-
+    private const int BatchSize = OutboxProcessor.BatchSize;
+    private const int MaxAttempts = OutboxProcessor.MaxAttempts;
     private const int MaxErrorLength = 2000;
 
     /// <summary>
@@ -39,7 +37,7 @@ public sealed class OutboxProcessor(
         List<OutboxMessage> pending;
         await using (var scope = scopeFactory.CreateAsyncScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<MiniShopDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<TDbContext>();
             pending = await db.OutboxMessages
                 .AsNoTracking()
                 .Where(m => m.ProcessedAtUtc == null && m.Attempts < MaxAttempts)
@@ -70,7 +68,7 @@ public sealed class OutboxProcessor(
     {
         await using var scope = scopeFactory.CreateAsyncScope();
         var services = scope.ServiceProvider;
-        var db = services.GetRequiredService<MiniShopDbContext>();
+        var db = services.GetRequiredService<TDbContext>();
 
         try
         {
@@ -83,7 +81,7 @@ public sealed class OutboxProcessor(
             }
             else
             {
-                var domainEvent = await services.GetRequiredService<OutboxEventReader>().ReadAsync(message, cancellationToken);
+                var domainEvent = await services.GetRequiredService<IDomainEventReader>().ReadAsync(message, cancellationToken);
                 await services.GetRequiredService<IDomainEventDispatcher>().DispatchAsync([domainEvent], cancellationToken);
             }
 
@@ -133,4 +131,21 @@ public sealed class OutboxProcessor(
     }
 
     private static string Truncate(string error) => error.Length > MaxErrorLength ? error[..MaxErrorLength] : error;
+}
+
+/// <summary>Pošťák outboxu jednoho modulu – OutboxWorker volá všechny zaregistrované (krok 10).</summary>
+public interface IOutboxProcessor
+{
+    /// <summary>Zpracuje jednu dávku nezpracovaných zpráv. Vrací počet zpráv, které zkusil doručit.</summary>
+    Task<int> ProcessPendingAsync(CancellationToken cancellationToken = default);
+}
+
+/// <summary>Společná nastavení outboxu všech modulů.</summary>
+public static class OutboxProcessor
+{
+    /// <summary>Kolik zpráv se zpracuje v jednom kole.</summary>
+    public const int BatchSize = 20;
+
+    /// <summary>Po tolika neúspěšných pokusech se zpráva přestane zkoušet (poison message).</summary>
+    public const int MaxAttempts = 5;
 }

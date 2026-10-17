@@ -2,6 +2,9 @@ using MiniShop.Contracts;
 
 namespace MiniShop.Infrastructure.Integration;
 
+/// <summary>Modul a jeho databáze (krok 10). Vzniká v AddIntegrationModule.</summary>
+public sealed record IntegrationModule(string Name, Type DbContextType);
+
 /// <summary>
 /// Jeden záznam "modul X zpracovává zprávu Y handlerem Z". Vzniká v AddIntegrationMessageHandler.
 /// Invoke zavolá handler bez reflexe – typy jsou známé už při registraci.
@@ -24,9 +27,19 @@ public sealed class IntegrationMessageRouting
 {
     private readonly IReadOnlyList<IntegrationMessageSubscription> _subscriptions;
 
-    public IntegrationMessageRouting(IEnumerable<IntegrationMessageSubscription> subscriptions)
+    private readonly IReadOnlyDictionary<string, Type> _moduleDbContexts;
+
+    public IntegrationMessageRouting(IEnumerable<IntegrationMessageSubscription> subscriptions, IEnumerable<IntegrationModule> modules)
     {
         _subscriptions = subscriptions.ToList();
+        _moduleDbContexts = modules.ToDictionary(m => m.Name, m => m.DbContextType);
+
+        var unknownModule = _subscriptions.Select(s => s.Module).FirstOrDefault(m => !_moduleDbContexts.ContainsKey(m));
+        if (unknownModule is not null)
+        {
+            throw new InvalidOperationException(
+                $"Modul {unknownModule} má handlery, ale není zaregistrovaný (AddIntegrationModule) – nevím, kde má inbox.");
+        }
 
         var commandWithMoreHandlers = _subscriptions
             .Where(s => typeof(IIntegrationCommand).IsAssignableFrom(s.MessageType))
@@ -50,6 +63,9 @@ public sealed class IntegrationMessageRouting
     /// <summary>Názvy kontraktů, které modul odebírá – na ty se v RabbitMQ naváže jeho fronta.</summary>
     public IReadOnlyList<string> ContractNamesFor(string module) =>
         _subscriptions.Where(s => s.Module == module).Select(s => s.MessageType.Name).Distinct().ToList();
+
+    /// <summary>Databáze modulu – v ní leží inbox jeho handlerů (krok 10).</summary>
+    public Type DbContextTypeFor(string module) => _moduleDbContexts[module];
 
     public IReadOnlyList<IntegrationMessageSubscription> For(string module, Type messageType) =>
         _subscriptions.Where(s => s.Module == module && s.MessageType == messageType).ToList();

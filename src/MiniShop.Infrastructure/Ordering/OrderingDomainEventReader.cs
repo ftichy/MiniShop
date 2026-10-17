@@ -1,13 +1,14 @@
 using System.Text.Json;
-using MiniShop.Application.Abstractions;
+using MiniShop.Application.Ordering;
+using MiniShop.Infrastructure.Outbox;
 using MiniShop.Domain.Common;
 using MiniShop.Domain.Orders;
 using MiniShop.Domain.Orders.Events;
 
-namespace MiniShop.Infrastructure.Outbox;
+namespace MiniShop.Infrastructure.Ordering;
 
 /// <summary>
-/// Opak <see cref="OutboxMessageFactory"/>: z řádku outboxu znovu sestaví doménovou událost.
+/// Opak <see cref="OrderingDomainEvents"/>: z řádku outboxu znovu sestaví doménovou událost objednávky.
 /// </summary>
 /// <remarks>
 /// Payload nese jen OrderId, ale handlery čekají událost s celou entitou Order.
@@ -15,7 +16,7 @@ namespace MiniShop.Infrastructure.Outbox;
 /// Pozor: handler uvidí AKTUÁLNÍ stav objednávky, ne stav v okamžiku události.
 /// EventId se převezme z řádku – při každém opakování je stejné, takže inbox (krok 6) pozná duplicitu.
 /// </remarks>
-public sealed class OutboxEventReader(IOrderRepository orders)
+public sealed class OrderingDomainEventReader(IOrderRepository orders) : IDomainEventReader
 {
     public async Task<IDomainEvent> ReadAsync(OutboxMessage message, CancellationToken cancellationToken = default) =>
         message.Type switch

@@ -1,6 +1,6 @@
 using MiniShop.Domain.Inventory;
 
-namespace MiniShop.Application.Abstractions;
+namespace MiniShop.Application.Inventory;
 
 /// <summary>Rezervace skladu (krok 9, modul Inventory).</summary>
 public interface IStockReservationRepository

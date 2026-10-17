@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace MiniShop.Application.Contracts;
+namespace MiniShop.Application.Inventory;
 
 public sealed record ProductDto(int Id, string Name, string? Description, decimal Price, int StockQuantity);
 

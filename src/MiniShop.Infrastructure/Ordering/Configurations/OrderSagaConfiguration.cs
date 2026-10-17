@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using MiniShop.Domain.Orders.Saga;
 
-namespace MiniShop.Infrastructure.Persistence.Configurations;
+namespace MiniShop.Infrastructure.Ordering.Configurations;
 
 internal sealed class OrderSagaConfiguration : IEntityTypeConfiguration<OrderSaga>
 {

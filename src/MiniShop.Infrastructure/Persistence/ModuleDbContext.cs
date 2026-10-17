@@ -1,31 +1,34 @@
 using Microsoft.EntityFrameworkCore;
 using MiniShop.Application.Abstractions;
 using MiniShop.Domain.Common;
-using MiniShop.Domain.Inventory;
-using MiniShop.Domain.Orders;
-using MiniShop.Domain.Orders.Saga;
-using MiniShop.Domain.Products;
 using MiniShop.Infrastructure.Inbox;
 using MiniShop.Infrastructure.Outbox;
+using MiniShop.Infrastructure.Persistence.Configurations;
 
 namespace MiniShop.Infrastructure.Persistence;
 
 /// <summary>
-/// EF Core kontext. Zároveň slouží jako Unit of Work: spolu se změnami entit ukládá doménové události do outboxu.
+/// Společný základ databáze modulu (krok 10): každý modul má vlastní databázi a v ní vlastní outbox a inbox.
+/// Outbox musí ležet ve STEJNÉ databázi jako data modulu – jinak by změna dat a zpráva nebyly v jedné transakci.
 /// </summary>
-public sealed class MiniShopDbContext(DbContextOptions<MiniShopDbContext> options) : DbContext(options), IUnitOfWork
+/// <remarks>
+/// Potomci: OrderingDbContext (ordering.db) a InventoryDbContext (inventory.db). Každý určí, jaké entity má
+/// (<see cref="ConfigureModule"/>) a jak se jeho doménové události zapíšou do outboxu (<see cref="ToOutboxMessage"/>).
+/// </remarks>
+public abstract class ModuleDbContext(DbContextOptions options) : DbContext(options), IUnitOfWork
 {
-    public DbSet<Product> Products => Set<Product>();
-    public DbSet<Order> Orders => Set<Order>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<ProcessedMessage> ProcessedMessages => Set<ProcessedMessage>();
-    public DbSet<OrderSaga> OrderSagas => Set<OrderSaga>();
-    public DbSet<StockReservation> StockReservations => Set<StockReservation>();
+
+    /// <summary>Jak doménovou událost modulu zapsat do outboxu (doménová zpráva, nebo rovnou integrační).</summary>
+    protected abstract OutboxMessage ToOutboxMessage(IDomainEvent domainEvent);
+
+    /// <summary>Entity modulu (konfigurace EF).</summary>
+    protected abstract void ConfigureModule(ModelBuilder modelBuilder);
 
     /// <summary>
     /// Outbox (krok 4): v JEDNÉ transakci uloží změny entit i řádky outboxu – buď obojí, nebo nic.
-    /// Události se tady nerozesílají: doručí je později <see cref="OutboxProcessor"/> na pozadí (krok 5).
-    /// HTTP požadavek tak skončí hned po uložení a nečeká na handlery.
+    /// Události se tady nerozesílají: doručí je později OutboxProcessor na pozadí (krok 5).
     /// </summary>
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -41,16 +44,16 @@ public sealed class MiniShopDbContext(DbContextOptions<MiniShopDbContext> option
 
         var domainEvents = entities.SelectMany(entity => entity.DomainEvents).ToList();
 
-        // Když už transakce běží (např. z IdempotentDomainEventHandler, krok 6), přidáme se k ní –
+        // Když už transakce běží (např. z inboxu, krok 6), přidáme se k ní –
         // potvrdí ji ten, kdo ji začal. Jinak si začneme vlastní.
         await using var ownTransaction = Database.CurrentTransaction is null
             ? await Database.BeginTransactionAsync(cancellationToken)
             : null;
 
-        // Nejdřív entity – nová objednávka tím dostane ID, které potřebuje payload v outboxu.
+        // Nejdřív entity – nová entita tím dostane ID, které potřebuje zpráva v outboxu.
         var result = await base.SaveChangesAsync(cancellationToken);
 
-        OutboxMessages.AddRange(domainEvents.Select(OutboxMessageFactory.Create));
+        OutboxMessages.AddRange(domainEvents.Select(ToOutboxMessage));
         await base.SaveChangesAsync(cancellationToken);
 
         if (ownTransaction is not null)
@@ -64,8 +67,10 @@ public sealed class MiniShopDbContext(DbContextOptions<MiniShopDbContext> option
         return result;
     }
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    protected sealed override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(MiniShopDbContext).Assembly);
+        modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());
+        modelBuilder.ApplyConfiguration(new ProcessedMessageConfiguration());
+        ConfigureModule(modelBuilder);
     }
 }

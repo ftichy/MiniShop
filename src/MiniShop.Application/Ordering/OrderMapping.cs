@@ -1,17 +1,12 @@
-using MiniShop.Application.Contracts;
 using MiniShop.Domain.Orders;
-using MiniShop.Domain.Products;
 
-namespace MiniShop.Application.Mapping;
+namespace MiniShop.Application.Ordering;
 
 /// <summary>
-/// Převod doménových objektů na DTO. Doména se tak nikdy nevrací přímo z API.
+/// Převod objednávky na DTO. Doména se tak nikdy nevrací přímo z API.
 /// </summary>
-public static class MappingExtensions
+public static class OrderMapping
 {
-    public static ProductDto ToDto(this Product product) =>
-        new(product.Id, product.Name, product.Description, product.Price, product.StockQuantity);
-
     public static OrderDto ToDto(this Order order) =>
         new(
             order.Id,

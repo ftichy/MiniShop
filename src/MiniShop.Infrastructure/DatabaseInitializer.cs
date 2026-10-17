@@ -1,34 +1,44 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using MiniShop.Domain.Products;
+using MiniShop.Domain.Inventory;
+using MiniShop.Infrastructure.Inventory;
+using MiniShop.Infrastructure.Ordering;
 
-namespace MiniShop.Infrastructure.Persistence;
+namespace MiniShop.Infrastructure;
 
-public static class DbInitializer
+public static class DatabaseInitializer
 {
     /// <summary>
-    /// Vytvoří databázi (pokud neexistuje) a naplní ji ukázkovými produkty.
+    /// Vytvoří databáze modulů (pokud neexistují) a naplní sklad ukázkovými produkty.
     /// Pro jednoduchost používáme EnsureCreated; později lze přejít na EF migrace.
     /// </summary>
-    public static async Task InitializeAsync(IServiceProvider services, CancellationToken cancellationToken = default)
+    /// <remarks>
+    /// Krok 10: produkty se zakládají jen ve skladu (inventory.db). Do kopie katalogu v Orderingu se dostanou
+    /// stejně jako každý jiný nový produkt – přes ProductUpdatedV1 z outboxu, pár sekund po startu.
+    /// </remarks>
+    public static async Task InitializeAsync(IServiceProvider services, TimeProvider timeProvider,
+        CancellationToken cancellationToken = default)
     {
         await using var scope = services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<MiniShopDbContext>();
 
-        await db.Database.EnsureCreatedAsync(cancellationToken);
+        await scope.ServiceProvider.GetRequiredService<OrderingDbContext>().Database.EnsureCreatedAsync(cancellationToken);
 
-        if (await db.Products.AnyAsync(cancellationToken))
+        var inventory = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
+        await inventory.Database.EnsureCreatedAsync(cancellationToken);
+
+        if (await inventory.Products.AnyAsync(cancellationToken))
         {
             return;
         }
 
-        db.Products.AddRange(
-            new Product("Mechanická klávesnice", "Klávesnice s hnědými spínači, CZ layout", 2490m, 15),
-            new Product("Bezdrátová myš", "Ergonomická myš, 2,4 GHz + Bluetooth", 890m, 40),
-            new Product("Monitor 27\"", "27\" IPS, 2560×1440, 144 Hz", 7990m, 5),
-            new Product("USB-C kabel 1 m", "Nabíjecí a datový kabel, 100 W", 199m, 120),
-            new Product("Sluchátka", "Uzavřená sluchátka s mikrofonem", 1590m, 12));
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        inventory.Products.AddRange(
+            new Product("Mechanická klávesnice", "Klávesnice s hnědými spínači, CZ layout", 2490m, 15, now),
+            new Product("Bezdrátová myš", "Ergonomická myš, 2,4 GHz + Bluetooth", 890m, 40, now),
+            new Product("Monitor 27\"", "27\" IPS, 2560×1440, 144 Hz", 7990m, 5, now),
+            new Product("USB-C kabel 1 m", "Nabíjecí a datový kabel, 100 W", 199m, 120, now),
+            new Product("Sluchátka", "Uzavřená sluchátka s mikrofonem", 1590m, 12, now));
 
-        await db.SaveChangesAsync(cancellationToken);
+        await inventory.SaveChangesAsync(cancellationToken);   // → 5× ProductUpdatedV1 do outboxu skladu
     }
 }

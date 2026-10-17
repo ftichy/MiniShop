@@ -1,12 +1,18 @@
 using MiniShop.Domain.Common;
 using MiniShop.Domain.Exceptions;
+using MiniShop.Domain.Inventory.Events;
 
-namespace MiniShop.Domain.Products;
+namespace MiniShop.Domain.Inventory;
 
 /// <summary>
 /// Produkt v nabídce obchodu. Stav se mění jen přes metody, které hlídají business pravidla
 /// (zapouzdření – settery jsou privátní).
 /// </summary>
+/// <remarks>
+/// Od kroku 10 patří modulu Inventory (vlastní databáze inventory.db). Ordering ho nevidí – drží si vlastní kopii
+/// názvu a ceny (CatalogProduct), kterou plní události <see cref="ProductChanged"/> / <see cref="ProductRemoved"/>.
+/// Změna zásoby (rezervace) událost nevyvolá – ordering o skladu nic vědět nepotřebuje.
+/// </remarks>
 public class Product : Entity
 {
     // Konstruktor pro EF Core.
@@ -14,14 +20,14 @@ public class Product : Entity
     {
     }
 
-    public Product(string name, string? description, decimal price, int stockQuantity)
+    public Product(string name, string? description, decimal price, int stockQuantity, DateTime createdAtUtc)
     {
         if (stockQuantity < 0)
         {
             throw new DomainException("Skladová zásoba nemůže být záporná.");
         }
 
-        Update(name, description, price);
+        Update(name, description, price, createdAtUtc);
         StockQuantity = stockQuantity;
     }
 
@@ -31,7 +37,7 @@ public class Product : Entity
     public decimal Price { get; private set; }
     public int StockQuantity { get; private set; }
 
-    public void Update(string name, string? description, decimal price)
+    public void Update(string name, string? description, decimal price, DateTime updatedAtUtc)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -46,6 +52,18 @@ public class Product : Entity
         Name = name.Trim();
         Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
         Price = price;
+
+        // Nový i změněný produkt: Ordering si podle toho aktualizuje svou kopii katalogu (krok 10).
+        // Při opakovaném Update před uložením stačí poslední stav – starší událost zahodíme.
+        RemoveDomainEvents<ProductChanged>();
+        Raise(new ProductChanged(this, updatedAtUtc));
+    }
+
+    /// <summary>Produkt se maže z nabídky – před odebráním z repozitáře, aby se dala vyvolat událost.</summary>
+    public void MarkRemoved(DateTime removedAtUtc)
+    {
+        RemoveDomainEvents<ProductChanged>();
+        Raise(new ProductRemoved(Id, removedAtUtc));
     }
 
     public void AddStock(int quantity)

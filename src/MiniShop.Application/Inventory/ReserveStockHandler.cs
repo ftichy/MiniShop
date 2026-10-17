@@ -15,8 +15,8 @@ namespace MiniShop.Application.Inventory;
 public sealed class ReserveStockHandler(
     IProductRepository products,
     IStockReservationRepository reservations,
-    IIntegrationMessagePublisher publisher,
-    IUnitOfWork unitOfWork,
+    IInventoryMessagePublisher publisher,
+    IInventoryUnitOfWork unitOfWork,
     TimeProvider timeProvider) : IIntegrationMessageHandler<ReserveStockV1>
 {
     public async Task HandleAsync(ReserveStockV1 command, CancellationToken cancellationToken)

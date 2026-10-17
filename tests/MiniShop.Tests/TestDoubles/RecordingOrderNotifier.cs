@@ -1,4 +1,4 @@
-using MiniShop.Application.Abstractions;
+using MiniShop.Application.Ordering;
 using MiniShop.Domain.Orders;
 
 namespace MiniShop.Tests.TestDoubles;

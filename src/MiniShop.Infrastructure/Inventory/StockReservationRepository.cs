@@ -1,11 +1,10 @@
 using Microsoft.EntityFrameworkCore;
-using MiniShop.Application.Abstractions;
+using MiniShop.Application.Inventory;
 using MiniShop.Domain.Inventory;
-using MiniShop.Infrastructure.Persistence;
 
-namespace MiniShop.Infrastructure.Repositories;
+namespace MiniShop.Infrastructure.Inventory;
 
-public sealed class StockReservationRepository(MiniShopDbContext db) : IStockReservationRepository
+public sealed class StockReservationRepository(InventoryDbContext db) : IStockReservationRepository
 {
     public async Task<IReadOnlyList<StockReservation>> GetActiveByOrderIdAsync(int orderId, CancellationToken cancellationToken = default) =>
         await db.StockReservations

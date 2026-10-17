@@ -1,7 +1,7 @@
 using MiniShop.Application.Abstractions;
 using MiniShop.Domain.Orders.Events;
 
-namespace MiniShop.Application.Orders.EventHandlers;
+namespace MiniShop.Application.Ordering.EventHandlers;
 
 /// <summary>
 /// Po zamítnutí objednávky (zboží nebylo nebo sklad neodpověděl, krok 9) pošle zákazníkovi omluvu s důvodem.

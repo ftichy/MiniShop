@@ -1,7 +1,6 @@
 using System.Globalization;
 using Microsoft.AspNetCore.Localization;
 using MiniShop.Infrastructure;
-using MiniShop.Infrastructure.Persistence;
 using MiniShop.Web.BackgroundServices;
 using MiniShop.Web.ErrorHandling;
 using MiniShop.Web.Extensions;
@@ -23,12 +22,15 @@ try
         .ReadFrom.Services(services)
         .Enrich.FromLogContext());
 
-    var connectionString = builder.Configuration.GetConnectionString("MiniShop")
-        ?? throw new InvalidOperationException("Chybí connection string 'MiniShop' v appsettings.json.");
+    // Krok 10: každý modul má vlastní databázi (database per service).
+    var orderingConnectionString = builder.Configuration.GetConnectionString("Ordering")
+        ?? throw new InvalidOperationException("Chybí connection string 'Ordering' v appsettings.json.");
+    var inventoryConnectionString = builder.Configuration.GetConnectionString("Inventory")
+        ?? throw new InvalidOperationException("Chybí connection string 'Inventory' v appsettings.json.");
 
     // Registrace vrstev (composition root).
     builder.Services.AddApplication(builder.Configuration);
-    builder.Services.AddInfrastructure(connectionString);
+    builder.Services.AddInfrastructure(orderingConnectionString, inventoryConnectionString);
 
     // Krok 5: doručování událostí z outboxu na pozadí.
     builder.Services.AddHostedService<OutboxWorker>();
@@ -47,9 +49,7 @@ try
 
     var app = builder.Build();
 
-    await DbInitializer.InitializeAsync(app.Services);
-
-    app.UseExceptionHandler();
+    await DatabaseInitializer.InitializeAsync(app.Services, app.Services.GetRequiredService<TimeProvider>());
 
     if (app.Environment.IsDevelopment())
     {
@@ -71,7 +71,11 @@ try
     app.UseStaticFiles();
 
     // Jeden řádek na HTTP požadavek (metoda, cesta, status, doba trvání). Statické soubory se nelogují.
+    // Pořadí je důležité: request logging musí být VNĚ exception handleru. Jinak vidí výjimku dřív,
+    // než ji GlobalExceptionHandler převede na 404/400, a zaloguje ji jako 500 se stack tracem.
     app.UseSerilogRequestLogging();
+
+    app.UseExceptionHandler();
 
     app.UseRouting();
 

@@ -2,9 +2,9 @@ using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using MiniShop.Application.Contracts;
+using MiniShop.Application.Inventory;
+using MiniShop.Application.Ordering;
 using MiniShop.Application.Exceptions;
-using MiniShop.Application.Services;
 using MiniShop.Domain.Exceptions;
 
 namespace MiniShop.Web.Pages.Orders;

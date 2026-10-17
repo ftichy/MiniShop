@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using MiniShop.Application.Abstractions;
 using MiniShop.Domain.Orders.Events;
 
-namespace MiniShop.Infrastructure.Events.Handlers;
+namespace MiniShop.Infrastructure.Ordering;
 
 /// <summary>
 /// Pokusný handler z kroku 2: jen zapíše do logu, že událost proběhla.

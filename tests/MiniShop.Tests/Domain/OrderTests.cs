@@ -1,6 +1,5 @@
 using MiniShop.Domain.Exceptions;
 using MiniShop.Domain.Orders;
-using MiniShop.Domain.Products;
 
 namespace MiniShop.Tests.Domain;
 
@@ -21,8 +20,8 @@ public class OrderTests
     public void TotalPrice_SectePolozkyVcetneSlevy()
     {
         var order = CreateOrder();
-        order.AddItem(new Product("A", null, 100m, 10), quantity: 2, discount: 0m);
-        order.AddItem(new Product("B", null, 50m, 10), quantity: 4, discount: 20m);
+        order.AddItem(new CatalogProduct(1, "A", 100m, Now), quantity: 2, discount: 0m);
+        order.AddItem(new CatalogProduct(2, "B", 50m, Now), quantity: 4, discount: 20m);
 
         Assert.Equal(200m + 180m, order.TotalPrice);
     }
@@ -92,6 +91,6 @@ public class OrderTests
     {
         var order = CreateConfirmedOrder();
 
-        Assert.Throws<DomainException>(() => order.AddItem(new Product("A", null, 100m, 10), 1, 0m));
+        Assert.Throws<DomainException>(() => order.AddItem(new CatalogProduct(1, "A", 100m, Now), 1, 0m));
     }
 }

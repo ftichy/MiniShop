@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using MiniShop.Domain.Orders;
 
-namespace MiniShop.Infrastructure.Persistence.Configurations;
+namespace MiniShop.Infrastructure.Ordering.Configurations;
 
 internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
 {

@@ -1,5 +1,5 @@
-using MiniShop.Application.Abstractions;
-using MiniShop.Application.Orders.Saga;
+using MiniShop.Application.Ordering;
+using MiniShop.Application.Ordering.Saga;
 
 namespace MiniShop.Web.BackgroundServices;
 

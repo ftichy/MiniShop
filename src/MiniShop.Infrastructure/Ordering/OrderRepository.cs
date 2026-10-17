@@ -1,11 +1,10 @@
 using Microsoft.EntityFrameworkCore;
-using MiniShop.Application.Abstractions;
+using MiniShop.Application.Ordering;
 using MiniShop.Domain.Orders;
-using MiniShop.Infrastructure.Persistence;
 
-namespace MiniShop.Infrastructure.Repositories;
+namespace MiniShop.Infrastructure.Ordering;
 
-public sealed class OrderRepository(MiniShopDbContext db) : IOrderRepository
+public sealed class OrderRepository(OrderingDbContext db) : IOrderRepository
 {
     public async Task<IReadOnlyList<Order>> GetAllAsync(CancellationToken cancellationToken = default) =>
         await db.Orders

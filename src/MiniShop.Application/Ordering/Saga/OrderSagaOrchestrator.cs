@@ -4,7 +4,7 @@ using MiniShop.Domain.Orders;
 using MiniShop.Domain.Orders.Events;
 using MiniShop.Domain.Orders.Saga;
 
-namespace MiniShop.Application.Orders.Saga;
+namespace MiniShop.Application.Ordering.Saga;
 
 /// <summary>
 /// Orchestrátor ságy objednávky (krok 9): "dirigent", který řídí rezervaci skladu.
@@ -19,8 +19,8 @@ namespace MiniShop.Application.Orders.Saga;
 public sealed class OrderSagaOrchestrator(
     IOrderSagaRepository sagas,
     IOrderRepository orders,
-    IIntegrationMessagePublisher publisher,
-    IUnitOfWork unitOfWork,
+    IOrderingMessagePublisher publisher,
+    IOrderingUnitOfWork unitOfWork,
     OrderSagaSettings settings,
     TimeProvider timeProvider) :
     IDomainEventHandler<OrderPlaced>,

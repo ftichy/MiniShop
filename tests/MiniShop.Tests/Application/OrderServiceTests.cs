@@ -4,14 +4,14 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using MiniShop.Application;
 using MiniShop.Application.Abstractions;
-using MiniShop.Application.Contracts;
-using MiniShop.Application.Exceptions;
 using MiniShop.Application.Inventory;
-using MiniShop.Application.Orders.EventHandlers;
-using MiniShop.Application.Orders.IntegrationEvents;
-using MiniShop.Application.Orders.Saga;
-using MiniShop.Application.Pricing;
-using MiniShop.Application.Services;
+using MiniShop.Application.Ordering;
+using MiniShop.Application.Exceptions;
+using MiniShop.Application.Ordering.Catalog;
+using MiniShop.Application.Ordering.EventHandlers;
+using MiniShop.Application.Ordering.IntegrationEvents;
+using MiniShop.Application.Ordering.Saga;
+using MiniShop.Application.Ordering.Pricing;
 using MiniShop.Contracts;
 using MiniShop.Contracts.Inventory;
 using MiniShop.Contracts.Orders;
@@ -19,12 +19,12 @@ using MiniShop.Domain.Common;
 using MiniShop.Domain.Exceptions;
 using MiniShop.Domain.Orders.Events;
 using MiniShop.Domain.Orders.Saga;
-using MiniShop.Domain.Products;
 using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Events;
 using MiniShop.Infrastructure.Integration;
 using MiniShop.Infrastructure.Outbox;
-using MiniShop.Infrastructure.Persistence;
+using MiniShop.Infrastructure.Inventory;
+using MiniShop.Infrastructure.Ordering;
 using MiniShop.Tests.TestDoubles;
 
 namespace MiniShop.Tests.Application;
@@ -40,7 +40,8 @@ public sealed class OrderServiceTests : IDisposable
     private static readonly DateTimeOffset Now = new(2026, 1, 15, 10, 0, 0, TimeSpan.Zero);
     private static readonly TimeSpan ReservationTimeout = TimeSpan.FromSeconds(30);
 
-    private readonly InMemoryDatabase _database = new();
+    private readonly InMemoryDatabase _orderingDatabase = new();
+    private readonly InMemoryDatabase _inventoryDatabase = new();
     private readonly FixedTimeProvider _time = new(Now);
     private readonly RecordingOrderNotifier _notifier = new();
     private readonly List<IDomainEvent> _dispatched = new();
@@ -52,7 +53,7 @@ public sealed class OrderServiceTests : IDisposable
         var services = new ServiceCollection();
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         services.AddSingleton<TimeProvider>(_time);
-        services.AddInfrastructure(_database.ConnectionString);
+        services.AddInfrastructure(_orderingDatabase.ConnectionString, _inventoryDatabase.ConnectionString);
 
         // Stejné služby a handlery jako v aplikaci (ApplicationServiceCollectionExtensions).
         services.AddScoped<IOrderService, OrderService>();
@@ -65,7 +66,7 @@ public sealed class OrderServiceTests : IDisposable
         services.AddDomainEventHandler<OrderCompleted, PublishOrderIntegrationEventsHandler>();
         services.AddDomainEventHandler<OrderCancelled, PublishOrderIntegrationEventsHandler>();
 
-        // Sága (orchestrátor) a modul Inventory.
+        // Sága (orchestrátor), kopie katalogu (krok 10) a modul Inventory.
         services.AddSingleton(new OrderSagaSettings(ReservationTimeout));
         services.AddDomainEventHandler<OrderPlaced, OrderSagaOrchestrator>();
         services.AddDomainEventHandler<OrderCompleted, OrderSagaOrchestrator>();
@@ -73,6 +74,9 @@ public sealed class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<StockReservedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<StockReservationFailedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<StockReleasedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
+        services.AddIntegrationMessageHandler<ProductUpdatedV1, CatalogProjectionHandler>(IntegrationModules.Ordering);
+        services.AddIntegrationMessageHandler<ProductRemovedV1, CatalogProjectionHandler>(IntegrationModules.Ordering);
+        services.AddScoped<IProductService, ProductService>();
         services.AddIntegrationMessageHandler<ReserveStockV1, ReserveStockHandler>(IntegrationModules.Inventory);
         services.AddIntegrationMessageHandler<ReleaseStockV1, ReleaseStockHandler>(IntegrationModules.Inventory);
 
@@ -87,7 +91,8 @@ public sealed class OrderServiceTests : IDisposable
 
         _services = services.BuildServiceProvider();
         _bus = (RecordingIntegrationBus)_services.GetRequiredService<IIntegrationBus>();
-        Db(db => db.Database.EnsureCreatedAsync()).GetAwaiter().GetResult();
+        OrderingDb(db => db.Database.EnsureCreatedAsync()).GetAwaiter().GetResult();
+        InventoryDb(db => db.Database.EnsureCreatedAsync()).GetAwaiter().GetResult();
     }
 
     // ---------- Vytvoření objednávky ----------
@@ -121,7 +126,7 @@ public sealed class OrderServiceTests : IDisposable
 
         var saga = await SagaAsync(order.Id);
         Assert.Equal(OrderSagaState.Reserved, saga.State);
-        var reservation = Assert.Single(await Db(db => db.StockReservations.ToListAsync()));
+        var reservation = Assert.Single(await InventoryDb(db => db.StockReservations.ToListAsync()));
         Assert.Equal((order.Id, product.Id, 3), (reservation.OrderId, reservation.ProductId, reservation.Quantity));
     }
 
@@ -155,7 +160,7 @@ public sealed class OrderServiceTests : IDisposable
         Assert.Equal("Rejected", rejected.Status);
         Assert.Contains("požadováno 3 ks, skladem 2 ks", rejected.RejectionReason);
         Assert.Equal(2, await StockAsync());
-        Assert.Empty(await Db(db => db.StockReservations.ToListAsync()));
+        Assert.Empty(await InventoryDb(db => db.StockReservations.ToListAsync()));
         Assert.Contains($"rejected:{order.Id}", _notifier.Events);
         Assert.Equal(OrderSagaState.Rejected, (await SagaAsync(order.Id)).State);
     }
@@ -224,7 +229,7 @@ public sealed class OrderServiceTests : IDisposable
         Assert.Single(_bus.Published.OfType<ReleaseStockV1>());
         Assert.Single(_bus.Published.OfType<StockReleasedV1>());
         Assert.Equal(OrderSagaState.Released, (await SagaAsync(order.Id)).State);
-        Assert.All(await Db(db => db.StockReservations.ToListAsync()), r => Assert.NotNull(r.ReleasedAtUtc));
+        Assert.All(await InventoryDb(db => db.StockReservations.ToListAsync()), r => Assert.NotNull(r.ReleasedAtUtc));
     }
 
     [Fact]
@@ -279,7 +284,7 @@ public sealed class OrderServiceTests : IDisposable
         Assert.Contains($"cancelled:{order.Id}", _notifier.Events);
         Assert.Single(_bus.Published.OfType<ReleaseStockV1>());
 
-        var message = await Db(db => db.OutboxMessages.SingleAsync(m => m.Type == "OrderCancelled"));
+        var message = await OrderingDb(db => db.OutboxMessages.SingleAsync(m => m.Type == "OrderCancelled"));
         Assert.NotNull(message.ProcessedAtUtc);
         Assert.Equal(1, message.Attempts);
     }
@@ -370,14 +375,16 @@ public sealed class OrderServiceTests : IDisposable
 
         // 1. kolo: handlery OrderPlaced zapíšou do outboxu integrační událost i příkaz pro sklad – ven ještě neodešly.
         await ProcessOneRoundAsync();
-        var integration = await Db(db => db.OutboxMessages.Where(m => m.Kind == OutboxMessageKind.Integration).ToListAsync());
+        var integration = await OrderingDb(db => db.OutboxMessages.Where(m => m.Kind == OutboxMessageKind.Integration).ToListAsync());
         Assert.Equal(new[] { "OrderPlacedV1", "ReserveStockV1" }, integration.Select(m => m.Type).Order());
         Assert.All(integration, m => Assert.Null(m.ProcessedAtUtc));
         Assert.Empty(_bus.Published);
 
         // 2. kolo: worker je pošle přes bus. Doménové handlery je nedostanou.
+        // (V tomtéž kole stihne pošťák skladu poslat i odpověď StockReservedV1 – krok 10: každý modul má svůj outbox.)
         await ProcessOneRoundAsync();
-        Assert.Equal(2, _bus.Published.Count);
+        Assert.Single(_bus.Published.OfType<OrderPlacedV1>());
+        Assert.Single(_bus.Published.OfType<ReserveStockV1>());
         Assert.Single(_dispatched);
     }
 
@@ -412,39 +419,108 @@ public sealed class OrderServiceTests : IDisposable
 
         await ProcessOutboxAsync();
 
-        var messages = await Db(db => db.OutboxMessages.ToListAsync());
-        Assert.All(messages, m => Assert.Equal(Now.UtcDateTime, m.ProcessedAtUtc));
+        // Krok 10: každý modul má vlastní outbox – zprávy odchází z databáze toho, kdo je poslal.
+        var ordering = await OrderingDb(db => db.OutboxMessages.ToListAsync());
+        Assert.All(ordering, m => Assert.Equal(Now.UtcDateTime, m.ProcessedAtUtc));
         Assert.Equal(
             new[]
             {
                 "OrderCancelled", "OrderCancelledV1", "OrderConfirmed", "OrderPlaced", "OrderPlacedV1",
-                "ReleaseStockV1", "ReserveStockV1", "StockReleasedV1", "StockReservedV1"
+                "ReleaseStockV1", "ReserveStockV1"
             },
-            messages.Select(m => m.Type).Order());
+            ordering.Select(m => m.Type).Order());
+
+        var inventory = await InventoryDb(db => db.OutboxMessages.ToListAsync());
+        Assert.All(inventory, m => Assert.Equal(Now.UtcDateTime, m.ProcessedAtUtc));
+        Assert.Equal(new[] { "ProductUpdatedV1", "StockReleasedV1", "StockReservedV1" }, inventory.Select(m => m.Type).Order());
+    }
+
+    // ---------- Krok 10: kopie katalogu v Orderingu ----------
+
+    [Fact]
+    public async Task NovyProdukt_JdeObjednatAzPoPromitnutiDoKatalogu()
+    {
+        var product = await Products(s => s.CreateAsync(new CreateProductRequest { Name = "Novinka", Price = 250m, StockQuantity = 5 }));
+
+        // ProductUpdatedV1 ještě čeká v outboxu skladu → Ordering o produktu neví (eventual consistency).
+        await Assert.ThrowsAsync<NotFoundException>(() => Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 1)))));
+
+        await ProcessOutboxAsync();
+
+        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 1))));
+        Assert.Equal("Novinka", order.Items.Single().ProductName);
+        Assert.Equal(250m, order.TotalPrice);
+    }
+
+    [Fact]
+    public async Task ZmenaCeny_NoveObjednavkyMajiNovouCenu_StareSeNemeni()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 50);
+        var before = await PlaceConfirmedOrderAsync(product.Id, quantity: 1);
+
+        await Products(s => s.UpdateAsync(product.Id, new UpdateProductRequest { Name = "Testovací produkt", Price = 150m }));
+        await ProcessOutboxAsync();
+        var after = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 1))));
+
+        Assert.Equal(150m, after.TotalPrice);
+        Assert.Equal(100m, (await Orders(s => s.GetByIdAsync(before.Id))).TotalPrice);   // snímek ceny v položce
+        Assert.Equal(150m, (await OrderingDb(db => db.CatalogProducts.SingleAsync())).Price);
+    }
+
+    [Fact]
+    public async Task SmazanyProdukt_NejdeObjednat()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+
+        await Products(async s => { await s.DeleteAsync(product.Id); return true; });
+        await ProcessOutboxAsync();
+
+        await Assert.ThrowsAsync<NotFoundException>(() => Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 1)))));
+        Assert.True((await OrderingDb(db => db.CatalogProducts.SingleAsync())).IsRemoved);
+    }
+
+    [Fact]
+    public async Task Moduly_MajiOddeleneDatabaze()
+    {
+        // Ordering nezná tabulky skladu a naopak – jediná cesta mezi nimi jsou zprávy.
+        Assert.Null(await OrderingDb(db => Task.FromResult(db.Model.FindEntityType(typeof(MiniShop.Domain.Inventory.Product)))));
+        Assert.Null(await InventoryDb(db => Task.FromResult(db.Model.FindEntityType(typeof(MiniShop.Domain.Orders.Order)))));
+        Assert.NotEqual(_orderingDatabase.ConnectionString, _inventoryDatabase.ConnectionString);
     }
 
     // ---------- Pomocné metody ----------
 
     /// <summary>
-    /// Zpracuje outbox jako několik kol OutboxWorkeru: pokračuje, dokud byla dávka plná nebo handlery
-    /// přidaly nové zprávy (sága = řetěz zpráv). Pozor: v dalších kolech se zkusí znovu
+    /// Zpracuje outboxy všech modulů jako několik kol OutboxWorkeru: pokračuje, dokud byla dávka plná nebo
+    /// handlery přidaly nové zprávy (sága = řetěz zpráv). Pozor: v dalších kolech se zkusí znovu
     /// i zprávy, které selhaly – pro jedno kolo je <see cref="ProcessOneRoundAsync"/>.
     /// </summary>
     private async Task ProcessOutboxAsync()
     {
-        var processor = _services.GetRequiredService<OutboxProcessor>();
         bool again;
         do
         {
-            var before = await Db(db => db.OutboxMessages.CountAsync());
-            var processed = await processor.ProcessPendingAsync();
-            again = processed == OutboxProcessor.BatchSize || await Db(db => db.OutboxMessages.CountAsync()) > before;
+            var before = await OutboxCountAsync();
+            var processed = await ProcessOneRoundAsync();
+            again = processed >= OutboxProcessor.BatchSize || await OutboxCountAsync() > before;
         }
         while (again);
     }
 
-    /// <summary>Právě jedno kolo workera (jedna dávka).</summary>
-    private Task<int> ProcessOneRoundAsync() => _services.GetRequiredService<OutboxProcessor>().ProcessPendingAsync();
+    /// <summary>Právě jedno kolo workera: jedna dávka z outboxu každého modulu (krok 10).</summary>
+    private async Task<int> ProcessOneRoundAsync()
+    {
+        var processed = 0;
+        foreach (var processor in _services.GetServices<IOutboxProcessor>())
+        {
+            processed += await processor.ProcessPendingAsync();
+        }
+
+        return processed;
+    }
+
+    private async Task<int> OutboxCountAsync() =>
+        await OrderingDb(db => db.OutboxMessages.CountAsync()) + await InventoryDb(db => db.OutboxMessages.CountAsync());
 
     private async Task<OrderDto> PlaceConfirmedOrderAsync(int productId, int quantity)
     {
@@ -468,11 +544,25 @@ public sealed class OrderServiceTests : IDisposable
         return await action(scope.ServiceProvider.GetRequiredService<OrderSagaOrchestrator>());
     }
 
-    /// <summary>Přímý přístup k DB ve vlastním scope (čerstvý DbContext, žádná data z cache).</summary>
-    private async Task<T> Db<T>(Func<MiniShopDbContext, Task<T>> action)
+    /// <summary>Přímý přístup k databázi modulu Ordering ve vlastním scope (čerstvý DbContext, žádná data z cache).</summary>
+    private async Task<T> OrderingDb<T>(Func<OrderingDbContext, Task<T>> action)
     {
         await using var scope = _services.CreateAsyncScope();
-        return await action(scope.ServiceProvider.GetRequiredService<MiniShopDbContext>());
+        return await action(scope.ServiceProvider.GetRequiredService<OrderingDbContext>());
+    }
+
+    /// <summary>Přímý přístup k databázi modulu Inventory.</summary>
+    private async Task<T> InventoryDb<T>(Func<InventoryDbContext, Task<T>> action)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await action(scope.ServiceProvider.GetRequiredService<InventoryDbContext>());
+    }
+
+    /// <summary>Zavolá správu produktů (modul Inventory) ve vlastním scope.</summary>
+    private async Task<T> Products<T>(Func<IProductService, Task<T>> action)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await action(scope.ServiceProvider.GetRequiredService<IProductService>());
     }
 
     private async Task<IReadOnlyList<int>> ExpiredSagasAsync()
@@ -484,20 +574,29 @@ public sealed class OrderServiceTests : IDisposable
 
     private async Task<string> StatusAsync(int orderId) => (await Orders(s => s.GetByIdAsync(orderId))).Status;
 
-    private Task<OrderSaga> SagaAsync(int orderId) => Db(db => db.OrderSagas.SingleAsync(s => s.OrderId == orderId));
+    private Task<OrderSaga> SagaAsync(int orderId) => OrderingDb(db => db.OrderSagas.SingleAsync(s => s.OrderId == orderId));
 
-    private Task<int> StockAsync() => Db(async db => (await db.Products.SingleAsync()).StockQuantity);
+    private Task<int> StockAsync() => InventoryDb(async db => (await db.Products.SingleAsync()).StockQuantity);
 
     private Task<int> StockAsync(int productId) =>
-        Db(async db => (await db.Products.SingleAsync(p => p.Id == productId)).StockQuantity);
+        InventoryDb(async db => (await db.Products.SingleAsync(p => p.Id == productId)).StockQuantity);
 
-    private Task<Product> AddProductAsync(decimal price, int stock) => Db(async db =>
+    /// <summary>
+    /// Založí produkt ve skladu a nechá ho promítnout do kopie katalogu v Orderingu (krok 10) –
+    /// teprve pak jde objednat. Zprávy z přípravy dat se z "brokeru" smažou, ať nepletou testy.
+    /// </summary>
+    private async Task<ProductDto> AddProductAsync(decimal price, int stock)
     {
-        var product = new Product("Testovací produkt", null, price, stock);
-        db.Products.Add(product);
-        await db.SaveChangesAsync();
+        var product = await Products(s => s.CreateAsync(new CreateProductRequest
+        {
+            Name = "Testovací produkt",
+            Price = price,
+            StockQuantity = stock
+        }));
+        await ProcessOutboxAsync();
+        _bus.Published.Clear();
         return product;
-    });
+    }
 
     private static CreateOrderRequest CreateRequest(params (int ProductId, int Quantity)[] items) => new()
     {
@@ -509,6 +608,7 @@ public sealed class OrderServiceTests : IDisposable
     public void Dispose()
     {
         _services.Dispose();
-        _database.Dispose();
+        _orderingDatabase.Dispose();
+        _inventoryDatabase.Dispose();
     }
 }

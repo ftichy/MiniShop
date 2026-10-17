@@ -1,6 +1,4 @@
-using MiniShop.Application.Contracts;
-
-namespace MiniShop.Application.Services;
+namespace MiniShop.Application.Inventory;
 
 public interface IProductService
 {

@@ -1,6 +1,6 @@
 using MiniShop.Domain.Orders.Saga;
 
-namespace MiniShop.Application.Abstractions;
+namespace MiniShop.Application.Ordering;
 
 /// <summary>Uložený stav ság objednávek (krok 9).</summary>
 public interface IOrderSagaRepository

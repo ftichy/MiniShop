@@ -13,5 +13,8 @@ public abstract class Entity
 
     protected void Raise(IDomainEvent domainEvent) => _domainEvents.Add(domainEvent);
 
+    /// <summary>Zahodí dosud neuložené události daného typu (např. když novější událost nese aktuální stav).</summary>
+    protected void RemoveDomainEvents<TEvent>() where TEvent : IDomainEvent => _domainEvents.RemoveAll(e => e is TEvent);
+
     public void ClearDomainEvents() => _domainEvents.Clear();
 }

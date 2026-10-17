@@ -1,12 +1,18 @@
-using MiniShop.Application.Abstractions;
-using MiniShop.Application.Contracts;
 using MiniShop.Application.Exceptions;
-using MiniShop.Application.Mapping;
-using MiniShop.Domain.Products;
+using MiniShop.Domain.Inventory;
 
-namespace MiniShop.Application.Services;
+namespace MiniShop.Application.Inventory;
 
-public sealed class ProductService(IProductRepository products, IUnitOfWork unitOfWork) : IProductService
+/// <summary>
+/// Správa produktů – modul Inventory (krok 10).
+/// </summary>
+/// <remarks>
+/// Založení, změna i smazání produktu vyvolá doménovou událost (ProductChanged / ProductRemoved).
+/// InventoryDbContext ji při uložení rovnou převede na integrační ProductUpdatedV1 / ProductRemovedV1 do outboxu –
+/// tak se o změně dozví Ordering a aktualizuje si kopii katalogu.
+/// </remarks>
+public sealed class ProductService(IProductRepository products, IInventoryUnitOfWork unitOfWork, TimeProvider timeProvider)
+    : IProductService
 {
     public async Task<IReadOnlyList<ProductDto>> GetAllAsync(CancellationToken cancellationToken = default)
     {
@@ -22,17 +28,17 @@ public sealed class ProductService(IProductRepository products, IUnitOfWork unit
 
     public async Task<ProductDto> CreateAsync(CreateProductRequest request, CancellationToken cancellationToken = default)
     {
-        var product = new Product(request.Name, request.Description, request.Price, request.StockQuantity);
+        var product = new Product(request.Name, request.Description, request.Price, request.StockQuantity, UtcNow);
         products.Add(product);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);   // → ProductUpdatedV1 do outboxu
         return product.ToDto();
     }
 
     public async Task<ProductDto> UpdateAsync(int id, UpdateProductRequest request, CancellationToken cancellationToken = default)
     {
         var product = await GetProductAsync(id, cancellationToken);
-        product.Update(request.Name, request.Description, request.Price);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        product.Update(request.Name, request.Description, request.Price, UtcNow);
+        await unitOfWork.SaveChangesAsync(cancellationToken);   // → ProductUpdatedV1 do outboxu
         return product.ToDto();
     }
 
@@ -40,16 +46,19 @@ public sealed class ProductService(IProductRepository products, IUnitOfWork unit
     {
         var product = await GetProductAsync(id, cancellationToken);
         product.AddStock(quantity);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);   // zásobu Ordering nepotřebuje – žádná zpráva
         return product.ToDto();
     }
 
     public async Task DeleteAsync(int id, CancellationToken cancellationToken = default)
     {
         var product = await GetProductAsync(id, cancellationToken);
+        product.MarkRemoved(UtcNow);
         products.Remove(product);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);   // → ProductRemovedV1 do outboxu
     }
+
+    private DateTime UtcNow => timeProvider.GetUtcNow().UtcDateTime;
 
     private async Task<Product> GetProductAsync(int id, CancellationToken cancellationToken) =>
         await products.GetByIdAsync(id, cancellationToken)

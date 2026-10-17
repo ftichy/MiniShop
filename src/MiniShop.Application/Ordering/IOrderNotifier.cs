@@ -1,6 +1,6 @@
 using MiniShop.Domain.Orders;
 
-namespace MiniShop.Application.Abstractions;
+namespace MiniShop.Application.Ordering;
 
 /// <summary>
 /// Kanál pro oznámení zákazníkovi (dnes log, později třeba e-mail).

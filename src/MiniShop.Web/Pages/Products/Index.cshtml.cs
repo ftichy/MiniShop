@@ -1,8 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using MiniShop.Application.Contracts;
+using MiniShop.Application.Inventory;
 using MiniShop.Application.Exceptions;
-using MiniShop.Application.Services;
 using MiniShop.Domain.Exceptions;
 
 namespace MiniShop.Web.Pages.Products;

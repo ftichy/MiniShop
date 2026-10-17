@@ -1,7 +1,7 @@
 using MiniShop.Application.Abstractions;
 using MiniShop.Domain.Orders.Events;
 
-namespace MiniShop.Application.Orders.EventHandlers;
+namespace MiniShop.Application.Ordering.EventHandlers;
 
 /// <summary>
 /// Po vyřízení objednávky pošle zákazníkovi oznámení.

@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace MiniShop.Application.Contracts;
+namespace MiniShop.Application.Ordering;
 
 public sealed record OrderItemDto(
     int ProductId,

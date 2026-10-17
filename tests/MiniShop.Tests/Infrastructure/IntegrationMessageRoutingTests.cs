@@ -3,6 +3,7 @@ using MiniShop.Application.Abstractions;
 using MiniShop.Contracts.Inventory;
 using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Integration;
+using MiniShop.Infrastructure.Ordering;
 
 namespace MiniShop.Tests.Infrastructure;
 
@@ -55,10 +56,28 @@ public sealed class IntegrationMessageRoutingTests
         Assert.Empty(routing.ModulesFor(typeof(StockReleasedV1)));
     }
 
+    [Fact]
+    public void ModulBezDatabaze_AplikaceNenastartuje()
+    {
+        var services = new ServiceCollection();
+        services.AddIntegrationMessageHandler<StockReservedV1, Handler>("ordering");
+        services.AddSingleton<IntegrationMessageRouting>();
+        using var provider = services.BuildServiceProvider();
+
+        // Krok 10: modul musí říct, ve které databázi má inbox.
+        var ex = Assert.Throws<InvalidOperationException>(() => provider.GetRequiredService<IntegrationMessageRouting>());
+        Assert.Contains("ordering", ex.Message);
+    }
+
     private static IntegrationMessageRouting Routing(Action<IServiceCollection> register)
     {
         var services = new ServiceCollection();
         register(services);
+        foreach (var module in new[] { "ordering", "inventory", "reporting", "warehouse" })
+        {
+            services.AddIntegrationModule<OrderingDbContext>(module);   // na typu databáze tu nezáleží
+        }
+
         services.AddSingleton<IntegrationMessageRouting>();
         using var provider = services.BuildServiceProvider();
         return provider.GetRequiredService<IntegrationMessageRouting>();

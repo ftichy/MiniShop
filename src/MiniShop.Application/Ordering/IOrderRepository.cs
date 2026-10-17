@@ -1,6 +1,6 @@
 using MiniShop.Domain.Orders;
 
-namespace MiniShop.Application.Abstractions;
+namespace MiniShop.Application.Ordering;
 
 public interface IOrderRepository
 {

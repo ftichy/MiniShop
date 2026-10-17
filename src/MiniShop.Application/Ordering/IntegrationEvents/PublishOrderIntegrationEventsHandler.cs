@@ -4,7 +4,7 @@ using MiniShop.Contracts.Orders;
 using MiniShop.Domain.Orders;
 using MiniShop.Domain.Orders.Events;
 
-namespace MiniShop.Application.Orders.IntegrationEvents;
+namespace MiniShop.Application.Ordering.IntegrationEvents;
 
 /// <summary>
 /// Překladač (krok 7): z interních doménových událostí objednávky vyrobí veřejné integrační události (…V1).
@@ -15,7 +15,7 @@ namespace MiniShop.Application.Orders.IntegrationEvents;
 /// Běží uvnitř dekorátoru IdempotentDomainEventHandler (krok 6): zápis do outboxu se potvrdí spolu s odškrtnutím
 /// v inboxu, takže se při opakovaném doručení doménové události integrační událost nepublikuje dvakrát.
 /// </remarks>
-public sealed class PublishOrderIntegrationEventsHandler(IIntegrationMessagePublisher publisher, IUnitOfWork unitOfWork) :
+public sealed class PublishOrderIntegrationEventsHandler(IOrderingMessagePublisher publisher, IOrderingUnitOfWork unitOfWork) :
     IDomainEventHandler<OrderPlaced>,
     IDomainEventHandler<OrderCompleted>,
     IDomainEventHandler<OrderCancelled>

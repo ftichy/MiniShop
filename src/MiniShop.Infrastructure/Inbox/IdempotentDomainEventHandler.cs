@@ -1,6 +1,5 @@
 using MiniShop.Application.Abstractions;
 using MiniShop.Domain.Common;
-using MiniShop.Infrastructure.Persistence;
 
 namespace MiniShop.Infrastructure.Inbox;
 
@@ -12,20 +11,16 @@ namespace MiniShop.Infrastructure.Inbox;
 /// <remarks>
 /// at-least-once doručení (outbox) + idempotentní příjemce (inbox) = efektivně právě jednou.
 /// </remarks>
-public sealed class IdempotentDomainEventHandler<TEvent>(
-    IDomainEventHandler<TEvent> inner,
-    MiniShopDbContext db,
-    TimeProvider timeProvider)
+public sealed class IdempotentDomainEventHandler<TEvent>(IDomainEventHandler<TEvent> inner, InboxGuard inbox)
     : IDomainEventHandler<TEvent>, IDomainEventHandlerDecorator
     where TEvent : IDomainEvent
 {
     private readonly string _handlerName = inner.GetType().FullName ?? inner.GetType().Name;
-    private readonly InboxGuard _inbox = new(db, timeProvider);
 
     public Type InnerHandlerType => inner.GetType();
 
     public Task HandleAsync(TEvent domainEvent, CancellationToken cancellationToken) =>
-        _inbox.RunOnceAsync(domainEvent.EventId, _handlerName,
+        inbox.RunOnceAsync(domainEvent.EventId, _handlerName,
             () => inner.HandleAsync(domainEvent, cancellationToken), cancellationToken);
 }
 

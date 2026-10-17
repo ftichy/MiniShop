@@ -1,6 +1,8 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MiniShop.Contracts;
 using MiniShop.Infrastructure.Inbox;
+using MiniShop.Infrastructure.Persistence;
 
 namespace MiniShop.Infrastructure.Integration;
 
@@ -15,11 +17,14 @@ namespace MiniShop.Infrastructure.Integration;
 public sealed class IntegrationMessageDispatcher(
     IServiceProvider serviceProvider,
     IntegrationMessageRouting routing,
-    InboxGuard inbox,
+    TimeProvider timeProvider,
     ILogger<IntegrationMessageDispatcher> logger)
 {
     public async Task DispatchAsync(IIntegrationMessage message, string module, CancellationToken cancellationToken = default)
     {
+        // Inbox v databázi modulu (krok 10) – ve stejné transakci jako změny jeho handlerů.
+        var moduleDb = (ModuleDbContext)serviceProvider.GetRequiredService(routing.DbContextTypeFor(module));
+        var inbox = new InboxGuard(moduleDb, timeProvider);
         var failures = new List<Exception>();
 
         foreach (var subscription in routing.For(module, message.GetType()))

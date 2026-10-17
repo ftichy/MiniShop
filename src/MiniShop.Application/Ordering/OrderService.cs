@@ -1,30 +1,28 @@
 using MiniShop.Application.Abstractions;
-using MiniShop.Application.Contracts;
 using MiniShop.Application.Exceptions;
-using MiniShop.Application.Mapping;
-using MiniShop.Application.Pricing;
+using MiniShop.Application.Ordering.Pricing;
 using MiniShop.Domain.Exceptions;
 using MiniShop.Domain.Orders;
-using MiniShop.Domain.Products;
 
-namespace MiniShop.Application.Services;
+namespace MiniShop.Application.Ordering;
 
 /// <summary>
 /// Use-casy objednávek. Všechny závislosti jsou abstrakce předané konstruktorem (Dependency Inversion).
 /// </summary>
 /// <remarks>
 /// Od kroku 3 řeší jen objednávku samotnou. Vedlejší účinky (notifikace, vrácení skladu při zrušení)
-/// obstarávají handlery doménových událostí ve složce Orders/EventHandlers.
+/// obstarávají handlery doménových událostí ve složce Ordering/EventHandlers.
 /// Od kroku 5 běží handlery asynchronně: SaveChangesAsync uloží událost do outboxu a worker ji
 /// doručí o chvilku později (eventual consistency).
 /// Od kroku 9 sklad vůbec nemění: objednávka vznikne jako Pending a o rezervaci se postará sága
 /// (OrderSagaOrchestrator → příkaz ReserveStockV1 → modul Inventory). Nedostatek zboží proto není chyba 400,
 /// ale zamítnutá objednávka.
+/// Od kroku 10 nečte tabulku produktů skladu, ale vlastní kopii katalogu (CatalogProduct) – název a cenu.
 /// </remarks>
 public sealed class OrderService(
     IOrderRepository orders,
-    IProductRepository products,
-    IUnitOfWork unitOfWork,
+    ICatalogProductRepository catalog,
+    IOrderingUnitOfWork unitOfWork,
     IEnumerable<IDiscountPolicy> discountPolicies,
     TimeProvider timeProvider) : IOrderService
 {
@@ -53,7 +51,7 @@ public sealed class OrderService(
             .Select(g => (ProductId: g.Key, Quantity: g.Sum(i => i.Quantity)))
             .ToList();
 
-        var productsById = (await products.GetByIdsAsync(requestedItems.Select(i => i.ProductId), cancellationToken))
+        var productsById = (await catalog.GetAvailableByIdsAsync(requestedItems.Select(i => i.ProductId), cancellationToken))
             .ToDictionary(p => p.Id);
 
         var order = new Order(request.CustomerName, request.CustomerEmail, UtcNow);
@@ -62,10 +60,11 @@ public sealed class OrderService(
         {
             if (!productsById.TryGetValue(productId, out var product))
             {
-                throw new NotFoundException($"Produkt s ID {productId} nebyl nalezen.");
+                // Produkt nemusí být v kopii katalogu ještě (nový – zpráva ze skladu nedorazila) nebo už (odebraný).
+                throw new NotFoundException($"Produkt s ID {productId} není v katalogu.");
             }
 
-            // Katalog jen ověří, že produkt existuje, a dodá cenu. Zásobu řeší až sklad (sága).
+            // Kopie katalogu dodá název a cenu. Zásobu řeší až sklad (sága).
             order.AddItem(product, quantity, CalculateDiscount(product, quantity));
         }
 
@@ -99,7 +98,7 @@ public sealed class OrderService(
     private DateTime UtcNow => timeProvider.GetUtcNow().UtcDateTime;
 
     // Uplatní se nejvýhodnější sleva ze všech pravidel (slevy se nesčítají).
-    private decimal CalculateDiscount(Product product, int quantity) =>
+    private decimal CalculateDiscount(CatalogProduct product, int quantity) =>
         discountPolicies
             .Select(policy => policy.CalculateDiscount(product, quantity))
             .DefaultIfEmpty(0m)

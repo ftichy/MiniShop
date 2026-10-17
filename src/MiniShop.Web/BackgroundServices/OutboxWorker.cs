@@ -11,7 +11,7 @@ namespace MiniShop.Web.BackgroundServices;
 /// V každém kole se zpracuje jedna dávka. Zpráva, která selhala, se tak zkusí znovu nejdřív za 2 sekundy –
 /// handler nedostane pět pokusů těsně po sobě.
 /// </remarks>
-public sealed class OutboxWorker(OutboxProcessor processor, ILogger<OutboxWorker> logger) : BackgroundService
+public sealed class OutboxWorker(IEnumerable<IOutboxProcessor> processors, ILogger<OutboxWorker> logger) : BackgroundService
 {
     private static readonly TimeSpan Interval = TimeSpan.FromSeconds(2);
 
@@ -27,7 +27,11 @@ public sealed class OutboxWorker(OutboxProcessor processor, ILogger<OutboxWorker
         {
             try
             {
-                await processor.ProcessPendingAsync(stoppingToken);
+                // Krok 10: každý modul má vlastní outbox (ordering.db, inventory.db) – vybereme všechny schránky.
+                foreach (var processor in processors)
+                {
+                    await processor.ProcessPendingAsync(stoppingToken);
+                }
             }
             catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
             {

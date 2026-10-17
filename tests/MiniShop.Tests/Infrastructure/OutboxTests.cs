@@ -8,11 +8,10 @@ using MiniShop.Contracts.Orders;
 using MiniShop.Domain.Common;
 using MiniShop.Domain.Orders;
 using MiniShop.Domain.Orders.Events;
-using MiniShop.Domain.Products;
 using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Integration;
 using MiniShop.Infrastructure.Outbox;
-using MiniShop.Infrastructure.Persistence;
+using MiniShop.Infrastructure.Ordering;
 using MiniShop.Tests.TestDoubles;
 
 namespace MiniShop.Tests.Infrastructure;
@@ -25,7 +24,9 @@ public sealed class OutboxTests : IDisposable
 {
     private static readonly DateTimeOffset Now = new(2026, 1, 15, 10, 0, 0, TimeSpan.Zero);
 
-    private readonly InMemoryDatabase _database = new();
+    private readonly InMemoryDatabase _ordering = new();
+    private readonly InMemoryDatabase _inventory = new();
+    private int _nextProductId = 1;
     private readonly SwitchableDispatcher _dispatcher = new();
     private readonly RecordingIntegrationBus _bus = new();
     private readonly ServiceProvider _services;
@@ -53,7 +54,7 @@ public sealed class OutboxTests : IDisposable
         var services = new ServiceCollection();
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         services.AddSingleton<TimeProvider>(new FixedTimeProvider(Now));
-        services.AddInfrastructure(_database.ConnectionString);
+        services.AddInfrastructure(_ordering.ConnectionString, _inventory.ConnectionString);
         services.AddSingleton<IDomainEventDispatcher>(_dispatcher);   // přebije skutečný dispatcher
         services.AddSingleton<IIntegrationBus>(_bus);            // a "broker"
 
@@ -61,7 +62,9 @@ public sealed class OutboxTests : IDisposable
         Db(db => db.Database.EnsureCreatedAsync()).GetAwaiter().GetResult();
     }
 
-    private OutboxProcessor Processor => _services.GetRequiredService<OutboxProcessor>();
+    /// <summary>Pošťák outboxu modulu Ordering (krok 10: každý modul má vlastní).</summary>
+    private IOutboxProcessor Processor =>
+        _services.GetServices<IOutboxProcessor>().OfType<OutboxProcessor<OrderingDbContext>>().Single();
 
     [Fact]
     public async Task Ulozeni_ZapiseUdalostDoOutboxuSDatyObjednavky()
@@ -275,23 +278,24 @@ public sealed class OutboxTests : IDisposable
         });
     }
 
-    private Task<Product> AddProductAsync() => Db(async db =>
+    private Task<CatalogProduct> AddProductAsync() => Db(async db =>
     {
-        var product = new Product("Testovací produkt", null, 100m, 10);
-        db.Products.Add(product);
+        var product = new CatalogProduct(_nextProductId++, "Testovací produkt", 100m, Now.UtcDateTime);
+        db.CatalogProducts.Add(product);
         await db.SaveChangesAsync();
         return product;
     });
 
-    private async Task<T> Db<T>(Func<MiniShopDbContext, Task<T>> action)
+    private async Task<T> Db<T>(Func<OrderingDbContext, Task<T>> action)
     {
         await using var scope = _services.CreateAsyncScope();
-        return await action(scope.ServiceProvider.GetRequiredService<MiniShopDbContext>());
+        return await action(scope.ServiceProvider.GetRequiredService<OrderingDbContext>());
     }
 
     public void Dispose()
     {
         _services.Dispose();
-        _database.Dispose();
+        _ordering.Dispose();
+        _inventory.Dispose();
     }
 }

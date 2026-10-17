@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using MiniShop.Domain.Products;
+using MiniShop.Domain.Inventory;
 
-namespace MiniShop.Infrastructure.Persistence.Configurations;
+namespace MiniShop.Infrastructure.Inventory.Configurations;
 
 internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
 {
@@ -14,7 +14,7 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Property(p => p.Description).HasMaxLength(500);
         builder.Property(p => p.Price).HasPrecision(18, 2);
 
-        // Doménové události se neukládají jako sloupce (v kroku 4 půjdou do tabulky outboxu).
+        // Doménové události se neukládají jako sloupce – InventoryDbContext je převede na zprávy v outboxu.
         builder.Ignore(p => p.DomainEvents);
     }
 }

@@ -1,6 +1,6 @@
-using MiniShop.Domain.Products;
+using MiniShop.Domain.Inventory;
 
-namespace MiniShop.Application.Abstractions;
+namespace MiniShop.Application.Inventory;
 
 public interface IProductRepository
 {

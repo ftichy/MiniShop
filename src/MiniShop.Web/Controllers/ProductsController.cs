@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using MiniShop.Application.Contracts;
-using MiniShop.Application.Services;
+using MiniShop.Application.Inventory;
 
 namespace MiniShop.Web.Controllers;
 

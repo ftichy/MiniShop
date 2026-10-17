@@ -1,11 +1,10 @@
 using Microsoft.EntityFrameworkCore;
-using MiniShop.Application.Abstractions;
+using MiniShop.Application.Ordering;
 using MiniShop.Domain.Orders.Saga;
-using MiniShop.Infrastructure.Persistence;
 
-namespace MiniShop.Infrastructure.Repositories;
+namespace MiniShop.Infrastructure.Ordering;
 
-public sealed class OrderSagaRepository(MiniShopDbContext db) : IOrderSagaRepository
+public sealed class OrderSagaRepository(OrderingDbContext db) : IOrderSagaRepository
 {
     public Task<OrderSaga?> GetAsync(int orderId, CancellationToken cancellationToken = default) =>
         db.OrderSagas.FirstOrDefaultAsync(s => s.OrderId == orderId, cancellationToken);

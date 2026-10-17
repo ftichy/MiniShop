@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging;
-using MiniShop.Application.Abstractions;
+using MiniShop.Application.Ordering;
 using MiniShop.Domain.Orders;
 
-namespace MiniShop.Infrastructure.Notifications;
+namespace MiniShop.Infrastructure.Ordering;
 
 /// <summary>
 /// Jednoduchá implementace notifikací – jen zapisuje do logu.

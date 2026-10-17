@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using MiniShop.Domain.Inventory;
 
-namespace MiniShop.Infrastructure.Persistence.Configurations;
+namespace MiniShop.Infrastructure.Inventory.Configurations;
 
 internal sealed class StockReservationConfiguration : IEntityTypeConfiguration<StockReservation>
 {

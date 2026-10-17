@@ -1,11 +1,10 @@
 using Microsoft.EntityFrameworkCore;
-using MiniShop.Application.Abstractions;
-using MiniShop.Domain.Products;
-using MiniShop.Infrastructure.Persistence;
+using MiniShop.Application.Inventory;
+using MiniShop.Domain.Inventory;
 
-namespace MiniShop.Infrastructure.Repositories;
+namespace MiniShop.Infrastructure.Inventory;
 
-public sealed class ProductRepository(MiniShopDbContext db) : IProductRepository
+public sealed class ProductRepository(InventoryDbContext db) : IProductRepository
 {
     public async Task<IReadOnlyList<Product>> GetAllAsync(CancellationToken cancellationToken = default) =>
         await db.Products.OrderBy(p => p.Name).ToListAsync(cancellationToken);

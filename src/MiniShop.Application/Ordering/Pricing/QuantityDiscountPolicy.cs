@@ -1,6 +1,6 @@
-using MiniShop.Domain.Products;
+using MiniShop.Domain.Orders;
 
-namespace MiniShop.Application.Pricing;
+namespace MiniShop.Application.Ordering.Pricing;
 
 /// <summary>
 /// Množstevní sleva: od zadaného počtu kusů se zlevňuje o daný podíl (např. 0,10 = 10 %).
@@ -19,7 +19,7 @@ public sealed class QuantityDiscountPolicy : IDiscountPolicy
         _percentage = percentage;
     }
 
-    public decimal CalculateDiscount(Product product, int quantity) =>
+    public decimal CalculateDiscount(CatalogProduct product, int quantity) =>
         quantity >= _minimumQuantity
             ? Math.Round(product.Price * quantity * _percentage, 2)
             : 0m;

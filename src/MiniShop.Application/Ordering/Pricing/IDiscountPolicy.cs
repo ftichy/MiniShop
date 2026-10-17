@@ -1,6 +1,6 @@
-using MiniShop.Domain.Products;
+using MiniShop.Domain.Orders;
 
-namespace MiniShop.Application.Pricing;
+namespace MiniShop.Application.Ordering.Pricing;
 
 /// <summary>
 /// Pravidlo pro výpočet slevy na položku. Nové pravidlo = nová třída, OrderService se nemění (Open/Closed).
@@ -8,5 +8,5 @@ namespace MiniShop.Application.Pricing;
 public interface IDiscountPolicy
 {
     /// <returns>Sleva v Kč pro celou položku (0 = bez slevy).</returns>
-    decimal CalculateDiscount(Product product, int quantity);
+    decimal CalculateDiscount(CatalogProduct product, int quantity);
 }

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -9,6 +10,7 @@ using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Integration;
 using MiniShop.Infrastructure.Inventory;
 using MiniShop.Infrastructure.Integration.RabbitMq;
+using MiniShop.Infrastructure.Observability;
 using MiniShop.Infrastructure.Outbox;
 using RabbitMQ.Client;
 
@@ -47,6 +49,34 @@ public sealed class RabbitMqTests
         var placed = Assert.IsType<OrderPlacedV1>(read);
         Assert.Equal(Placed.OrderId, placed.OrderId);
         Assert.Equal(Placed.Lines, placed.Lines);
+    }
+
+    /// <summary>Krok 11: trace ID jde v hlavičce (ne v těle) a consumer ho přečte zpátky – i jako byte[] z RabbitMQ.</summary>
+    [Fact]
+    public void Zprava_VSledovaneOperaci_NeseTraceparentVHlavicce()
+    {
+        using var operation = new Activity("publish OrderPlacedV1").Start();
+
+        var properties = RabbitMqMessage.CreateProperties(Placed);
+
+        Assert.Equal(operation.Id, properties.Headers![MessagingTelemetry.TraceParentHeader]);
+        Assert.DoesNotContain("traceparent", Encoding.UTF8.GetString(RabbitMqMessage.Serialize(Placed)));
+
+        // Tak hlavičku vrátí RabbitMQ.Client příjemci:
+        var received = new BasicProperties
+        {
+            Headers = new Dictionary<string, object?> { ["traceparent"] = Encoding.UTF8.GetBytes(operation.Id!) }
+        };
+        Assert.Equal(operation.Id, RabbitMqMessage.ReadTraceParent(received));
+    }
+
+    [Fact]
+    public void Zprava_MimoSledovanouOperaci_BezHlavicek()
+    {
+        var properties = RabbitMqMessage.CreateProperties(Placed);
+
+        Assert.Null(properties.Headers);
+        Assert.Null(RabbitMqMessage.ReadTraceParent(properties));
     }
 
     /// <summary>Na portu 1 nic neposlouchá – bus musí ohlásit "broker nedostupný", ne obecnou chybu.</summary>

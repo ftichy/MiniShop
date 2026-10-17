@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MiniShop.Application;
 using MiniShop.Application.Inventory;
+using MiniShop.Infrastructure.Observability;
 using MiniShop.Infrastructure.Outbox;
 
 namespace MiniShop.Infrastructure.Inventory;
@@ -20,6 +21,9 @@ public static class InventoryInfrastructure
 
         // Vlastní outbox = vlastní pošťák.
         services.AddSingleton<IOutboxProcessor, OutboxProcessor<InventoryDbContext>>();
+
+        // Krok 11: /health hlásí Degraded, když v outboxu visí zpráva déle než 5 minut.
+        services.AddHealthChecks().AddCheck<OutboxHealthCheck<InventoryDbContext>>("outbox-inventory");
 
         services.AddIntegrationModule<InventoryDbContext>(IntegrationModules.Inventory);
 

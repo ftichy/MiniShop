@@ -16,6 +16,7 @@ internal sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outb
         builder.Property(m => m.Kind).HasConversion<string>().HasMaxLength(20);
         builder.Property(m => m.Payload).IsRequired();
         builder.Property(m => m.Error).HasMaxLength(2000);
+        builder.Property(m => m.TraceParent).HasMaxLength(64);   // krok 11, W3C traceparent má 55 znaků
 
         // SQLite neukládá DateTimeKind – při načtení čas označíme jako UTC.
         builder.Property(m => m.OccurredAtUtc)

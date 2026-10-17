@@ -8,6 +8,7 @@ using MiniShop.Domain.Common;
 using MiniShop.Domain.Orders.Events;
 using MiniShop.Infrastructure.Events;
 using MiniShop.Infrastructure.Inbox;
+using MiniShop.Infrastructure.Observability;
 using MiniShop.Infrastructure.Outbox;
 
 namespace MiniShop.Infrastructure.Ordering;
@@ -38,6 +39,9 @@ public static class OrderingInfrastructure
 
         // Outbox modulu (kroky 4 a 5): pošťák je singleton a pro každou zprávu si otevře vlastní scope.
         services.AddSingleton<IOutboxProcessor, OutboxProcessor<OrderingDbContext>>();
+
+        // Krok 11: /health hlásí Degraded, když v outboxu visí zpráva déle než 5 minut.
+        services.AddHealthChecks().AddCheck<OutboxHealthCheck<OrderingDbContext>>("outbox-ordering");
 
         services.AddIntegrationModule<OrderingDbContext>(IntegrationModules.Ordering);
 

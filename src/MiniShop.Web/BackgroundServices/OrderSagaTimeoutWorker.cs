@@ -1,5 +1,6 @@
 using MiniShop.Application.Ordering;
 using MiniShop.Application.Ordering.Saga;
+using MiniShop.Infrastructure.Observability;
 
 namespace MiniShop.Web.BackgroundServices;
 
@@ -48,6 +49,10 @@ public sealed class OrderSagaTimeoutWorker(
 
         foreach (var orderId in expired)
         {
+            // Krok 11: timeout nevzniká z HTTP požadavku – začne vlastní trasu, na kterou navážou zprávy, které vyvolá.
+            using var activity = MessagingTelemetry.ActivitySource.StartActivity("saga timeout");
+            activity?.SetTag("minishop.order.id", orderId);
+
             try
             {
                 await using var scope = scopeFactory.CreateAsyncScope();
@@ -58,6 +63,7 @@ public sealed class OrderSagaTimeoutWorker(
             }
             catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
             {
+                activity.RecordError(ex);
                 logger.LogWarning("[Sága] Timeout objednávky {OrderId} se nepodařilo zpracovat, zkusí se znovu: {Error}",
                     orderId, ex.Message);
             }

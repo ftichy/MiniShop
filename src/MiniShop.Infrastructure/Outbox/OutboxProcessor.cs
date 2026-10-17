@@ -1,8 +1,10 @@
+using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MiniShop.Application.Abstractions;
 using MiniShop.Infrastructure.Integration;
+using MiniShop.Infrastructure.Observability;
 using MiniShop.Infrastructure.Persistence;
 
 namespace MiniShop.Infrastructure.Outbox;
@@ -27,6 +29,9 @@ public sealed class OutboxProcessor<TDbContext>(
     private const int BatchSize = OutboxProcessor.BatchSize;
     private const int MaxAttempts = OutboxProcessor.MaxAttempts;
     private const int MaxErrorLength = 2000;
+
+    /// <summary>Jméno modulu pro trasy a metriky, např. "OrderingDbContext" → "Ordering".</summary>
+    private static readonly string ModuleName = typeof(TDbContext).Name.Replace("DbContext", string.Empty);
 
     /// <summary>
     /// Zpracuje jednu dávku nezpracovaných zpráv, od nejstarší. Vrací počet zpráv, které zkusil doručit
@@ -70,6 +75,13 @@ public sealed class OutboxProcessor<TDbContext>(
         var services = scope.ServiceProvider;
         var db = services.GetRequiredService<TDbContext>();
 
+        // Krok 11: span doručení navázaný na trasu operace, která zprávu vytvořila (TraceParent). Uvnitř je
+        // Activity.Current = tento span – bus ho přidá do hlavičky zprávy a handlery do svých nových zpráv v outboxu.
+        using var activity = MessagingTelemetry.StartOutboxActivity(
+            message.Kind == OutboxMessageKind.Integration ? "publish" : "dispatch",
+            message.Type, message.Id, message.TraceParent, ModuleName);
+        var tags = new TagList { { "message.type", message.Type }, { "module", ModuleName } };
+
         try
         {
             if (message.Kind == OutboxMessageKind.Integration)
@@ -92,9 +104,14 @@ public sealed class OutboxProcessor<TDbContext>(
                 .ExecuteUpdateAsync(s => s
                     .SetProperty(m => m.ProcessedAtUtc, processedAtUtc)
                     .SetProperty(m => m.Error, (string?)null), cancellationToken);
+
+            MessagingTelemetry.OutboxDelivered.Add(1, tags);
+            MessagingTelemetry.OutboxDelay.Record((processedAtUtc - message.OccurredAtUtc).TotalSeconds, tags);
         }
         catch (IntegrationBusUnavailableException ex) when (!cancellationToken.IsCancellationRequested)
         {
+            activity.RecordError(ex);
+
             // Broker neběží (krok 8) – chyba není ve zprávě, takže se nepočítá jako pokus a zpráva nepropadne
             // jako poison message. Počká v outboxu, dokud se broker nevrátí.
             await db.OutboxMessages
@@ -107,6 +124,8 @@ public sealed class OutboxProcessor<TDbContext>(
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             // Handler selhal (dispatcher už chybu zalogoval). Zpráva zůstane nezpracovaná a zkusí se v dalším kole.
+            activity.RecordError(ex);
+            MessagingTelemetry.OutboxFailed.Add(1, tags);
             var attempts = message.Attempts + 1;
             var error = Truncate(ex.Message);
             await db.OutboxMessages

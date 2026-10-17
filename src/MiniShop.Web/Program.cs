@@ -18,6 +18,10 @@ try
 {
     var builder = WebApplication.CreateBuilder(args);
 
+    // Krok 11: výchozí providery (Console, Debug…) pryč – logy píše Serilog a OpenTelemetry (ServiceDefaults).
+    // Jinak by je Serilog s writeToProviders přeposlal i výchozí konzoli a každý řádek by byl vidět dvakrát.
+    builder.Logging.ClearProviders();
+
     // Krok 10B: health checky, service discovery (najde Inventory.Api) a odolnost HttpClientů.
     builder.AddServiceDefaults();
 
@@ -26,7 +30,9 @@ try
     builder.Services.AddSerilog((services, logger) => logger
         .ReadFrom.Configuration(builder.Configuration)
         .ReadFrom.Services(services)
-        .Enrich.FromLogContext());
+        .Enrich.FromLogContext(),
+        // Krok 11: logy i do OpenTelemetry (Aspire dashboard → Structured logs, propojené s trasou).
+        writeToProviders: true);
 
     // Krok 10B: Web je služba Ordering – jen databáze objednávek. Sklad má vlastní službu i databázi.
     var orderingConnectionString = builder.Configuration.GetConnectionString("Ordering")

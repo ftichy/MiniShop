@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using MiniShop.Contracts;
+using MiniShop.Infrastructure.Observability;
 using MiniShop.Infrastructure.Outbox;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
@@ -98,6 +100,13 @@ public abstract class RabbitMqQueueConsumer(RabbitMqConnection connection, ILogg
     {
         var type = delivery.BasicProperties.Type ?? string.Empty;
         var messageId = delivery.BasicProperties.MessageId;
+        var tags = new TagList { { "message.type", type }, { "queue", QueueName } };
+
+        // Krok 11: span zpracování jako potomek odesílatele (hlavička traceparent) – trasa přeskočí frontu.
+        // Uvnitř je Activity.Current = tento span, takže zprávy, které handler uloží do outboxu, pokračují ve stejné trase.
+        using var activity = MessagingTelemetry.StartProcessActivity(type,
+            Guid.TryParse(messageId, out var id) ? id : Guid.Empty,
+            RabbitMqMessage.ReadTraceParent(delivery.BasicProperties), QueueName);
 
         IIntegrationMessage message;
         string payload;
@@ -108,6 +117,9 @@ public abstract class RabbitMqQueueConsumer(RabbitMqConnection connection, ILogg
         }
         catch (Exception ex)
         {
+            activity.RecordError(ex);
+            MessagingTelemetry.ConsumerFailed.Add(1, tags);
+
             // Zprávu nejde přečíst – opakování nepomůže. Bez dead-letter fronty se zahodí.
             logger.LogError(ex, "Zprávu {MessageId} ({Type}) z fronty {Queue} nejde přečíst, zahazuje se",
                 messageId, type, QueueName);
@@ -119,9 +131,13 @@ public abstract class RabbitMqQueueConsumer(RabbitMqConnection connection, ILogg
         {
             await HandleAsync(message, payload, delivery.Redelivered, cancellationToken);
             await channel.BasicAckAsync(delivery.DeliveryTag, multiple: false, cancellationToken);
+            MessagingTelemetry.ConsumerHandled.Add(1, tags);
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
+            activity.RecordError(ex);
+            MessagingTelemetry.ConsumerFailed.Add(1, tags);
+
             // Chyba handleru (např. zamčená DB) – po pauze vrátit do fronty, broker ji doručí znovu.
             logger.LogWarning("Zprávu {MessageId} ({Type}) z fronty {Queue} se nepodařilo zpracovat, za {Delay} s se vrátí do fronty: {Error}",
                 messageId, type, QueueName, RetryDelay.TotalSeconds, ex.Message);

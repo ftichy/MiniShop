@@ -1,6 +1,7 @@
 using System.Text.Json;
 using MiniShop.Contracts;
 using MiniShop.Domain.Common;
+using MiniShop.Infrastructure.Observability;
 
 namespace MiniShop.Infrastructure.Outbox;
 
@@ -10,6 +11,8 @@ namespace MiniShop.Infrastructure.Outbox;
 /// <remarks>
 /// Doménová událost nese entitu, která do JSONu nepatří – jaká data z ní uložit (payload), určuje modul
 /// (např. OrderingDomainEvents). Integrační zpráva je už sama o sobě jen data – payload je přímo její JSON.
+/// Krok 11: každá zpráva si zapamatuje trace ID operace, ve které vznikla (TraceParent). Do kontraktu
+/// ani payloadu nepatří – je to technická "obálka", ne business data.
 /// </remarks>
 public static class OutboxMessageFactory
 {
@@ -20,7 +23,8 @@ public static class OutboxMessageFactory
         Kind = OutboxMessageKind.Domain,
         Type = domainEvent.GetType().Name,
         Payload = JsonSerializer.Serialize(payload, payload.GetType()),
-        OccurredAtUtc = domainEvent.OccurredAtUtc
+        OccurredAtUtc = domainEvent.OccurredAtUtc,
+        TraceParent = MessagingTelemetry.CurrentTraceParent()
     };
 
     /// <summary>
@@ -32,6 +36,7 @@ public static class OutboxMessageFactory
         Kind = OutboxMessageKind.Integration,
         Type = message.GetType().Name,
         Payload = JsonSerializer.Serialize(message, message.GetType()),
-        OccurredAtUtc = message.OccurredAtUtc
+        OccurredAtUtc = message.OccurredAtUtc,
+        TraceParent = MessagingTelemetry.CurrentTraceParent()
     };
 }

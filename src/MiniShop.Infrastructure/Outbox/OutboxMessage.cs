@@ -23,6 +23,12 @@ public sealed class OutboxMessage
 
     public DateTime OccurredAtUtc { get; init; }
 
+    /// <summary>
+    /// Krok 11: "podací číslo" operace, která zprávu vytvořila (W3C traceparent: 00-{trace id}-{span id}-01).
+    /// Worker podle něj naváže doručení na původní trasu, i když zpráva v outboxu chvíli ležela. Null = nesledováno.
+    /// </summary>
+    public string? TraceParent { get; init; }
+
     /// <summary>Kdy všechny handlery události úspěšně proběhly; null = zatím ne.</summary>
     public DateTime? ProcessedAtUtc { get; set; }
 

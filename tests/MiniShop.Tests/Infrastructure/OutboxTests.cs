@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using MiniShop.Application.Abstractions;
@@ -10,6 +12,7 @@ using MiniShop.Domain.Orders;
 using MiniShop.Domain.Orders.Events;
 using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Integration;
+using MiniShop.Infrastructure.Observability;
 using MiniShop.Infrastructure.Outbox;
 using MiniShop.Infrastructure.Ordering;
 using MiniShop.Tests.TestDoubles;
@@ -255,6 +258,67 @@ public sealed class OutboxTests : IDisposable
         var message = await Db(db => db.OutboxMessages.SingleAsync());
         Assert.Equal(1, message.Attempts);
         Assert.Contains("odmítl", message.Error);
+    }
+
+    // ---------- Krok 11: trace ID a health check ----------
+
+    [Fact]
+    public async Task Ulozeni_ZapamatujeSiTraceIdOperace()
+    {
+        using var operation = new Activity("POST /api/orders").Start();
+
+        await PlaceOrderAsync(quantity: 1);
+
+        var message = await Db(db => db.OutboxMessages.SingleAsync());
+        Assert.Equal(operation.Id, message.TraceParent);   // 00-{trace id}-{span id}-…
+    }
+
+    [Theory]
+    [InlineData(1, HealthStatus.Healthy)]     // běžné zpoždění workeru
+    [InlineData(6, HealthStatus.Degraded)]    // visí déle než 5 minut
+    public async Task HealthCheck_NedorucenaZprava_PodleStari(int minutesOld, HealthStatus expected)
+    {
+        await Db(db =>
+        {
+            db.OutboxMessages.Add(new OutboxMessage
+            {
+                Id = Guid.NewGuid(),
+                Kind = OutboxMessageKind.Integration,
+                Type = "OrderCompletedV1",
+                Payload = "{}",
+                OccurredAtUtc = Now.UtcDateTime.AddMinutes(-minutesOld)
+            });
+            return db.SaveChangesAsync();
+        });
+
+        Assert.Equal(expected, (await CheckOutboxHealthAsync()).Status);
+    }
+
+    [Fact]
+    public async Task HealthCheck_StaraUzDorucenaZprava_JeHealthy()
+    {
+        await Db(db =>
+        {
+            db.OutboxMessages.Add(new OutboxMessage
+            {
+                Id = Guid.NewGuid(),
+                Kind = OutboxMessageKind.Integration,
+                Type = "OrderCompletedV1",
+                Payload = "{}",
+                OccurredAtUtc = Now.UtcDateTime.AddHours(-1),
+                ProcessedAtUtc = Now.UtcDateTime.AddHours(-1)
+            });
+            return db.SaveChangesAsync();
+        });
+
+        Assert.Equal(HealthStatus.Healthy, (await CheckOutboxHealthAsync()).Status);
+    }
+
+    private async Task<HealthCheckResult> CheckOutboxHealthAsync()
+    {
+        await using var scope = _services.CreateAsyncScope();
+        var check = ActivatorUtilities.CreateInstance<OutboxHealthCheck<OrderingDbContext>>(scope.ServiceProvider);
+        return await check.CheckHealthAsync(new HealthCheckContext());
     }
 
     private Task<int> AddIntegrationMessageAsync(int orderId) => Db(db =>

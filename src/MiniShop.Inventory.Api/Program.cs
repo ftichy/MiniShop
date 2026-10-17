@@ -18,12 +18,17 @@ try
 {
     var builder = WebApplication.CreateBuilder(args);
 
+    // Krok 11: výchozí providery pryč – logy píše Serilog a OpenTelemetry (jinak by byly na konzoli dvakrát).
+    builder.Logging.ClearProviders();
+
     builder.AddServiceDefaults();
 
     builder.Services.AddSerilog((services, logger) => logger
         .ReadFrom.Configuration(builder.Configuration)
         .ReadFrom.Services(services)
-        .Enrich.FromLogContext());
+        .Enrich.FromLogContext(),
+        // Krok 11: logy i do OpenTelemetry (Aspire dashboard → Structured logs, propojené s trasou).
+        writeToProviders: true);
 
     var connectionString = builder.Configuration.GetConnectionString("Inventory")
         ?? throw new InvalidOperationException("Chybí connection string 'Inventory' v appsettings.json.");

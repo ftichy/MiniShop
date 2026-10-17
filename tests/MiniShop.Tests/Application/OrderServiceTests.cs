@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -544,6 +545,60 @@ public sealed class OrderServiceTests : IDisposable
         Assert.Null(await OrderingDb(db => Task.FromResult(db.Model.FindEntityType(typeof(MiniShop.Domain.Inventory.Product)))));
         Assert.Null(await InventoryDb(db => Task.FromResult(db.Model.FindEntityType(typeof(MiniShop.Domain.Orders.Order)))));
         Assert.NotEqual(_orderingDatabase.ConnectionString, _inventoryDatabase.ConnectionString);
+    }
+
+    // ---------- Krok 11: jedna trasa přes celou ságu ----------
+
+    [Fact]
+    public async Task PlaceOrder_CelaSagaJeVJedneTrase()
+    {
+        using var recorder = new ActivityRecorder();
+        var product = await AddProductAsync(price: 100m, stock: 5);
+
+        // Simulace HTTP požadavku "POST /api/orders" – v aplikaci tuhle aktivitu založí ASP.NET Core.
+        var request = new Activity("POST /api/orders").Start();
+        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 2))));
+        request.Stop();
+
+        // Worker běží mimo požadavek (bez Activity.Current) – trasu musí navázat podle TraceParent v outboxu.
+        Assert.Null(Activity.Current);
+        await ProcessOutboxAsync();
+        Assert.Equal("Confirmed", await StatusAsync(order.Id));
+
+        var spans = recorder.SpansOf(request.TraceId).Select(a => a.DisplayName).ToList();
+        string[] expected =
+        [
+            "dispatch OrderPlaced",            // Ordering: doménová událost → orchestrátor ságy
+            "publish ReserveStockV1",          // Ordering → "broker"
+            "process ReserveStockV1",          // Inventory: rezervace
+            "publish StockReservedV1",         // Inventory → "broker"
+            "process StockReservedV1",         // Ordering: sága potvrdí objednávku
+            "dispatch OrderConfirmed"          // Ordering: notifikace o potvrzení
+        ];
+        Assert.All(expected, name => Assert.Contains(name, spans));
+
+        // Kroky ságy jdou po sobě: každý začne až po tom, který ho vyvolal.
+        var indexes = expected.Select(name => spans.IndexOf(name)).ToList();
+        Assert.Equal(indexes.Order(), indexes);
+
+        // Všechny zprávy objednávky v outboxech OBOU modulů nesou trace ID původního požadavku.
+        var messages = (await OrderingDb(db => db.OutboxMessages.ToListAsync()))
+            .Concat(await InventoryDb(db => db.OutboxMessages.ToListAsync()))
+            .Where(m => !m.Type.StartsWith("Product"))   // zprávy z přípravy dat vznikly mimo požadavek
+            .ToList();
+        Assert.NotEmpty(messages);
+        Assert.All(messages, m => Assert.Contains(request.TraceId.ToHexString(), m.TraceParent));
+    }
+
+    [Fact]
+    public async Task PlaceOrder_MimoSledovanouOperaci_ZpravyBezTraceParent()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+
+        await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 1))));
+
+        var placed = await OrderingDb(db => db.OutboxMessages.SingleAsync(m => m.Type == nameof(OrderPlaced)));
+        Assert.Null(placed.TraceParent);
     }
 
     // ---------- Pomocné metody ----------

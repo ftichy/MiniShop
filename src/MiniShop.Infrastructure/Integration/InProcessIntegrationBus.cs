@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MiniShop.Contracts;
+using MiniShop.Infrastructure.Observability;
 
 namespace MiniShop.Infrastructure.Integration;
 
@@ -30,6 +31,10 @@ public sealed class InProcessIntegrationBus(
 
         foreach (var module in modules)
         {
+            // Krok 11: stejný span jako consumer RabbitMQ – trasa v testech vypadá jako "naostro".
+            using var activity = MessagingTelemetry.StartProcessActivity(message.GetType().Name, message.MessageId,
+                MessagingTelemetry.CurrentTraceParent(), $"minishop.{module}");
+
             await using var scope = scopeFactory.CreateAsyncScope();
             await scope.ServiceProvider.GetRequiredService<IntegrationMessageDispatcher>()
                 .DispatchAsync(message, module, cancellationToken);

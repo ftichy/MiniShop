@@ -42,6 +42,6 @@ public enum OutboxMessageKind
     /// <summary>Doménová událost – worker ji předá dispatcheru a handlerům v této aplikaci.</summary>
     Domain,
 
-    /// <summary>Integrační událost (kontrakt z MiniShop.Contracts) – worker ji pošle ven přes IIntegrationEventBus.</summary>
+    /// <summary>Integrační zpráva – událost nebo příkaz z MiniShop.Contracts – worker ji pošle přes IIntegrationBus.</summary>
     Integration
 }

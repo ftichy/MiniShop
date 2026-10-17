@@ -10,6 +10,8 @@ namespace MiniShop.Infrastructure.Events.Handlers;
 /// </summary>
 public sealed class OrderEventsLogHandler(ILogger<OrderEventsLogHandler> logger) :
     IDomainEventHandler<OrderPlaced>,
+    IDomainEventHandler<OrderConfirmed>,
+    IDomainEventHandler<OrderRejected>,
     IDomainEventHandler<OrderCompleted>,
     IDomainEventHandler<OrderCancelled>
 {
@@ -18,6 +20,19 @@ public sealed class OrderEventsLogHandler(ILogger<OrderEventsLogHandler> logger)
         // Dispatch běží až po uložení, takže objednávka už má přidělené ID.
         logger.LogInformation("[Událost] OrderPlaced: objednávka {OrderId}, {ItemCount} položek, celkem {Total} Kč",
             domainEvent.Order.Id, domainEvent.Order.Items.Count, domainEvent.Order.TotalPrice);
+        return Task.CompletedTask;
+    }
+
+    public Task HandleAsync(OrderConfirmed domainEvent, CancellationToken cancellationToken)
+    {
+        logger.LogInformation("[Událost] OrderConfirmed: objednávka {OrderId}", domainEvent.Order.Id);
+        return Task.CompletedTask;
+    }
+
+    public Task HandleAsync(OrderRejected domainEvent, CancellationToken cancellationToken)
+    {
+        logger.LogInformation("[Událost] OrderRejected: objednávka {OrderId} – {Reason}",
+            domainEvent.Order.Id, domainEvent.Order.RejectionReason);
         return Task.CompletedTask;
     }
 

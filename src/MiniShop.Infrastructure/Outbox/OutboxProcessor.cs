@@ -9,7 +9,7 @@ namespace MiniShop.Infrastructure.Outbox;
 
 /// <summary>
 /// "Pošťák" outboxu (krok 5): vybere nezpracované zprávy, převede je zpět na události a doručí je.
-/// Doménové události handlerům v aplikaci, integrační (krok 7) ven přes <see cref="IIntegrationEventBus"/>.
+/// Doménové události handlerům v aplikaci, integrační (krok 7) ven přes <see cref="IIntegrationBus"/>.
 /// Jedno zavolání <see cref="ProcessPendingAsync"/> = jedno vybrání schránky. Pravidelně ho volá OutboxWorker ve Webu.
 /// </summary>
 /// <remarks>
@@ -76,9 +76,10 @@ public sealed class OutboxProcessor(
         {
             if (message.Kind == OutboxMessageKind.Integration)
             {
-                // Integrační událost (krok 7) – ven pro jiné služby, handlery v aplikaci ji nedostanou.
-                var integrationEvent = IntegrationEventReader.Read(message);
-                await services.GetRequiredService<IIntegrationEventBus>().PublishAsync(integrationEvent, cancellationToken);
+                // Integrační zpráva (kroky 7 a 9) – ven přes bus. Doménové handlery ji nedostanou,
+                // handlery integračních zpráv (moduly) ano – přes RabbitMQ nebo přímo v procesu.
+                var integrationMessage = IntegrationMessageReader.Read(message);
+                await services.GetRequiredService<IIntegrationBus>().PublishAsync(integrationMessage, cancellationToken);
             }
             else
             {

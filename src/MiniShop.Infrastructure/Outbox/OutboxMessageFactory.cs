@@ -26,16 +26,16 @@ public static class OutboxMessageFactory
     };
 
     /// <summary>
-    /// Integrační událost (krok 7) je už sama o sobě jen data – payload je přímo její JSON, žádný převod.
-    /// Type je název kontraktu včetně verze ("OrderPlacedV1"), podle něj ji <see cref="IntegrationEventReader"/> načte zpět.
+    /// Integrační zpráva – událost (krok 7) nebo příkaz (krok 9) – je už sama o sobě jen data: payload je přímo její JSON.
+    /// Type je název kontraktu včetně verze ("OrderPlacedV1"), podle něj ji <see cref="IntegrationMessageReader"/> načte zpět.
     /// </summary>
-    public static OutboxMessage Create(IIntegrationEvent integrationEvent) => new()
+    public static OutboxMessage Create(IIntegrationMessage message) => new()
     {
-        Id = integrationEvent.EventId,
+        Id = message.MessageId,
         Kind = OutboxMessageKind.Integration,
-        Type = integrationEvent.GetType().Name,
-        Payload = JsonSerializer.Serialize(integrationEvent, integrationEvent.GetType()),
-        OccurredAtUtc = integrationEvent.OccurredAtUtc
+        Type = message.GetType().Name,
+        Payload = JsonSerializer.Serialize(message, message.GetType()),
+        OccurredAtUtc = message.OccurredAtUtc
     };
 
     private static object ToPayload(IDomainEvent domainEvent) => domainEvent switch
@@ -43,6 +43,8 @@ public static class OutboxMessageFactory
         OrderPlaced e => new OrderPayload(e.Order.Id, e.Order.CustomerEmail, e.Order.TotalPrice, ToLines(e.Order)),
         OrderCompleted e => new OrderPayload(e.Order.Id, e.Order.CustomerEmail, e.Order.TotalPrice, ToLines(e.Order)),
         OrderCancelled e => new OrderPayload(e.Order.Id, e.Order.CustomerEmail, e.Order.TotalPrice, ToLines(e.Order)),
+        OrderConfirmed e => new OrderPayload(e.Order.Id, e.Order.CustomerEmail, e.Order.TotalPrice, ToLines(e.Order)),
+        OrderRejected e => new OrderPayload(e.Order.Id, e.Order.CustomerEmail, e.Order.TotalPrice, ToLines(e.Order)),
         _ => throw new InvalidOperationException(
             $"Událost {domainEvent.GetType().Name} nemá převod do outboxu. Doplňte ji do {nameof(OutboxMessageFactory)}.")
     };

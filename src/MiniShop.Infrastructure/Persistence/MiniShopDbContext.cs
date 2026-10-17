@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using MiniShop.Application.Abstractions;
 using MiniShop.Domain.Common;
+using MiniShop.Domain.Inventory;
 using MiniShop.Domain.Orders;
+using MiniShop.Domain.Orders.Saga;
 using MiniShop.Domain.Products;
 using MiniShop.Infrastructure.Inbox;
 using MiniShop.Infrastructure.Outbox;
@@ -17,6 +19,8 @@ public sealed class MiniShopDbContext(DbContextOptions<MiniShopDbContext> option
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<ProcessedMessage> ProcessedMessages => Set<ProcessedMessage>();
+    public DbSet<OrderSaga> OrderSagas => Set<OrderSaga>();
+    public DbSet<StockReservation> StockReservations => Set<StockReservation>();
 
     /// <summary>
     /// Outbox (krok 4): v JEDNÉ transakci uloží změny entit i řádky outboxu – buď obojí, nebo nic.

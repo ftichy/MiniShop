@@ -40,7 +40,7 @@ public sealed class IndexModel(IOrderService orderService, IProductService produ
         return await ExecuteAsync(async () =>
         {
             var order = await orderService.PlaceOrderAsync(request, cancellationToken);
-            StatusMessage = $"Objednávka č. {order.Id} byla vytvořena (celkem {order.TotalPrice:N2} Kč).";
+            StatusMessage = $"Objednávka č. {order.Id} přijata (celkem {order.TotalPrice:N2} Kč), ověřujeme sklad…";
         }, cancellationToken);
     }
 
@@ -60,7 +60,7 @@ public sealed class IndexModel(IOrderService orderService, IProductService produ
         return ExecuteAsync(async () =>
         {
             await orderService.CancelAsync(id, cancellationToken);
-            StatusMessage = $"Objednávka č. {id} byla zrušena, zboží se vrátilo na sklad.";
+            StatusMessage = $"Objednávka č. {id} byla zrušena, zboží se za chvilku vrátí na sklad.";
         }, cancellationToken);
     }
 
@@ -88,9 +88,23 @@ public sealed class IndexModel(IOrderService orderService, IProductService produ
             .ToList();
     }
 
+    /// <summary>Krok 9: dokud nějaká objednávka čeká na sklad, stránka se sama obnovuje (jednoduchý polling).</summary>
+    public bool HasPendingOrders => Orders.Any(o => o.Status == "Pending");
+
+    public static string StatusBadge(string status) => status switch
+    {
+        "Pending" => "bg-warning text-dark",
+        "Confirmed" => "bg-primary",
+        "Rejected" => "bg-danger",
+        "Completed" => "bg-success",
+        _ => "bg-secondary"
+    };
+
     public static string StatusText(string status) => status switch
     {
-        "Created" => "Nová",
+        "Pending" => "Ověřujeme sklad…",
+        "Confirmed" => "Potvrzená",
+        "Rejected" => "Zamítnutá",
         "Completed" => "Vyřízená",
         "Cancelled" => "Zrušená",
         _ => status

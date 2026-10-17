@@ -7,9 +7,13 @@ namespace MiniShop.Domain.Orders;
 
 /// <summary>
 /// Objednávka zákazníka. Položky lze přidávat jen přes <see cref="AddItem"/>,
-/// stav se mění jen přes <see cref="Complete"/> a <see cref="Cancel"/>.
-/// Každá změna stavu vyvolá doménovou událost (OrderPlaced, OrderCompleted, OrderCancelled).
+/// stav se mění jen přes <see cref="Confirm"/>, <see cref="Reject"/>, <see cref="Complete"/> a <see cref="Cancel"/>.
+/// Každá změna stavu vyvolá doménovou událost.
 /// </summary>
+/// <remarks>
+/// Od kroku 9 objednávka vzniká jako Pending a o potvrzení rozhoduje sága (OrderSaga) podle odpovědi skladu.
+/// Objednávka sama sklad nezná – jen přijme výsledek.
+/// </remarks>
 public class Order : Entity
 {
     private readonly List<OrderItem> _items = new();
@@ -35,7 +39,7 @@ public class Order : Entity
         CustomerName = customerName.Trim();
         CustomerEmail = customerEmail.Trim();
         CreatedAtUtc = createdAtUtc;
-        Status = OrderStatus.Created;
+        Status = OrderStatus.Pending;
 
         // Položky se přidají až po konstruktoru, ale událost drží odkaz na objednávku,
         // takže handler (krok 2) uvidí objednávku i s položkami.
@@ -48,26 +52,52 @@ public class Order : Entity
     public DateTime CreatedAtUtc { get; private set; }
     public OrderStatus Status { get; private set; }
 
+    /// <summary>Proč byla objednávka zamítnuta (jen ve stavu Rejected).</summary>
+    public string? RejectionReason { get; private set; }
+
     public IReadOnlyCollection<OrderItem> Items => _items.AsReadOnly();
 
     public decimal TotalPrice => _items.Sum(i => i.LineTotal);
 
     public void AddItem(Product product, int quantity, decimal discount)
     {
-        EnsureStatus(OrderStatus.Created, "Položky lze přidávat jen do nové objednávky.");
+        EnsureStatus(OrderStatus.Pending, "Položky lze přidávat jen do nové objednávky.");
         _items.Add(new OrderItem(product.Id, product.Name, product.Price, quantity, discount));
+    }
+
+    /// <summary>Sklad zboží zarezervoval (krok 9).</summary>
+    public void Confirm(DateTime confirmedAtUtc)
+    {
+        EnsureStatus(OrderStatus.Pending, "Potvrdit lze jen čekající objednávku.");
+        Status = OrderStatus.Confirmed;
+        Raise(new OrderConfirmed(this, confirmedAtUtc));
+    }
+
+    /// <summary>Sklad zboží nezarezervoval nebo neodpověděl včas (krok 9).</summary>
+    public void Reject(string reason, DateTime rejectedAtUtc)
+    {
+        EnsureStatus(OrderStatus.Pending, "Zamítnout lze jen čekající objednávku.");
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new DomainException("Důvod zamítnutí je povinný.");
+        }
+
+        Status = OrderStatus.Rejected;
+        RejectionReason = reason.Trim();
+        Raise(new OrderRejected(this, rejectedAtUtc));
     }
 
     public void Complete(DateTime completedAtUtc)
     {
-        EnsureStatus(OrderStatus.Created, "Vyřídit lze jen novou objednávku.");
+        EnsureStatus(OrderStatus.Confirmed, "Vyřídit lze jen potvrzenou objednávku.");
         Status = OrderStatus.Completed;
         Raise(new OrderCompleted(this, completedAtUtc));
     }
 
+    /// <summary>Zrušení potvrzené objednávky – sága pak uvolní rezervaci skladu (kompenzace).</summary>
     public void Cancel(DateTime cancelledAtUtc)
     {
-        EnsureStatus(OrderStatus.Created, "Zrušit lze jen novou objednávku.");
+        EnsureStatus(OrderStatus.Confirmed, "Zrušit lze jen potvrzenou objednávku.");
         Status = OrderStatus.Cancelled;
         Raise(new OrderCancelled(this, cancelledAtUtc));
     }

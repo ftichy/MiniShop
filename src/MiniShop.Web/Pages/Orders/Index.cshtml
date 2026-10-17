@@ -43,6 +43,13 @@
     <p>Zatím žádné objednávky.</p>
 }
 
+@if (Model.HasPendingOrders)
+{
+    @* Krok 9: sklad objednávku ověřuje na pozadí (sága) – za 2 s se podíváme znovu. *@
+    <p class="text-muted small">Některé objednávky čekají na ověření skladu, stránka se sama obnoví…</p>
+    <script>setTimeout(() => location.reload(), 2000);</script>
+}
+
 @foreach (var order in Model.Orders)
 {
     <div class="card mb-3">
@@ -53,8 +60,8 @@
                 @order.CreatedAtUtc.ToLocalTime().ToString("g")
             </span>
             <span>
-                <span class="badge bg-secondary me-2">@IndexModel.StatusText(order.Status)</span>
-                @if (order.Status == "Created")
+                <span class="badge @IndexModel.StatusBadge(order.Status) me-2">@IndexModel.StatusText(order.Status)</span>
+                @if (order.Status == "Confirmed")
                 {
                     <form method="post" asp-page-handler="Complete" asp-route-id="@order.Id" class="d-inline">
                         <button type="submit" class="btn btn-sm btn-success">Vyřídit</button>
@@ -65,6 +72,10 @@
                 }
             </span>
         </div>
+        @if (order.RejectionReason is not null)
+        {
+            <div class="card-body py-2 text-danger small">@order.RejectionReason</div>
+        }
         <table class="table table-sm mb-0">
             <thead>
                 <tr>

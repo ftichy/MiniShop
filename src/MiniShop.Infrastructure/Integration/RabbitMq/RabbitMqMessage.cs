@@ -4,19 +4,19 @@ using RabbitMQ.Client;
 
 namespace MiniShop.Infrastructure.Integration.RabbitMq;
 
-/// <summary>Jak vypadá integrační událost "na drátě": hlavičky (properties) + tělo s JSONem kontraktu.</summary>
+/// <summary>Jak vypadá integrační zpráva "na drátě": hlavičky (properties) + tělo s JSONem kontraktu.</summary>
 public static class RabbitMqMessage
 {
-    public static BasicProperties CreateProperties(IIntegrationEvent integrationEvent) => new()
+    public static BasicProperties CreateProperties(IIntegrationMessage message) => new()
     {
-        MessageId = integrationEvent.EventId.ToString(),      // příjemce podle něj pozná duplicitu (inbox)
-        Type = integrationEvent.GetType().Name,               // název kontraktu – podle něj příjemce JSON načte
+        MessageId = message.MessageId.ToString(),      // příjemce podle něj pozná duplicitu (inbox)
+        Type = message.GetType().Name,               // název kontraktu – podle něj příjemce JSON načte
         ContentType = "application/json",
         DeliveryMode = DeliveryModes.Persistent,              // zpráva ve frontě přežije restart brokeru
-        Timestamp = new AmqpTimestamp(new DateTimeOffset(integrationEvent.OccurredAtUtc).ToUnixTimeSeconds()),
+        Timestamp = new AmqpTimestamp(new DateTimeOffset(message.OccurredAtUtc).ToUnixTimeSeconds()),
         AppId = "MiniShop"
     };
 
-    public static byte[] Serialize(IIntegrationEvent integrationEvent) =>
-        JsonSerializer.SerializeToUtf8Bytes(integrationEvent, integrationEvent.GetType());
+    public static byte[] Serialize(IIntegrationMessage message) =>
+        JsonSerializer.SerializeToUtf8Bytes(message, message.GetType());
 }

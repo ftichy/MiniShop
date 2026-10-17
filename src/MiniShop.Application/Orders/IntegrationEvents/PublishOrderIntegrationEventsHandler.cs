@@ -15,7 +15,7 @@ namespace MiniShop.Application.Orders.IntegrationEvents;
 /// Běží uvnitř dekorátoru IdempotentDomainEventHandler (krok 6): zápis do outboxu se potvrdí spolu s odškrtnutím
 /// v inboxu, takže se při opakovaném doručení doménové události integrační událost nepublikuje dvakrát.
 /// </remarks>
-public sealed class PublishOrderIntegrationEventsHandler(IIntegrationEventPublisher publisher, IUnitOfWork unitOfWork) :
+public sealed class PublishOrderIntegrationEventsHandler(IIntegrationMessagePublisher publisher, IUnitOfWork unitOfWork) :
     IDomainEventHandler<OrderPlaced>,
     IDomainEventHandler<OrderCompleted>,
     IDomainEventHandler<OrderCancelled>

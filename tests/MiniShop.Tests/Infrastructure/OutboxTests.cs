@@ -27,7 +27,7 @@ public sealed class OutboxTests : IDisposable
 
     private readonly InMemoryDatabase _database = new();
     private readonly SwitchableDispatcher _dispatcher = new();
-    private readonly RecordingIntegrationEventBus _bus = new();
+    private readonly RecordingIntegrationBus _bus = new();
     private readonly ServiceProvider _services;
 
     /// <summary>Dispatcher, který si zapisuje doručené události a na povel selže – simuluje chybu handleru.</summary>
@@ -55,7 +55,7 @@ public sealed class OutboxTests : IDisposable
         services.AddSingleton<TimeProvider>(new FixedTimeProvider(Now));
         services.AddInfrastructure(_database.ConnectionString);
         services.AddSingleton<IDomainEventDispatcher>(_dispatcher);   // přebije skutečný dispatcher
-        services.AddSingleton<IIntegrationEventBus>(_bus);            // a "broker"
+        services.AddSingleton<IIntegrationBus>(_bus);            // a "broker"
 
         _services = services.BuildServiceProvider();
         Db(db => db.Database.EnsureCreatedAsync()).GetAwaiter().GetResult();

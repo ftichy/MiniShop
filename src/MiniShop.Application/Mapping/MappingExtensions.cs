@@ -22,5 +22,6 @@ public static class MappingExtensions
             order.TotalPrice,
             order.Items
                 .Select(i => new OrderItemDto(i.ProductId, i.ProductName, i.UnitPrice, i.Quantity, i.Discount, i.LineTotal))
-                .ToList());
+                .ToList(),
+            order.RejectionReason);
 }

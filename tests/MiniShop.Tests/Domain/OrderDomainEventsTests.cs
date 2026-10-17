@@ -14,6 +14,14 @@ public class OrderDomainEventsTests
 
     private static Order CreateOrder() => new("Jan Novák", "jan@example.com", CreatedAt);
 
+    private static Order CreateConfirmedOrder()
+    {
+        var order = CreateOrder();
+        order.Confirm(CreatedAt);
+        order.ClearDomainEvents();
+        return order;
+    }
+
     [Fact]
     public void NovaObjednavka_VyvolaOrderPlaced()
     {
@@ -25,10 +33,32 @@ public class OrderDomainEventsTests
     }
 
     [Fact]
-    public void Cancel_VyvolaPraveJednuUdalostOrderCancelled()
+    public void Confirm_VyvolaOrderConfirmed()
     {
         var order = CreateOrder();
         order.ClearDomainEvents();
+
+        order.Confirm(Later);
+
+        var confirmed = Assert.IsType<OrderConfirmed>(Assert.Single(order.DomainEvents));
+        Assert.Equal(Later, confirmed.OccurredAtUtc);
+    }
+
+    [Fact]
+    public void Reject_VyvolaOrderRejected()
+    {
+        var order = CreateOrder();
+        order.ClearDomainEvents();
+
+        order.Reject("Nedostatek zboží", Later);
+
+        Assert.IsType<OrderRejected>(Assert.Single(order.DomainEvents));
+    }
+
+    [Fact]
+    public void Cancel_VyvolaPraveJednuUdalostOrderCancelled()
+    {
+        var order = CreateConfirmedOrder();
 
         order.Cancel(Later);
 
@@ -39,8 +69,7 @@ public class OrderDomainEventsTests
     [Fact]
     public void Complete_VyvolaOrderCompleted()
     {
-        var order = CreateOrder();
-        order.ClearDomainEvents();
+        var order = CreateConfirmedOrder();
 
         order.Complete(Later);
 
@@ -50,7 +79,7 @@ public class OrderDomainEventsTests
     [Fact]
     public void NeplatnaZmenaStavu_NevyvolaZadnouUdalost()
     {
-        var order = CreateOrder();
+        var order = CreateConfirmedOrder();
         order.Cancel(Later);
         order.ClearDomainEvents();
 

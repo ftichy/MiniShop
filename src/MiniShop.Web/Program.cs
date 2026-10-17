@@ -27,11 +27,14 @@ try
         ?? throw new InvalidOperationException("Chybí connection string 'MiniShop' v appsettings.json.");
 
     // Registrace vrstev (composition root).
-    builder.Services.AddApplication();
+    builder.Services.AddApplication(builder.Configuration);
     builder.Services.AddInfrastructure(connectionString);
 
     // Krok 5: doručování událostí z outboxu na pozadí.
     builder.Services.AddHostedService<OutboxWorker>();
+
+    // Krok 9: hlídání termínů ságy (sklad neodpověděl včas → zamítnout).
+    builder.Services.AddHostedService<OrderSagaTimeoutWorker>();
 
     // Krok 8: integrační události do RabbitMQ (nebo jen do logu), viz sekce "Messaging".
     builder.Services.AddMessaging(builder.Configuration);

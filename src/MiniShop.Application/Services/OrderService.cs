@@ -17,8 +17,9 @@ namespace MiniShop.Application.Services;
 /// obstarávají handlery doménových událostí ve složce Orders/EventHandlers.
 /// Od kroku 5 běží handlery asynchronně: SaveChangesAsync uloží událost do outboxu a worker ji
 /// doručí o chvilku později (eventual consistency).
-/// Odečtení skladu při vytvoření zůstává tady: kontrola dostupnosti musí proběhnout PŘED přijetím objednávky
-/// (asynchronní rezervaci přinese sága v kroku 9).
+/// Od kroku 9 sklad vůbec nemění: objednávka vznikne jako Pending a o rezervaci se postará sága
+/// (OrderSagaOrchestrator → příkaz ReserveStockV1 → modul Inventory). Nedostatek zboží proto není chyba 400,
+/// ale zamítnutá objednávka.
 /// </remarks>
 public sealed class OrderService(
     IOrderRepository orders,
@@ -64,12 +65,12 @@ public sealed class OrderService(
                 throw new NotFoundException($"Produkt s ID {productId} nebyl nalezen.");
             }
 
-            product.RemoveStock(quantity);
+            // Katalog jen ověří, že produkt existuje, a dodá cenu. Zásobu řeší až sklad (sága).
             order.AddItem(product, quantity, CalculateDiscount(product, quantity));
         }
 
         orders.Add(order);
-        await unitOfWork.SaveChangesAsync(cancellationToken);   // → OrderPlaced do outboxu → později handlery
+        await unitOfWork.SaveChangesAsync(cancellationToken);   // → OrderPlaced do outboxu → sága → ReserveStockV1
 
         return order.ToDto();
     }
@@ -89,7 +90,7 @@ public sealed class OrderService(
         var order = await GetOrderAsync(id, cancellationToken);
         order.Cancel(UtcNow);                                    // vyvolá OrderCancelled
 
-        // Vrácení zboží a oznámení zákazníkovi zajistí handlery OrderCancelled (o chvilku později, přes outbox).
+        // Vrácení zboží zajistí sága (příkaz ReleaseStockV1 pro sklad), oznámení handler OrderCancelled.
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return order.ToDto();

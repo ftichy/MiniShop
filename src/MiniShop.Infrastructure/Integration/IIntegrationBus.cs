@@ -3,15 +3,15 @@ using MiniShop.Contracts;
 namespace MiniShop.Infrastructure.Integration;
 
 /// <summary>
-/// "Poštovní schránka ven": odešle integrační událost ostatním službám.
-/// Volá ho jen <see cref="Outbox.OutboxProcessor"/> – aplikace sama publikuje přes IIntegrationEventPublisher (do outboxu).
+/// "Poštovní schránka ven": doručí integrační zprávu (událost nebo příkaz) jejím příjemcům.
+/// Volá ho jen <see cref="Outbox.OutboxProcessor"/> – aplikace sama posílá přes IIntegrationMessagePublisher (do outboxu).
 /// </summary>
 /// <remarks>
-/// Implementace: <see cref="LoggingIntegrationEventBus"/> (jen log) a <see cref="RabbitMq.RabbitMqIntegrationEventBus"/> (krok 8).
-/// Kterou použít, rozhoduje Messaging:Transport v appsettings.json. Zbytek aplikace o tom neví.
+/// Implementace: <see cref="InProcessIntegrationBus"/> (handlery přímo v procesu, bez brokeru) a
+/// <see cref="RabbitMq.RabbitMqIntegrationBus"/> (krok 8). Kterou použít, rozhoduje Messaging:Transport v appsettings.json.
 /// Když broker neběží, implementace vyhodí <see cref="IntegrationBusUnavailableException"/>.
 /// </remarks>
-public interface IIntegrationEventBus
+public interface IIntegrationBus
 {
-    Task PublishAsync(IIntegrationEvent integrationEvent, CancellationToken cancellationToken = default);
+    Task PublishAsync(IIntegrationMessage message, CancellationToken cancellationToken = default);
 }

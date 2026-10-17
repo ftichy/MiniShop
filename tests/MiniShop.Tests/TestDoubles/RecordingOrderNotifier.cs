@@ -13,9 +13,15 @@ public sealed class RecordingOrderNotifier : IOrderNotifier
     /// <summary>Kolikrát má oznámení o zrušení ještě selhat – simuluje nedostupný e-mailový server.</summary>
     public int CancellationFailuresLeft { get; set; }
 
-    public Task OrderPlacedAsync(Order order, CancellationToken cancellationToken = default)
+    public Task OrderConfirmedAsync(Order order, CancellationToken cancellationToken = default)
     {
-        Events.Add($"placed:{order.Id}");
+        Events.Add($"confirmed:{order.Id}");
+        return Task.CompletedTask;
+    }
+
+    public Task OrderRejectedAsync(Order order, CancellationToken cancellationToken = default)
+    {
+        Events.Add($"rejected:{order.Id}");
         return Task.CompletedTask;
     }
 

@@ -17,7 +17,8 @@ public sealed record OrderDto(
     DateTime CreatedAtUtc,
     string Status,
     decimal TotalPrice,
-    IReadOnlyList<OrderItemDto> Items);
+    IReadOnlyList<OrderItemDto> Items,
+    string? RejectionReason);
 
 public sealed class CreateOrderRequest
 {

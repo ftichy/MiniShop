@@ -10,6 +10,13 @@ public class OrderTests
 
     private static Order CreateOrder() => new("Jan Novák", "jan@example.com", Now);
 
+    private static Order CreateConfirmedOrder()
+    {
+        var order = CreateOrder();
+        order.Confirm(Now);
+        return order;
+    }
+
     [Fact]
     public void TotalPrice_SectePolozkyVcetneSlevy()
     {
@@ -21,9 +28,50 @@ public class OrderTests
     }
 
     [Fact]
-    public void Cancel_ZrusenouObjednavkuNelzeZrusitZnovu()
+    public void NovaObjednavka_CekaNaSklad()
+    {
+        Assert.Equal(OrderStatus.Pending, CreateOrder().Status);
+    }
+
+    [Fact]
+    public void Reject_UloziDuvod()
     {
         var order = CreateOrder();
+
+        order.Reject("Nedostatek zboží", Now);
+
+        Assert.Equal(OrderStatus.Rejected, order.Status);
+        Assert.Equal("Nedostatek zboží", order.RejectionReason);
+    }
+
+    [Fact]
+    public void Reject_BezDuvodu_VyhodiVyjimku()
+    {
+        Assert.Throws<DomainException>(() => CreateOrder().Reject(" ", Now));
+    }
+
+    [Fact]
+    public void Confirm_ZamitnutouObjednavkuNelzePotvrdit()
+    {
+        var order = CreateOrder();
+        order.Reject("Nedostatek zboží", Now);
+
+        Assert.Throws<DomainException>(() => order.Confirm(Now));
+    }
+
+    [Fact]
+    public void CekajiciObjednavku_NelzeZrusitAniVyridit()
+    {
+        var order = CreateOrder();
+
+        Assert.Throws<DomainException>(() => order.Cancel(Now));
+        Assert.Throws<DomainException>(() => order.Complete(Now));
+    }
+
+    [Fact]
+    public void Cancel_ZrusenouObjednavkuNelzeZrusitZnovu()
+    {
+        var order = CreateConfirmedOrder();
         order.Cancel(Now);
 
         Assert.Equal(OrderStatus.Cancelled, order.Status);
@@ -33,9 +81,17 @@ public class OrderTests
     [Fact]
     public void Complete_ZrusenouObjednavkuNelzeVyridit()
     {
-        var order = CreateOrder();
+        var order = CreateConfirmedOrder();
         order.Cancel(Now);
 
         Assert.Throws<DomainException>(() => order.Complete(Now));
+    }
+
+    [Fact]
+    public void AddItem_DoPotvrzeneObjednavkyNelze()
+    {
+        var order = CreateConfirmedOrder();
+
+        Assert.Throws<DomainException>(() => order.AddItem(new Product("A", null, 100m, 10), 1, 0m));
     }
 }

@@ -24,6 +24,10 @@ public sealed class OutboxEventReader(IOrderRepository orders)
                 { EventId = message.Id },
             nameof(OrderCompleted) => new OrderCompleted(await LoadOrderAsync(message, cancellationToken), message.OccurredAtUtc)
                 { EventId = message.Id },
+            nameof(OrderConfirmed) => new OrderConfirmed(await LoadOrderAsync(message, cancellationToken), message.OccurredAtUtc)
+                { EventId = message.Id },
+            nameof(OrderRejected) => new OrderRejected(await LoadOrderAsync(message, cancellationToken), message.OccurredAtUtc)
+                { EventId = message.Id },
             nameof(OrderCancelled) => new OrderCancelled(await LoadOrderAsync(message, cancellationToken), message.OccurredAtUtc)
                 { EventId = message.Id },
             _ => throw new InvalidOperationException($"Neznámý typ zprávy v outboxu: {message.Type}.")

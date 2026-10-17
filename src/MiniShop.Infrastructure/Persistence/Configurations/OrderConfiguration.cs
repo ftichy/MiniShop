@@ -13,6 +13,7 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(o => o.CustomerName).IsRequired().HasMaxLength(100);
         builder.Property(o => o.CustomerEmail).IsRequired().HasMaxLength(200);
         builder.Property(o => o.Status).HasConversion<string>().HasMaxLength(20);
+        builder.Property(o => o.RejectionReason).HasMaxLength(500);
 
         // SQLite neukládá DateTimeKind – při načtení čas označíme jako UTC.
         builder.Property(o => o.CreatedAtUtc)

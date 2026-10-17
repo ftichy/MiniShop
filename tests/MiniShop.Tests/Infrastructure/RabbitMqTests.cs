@@ -36,7 +36,7 @@ public sealed class RabbitMqTests
         var properties = RabbitMqMessage.CreateProperties(Placed);
         var body = RabbitMqMessage.Serialize(Placed);
 
-        var read = IntegrationEventReader.Read(properties.Type!, Encoding.UTF8.GetString(body));
+        var read = IntegrationMessageReader.Read(properties.Type!, Encoding.UTF8.GetString(body));
 
         var placed = Assert.IsType<OrderPlacedV1>(read);
         Assert.Equal(Placed.OrderId, placed.OrderId);
@@ -49,7 +49,7 @@ public sealed class RabbitMqTests
     {
         var options = new RabbitMqOptions { HostName = "localhost", Port = 1 };
         await using var connection = new RabbitMqConnection(options, NullLogger<RabbitMqConnection>.Instance);
-        await using var bus = new RabbitMqIntegrationEventBus(connection, NullLogger<RabbitMqIntegrationEventBus>.Instance);
+        await using var bus = new RabbitMqIntegrationBus(connection, NullLogger<RabbitMqIntegrationBus>.Instance);
 
         await Assert.ThrowsAsync<IntegrationBusUnavailableException>(() => bus.PublishAsync(Placed));
     }

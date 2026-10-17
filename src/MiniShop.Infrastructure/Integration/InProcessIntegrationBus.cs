@@ -1,21 +1,38 @@
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MiniShop.Contracts;
 
 namespace MiniShop.Infrastructure.Integration;
 
 /// <summary>
-/// Zástupce message brokeru (krok 7): událost jen zapíše do logu i s JSONem, který by odešel ven.
-/// Používá se, když Messaging:Transport = "Log" – aplikace pak běží i bez RabbitMQ (krok 8).
+/// Bus bez brokeru (Messaging:Transport = "InProcess"): zprávu zaloguje a rovnou ji doručí handlerům modulů
+/// v tomtéž procesu. Sága tak funguje i bez Dockeru a běží na něm testy.
 /// </summary>
-public sealed class LoggingIntegrationEventBus(ILogger<LoggingIntegrationEventBus> logger) : IIntegrationEventBus
+/// <remarks>
+/// Každý modul dostane zprávu ve vlastním scope (vlastní DbContext) – jako by měl vlastní frontu.
+/// Když některý modul selže, vyhodí se chyba a outbox zprávu zkusí znovu; moduly, které už uspěly, přeskočí inbox.
+/// </remarks>
+public sealed class InProcessIntegrationBus(
+    IServiceScopeFactory scopeFactory,
+    IntegrationMessageRouting routing,
+    ILogger<InProcessIntegrationBus> logger) : IIntegrationBus
 {
-    public Task PublishAsync(IIntegrationEvent integrationEvent, CancellationToken cancellationToken = default)
+    public async Task PublishAsync(IIntegrationMessage message, CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("[Integrační událost] {Type} {EventId} odeslána ven: {Payload}",
-            integrationEvent.GetType().Name,
-            integrationEvent.EventId,
-            JsonSerializer.Serialize(integrationEvent, integrationEvent.GetType()));
-        return Task.CompletedTask;
+        var modules = routing.ModulesFor(message.GetType());
+
+        logger.LogInformation("[Integrační zpráva] {Type} {MessageId} → {Modules}: {Payload}",
+            message.GetType().Name,
+            message.MessageId,
+            modules.Count == 0 ? "nikdo neodebírá" : string.Join(", ", modules),
+            JsonSerializer.Serialize(message, message.GetType()));
+
+        foreach (var module in modules)
+        {
+            await using var scope = scopeFactory.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<IntegrationMessageDispatcher>()
+                .DispatchAsync(message, module, cancellationToken);
+        }
     }
 }

@@ -7,24 +7,27 @@ using RabbitMQ.Client.Exceptions;
 namespace MiniShop.Infrastructure.Integration.RabbitMq;
 
 /// <summary>
-/// Odeslání integrační události do RabbitMQ (krok 8). Nahrazuje LoggingIntegrationEventBus – zbytek aplikace se nemění.
+/// Odeslání integrační zprávy do RabbitMQ (krok 8). Nahrazuje InProcessIntegrationBus – zbytek aplikace se nemění.
 /// </summary>
 /// <remarks>
+/// Události i příkazy (krok 9) jdou stejnou cestou – do exchange pojmenované podle kontraktu. Rozdíl je v tom, kdo
+/// se na exchange naváže: na událost libovolně mnoho front, na příkaz jen fronta modulu, který ho vlastní
+/// (hlídá to IntegrationMessageRouting) a auditní "odposlech".
 /// Kanál má zapnuté publisher confirms: PublishAsync skončí, až broker potvrdí, že zprávu převzal.
 /// Teprve potom worker označí řádek v outboxu jako zpracovaný – zpráva se tak nemůže ztratit cestou.
 /// Když broker neběží, vyhodí <see cref="IntegrationBusUnavailableException"/> a zpráva v outboxu počká.
 /// Volá ho jen worker outboxu (jedno vlákno), zámek je pojistka – kanál nesmí publikovat ze dvou vláken naráz.
 /// </remarks>
-public sealed class RabbitMqIntegrationEventBus(RabbitMqConnection connection, ILogger<RabbitMqIntegrationEventBus> logger)
-    : IIntegrationEventBus, IAsyncDisposable
+public sealed class RabbitMqIntegrationBus(RabbitMqConnection connection, ILogger<RabbitMqIntegrationBus> logger)
+    : IIntegrationBus, IAsyncDisposable
 {
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly HashSet<string> _declaredExchanges = new();
     private IChannel? _channel;
 
-    public async Task PublishAsync(IIntegrationEvent integrationEvent, CancellationToken cancellationToken = default)
+    public async Task PublishAsync(IIntegrationMessage message, CancellationToken cancellationToken = default)
     {
-        var exchange = integrationEvent.GetType().Name;
+        var exchange = message.GetType().Name;
 
         await _lock.WaitAsync(cancellationToken);
         try
@@ -43,12 +46,12 @@ public sealed class RabbitMqIntegrationEventBus(RabbitMqConnection connection, I
                 exchange: exchange,
                 routingKey: string.Empty,
                 mandatory: false,
-                basicProperties: RabbitMqMessage.CreateProperties(integrationEvent),
-                body: RabbitMqMessage.Serialize(integrationEvent),
+                basicProperties: RabbitMqMessage.CreateProperties(message),
+                body: RabbitMqMessage.Serialize(message),
                 cancellationToken: cancellationToken);
 
             logger.LogInformation("[RabbitMQ] {Type} {EventId} publikována do exchange {Exchange}",
-                exchange, integrationEvent.EventId, exchange);
+                exchange, message.MessageId, exchange);
         }
         catch (Exception ex) when (IsBrokerUnavailable(ex))
         {

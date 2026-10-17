@@ -5,6 +5,7 @@ using MiniShop.Application.Exceptions;
 using MiniShop.Application.Pricing;
 using MiniShop.Application.Services;
 using MiniShop.Domain.Exceptions;
+using MiniShop.Domain.Orders.Events;
 using MiniShop.Domain.Products;
 using MiniShop.Infrastructure.Persistence;
 using MiniShop.Infrastructure.Repositories;
@@ -22,6 +23,7 @@ public sealed class OrderServiceTests : IDisposable
     private readonly SqliteConnection _connection;
     private readonly MiniShopDbContext _db;
     private readonly RecordingOrderNotifier _notifier = new();
+    private readonly RecordingDomainEventDispatcher _dispatcher = new();
     private readonly OrderService _service;
 
     public OrderServiceTests()
@@ -30,7 +32,7 @@ public sealed class OrderServiceTests : IDisposable
         _connection.Open();
 
         var options = new DbContextOptionsBuilder<MiniShopDbContext>().UseSqlite(_connection).Options;
-        _db = new MiniShopDbContext(options);
+        _db = new MiniShopDbContext(options, _dispatcher);
         _db.Database.EnsureCreated();
 
         _service = new OrderService(
@@ -118,6 +120,41 @@ public sealed class OrderServiceTests : IDisposable
         await _service.CompleteAsync(order.Id);
 
         await Assert.ThrowsAsync<DomainException>(() => _service.CancelAsync(order.Id));
+    }
+
+    [Fact]
+    public async Task PlaceOrder_PoUlozeniRozesleOrderPlacedSeZnamymId()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+
+        var order = await _service.PlaceOrderAsync(CreateRequest((product.Id, 1)));
+
+        var placed = Assert.Single(_dispatcher.Dispatched.OfType<OrderPlaced>());
+        Assert.Equal(order.Id, placed.Order.Id);   // ID existuje => dispatch proběhl až po uložení
+        Assert.Empty(placed.Order.DomainEvents);    // události se po rozeslání vyčistily
+    }
+
+    [Fact]
+    public async Task Cancel_RozesleOrderCancelled()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await _service.PlaceOrderAsync(CreateRequest((product.Id, 1)));
+
+        await _service.CancelAsync(order.Id);
+
+        var cancelled = Assert.Single(_dispatcher.Dispatched.OfType<OrderCancelled>());
+        Assert.Equal(order.Id, cancelled.Order.Id);
+    }
+
+    [Fact]
+    public async Task NeuspesneUlozeni_NicNerozesle()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 2);
+
+        await Assert.ThrowsAsync<InsufficientStockException>(
+            () => _service.PlaceOrderAsync(CreateRequest((product.Id, 3))));
+
+        Assert.Empty(_dispatcher.Dispatched.OfType<OrderPlaced>());
     }
 
     private async Task<Product> AddProductAsync(decimal price, int stock)

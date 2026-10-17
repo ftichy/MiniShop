@@ -4,8 +4,8 @@ using MiniShop.Contracts;
 namespace MiniShop.Infrastructure.Outbox;
 
 /// <summary>
-/// Z řádku outboxu druhu Integration znovu sestaví integrační událost (krok 7).
-/// Typ najde podle názvu kontraktu ("OrderPlacedV1") mezi všemi třídami v MiniShop.Contracts.
+/// Z názvu kontraktu ("OrderPlacedV1") a JSONu znovu sestaví integrační událost (krok 7).
+/// Typ najde mezi všemi třídami v MiniShop.Contracts. Používá ho worker outboxu i consumer z RabbitMQ (krok 8).
 /// </summary>
 /// <remarks>
 /// Na rozdíl od <see cref="OutboxEventReader"/> nic nenačítá z DB – integrační událost nese všechna data sama.
@@ -18,14 +18,20 @@ public static class IntegrationEventReader
         .Where(t => t is { IsClass: true, IsAbstract: false } && typeof(IIntegrationEvent).IsAssignableFrom(t))
         .ToDictionary(t => t.Name);
 
-    public static IIntegrationEvent Read(OutboxMessage message)
+    /// <summary>Názvy všech známých kontraktů – podle nich se v RabbitMQ zakládají exchange.</summary>
+    public static IReadOnlyCollection<string> ContractNames => ContractTypes.Keys.ToList();
+
+    public static IIntegrationEvent Read(OutboxMessage message) => Read(message.Type, message.Payload, message.Id.ToString());
+
+    /// <param name="messageId">Jen pro chybovou hlášku.</param>
+    public static IIntegrationEvent Read(string type, string payload, string? messageId = null)
     {
-        if (!ContractTypes.TryGetValue(message.Type, out var type))
+        if (!ContractTypes.TryGetValue(type, out var contractType))
         {
-            throw new InvalidOperationException($"Neznámý kontrakt integrační události v outboxu: {message.Type}.");
+            throw new InvalidOperationException($"Neznámý kontrakt integrační události: {type}.");
         }
 
-        return (IIntegrationEvent?)JsonSerializer.Deserialize(message.Payload, type)
-            ?? throw new InvalidOperationException($"Zpráva {message.Id} má prázdný payload.");
+        return (IIntegrationEvent?)JsonSerializer.Deserialize(payload, contractType)
+            ?? throw new InvalidOperationException($"Zpráva {messageId} má prázdný payload.");
     }
 }

@@ -6,7 +6,7 @@ namespace MiniShop.Infrastructure.Integration;
 
 /// <summary>
 /// Zástupce message brokeru (krok 7): událost jen zapíše do logu i s JSONem, který by odešel ven.
-/// V kroku 8 ho nahradí publikování do RabbitMQ.
+/// Používá se, když Messaging:Transport = "Log" – aplikace pak běží i bez RabbitMQ (krok 8).
 /// </summary>
 public sealed class LoggingIntegrationEventBus(ILogger<LoggingIntegrationEventBus> logger) : IIntegrationEventBus
 {

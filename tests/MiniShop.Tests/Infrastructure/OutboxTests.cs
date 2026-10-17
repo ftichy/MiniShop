@@ -4,11 +4,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using MiniShop.Application.Abstractions;
+using MiniShop.Contracts.Orders;
 using MiniShop.Domain.Common;
 using MiniShop.Domain.Orders;
 using MiniShop.Domain.Orders.Events;
 using MiniShop.Domain.Products;
 using MiniShop.Infrastructure;
+using MiniShop.Infrastructure.Integration;
 using MiniShop.Infrastructure.Outbox;
 using MiniShop.Infrastructure.Persistence;
 using MiniShop.Tests.TestDoubles;
@@ -25,6 +27,7 @@ public sealed class OutboxTests : IDisposable
 
     private readonly InMemoryDatabase _database = new();
     private readonly SwitchableDispatcher _dispatcher = new();
+    private readonly RecordingIntegrationEventBus _bus = new();
     private readonly ServiceProvider _services;
 
     /// <summary>Dispatcher, který si zapisuje doručené události a na povel selže – simuluje chybu handleru.</summary>
@@ -52,6 +55,7 @@ public sealed class OutboxTests : IDisposable
         services.AddSingleton<TimeProvider>(new FixedTimeProvider(Now));
         services.AddInfrastructure(_database.ConnectionString);
         services.AddSingleton<IDomainEventDispatcher>(_dispatcher);   // přebije skutečný dispatcher
+        services.AddSingleton<IIntegrationEventBus>(_bus);            // a "broker"
 
         _services = services.BuildServiceProvider();
         Db(db => db.Database.EnsureCreatedAsync()).GetAwaiter().GetResult();
@@ -190,6 +194,72 @@ public sealed class OutboxTests : IDisposable
         Assert.Equal(1, message.Attempts);
         Assert.Contains("999", message.Error);
     }
+
+    [Fact]
+    public async Task Processor_NedostupnyBroker_ZpravaCekaANepocitaSeJakoPokus()
+    {
+        await AddIntegrationMessageAsync(orderId: 1);
+        _bus.FailWith = new IntegrationBusUnavailableException("Broker neběží", new IOException());
+
+        // Výpadek delší než MaxAttempts kol – zpráva přesto nepropadne jako poison message.
+        for (var i = 0; i < OutboxProcessor.MaxAttempts + 2; i++)
+        {
+            await Processor.ProcessPendingAsync();
+        }
+
+        var waiting = await Db(db => db.OutboxMessages.SingleAsync());
+        Assert.Null(waiting.ProcessedAtUtc);
+        Assert.Equal(0, waiting.Attempts);
+        Assert.Contains("Broker neběží", waiting.Error);
+
+        // Broker je zpátky – zpráva odejde.
+        _bus.FailWith = null;
+        await Processor.ProcessPendingAsync();
+
+        var sent = await Db(db => db.OutboxMessages.SingleAsync());
+        Assert.NotNull(sent.ProcessedAtUtc);
+        Assert.Null(sent.Error);
+        Assert.Single(_bus.Published);
+    }
+
+    [Fact]
+    public async Task Processor_NedostupnyBroker_DalsiIntegracniPreskociDomenoveZpracuje()
+    {
+        await AddIntegrationMessageAsync(orderId: 1);
+        await AddIntegrationMessageAsync(orderId: 2);
+        await PlaceOrderAsync(quantity: 1);
+        _bus.FailWith = new IntegrationBusUnavailableException("Broker neběží", new IOException());
+
+        var processed = await Processor.ProcessPendingAsync();
+
+        // Zkusila se jen první integrační (pak už je jasné, že broker neběží) + doménová.
+        Assert.Equal(2, processed);
+        Assert.Single(_dispatcher.Delivered);
+        var integration = await Db(db => db.OutboxMessages
+            .Where(m => m.Kind == OutboxMessageKind.Integration).ToListAsync());
+        Assert.All(integration, m => Assert.Null(m.ProcessedAtUtc));
+        Assert.Single(integration, m => m.Error is not null);
+    }
+
+    [Fact]
+    public async Task Processor_JinaChybaBusu_PocitaSeJakoPokus()
+    {
+        await AddIntegrationMessageAsync(orderId: 1);
+        _bus.FailWith = new InvalidOperationException("Broker zprávu odmítl");
+
+        await Processor.ProcessPendingAsync();
+
+        var message = await Db(db => db.OutboxMessages.SingleAsync());
+        Assert.Equal(1, message.Attempts);
+        Assert.Contains("odmítl", message.Error);
+    }
+
+    private Task<int> AddIntegrationMessageAsync(int orderId) => Db(db =>
+    {
+        db.OutboxMessages.Add(OutboxMessageFactory.Create(
+            new OrderCompletedV1(Guid.NewGuid(), Now.UtcDateTime, orderId, "jan@example.com")));
+        return db.SaveChangesAsync();
+    });
 
     private async Task<int> PlaceOrderAsync(int quantity)
     {

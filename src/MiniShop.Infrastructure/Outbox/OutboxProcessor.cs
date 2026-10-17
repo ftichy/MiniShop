@@ -30,7 +30,10 @@ public sealed class OutboxProcessor(
 
     private const int MaxErrorLength = 2000;
 
-    /// <summary>Zpracuje jednu dávku nezpracovaných zpráv, od nejstarší. Vrací počet zpracovaných zpráv.</summary>
+    /// <summary>
+    /// Zpracuje jednu dávku nezpracovaných zpráv, od nejstarší. Vrací počet zpráv, které zkusil doručit
+    /// (integrační zprávy přeskočené kvůli nedostupnému brokeru se nepočítají).
+    /// </summary>
     public async Task<int> ProcessPendingAsync(CancellationToken cancellationToken = default)
     {
         List<OutboxMessage> pending;
@@ -45,15 +48,25 @@ public sealed class OutboxProcessor(
                 .ToListAsync(cancellationToken);
         }
 
+        // Když broker neběží, zbylé integrační zprávy v dávce ani nezkoušíme – doménové se zpracují normálně.
+        var busAvailable = true;
+        var processed = 0;
         foreach (var message in pending)
         {
-            await ProcessAsync(message, cancellationToken);
+            if (!busAvailable && message.Kind == OutboxMessageKind.Integration)
+            {
+                continue;
+            }
+
+            busAvailable = await ProcessAsync(message, cancellationToken);
+            processed++;
         }
 
-        return pending.Count;
+        return processed;
     }
 
-    private async Task ProcessAsync(OutboxMessage message, CancellationToken cancellationToken)
+    /// <returns>false = broker není dostupný (krok 8).</returns>
+    private async Task<bool> ProcessAsync(OutboxMessage message, CancellationToken cancellationToken)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
         var services = scope.ServiceProvider;
@@ -81,11 +94,22 @@ public sealed class OutboxProcessor(
                     .SetProperty(m => m.ProcessedAtUtc, processedAtUtc)
                     .SetProperty(m => m.Error, (string?)null), cancellationToken);
         }
+        catch (IntegrationBusUnavailableException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Broker neběží (krok 8) – chyba není ve zprávě, takže se nepočítá jako pokus a zpráva nepropadne
+            // jako poison message. Počká v outboxu, dokud se broker nevrátí.
+            await db.OutboxMessages
+                .Where(m => m.Id == message.Id)
+                .ExecuteUpdateAsync(s => s.SetProperty(m => m.Error, Truncate(ex.Message)), cancellationToken);
+
+            logger.LogWarning("Broker není dostupný, integrační zprávy počkají v outboxu: {Error}", ex.Message);
+            return false;
+        }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             // Handler selhal (dispatcher už chybu zalogoval). Zpráva zůstane nezpracovaná a zkusí se v dalším kole.
             var attempts = message.Attempts + 1;
-            var error = ex.Message.Length > MaxErrorLength ? ex.Message[..MaxErrorLength] : ex.Message;
+            var error = Truncate(ex.Message);
             await db.OutboxMessages
                 .Where(m => m.Id == message.Id)
                 .ExecuteUpdateAsync(s => s
@@ -103,5 +127,9 @@ public sealed class OutboxProcessor(
                     message.Id, message.Type, attempts, MaxAttempts, error);
             }
         }
+
+        return true;
     }
+
+    private static string Truncate(string error) => error.Length > MaxErrorLength ? error[..MaxErrorLength] : error;
 }

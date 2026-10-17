@@ -8,6 +8,7 @@ using MiniShop.Infrastructure.Events;
 using MiniShop.Infrastructure.Events.Handlers;
 using MiniShop.Infrastructure.Inbox;
 using MiniShop.Infrastructure.Integration;
+using MiniShop.Infrastructure.Integration.RabbitMq;
 using MiniShop.Infrastructure.Notifications;
 using MiniShop.Infrastructure.Outbox;
 using MiniShop.Infrastructure.Persistence;
@@ -39,9 +40,24 @@ public static class DependencyInjection
         services.AddScoped<OutboxEventReader>();
         services.AddSingleton<OutboxProcessor>();
 
-        // Integrační události (krok 7): publikování = zápis do outboxu, odeslání ven = bus (zatím jen log, v kroku 8 RabbitMQ).
+        // Integrační události (krok 7): publikování = zápis do outboxu, odeslání ven = bus.
+        // Výchozí bus jen loguje; AddRabbitMq (krok 8) ho nahradí RabbitMQ.
         services.AddScoped<IIntegrationEventPublisher, OutboxIntegrationEventPublisher>();
         services.AddSingleton<IIntegrationEventBus, LoggingIntegrationEventBus>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Krok 8: integrační události odcházejí do RabbitMQ místo do logu. Přidá i ukázkového consumera
+    /// (<see cref="RabbitMqAuditConsumer"/>) – spouští ho IntegrationEventAuditWorker ve Webu.
+    /// </summary>
+    public static IServiceCollection AddRabbitMq(this IServiceCollection services, RabbitMqOptions options)
+    {
+        services.AddSingleton(options);
+        services.AddSingleton<RabbitMqConnection>();
+        services.Replace(ServiceDescriptor.Singleton<IIntegrationEventBus, RabbitMqIntegrationEventBus>());
+        services.AddSingleton<RabbitMqAuditConsumer>();
 
         return services;
     }

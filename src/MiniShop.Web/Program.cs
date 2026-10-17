@@ -33,6 +33,9 @@ try
     // Krok 5: doručování událostí z outboxu na pozadí.
     builder.Services.AddHostedService<OutboxWorker>();
 
+    // Krok 8: integrační události do RabbitMQ (nebo jen do logu), viz sekce "Messaging".
+    builder.Services.AddMessaging(builder.Configuration);
+
     builder.Services.AddControllers();
     builder.Services.AddRazorPages();
     builder.Services.AddOpenApi();

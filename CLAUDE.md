@@ -14,8 +14,8 @@ Cíl: postupně ho převést na EDA podle plánu v `docs/EDA-roadmap.md`.
 src/MiniShop.Contracts       integrační události (OrderPlacedV1, …) – veřejné kontrakty, žádné závislosti
 src/MiniShop.Domain          entity (Product, Order, OrderItem), doménové události, žádné závislosti
 src/MiniShop.Application     služby, rozhraní (repozitáře, IUnitOfWork, IOrderNotifier, IDomainEvent*, IIntegrationEventPublisher), handlery událostí
-src/MiniShop.Infrastructure  EF Core, repozitáře, DomainEventDispatcher, Outbox, Inbox, Integration (bus), LoggingOrderNotifier
-src/MiniShop.Web             API controllery, Razor Pages, OutboxWorker, Program.cs (composition root)
+src/MiniShop.Infrastructure  EF Core, repozitáře, DomainEventDispatcher, Outbox, Inbox, Integration (bus, RabbitMq/), LoggingOrderNotifier
+src/MiniShop.Web             API controllery, Razor Pages, OutboxWorker, IntegrationEventAuditWorker, Program.cs (composition root)
 tests/MiniShop.Tests         testy domény, OrderService (SQLite in-memory), dispatcheru, outboxu, inboxu
 docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), diagramy/
 ```
@@ -24,6 +24,9 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
 - Build: `dotnet build MiniShop.slnx`
 - Testy: `dotnet test MiniShop.slnx`
 - Spuštění: `dotnet run --project src/MiniShop.Web` (https://localhost:7180)
+- RabbitMQ (krok 8): `docker start minishop-rabbit`, poprvé
+  `docker run -d --name minishop-rabbit -p 5672:5672 -p 15672:15672 rabbitmq:4-management`; UI http://localhost:15672 (guest/guest).
+  Bez Dockeru: `Messaging:Transport` = `Log` v appsettings.json.
 - Po každé změně kódu spusť build a testy a oprav chyby, než ohlásíš hotovo.
 
 ## Konvence a záměrná rozhodnutí
@@ -58,13 +61,16 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
 | 5. Background worker (`OutboxWorker` → `OutboxProcessor`, jediná cesta doručení, retry max. 5×) | hotovo | `docs/kroky/krok-05-worker.md` |
 | 6. Idempotentní handlery (`EventId`, inbox `ProcessedMessages`, dekorátor `IdempotentDomainEventHandler`) | hotovo | `docs/kroky/krok-06-inbox.md` |
 | 7. Integrační události a kontrakty (`MiniShop.Contracts`, překladový handler, `Kind` v outboxu, `IIntegrationEventBus`) | hotovo | `docs/kroky/krok-07-integracni-udalosti.md` |
-| 8. Message broker (RabbitMQ) | **další na řadě** | |
-| 9.–11. | čeká | |
+| 8. Message broker (RabbitMQ.Client, exchange fanout na kontrakt, publisher confirms, ukázkový consumer `minishop.audit`) | hotovo | `docs/kroky/krok-08-rabbitmq.md` |
+| 9. Saga objednávky | **další na řadě** | |
+| 10.–11. | čeká | |
 
-Známé omezení po kroku 7: vnější akce (notifikace) nejsou v transakci – při pádu mezi odesláním a zápisem
+Známé omezení po kroku 8: vnější akce (notifikace) nejsou v transakci – při pádu mezi odesláním a zápisem
 do inboxu odejdou znovu. Inbox se nečistí. Worker počítá s jednou instancí aplikace, retry je bez backoffu.
 `OutboxEventReader` převádí payload zpět na událost načtením `Order` podle `OrderId` (handlery vidí aktuální stav).
-Integrační události jdou zatím jen do logu (`LoggingIntegrationEventBus`); v kroku 8 se vymění jen implementace busu.
+Integrační události jdou do RabbitMQ (`RabbitMqIntegrationEventBus`), nedostupný broker (`IntegrationBusUnavailableException`)
+se nepočítá jako pokus. Consumer `RabbitMqAuditConsumer` jen loguje, nemá inbox ani dead-letter frontu (chybnou zprávu zahodí).
+Testy běží bez RabbitMQ (`RecordingIntegrationEventBus`).
 Testy: `ProcessOutboxAsync` jede kola, dokud přibývají zprávy (opakuje i selhané), `ProcessOneRoundAsync` = jedno kolo.
 
 ## Postup práce na dalším kroku EDA

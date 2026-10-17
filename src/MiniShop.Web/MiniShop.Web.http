@@ -1,14 +1,16 @@
 # Ukázkové požadavky na API. Ve Visual Studiu / VS Code klikněte na "Send Request" nad požadavkem.
 @host = https://localhost:7180
+# Krok 10B: produkty patří službě skladu (MiniShop.Inventory.Api).
+@inventory = https://localhost:7181
 
 ### Seznam produktů
-GET {{host}}/api/products
+GET {{inventory}}/api/products
 
 ### Detail produktu
-GET {{host}}/api/products/1
+GET {{inventory}}/api/products/1
 
 ### Nový produkt
-POST {{host}}/api/products
+POST {{inventory}}/api/products
 Content-Type: application/json
 
 {
@@ -19,7 +21,7 @@ Content-Type: application/json
 }
 
 ### Úprava produktu
-PUT {{host}}/api/products/1
+PUT {{inventory}}/api/products/1
 Content-Type: application/json
 
 {
@@ -29,7 +31,7 @@ Content-Type: application/json
 }
 
 ### Naskladnění
-POST {{host}}/api/products/1/stock
+POST {{inventory}}/api/products/1/stock
 Content-Type: application/json
 
 {
@@ -37,7 +39,7 @@ Content-Type: application/json
 }
 
 ### Smazání produktu
-DELETE {{host}}/api/products/6
+DELETE {{inventory}}/api/products/6
 
 ### Seznam objednávek
 GET {{host}}/api/orders

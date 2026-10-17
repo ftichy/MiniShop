@@ -111,6 +111,19 @@ public sealed class IntegrationContractTests
             json);
     }
 
+    /// <summary>Žádost Orderingu o celý katalog (obnova kopie katalogu).</summary>
+    [Fact]
+    public void SyncCatalogV1_TvarJsonuSeNezmenil()
+    {
+        var sync = new SyncCatalogV1(EventId, OccurredAtUtc);
+
+        var json = OutboxMessageFactory.Create(sync).Payload;
+
+        Assert.Equal(
+            """{"CommandId":"11111111-2222-3333-4444-555555555555","OccurredAtUtc":"2026-01-15T10:00:00Z"}""",
+            json);
+    }
+
     [Fact]
     public void StockReservationFailedV1_TvarJsonuSeNezmenil()
     {

@@ -50,6 +50,19 @@ public class ProductTests
         Assert.Equal(Now, changed.OccurredAtUtc);
     }
 
+    /// <summary>Čas poslední změny posílá sklad při obnově katalogu (SyncCatalogV1).</summary>
+    [Fact]
+    public void Zmena_SiZapamatujeCasPosledniZmeny()
+    {
+        var product = new Product("Myš", null, 500m, 10, Now);
+        Assert.Equal(Now, product.ChangedAtUtc);
+
+        product.Update("Myš Pro", null, 600m, Now.AddMinutes(1));
+        product.AddStock(5);   // změna zásoby není změna katalogu
+
+        Assert.Equal(Now.AddMinutes(1), product.ChangedAtUtc);
+    }
+
     [Fact]
     public void VicZmenPredUlozenim_ZustanePosledniUdalost()
     {

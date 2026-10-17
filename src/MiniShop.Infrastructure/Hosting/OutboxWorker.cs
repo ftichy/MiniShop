@@ -1,15 +1,18 @@
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using MiniShop.Infrastructure.Outbox;
 
-namespace MiniShop.Web.BackgroundServices;
+namespace MiniShop.Infrastructure.Hosting;
 
 /// <summary>
-/// Proces na pozadí (krok 5): každé 2 sekundy zavolá <see cref="OutboxProcessor"/>, aby doručil čekající události.
-/// Běží po celou dobu života aplikace. Je tady ve Webu, protože tady už je ASP.NET hosting
-/// (BackgroundService) – infrastruktura tak nepotřebuje další NuGet balíček.
+/// Proces na pozadí (krok 5): každé 2 sekundy zavolá <see cref="OutboxProcessor{TDbContext}"/>, aby doručil čekající zprávy.
+/// Běží po celou dobu života aplikace.
 /// </summary>
 /// <remarks>
 /// V každém kole se zpracuje jedna dávka. Zpráva, která selhala, se tak zkusí znovu nejdřív za 2 sekundy –
 /// handler nedostane pět pokusů těsně po sobě.
+/// Krok 10B: worker je v Infrastructure, protože ho používají obě služby (Web i Inventory.Api).
+/// Každá služba má zaregistrovaný jen outbox svého modulu, takže zpracovává jen svou databázi.
 /// </remarks>
 public sealed class OutboxWorker(IEnumerable<IOutboxProcessor> processors, ILogger<OutboxWorker> logger) : BackgroundService
 {
@@ -27,7 +30,7 @@ public sealed class OutboxWorker(IEnumerable<IOutboxProcessor> processors, ILogg
         {
             try
             {
-                // Krok 10: každý modul má vlastní outbox (ordering.db, inventory.db) – vybereme všechny schránky.
+                // Krok 10: každý modul má vlastní outbox – vybereme všechny schránky, které tahle služba má.
                 foreach (var processor in processors)
                 {
                     await processor.ProcessPendingAsync(stoppingToken);

@@ -1,6 +1,9 @@
 using System.Globalization;
 using Microsoft.AspNetCore.Localization;
 using MiniShop.Infrastructure;
+using MiniShop.Infrastructure.Hosting;
+using MiniShop.Infrastructure.Ordering;
+using MiniShop.ServiceDefaults;
 using MiniShop.Web.BackgroundServices;
 using MiniShop.Web.ErrorHandling;
 using MiniShop.Web.Extensions;
@@ -15,6 +18,9 @@ try
 {
     var builder = WebApplication.CreateBuilder(args);
 
+    // Krok 10B: health checky, service discovery (najde Inventory.Api) a odolnost HttpClientů.
+    builder.AddServiceDefaults();
+
     // Serilog místo výchozího logování: konzole + denní soubor logs/minishop-RRRRMMDD.log.
     // Úrovně a cíle se nastavují v sekci "Serilog" v appsettings.json.
     builder.Services.AddSerilog((services, logger) => logger
@@ -22,23 +28,22 @@ try
         .ReadFrom.Services(services)
         .Enrich.FromLogContext());
 
-    // Krok 10: každý modul má vlastní databázi (database per service).
+    // Krok 10B: Web je služba Ordering – jen databáze objednávek. Sklad má vlastní službu i databázi.
     var orderingConnectionString = builder.Configuration.GetConnectionString("Ordering")
         ?? throw new InvalidOperationException("Chybí connection string 'Ordering' v appsettings.json.");
-    var inventoryConnectionString = builder.Configuration.GetConnectionString("Inventory")
-        ?? throw new InvalidOperationException("Chybí connection string 'Inventory' v appsettings.json.");
 
     // Registrace vrstev (composition root).
     builder.Services.AddApplication(builder.Configuration);
-    builder.Services.AddInfrastructure(orderingConnectionString, inventoryConnectionString);
-
-    // Krok 5: doručování událostí z outboxu na pozadí.
-    builder.Services.AddHostedService<OutboxWorker>();
+    builder.Services.AddInfrastructureCore();
+    builder.Services.AddOrderingInfrastructure(orderingConnectionString);
 
     // Krok 9: hlídání termínů ságy (sklad neodpověděl včas → zamítnout).
     builder.Services.AddHostedService<OrderSagaTimeoutWorker>();
 
-    // Krok 8: integrační události do RabbitMQ (nebo jen do logu), viz sekce "Messaging".
+    // Prázdná kopie katalogu po startu (nová ordering.db) → požádat sklad o celý katalog.
+    builder.Services.AddHostedService<CatalogSyncOnStartupWorker>();
+
+    // Kroky 5 a 8: outbox worker + RabbitMQ (fronty minishop.ordering a minishop.audit), viz sekce "Messaging".
     builder.Services.AddMessaging(builder.Configuration);
 
     builder.Services.AddControllers();
@@ -49,7 +54,7 @@ try
 
     var app = builder.Build();
 
-    await DatabaseInitializer.InitializeAsync(app.Services, app.Services.GetRequiredService<TimeProvider>());
+    await OrderingDatabaseInitializer.InitializeAsync(app.Services);
 
     if (app.Environment.IsDevelopment())
     {
@@ -81,6 +86,7 @@ try
 
     app.MapControllers();
     app.MapRazorPages();
+    app.MapDefaultEndpoints();
 
     await app.RunAsync();
 }

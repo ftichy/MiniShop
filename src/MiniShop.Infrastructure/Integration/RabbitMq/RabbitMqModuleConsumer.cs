@@ -33,12 +33,16 @@ public sealed class RabbitMqModuleConsumer(
     }
 }
 
-/// <summary>Vyrobí všechny consumery: auditní + jeden pro každý modul, který něco odebírá.</summary>
-public sealed class RabbitMqConsumers(IServiceProvider services, IntegrationMessageRouting routing)
+/// <summary>
+/// Vyrobí všechny consumery služby: auditní (je-li zapnutý) + jeden pro každý modul, který v této službě něco odebírá.
+/// </summary>
+public sealed class RabbitMqConsumers(IServiceProvider services, IntegrationMessageRouting routing, RabbitMqOptions options)
 {
     public IReadOnlyList<RabbitMqQueueConsumer> CreateAll() =>
     [
-        services.GetRequiredService<RabbitMqAuditConsumer>(),
+        .. string.IsNullOrWhiteSpace(options.AuditQueue)
+            ? Array.Empty<RabbitMqQueueConsumer>()
+            : [services.GetRequiredService<RabbitMqAuditConsumer>()],
         .. routing.Modules.Select(module => ActivatorUtilities.CreateInstance<RabbitMqModuleConsumer>(services, module))
     ];
 }

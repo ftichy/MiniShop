@@ -1,8 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
-  <!-- Prezentační vrstva: REST API (controllery) + jednoduché UI (Razor Pages). Zde se skládá DI (composition root). -->
+  <!-- Služba Ordering (krok 10B): REST API objednávek + UI (Razor Pages) pro celý e-shop. Zde se skládá DI (composition root).
+       Produkty a zásoby čte z MiniShop.Inventory.Api přes HTTP, rezervace jde přes RabbitMQ. -->
   <ItemGroup>
     <ProjectReference Include="..\MiniShop.Application\MiniShop.Application.csproj" />
     <ProjectReference Include="..\MiniShop.Infrastructure\MiniShop.Infrastructure.csproj" />
+    <ProjectReference Include="..\MiniShop.ServiceDefaults\MiniShop.ServiceDefaults.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.13" />

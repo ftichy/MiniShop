@@ -2,8 +2,11 @@
   <Folder Name="/src/">
     <Project Path="src/MiniShop.Contracts/MiniShop.Contracts.csproj" />
     <Project Path="src/MiniShop.Domain/MiniShop.Domain.csproj" />
+    <Project Path="src/MiniShop.AppHost/MiniShop.AppHost.csproj" />
     <Project Path="src/MiniShop.Application/MiniShop.Application.csproj" />
     <Project Path="src/MiniShop.Infrastructure/MiniShop.Infrastructure.csproj" />
+    <Project Path="src/MiniShop.Inventory.Api/MiniShop.Inventory.Api.csproj" />
+    <Project Path="src/MiniShop.ServiceDefaults/MiniShop.ServiceDefaults.csproj" />
     <Project Path="src/MiniShop.Web/MiniShop.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">

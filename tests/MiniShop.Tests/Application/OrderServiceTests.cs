@@ -79,6 +79,8 @@ public sealed class OrderServiceTests : IDisposable
         services.AddScoped<IProductService, ProductService>();
         services.AddIntegrationMessageHandler<ReserveStockV1, ReserveStockHandler>(IntegrationModules.Inventory);
         services.AddIntegrationMessageHandler<ReleaseStockV1, ReleaseStockHandler>(IntegrationModules.Inventory);
+        services.AddIntegrationMessageHandler<SyncCatalogV1, SyncCatalogHandler>(IntegrationModules.Inventory);
+        services.AddScoped<CatalogSyncService>();
 
         // Testovací náhrady: notifikace do seznamu, "broker" si zprávy zapamatuje a doručí je v procesu,
         // skutečný dispatcher obalený záznamníkem.
@@ -479,6 +481,62 @@ public sealed class OrderServiceTests : IDisposable
         Assert.True((await OrderingDb(db => db.CatalogProducts.SingleAsync())).IsRemoved);
     }
 
+    // ---------- Obnova kopie katalogu (SyncCatalogV1) ----------
+
+    [Fact]
+    public async Task ZtracenaKopieKatalogu_ObnoviSeZeSkladu()
+    {
+        var product = await AddProductAsync(price: 120m, stock: 5);
+
+        // Simulace smazané ordering.db: sklad produkt má, kopie katalogu je prázdná a sama se nedoplní.
+        await OrderingDb(db => db.CatalogProducts.ExecuteDeleteAsync());
+        await Assert.ThrowsAsync<NotFoundException>(() => Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 1)))));
+
+        Assert.True(await CatalogSync(s => s.RequestIfEmptyAsync()));
+        await ProcessOutboxAsync();   // SyncCatalogV1 → sklad → ProductUpdatedV1 → projekce
+
+        var catalog = await Orders(s => s.GetCatalogAsync());
+        Assert.Equal(new CatalogItemDto(product.Id, "Testovací produkt", 120m), Assert.Single(catalog));
+        Assert.Equal(120m, (await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 1))))).TotalPrice);
+    }
+
+    [Fact]
+    public async Task PlnaKopieKatalogu_PoStartuSeSkladuNeptaSe()
+    {
+        await AddProductAsync(price: 120m, stock: 5);
+        _bus.Published.Clear();
+
+        Assert.False(await CatalogSync(s => s.RequestIfEmptyAsync()));
+        await ProcessOutboxAsync();
+
+        Assert.Empty(_bus.Published);
+    }
+
+    /// <summary>
+    /// Obnova posílá skutečný čas poslední změny produktu, ne "teď". Kdyby nesla "teď", přebila by novější změnu,
+    /// která je k Orderingu zrovna na cestě. Zároveň má každá zpráva nové EventId – inbox ji nesmí zahodit.
+    /// </summary>
+    [Fact]
+    public async Task ObnovaKatalogu_NeseCasPosledniZmenyANoveEventId()
+    {
+        var product = await AddProductAsync(price: 120m, stock: 5);   // AddProductAsync vyčistí _bus.Published
+        _time.Advance(TimeSpan.FromHours(1));
+
+        await CatalogSync(async s => { await s.RequestAsync(); return true; });
+        await ProcessOutboxAsync();
+
+        Assert.Single(_bus.Published.OfType<SyncCatalogV1>());
+        var resent = Assert.Single(_bus.Published.OfType<ProductUpdatedV1>());
+        Assert.Equal(product.Id, resent.ProductId);
+        Assert.Equal(Now.UtcDateTime, resent.OccurredAtUtc);   // čas založení produktu, ne "o hodinu později"
+
+        // Obě odeslání (založení i obnova) jsou v outboxu skladu jako dvě různé zprávy.
+        var sentIds = await InventoryDb(db => db.OutboxMessages
+            .Where(m => m.Type == nameof(ProductUpdatedV1)).Select(m => m.Id).ToListAsync());
+        Assert.Equal(2, sentIds.Distinct().Count());
+        Assert.Contains(resent.EventId, sentIds);
+    }
+
     [Fact]
     public async Task Moduly_MajiOddeleneDatabaze()
     {
@@ -556,6 +614,13 @@ public sealed class OrderServiceTests : IDisposable
     {
         await using var scope = _services.CreateAsyncScope();
         return await action(scope.ServiceProvider.GetRequiredService<InventoryDbContext>());
+    }
+
+    /// <summary>Zavolá obnovu katalogu ve vlastním scope – jako CatalogSyncOnStartupWorker nebo tlačítko v UI.</summary>
+    private async Task<T> CatalogSync<T>(Func<CatalogSyncService, Task<T>> action)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await action(scope.ServiceProvider.GetRequiredService<CatalogSyncService>());
     }
 
     /// <summary>Zavolá správu produktů (modul Inventory) ve vlastním scope.</summary>

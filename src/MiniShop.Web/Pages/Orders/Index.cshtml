@@ -8,6 +8,14 @@
 <partial name="_StatusMessage" model="Model.StatusMessage" />
 <div asp-validation-summary="ModelOnly" class="text-danger"></div>
 
+@if (Model.InventoryUnavailable)
+{
+    <div class="alert alert-warning">
+        Služba skladu teď neodpovídá – zásoby nevidíme. Objednávat můžete dál: objednávka počká ve stavu
+        „Ověřujeme sklad…“ a sága ji dokončí, až se sklad vrátí (nebo ji po timeoutu zamítne).
+    </div>
+}
+
 <h2 class="h4">Nová objednávka</h2>
 <p class="text-muted small">Od 10 ks jednoho produktu se uplatní množstevní sleva 10 %.</p>
 <form method="post" asp-page-handler="Create" class="row g-2 mb-4">
@@ -36,6 +44,21 @@
     <div class="col-md-1 d-flex align-items-end">
         <button type="submit" class="btn btn-primary w-100">Objednat</button>
     </div>
+</form>
+
+@if (Model.CatalogEmpty)
+{
+    @* Kopie katalogu se plní zprávami ze skladu – po startu s prázdnou ordering.db o ně Web požádá sám (SyncCatalogV1). *@
+    <div class="alert alert-info">
+        Katalog produktů se načítá ze skladu… Stránka se sama obnoví. Pokud produkty nepřibývají, zkontrolujte,
+        že běží služba skladu a RabbitMQ.
+    </div>
+    <script>setTimeout(() => location.reload(), 2000);</script>
+}
+
+<form method="post" asp-page-handler="SyncCatalog" class="mb-4">
+    <button type="submit" class="btn btn-link btn-sm p-0">Obnovit katalog ze skladu</button>
+    <span class="text-muted small">– když v nabídce chybí produkt, který sklad má</span>
 </form>
 
 @if (Model.Orders.Count == 0)

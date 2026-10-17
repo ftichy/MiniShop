@@ -4,12 +4,15 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using MiniShop.Application.Inventory;
 using MiniShop.Application.Ordering;
+using MiniShop.Application.Ordering.Catalog;
 using MiniShop.Application.Exceptions;
 using MiniShop.Domain.Exceptions;
+using MiniShop.Web.Inventory;
 
 namespace MiniShop.Web.Pages.Orders;
 
-public sealed class IndexModel(IOrderService orderService, IProductService productService) : PageModel
+public sealed class IndexModel(IOrderService orderService, IProductService productService, CatalogSyncService catalogSync)
+    : PageModel
 {
     public IReadOnlyList<OrderDto> Orders { get; private set; } = [];
     public IReadOnlyList<SelectListItem> ProductOptions { get; private set; } = [];
@@ -42,6 +45,14 @@ public sealed class IndexModel(IOrderService orderService, IProductService produ
             var order = await orderService.PlaceOrderAsync(request, cancellationToken);
             StatusMessage = $"Objednávka č. {order.Id} přijata (celkem {order.TotalPrice:N2} Kč), ověřujeme sklad…";
         }, cancellationToken);
+    }
+
+    /// <summary>Ruční obnova kopie katalogu – požádá sklad o všechny produkty (SyncCatalogV1).</summary>
+    public async Task<IActionResult> OnPostSyncCatalogAsync(CancellationToken cancellationToken)
+    {
+        await catalogSync.RequestAsync(cancellationToken);
+        StatusMessage = "Požádali jsme sklad o celý katalog, produkty se doplní během pár sekund.";
+        return RedirectToPage();
     }
 
     public Task<IActionResult> OnPostCompleteAsync(int id, CancellationToken cancellationToken)
@@ -79,14 +90,42 @@ public sealed class IndexModel(IOrderService orderService, IProductService produ
         }
     }
 
+    /// <summary>
+    /// Krok 10B: nabídka (název, cena) je z vlastní kopie katalogu Orderingu – objednávat jde, i když sklad neběží.
+    /// Zásobu umí říct jen sklad (HTTP API); když neodpovídá, nabídka se ukáže bez ní.
+    /// </summary>
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
         Orders = await orderService.GetAllAsync(cancellationToken);
-        var products = await productService.GetAllAsync(cancellationToken);
-        ProductOptions = products
-            .Select(p => new SelectListItem($"{p.Name} – {p.Price:N2} Kč (skladem {p.StockQuantity})", p.Id.ToString()))
+        var catalog = await orderService.GetCatalogAsync(cancellationToken);
+        CatalogEmpty = catalog.Count == 0;
+
+        IReadOnlyDictionary<int, int>? stock = null;
+        try
+        {
+            stock = (await productService.GetAllAsync(cancellationToken)).ToDictionary(p => p.Id, p => p.StockQuantity);
+        }
+        catch (InventoryUnavailableException)
+        {
+            InventoryUnavailable = true;
+        }
+
+        ProductOptions = catalog
+            .Select(p => new SelectListItem(
+                $"{p.Name} – {p.Price:N2} Kč ({StockText(stock, p.ProductId)})", p.ProductId.ToString()))
             .ToList();
     }
+
+    private static string StockText(IReadOnlyDictionary<int, int>? stock, int productId) =>
+        stock is null ? "zásoba nedostupná"
+        : stock.TryGetValue(productId, out var quantity) ? $"skladem {quantity}"
+        : "zásoba neznámá";
+
+    /// <summary>Kopie katalogu je prázdná – produkty ze skladu ještě nedorazily (stránka se sama obnovuje).</summary>
+    public bool CatalogEmpty { get; private set; }
+
+    /// <summary>Krok 10B: služba skladu neodpověděla – stránka to ukáže, objednávat jde dál.</summary>
+    public bool InventoryUnavailable { get; private set; }
 
     /// <summary>Krok 9: dokud nějaká objednávka čeká na sklad, stránka se sama obnovuje (jednoduchý polling).</summary>
     public bool HasPendingOrders => Orders.Any(o => o.Status == "Pending");

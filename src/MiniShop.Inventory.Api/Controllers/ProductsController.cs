@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using MiniShop.Application.Inventory;
 
-namespace MiniShop.Web.Controllers;
+namespace MiniShop.Inventory.Api.Controllers;
 
 /// <summary>
 /// REST API pro produkty. Controller jen přijme požadavek a deleguje ho na službu (Single Responsibility).

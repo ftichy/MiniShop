@@ -15,20 +15,29 @@ src/MiniShop.Contracts       integrační zprávy – události (OrderPlacedV1, 
 src/MiniShop.Domain          Common/ (Entity, IDomainEvent), Orders/ (Order, CatalogProduct, Saga/OrderSaga), Inventory/ (Product, StockReservation)
 src/MiniShop.Application     Abstractions/ (sdílené: IUnitOfWork, IDomainEvent*, IIntegrationMessage*),
                              Ordering/ (OrderService, DTO, Saga, Catalog projekce, EventHandlers, Pricing), Inventory/ (ProductService, Reserve/ReleaseStock)
-src/MiniShop.Infrastructure  sdílené: Persistence/ModuleDbContext, Outbox, Inbox (InboxGuard), Integration (bus, routing, dispatcher, RabbitMq/), Events;
-                             Ordering/ (OrderingDbContext, repozitáře, notifier), Inventory/ (InventoryDbContext, repozitáře); DatabaseInitializer
-src/MiniShop.Web             API controllery, Razor Pages, OutboxWorker, RabbitMqConsumersWorker, OrderSagaTimeoutWorker, Program.cs (composition root)
-tests/MiniShop.Tests         testy domény, OrderService + ságy + katalogu (2× SQLite in-memory), dispatcheru, outboxu, inboxu, kontraktů, architektury
+src/MiniShop.Infrastructure  sdílené: Persistence/ModuleDbContext, Outbox, Inbox (InboxGuard), Integration (bus, routing, dispatcher, RabbitMq/), Events,
+                             Hosting/ (OutboxWorker, RabbitMqConsumersWorker, AddMessaging);
+                             Ordering/ (OrderingDbContext, repozitáře, notifier, DB init), Inventory/ (InventoryDbContext, repozitáře, DB init + seed)
+src/MiniShop.Web             služba Ordering (7180): API objednávek, Razor Pages (celé UI), Inventory/InventoryApiClient (HTTP na sklad),
+                             OrderSagaTimeoutWorker, Program.cs (composition root)
+src/MiniShop.Inventory.Api   služba skladu (7181): ProductsController, jen modul Inventory, inventory.db, fronta minishop.inventory
+src/MiniShop.ServiceDefaults AddServiceDefaults (service discovery, HTTP resilience, health checky /health, /alive)
+src/MiniShop.AppHost         .NET Aspire: RabbitMQ (persistentní kontejner) + inventory-api + web, dashboard
+tests/MiniShop.Tests         testy domény, OrderService + ságy + katalogu (2× SQLite in-memory, oba moduly v procesu), dispatcheru,
+                             outboxu, inboxu, kontraktů, architektury, InventoryApiClient
 docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), diagramy/
 ```
 
 ## Příkazy
 - Build: `dotnet build MiniShop.slnx`
 - Testy: `dotnet test MiniShop.slnx`
-- Spuštění: `dotnet run --project src/MiniShop.Web` (https://localhost:7180)
-- RabbitMQ (krok 8): `docker start minishop-rabbit`, poprvé
-  `docker run -d --name minishop-rabbit -p 5672:5672 -p 15672:15672 rabbitmq:4-management`; UI http://localhost:15672 (guest/guest).
-  Bez Dockeru: `Messaging:Transport` = `InProcess` v appsettings.json (zprávy se doručí handlerům přímo v procesu).
+- Spuštění (krok 10B): `dotnet run --project src/MiniShop.AppHost` – Aspire spustí RabbitMQ, Inventory.Api (7181) a Web (7180),
+  dashboard https://localhost:17180 (přihlašovací odkaz v konzoli). Potřebuje Docker.
+- Bez Aspire: `docker start minishop-rabbit` (poprvé
+  `docker run -d --name minishop-rabbit -p 5672:5672 -p 15672:15672 rabbitmq:4-management`; UI http://localhost:15672, guest/guest),
+  pak `dotnet run --project src/MiniShop.Inventory.Api` a `dotnet run --project src/MiniShop.Web`.
+  Transport `InProcess` od 10B pro spuštění nejde (dva procesy) – jen v testech.
+- Při ověřování naživo pozor: zastavení AppHostu nechá běžet kontejner `messaging-…` (persistentní); procesy služeb ukončit.
 - Po každé změně kódu spusť build a testy a oprav chyby, než ohlásíš hotovo.
 
 ## Konvence a záměrná rozhodnutí
@@ -40,7 +49,17 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   Sdílené jádro (`Domain.Common`, `Application.Abstractions`, `Infrastructure.Outbox/Inbox/Integration/Persistence/Events`) nezná žádný modul.
   Každý modul má vlastní DB (`ordering.db`, `inventory.db`), vlastní outbox + inbox a vlastní `I…UnitOfWork` / `I…MessagePublisher`
   (`IOrderingUnitOfWork`, `IInventoryMessagePublisher`, …) – handler modulu nikdy nebere obecné `IUnitOfWork`.
+- **Samostatné služby (krok 10B):** Web hostuje jen Ordering (`AddInfrastructureCore` + `AddOrderingInfrastructure`),
+  Inventory.Api jen Inventory. `AddInfrastructure(ordering, inventory)` (oba moduly) používají jen testy.
+  Web volá sklad přes HTTP jen kvůli UI (`InventoryApiClient` : `IProductService`, `https+http://inventory-api`,
+  bez Aspire adresa v `Services:inventory-api` v appsettings Webu); business tok jde jen přes zprávy.
+  Formulář objednávky bere nabídku z kopie katalogu (`IOrderService.GetCatalogAsync`), zásobu ze skladu jen volitelně.
+  Web nesmí referencovat `Domain/Infrastructure.Inventory`, Inventory.Api nic z Orderingu (testy architektury).
+  Auditní frontu poslouchá jen Web (`AuditQueue` prázdná v Inventory.Api). RabbitMQ adresu dává Aspire v `ConnectionStrings:messaging`.
 - Ordering zná produkty jen z kopie katalogu `CatalogProduct` (plní `CatalogProjectionHandler` z `ProductUpdatedV1`/`ProductRemovedV1`).
+  Obnova kopie: příkaz `SyncCatalogV1` (`CatalogSyncService`) – automaticky po startu Webu, když je kopie prázdná
+  (`CatalogSyncOnStartupWorker`), nebo tlačítkem na stránce Objednávky; sklad (`SyncCatalogHandler`) pošle `ProductUpdatedV1`
+  pro každý produkt s novým `EventId`, ale s časem `Product.ChangedAtUtc` (ne „teď“ – nesmí přebít novější změnu).
   Inventory převádí doménové události produktu na integrační rovnou v `InventoryDbContext.ToOutboxMessage` (Ordering přes handler).
 - `MiniShop.Application` **nemá žádné NuGet balíčky** (ani DI ani Logging) – předchází se tím konfliktu verzí
   (NU1605). Registrace aplikačních služeb a handlerů proto žije ve
@@ -48,12 +67,12 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   `src/MiniShop.Infrastructure/DependencyInjection.cs`.
 - Entity mění stav jen přes metody s business pravidly; čas se předává parametrem (z `TimeProvider`),
   doména nevolá `DateTime.UtcNow`.
-- Logování přes **Serilog** (jen v `MiniShop.Web`): konzole + denní soubor `src/MiniShop.Web/logs/minishop-RRRRMMDD.log`
+- Logování přes **Serilog** (jen ve službách – Web a Inventory.Api, ten do `logs/inventory-RRRRMMDD.log`): konzole + denní soubor `src/MiniShop.Web/logs/minishop-RRRRMMDD.log`
   (7 dní, v `.gitignore`). Úrovně a cíle v sekci `Serilog` v appsettings, ne v `Logging`. Ostatní vrstvy
   logují přes `ILogger<T>` a o Serilogu nevědí. `UseSerilogRequestLogging` musí být v pipeline **před** `UseExceptionHandler`
   (jinak loguje ošetřené 404/400 jako 500).
 - Databáze vznikají přes `EnsureCreated` (bez migrací) v `DatabaseInitializer`. **Při změně schématu** (nová tabulka/sloupec)
-  je potřeba smazat `src/MiniShop.Web/ordering.db` a/nebo `inventory.db` – upozorni na to uživatele.
+  je potřeba smazat `src/MiniShop.Web/ordering.db` a/nebo `src/MiniShop.Inventory.Api/inventory.db` – upozorni na to uživatele.
 - Testy OrderService používají skutečný dispatcher a skutečné handlery (testují celou cestu).
   Služby skládají přes `AddInfrastructure` nad dvěma SQLite v paměti (`InMemoryDatabase` pro každý modul), každá akce
   běží ve vlastním scope a outboxy všech modulů se zpracují ručně přes `ProcessOutboxAsync()` – žádné čekání na workera.
@@ -81,16 +100,18 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
 | 8. Message broker (RabbitMQ.Client, exchange fanout na kontrakt, publisher confirms, ukázkový consumer `minishop.audit`) | hotovo | `docs/kroky/krok-08-rabbitmq.md` |
 | 9. Sága objednávky – orchestrace (`OrderSaga` + `OrderSagaOrchestrator`, příkazy `ReserveStockV1`/`ReleaseStockV1`, modul Inventory, timeout, kompenzace) | hotovo | `docs/kroky/krok-09-saga.md` |
 | 10A. Modulární monolit (2 DB, outbox/inbox na modul, kopie katalogu `CatalogProduct`, test architektury) | hotovo | `docs/kroky/krok-10a-modularni-monolit.md` |
-| 10B. Vyjmutí Inventory do samostatné služby (`MiniShop.Inventory.Api`, .NET Aspire) | **další na řadě** | |
-| 11. Observabilita | čeká | |
+| 10B. Vyjmutí Inventory do samostatné služby (`MiniShop.Inventory.Api`, .NET Aspire AppHost, ServiceDefaults, `InventoryApiClient`, resilience) | hotovo | `docs/kroky/krok-10b-samostatna-sluzba.md` |
+| 11. Observabilita | **další na řadě** | |
 
-Známé omezení po kroku 10A: vnější akce (notifikace) nejsou v transakci – při pádu mezi odesláním a zápisem
+Známé omezení po kroku 10B: vnější akce (notifikace) nejsou v transakci – při pádu mezi odesláním a zápisem
 do inboxu odejdou znovu. Inbox se nečistí. Worker počítá s jednou instancí aplikace, retry je bez backoffu.
 `OrderingDomainEventReader` převádí payload zpět na událost načtením `Order` podle `OrderId` (handlery vidí aktuální stav).
 Integrační zprávy jdou do RabbitMQ (`RabbitMqIntegrationBus`), nedostupný broker (`IntegrationBusUnavailableException`)
 se nepočítá jako pokus. Consumery nemají dead-letter frontu: nečitelnou zprávu zahodí, při chybě handleru ji po 2 s vrátí do fronty (bez limitu).
-Každý krok ságy čeká na kolo outbox workeru (2 s) → potvrzení objednávky trvá ~4–8 s, nový produkt jde objednat po ~2–4 s.
-Moduly zatím běží v jednom procesu; stránka Objednávky skládá data z obou modulů (výběr produktu + zásoba ze skladu).
+Každý krok ságy čeká na kolo outbox workeru (2 s) → potvrzení objednávky trvá ~4–8 s, nový produkt je v nabídce po ~2–4 s.
+Služby sdílí knihovny Application/Infrastructure (změna jádra = nasadit obě). Bez Dockeru se aplikace nespustí.
+Obnova katalogu (`SyncCatalogV1`) produkty nemaže – zmeškané `ProductRemovedV1` neopraví.
+Při výpadku skladu trvají první načtení stránek ~4 s, pak circuit breaker (ServiceDefaults) odpovídá hned. Bez OpenTelemetry (krok 11).
 Testy běží bez RabbitMQ (`RecordingIntegrationBus` nad `InProcessIntegrationBus` – celá sága v procesu).
 Testy: `ProcessOutboxAsync` jede kola, dokud přibývají zprávy (opakuje i selhané), `ProcessOneRoundAsync` = jedno kolo,
 čas posouvá `FixedTimeProvider.Advance` (timeout ságy).

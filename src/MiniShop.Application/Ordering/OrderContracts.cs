@@ -20,6 +20,9 @@ public sealed record OrderDto(
     IReadOnlyList<OrderItemDto> Items,
     string? RejectionReason);
 
+/// <summary>Produkt v nabídce objednávek – z kopie katalogu (krok 10), bez zásoby (ta patří skladu).</summary>
+public sealed record CatalogItemDto(int ProductId, string Name, decimal Price);
+
 public sealed class CreateOrderRequest
 {
     [Required, StringLength(100)]

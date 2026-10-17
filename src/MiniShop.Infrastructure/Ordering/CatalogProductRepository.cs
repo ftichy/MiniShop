@@ -9,6 +9,12 @@ public sealed class CatalogProductRepository(OrderingDbContext db) : ICatalogPro
     public Task<CatalogProduct?> GetByIdAsync(int id, CancellationToken cancellationToken = default) =>
         db.CatalogProducts.FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
 
+    public Task<bool> AnyAsync(CancellationToken cancellationToken = default) =>
+        db.CatalogProducts.AnyAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<CatalogProduct>> GetAvailableAsync(CancellationToken cancellationToken = default) =>
+        await db.CatalogProducts.Where(p => !p.IsRemoved).OrderBy(p => p.Name).ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyList<CatalogProduct>> GetAvailableByIdsAsync(IEnumerable<int> ids, CancellationToken cancellationToken = default)
     {
         var idList = ids.Distinct().ToList();

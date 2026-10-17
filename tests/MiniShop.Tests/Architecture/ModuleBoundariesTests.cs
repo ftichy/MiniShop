@@ -57,6 +57,7 @@ public sealed class ModuleBoundariesTests
     [InlineData("MiniShop.Infrastructure.Integration")]
     [InlineData("MiniShop.Infrastructure.Persistence")]
     [InlineData("MiniShop.Infrastructure.Events")]
+    [InlineData("MiniShop.Infrastructure.Hosting")]
     public void SpolecneJadro_NezavisiNaModulech(string sharedNamespace)
     {
         var result = Types.InAssemblies(SourceAssemblies)
@@ -66,6 +67,31 @@ public sealed class ModuleBoundariesTests
 
         Assert.True(result.IsSuccessful,
             $"{sharedNamespace} závisí na modulu: {string.Join(", ", result.FailingTypeNames ?? [])}");
+    }
+
+    /// <summary>
+    /// Krok 10B: služba Ordering (Web) nesmí sahat do vnitřku skladu – jeho domény ani databáze.
+    /// Smí jen přes HTTP API (rozhraní IProductService a DTO z Application.Inventory) a přes zprávy (Contracts).
+    /// </summary>
+    [Fact]
+    public void Web_NesahaDoVnitrkuSkladu()
+    {
+        var result = Types.InAssembly(typeof(MiniShop.Web.Inventory.InventoryApiClient).Assembly)
+            .ShouldNot().HaveDependencyOnAny("MiniShop.Domain.Inventory", "MiniShop.Infrastructure.Inventory")
+            .GetResult();
+
+        Assert.True(result.IsSuccessful, string.Join(", ", result.FailingTypeNames ?? []));
+    }
+
+    /// <summary>Krok 10B: služba skladu o objednávkách neví nic – ani v kódu, ani v databázi.</summary>
+    [Fact]
+    public void InventoryApi_NezavisiNaOrderingu()
+    {
+        var result = Types.InAssembly(typeof(MiniShop.Inventory.Api.GlobalExceptionHandler).Assembly)
+            .ShouldNot().HaveDependencyOnAny(ModuleNamespaces[Ordering])
+            .GetResult();
+
+        Assert.True(result.IsSuccessful, string.Join(", ", result.FailingTypeNames ?? []));
     }
 
     /// <summary>Kontrakty sdílí všechny služby – nesmí táhnout s sebou nic dalšího z MiniShopu.</summary>

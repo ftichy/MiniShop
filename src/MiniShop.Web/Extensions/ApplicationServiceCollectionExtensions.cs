@@ -10,20 +10,22 @@ using MiniShop.Contracts.Inventory;
 using MiniShop.Domain.Orders.Events;
 using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Ordering;
+using MiniShop.Web.Inventory;
 
 namespace MiniShop.Web.Extensions;
 
 public static class ApplicationServiceCollectionExtensions
 {
     /// <summary>
-    /// Registrace služeb aplikační vrstvy – po modulech (krok 10). Moduly spolu mluví jen přes kontrakty.
+    /// Registrace služeb aplikační vrstvy. Od kroku 10B hostuje Web jen modul Ordering –
+    /// sklad běží jako samostatná služba MiniShop.Inventory.Api.
     /// </summary>
     public static IServiceCollection AddApplication(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddSingleton(TimeProvider.System);
 
         services.AddOrderingModule(configuration);
-        services.AddInventoryModule();
+        services.AddInventoryApiClient();
 
         return services;
     }
@@ -63,15 +65,20 @@ public static class ApplicationServiceCollectionExtensions
         services.AddIntegrationMessageHandler<ProductUpdatedV1, CatalogProjectionHandler>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<ProductRemovedV1, CatalogProjectionHandler>(IntegrationModules.Ordering);
 
+        // Obnova kopie katalogu (příkaz SyncCatalogV1 pro sklad): po startu, když je prázdná, nebo tlačítkem v UI.
+        services.AddScoped<CatalogSyncService>();
+
         return services;
     }
 
-    /// <summary>Modul Inventory: produkty, zásoby, rezervace. V části B kroku 10 se z něj stane samostatná služba.</summary>
-    public static IServiceCollection AddInventoryModule(this IServiceCollection services)
+    /// <summary>
+    /// Krok 10B: stránky Produkty a Objednávky čtou sklad přes jeho HTTP API. "inventory-api" je jméno služby
+    /// v AppHostu Aspire; skutečnou adresu doplní service discovery (bez Aspire ze sekce "Services" v appsettings.json).
+    /// </summary>
+    public static IServiceCollection AddInventoryApiClient(this IServiceCollection services)
     {
-        services.AddScoped<IProductService, ProductService>();
-        services.AddIntegrationMessageHandler<ReserveStockV1, ReserveStockHandler>(IntegrationModules.Inventory);
-        services.AddIntegrationMessageHandler<ReleaseStockV1, ReleaseStockHandler>(IntegrationModules.Inventory);
+        services.AddHttpClient<IProductService, InventoryApiClient>(http =>
+            http.BaseAddress = new Uri("https+http://inventory-api"));
 
         return services;
     }

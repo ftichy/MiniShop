@@ -52,17 +52,26 @@ public sealed class RabbitMqConnection(RabbitMqOptions options, ILogger<RabbitMq
 
             var factory = new ConnectionFactory
             {
-                HostName = options.HostName,
-                Port = options.Port,
-                UserName = options.UserName,
-                Password = options.Password,
-                ClientProvidedName = "MiniShop",   // jméno spojení v management UI
+                ClientProvidedName = options.ClientName,   // jméno spojení v management UI
                 AutomaticRecoveryEnabled = false,
                 RequestedConnectionTimeout = TimeSpan.FromSeconds(5)
             };
 
+            if (string.IsNullOrWhiteSpace(options.ConnectionString))
+            {
+                factory.HostName = options.HostName;
+                factory.Port = options.Port;
+                factory.UserName = options.UserName;
+                factory.Password = options.Password;
+            }
+            else
+            {
+                // Krok 10B: adresa od Aspire (amqp://…) – obsahuje host, port i přihlašovací údaje.
+                factory.Uri = new Uri(options.ConnectionString);
+            }
+
             _connection = await factory.CreateConnectionAsync(cancellationToken);
-            logger.LogInformation("Připojeno k RabbitMQ {Host}:{Port}", options.HostName, options.Port);
+            logger.LogInformation("Připojeno k RabbitMQ {Host}:{Port}", factory.HostName, factory.Port);
             return _connection;
         }
         finally

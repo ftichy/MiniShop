@@ -1,7 +1,13 @@
 using System.Text;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using MiniShop.Application;
+using MiniShop.Application.Inventory;
+using MiniShop.Contracts.Inventory;
 using MiniShop.Contracts.Orders;
+using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Integration;
+using MiniShop.Infrastructure.Inventory;
 using MiniShop.Infrastructure.Integration.RabbitMq;
 using MiniShop.Infrastructure.Outbox;
 using RabbitMQ.Client;
@@ -52,5 +58,38 @@ public sealed class RabbitMqTests
         await using var bus = new RabbitMqIntegrationBus(connection, NullLogger<RabbitMqIntegrationBus>.Instance);
 
         await Assert.ThrowsAsync<IntegrationBusUnavailableException>(() => bus.PublishAsync(Placed));
+    }
+
+    /// <summary>
+    /// Krok 10B: adresa od Aspire (connection string) má přednost před HostName/Port.
+    /// HostName/Port tu míří na výchozí 5672 (kde může běžet skutečný broker), connection string na port 1.
+    /// </summary>
+    [Fact]
+    public async Task Bus_ConnectionString_MaPrednostPredHostNameAPortem()
+    {
+        var options = new RabbitMqOptions { ConnectionString = "amqp://guest:guest@localhost:1" };
+        await using var connection = new RabbitMqConnection(options, NullLogger<RabbitMqConnection>.Instance);
+        await using var bus = new RabbitMqIntegrationBus(connection, NullLogger<RabbitMqIntegrationBus>.Instance);
+
+        await Assert.ThrowsAsync<IntegrationBusUnavailableException>(() => bus.PublishAsync(Placed));
+    }
+
+    /// <summary>Krok 10B: každá služba poslouchá jen fronty svých modulů; auditní frontu jen ta, která ji má zapnutou.</summary>
+    [Theory]
+    [InlineData("minishop.audit", new[] { "minishop.audit", "minishop.inventory" })]
+    [InlineData("", new[] { "minishop.inventory" })]
+    public async Task Consumery_JenFrontyModuluSluzbyAVolitelneAudit(string auditQueue, string[] expectedQueues)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddInfrastructureCore();
+        services.AddIntegrationModule<InventoryDbContext>(IntegrationModules.Inventory);
+        services.AddIntegrationMessageHandler<ReserveStockV1, ReserveStockHandler>(IntegrationModules.Inventory);
+        services.AddRabbitMq(new RabbitMqOptions { AuditQueue = auditQueue });
+        await using var provider = services.BuildServiceProvider();
+
+        var queues = provider.GetRequiredService<RabbitMqConsumers>().CreateAll().Select(c => c.QueueName);
+
+        Assert.Equal(expectedQueues, queues);
     }
 }

@@ -2,6 +2,18 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "MiniShop.AppHost (Aspire)",
+      "type": "dotnet",
+      "request": "launch",
+      "projectPath": "${workspaceFolder}/src/MiniShop.AppHost/MiniShop.AppHost.csproj"
+    },
+    {
+      "name": "MiniShop.Inventory.Api (C# Dev Kit)",
+      "type": "dotnet",
+      "request": "launch",
+      "projectPath": "${workspaceFolder}/src/MiniShop.Inventory.Api/MiniShop.Inventory.Api.csproj"
+    },
+    {
       "name": "MiniShop.Web (C# Dev Kit)",
       "type": "dotnet",
       "request": "launch",

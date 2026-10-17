@@ -11,6 +11,9 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\MiniShop.Infrastructure\MiniShop.Infrastructure.csproj" />
+    <!-- Krok 10B: testy klienta API skladu a hranic mezi službami. -->
+    <ProjectReference Include="..\..\src\MiniShop.Web\MiniShop.Web.csproj" />
+    <ProjectReference Include="..\..\src\MiniShop.Inventory.Api\MiniShop.Inventory.Api.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

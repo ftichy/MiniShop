@@ -1,30 +1,39 @@
-using MiniShop.Infrastructure;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using MiniShop.Infrastructure.Integration.RabbitMq;
-using MiniShop.Web.BackgroundServices;
 
-namespace MiniShop.Web.Extensions;
+namespace MiniShop.Infrastructure.Hosting;
 
+/// <summary>
+/// Hosting zpráv pro službu (krok 10B): outbox worker + RabbitMQ s consumery. Používá ho Web i Inventory.Api.
+/// </summary>
 public static class MessagingServiceCollectionExtensions
 {
     /// <summary>
-    /// Jak se doručují integrační zprávy (kroky 8 a 9) – podle Messaging:Transport v appsettings.json:
-    /// "RabbitMq" = přes broker (fronta pro každý modul + auditní fronta),
-    /// "InProcess" = přímo handlerům v procesu (sága funguje i bez Dockeru).
+    /// Doručování z outboxu na pozadí (krok 5) a integrační zprávy přes RabbitMQ (kroky 8 a 9).
     /// </summary>
+    /// <remarks>
+    /// Krok 10B: služby běží ve dvou procesech, takže zprávy mezi nimi musí jít přes broker.
+    /// Transport "InProcess" (doručení v paměti) zůstává jen pro testy, kde jsou oba moduly v jednom procesu.
+    /// Adresu brokeru předává Aspire jako connection string "messaging" (amqp://…); bez Aspire se použije
+    /// sekce Messaging:RabbitMq (HostName, Port, …).
+    /// </remarks>
     public static IServiceCollection AddMessaging(this IServiceCollection services, IConfiguration configuration)
     {
-        var transport = configuration["Messaging:Transport"] ?? "InProcess";
+        var transport = configuration["Messaging:Transport"] ?? "RabbitMq";
+        if (!string.Equals(transport, "RabbitMq", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Messaging:Transport '{transport}' není podporovaný. Od kroku 10B běží Ordering a Inventory ve dvou procesech " +
+                "a zprávy si předávají jen přes RabbitMQ (InProcess funguje jen v testech).");
+        }
 
-        if (string.Equals(transport, "RabbitMq", StringComparison.OrdinalIgnoreCase))
-        {
-            var options = configuration.GetSection("Messaging:RabbitMq").Get<RabbitMqOptions>() ?? new RabbitMqOptions();
-            services.AddRabbitMq(options);
-            services.AddHostedService<RabbitMqConsumersWorker>();
-        }
-        else if (!string.Equals(transport, "InProcess", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException($"Neznámý Messaging:Transport '{transport}'. Povolené hodnoty: RabbitMq, InProcess.");
-        }
+        var options = configuration.GetSection("Messaging:RabbitMq").Get<RabbitMqOptions>() ?? new RabbitMqOptions();
+        options.ConnectionString ??= configuration.GetConnectionString("messaging");
+
+        services.AddRabbitMq(options);
+        services.AddHostedService<RabbitMqConsumersWorker>();
+        services.AddHostedService<OutboxWorker>();
 
         return services;
     }

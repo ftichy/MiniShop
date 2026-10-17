@@ -11,15 +11,16 @@ using MiniShop.Infrastructure.Persistence;
 namespace MiniShop.Infrastructure;
 
 /// <summary>
-/// Registrace infrastruktury. Společné věci (bus, směrování zpráv) jsou tady, moduly mají vlastní metody
-/// (<see cref="OrderingInfrastructure.AddOrderingInfrastructure"/>, <see cref="InventoryInfrastructure.AddInventoryInfrastructure"/>).
+/// Registrace infrastruktury. Společné věci (bus, směrování zpráv) jsou v <see cref="AddInfrastructureCore"/>, moduly mají
+/// vlastní metody (<see cref="OrderingInfrastructure.AddOrderingInfrastructure"/>, <see cref="InventoryInfrastructure.AddInventoryInfrastructure"/>).
 /// </summary>
 public static class DependencyInjection
 {
-    /// <param name="orderingConnectionString">Databáze modulu Ordering (ordering.db).</param>
-    /// <param name="inventoryConnectionString">Databáze modulu Inventory (inventory.db).</param>
-    public static IServiceCollection AddInfrastructure(
-        this IServiceCollection services, string orderingConnectionString, string inventoryConnectionString)
+    /// <summary>
+    /// Společné jádro, které potřebuje každá služba (krok 10B): Web si k němu přidá modul Ordering,
+    /// Inventory.Api modul Inventory.
+    /// </summary>
+    public static IServiceCollection AddInfrastructureCore(this IServiceCollection services)
     {
         // Čas pro ProcessedAtUtc apod.; obvykle ho už zaregistrovala aplikační vrstva.
         services.TryAddSingleton(TimeProvider.System);
@@ -29,6 +30,20 @@ public static class DependencyInjection
         services.AddSingleton<IIntegrationBus, InProcessIntegrationBus>();
         services.AddSingleton<IntegrationMessageRouting>();
         services.AddScoped<IntegrationMessageDispatcher>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Oba moduly v jednom procesu (modulární monolit z kroku 10A). Od kroku 10B to používají jen testy –
+    /// celá sága tak proběhne v paměti bez sítě a bez RabbitMQ.
+    /// </summary>
+    /// <param name="orderingConnectionString">Databáze modulu Ordering (ordering.db).</param>
+    /// <param name="inventoryConnectionString">Databáze modulu Inventory (inventory.db).</param>
+    public static IServiceCollection AddInfrastructure(
+        this IServiceCollection services, string orderingConnectionString, string inventoryConnectionString)
+    {
+        services.AddInfrastructureCore();
 
         // Moduly (krok 10) – každý s vlastní databází, outboxem a inboxem.
         services.AddOrderingInfrastructure(orderingConnectionString);

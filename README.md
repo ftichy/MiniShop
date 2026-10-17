@@ -12,26 +12,46 @@ vrstvená architektura a principy **SOLID**. Je připravený na pozdější pře
 
 ## Spuštění
 
-**VS Code:** otevřete složku `MiniShop` (File → Open Folder) a nainstalujte doporučená rozšíření
-(C# Dev Kit, REST Client). Spuštění s debuggerem: F5 a vyberte konfiguraci „MiniShop.Web“.
-Build `Ctrl+Shift+B`, testy přes Test Explorer nebo úlohu `test`, živé přenačítání úlohou `watch`.
+Aplikace se skládá ze dvou služeb a RabbitMQ (od kroku 10B):
 
-**Visual Studio:** otevřete `MiniShop.slnx`, nastavte `MiniShop.Web` jako startovací projekt a stiskněte F5.
+| Služba | Adresa | Co dělá |
+|---|---|---|
+| `MiniShop.Web` | `https://localhost:7180` | objednávky (sága, kopie katalogu) + celé UI |
+| `MiniShop.Inventory.Api` | `https://localhost:7181` | produkty, zásoby, rezervace (`/api/products`) |
+| RabbitMQ | – | zprávy mezi službami |
 
-**Příkazová řádka:**
+Potřebujete běžící **Docker** (RabbitMQ v kontejneru).
+
+**Doporučeno – .NET Aspire** spustí všechno najednou a otevře dashboard (stav služeb, logy, odkazy):
 
 ```powershell
-dotnet run --project src/MiniShop.Web
+dotnet run --project src/MiniShop.AppHost
 dotnet test
 ```
 
-Aplikace poběží na `https://localhost:7180`. Databáze `minishop.db` se vytvoří sama při prvním spuštění
-(ve složce `src/MiniShop.Web`) a naplní se ukázkovými produkty. Když ji smažete, vytvoří se znovu.
+**VS Code:** otevřete složku `MiniShop` (File → Open Folder) a nainstalujte doporučená rozšíření
+(C# Dev Kit, REST Client). Spuštění s debuggerem: F5 a vyberte konfiguraci „MiniShop.AppHost (Aspire)“.
+Build `Ctrl+Shift+B`, testy přes Test Explorer nebo úlohu `test`.
+
+**Visual Studio:** otevřete `MiniShop.slnx`, nastavte `MiniShop.AppHost` jako startovací projekt a stiskněte F5.
+
+**Bez Aspire:** spusťte RabbitMQ (`docker start minishop-rabbit`) a obě služby ve dvou terminálech:
+
+```powershell
+dotnet run --project src/MiniShop.Inventory.Api
+dotnet run --project src/MiniShop.Web
+```
+
+Databáze `ordering.db` (ve `src/MiniShop.Web`) a `inventory.db` (ve `src/MiniShop.Inventory.Api`) se vytvoří
+samy při prvním spuštění, sklad se naplní ukázkovými produkty. Když je smažete, vytvoří se znovu.
 
 Ukázkové API požadavky jsou v souboru `src/MiniShop.Web/MiniShop.Web.http`. Ve VS Code (rozšíření REST Client)
-i ve Visual Studiu stačí nad požadavkem kliknout na „Send Request“. OpenAPI popis najdete na `/openapi/v1.json`.
+i ve Visual Studiu stačí nad požadavkem kliknout na „Send Request“. OpenAPI popis najdete na `/openapi/v1.json`
+(u každé služby).
 
 ## API
+
+Produkty obsluhuje `MiniShop.Inventory.Api` (port 7181), objednávky `MiniShop.Web` (port 7180).
 
 | Metoda | Cesta | Popis |
 |---|---|---|

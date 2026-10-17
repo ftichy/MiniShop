@@ -37,6 +37,12 @@ public class Product : Entity
     public decimal Price { get; private set; }
     public int StockQuantity { get; private set; }
 
+    /// <summary>
+    /// Kdy se naposledy změnil název nebo cena. Při obnově katalogu (<c>SyncCatalogV1</c>) jde ve zprávě jako čas změny –
+    /// znovu poslaný stav tak nepřebije novější změnu, která je k příjemci zrovna na cestě.
+    /// </summary>
+    public DateTime ChangedAtUtc { get; private set; }
+
     public void Update(string name, string? description, decimal price, DateTime updatedAtUtc)
     {
         if (string.IsNullOrWhiteSpace(name))
@@ -52,6 +58,7 @@ public class Product : Entity
         Name = name.Trim();
         Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
         Price = price;
+        ChangedAtUtc = updatedAtUtc;
 
         // Nový i změněný produkt: Ordering si podle toho aktualizuje svou kopii katalogu (krok 10).
         // Při opakovaném Update před uložením stačí poslední stav – starší událost zahodíme.

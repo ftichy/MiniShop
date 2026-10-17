@@ -14,7 +14,7 @@ public sealed class RabbitMqAuditConsumer(
     ILogger<RabbitMqAuditConsumer> logger)
     : RabbitMqQueueConsumer(connection, logger)
 {
-    public override string QueueName => options.AuditQueue;
+    public override string QueueName => options.AuditQueue ?? "minishop.audit";
 
     protected override IReadOnlyCollection<string> ContractNames => IntegrationMessageReader.ContractNames;
 

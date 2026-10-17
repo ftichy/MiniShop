@@ -1,0 +1,20 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.6.1">
+  <!-- Krok 10B: .NET Aspire orchestrátor. Jedním "dotnet run" spustí RabbitMQ (kontejner v Dockeru),
+       službu skladu (Inventory.Api) a Web, předá jim adresy a otevře dashboard se stavem a logy. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Dashboard a DCP bereme z NuGet balíčků Aspire, Aspire CLI není potřeba. -->
+    <AspireUseCliBundle>false</AspireUseCliBundle>
+    <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
+    <UserSecretsId>8b6c2a4e-6d3f-4f7e-9f61-3b1a7e2c5d10</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MiniShop.Web\MiniShop.Web.csproj" />
+    <ProjectReference Include="..\MiniShop.Inventory.Api\MiniShop.Inventory.Api.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.RabbitMQ" Version="13.6.1" />
+    <!-- Opravená verze tranzitivní závislosti Aspire (GHSA-qhrr-8q5h-9q3h). -->
+    <PackageReference Include="MessagePack" Version="2.5.307" />
+  </ItemGroup>
+</Project>

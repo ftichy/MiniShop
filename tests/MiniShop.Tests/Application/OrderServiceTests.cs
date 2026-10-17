@@ -6,6 +6,7 @@ using MiniShop.Application.Abstractions;
 using MiniShop.Application.Contracts;
 using MiniShop.Application.Exceptions;
 using MiniShop.Application.Orders.EventHandlers;
+using MiniShop.Application.Orders.IntegrationEvents;
 using MiniShop.Application.Pricing;
 using MiniShop.Application.Services;
 using MiniShop.Domain.Common;
@@ -13,7 +14,9 @@ using MiniShop.Domain.Exceptions;
 using MiniShop.Domain.Orders.Events;
 using MiniShop.Domain.Products;
 using MiniShop.Infrastructure;
+using MiniShop.Contracts.Orders;
 using MiniShop.Infrastructure.Events;
+using MiniShop.Infrastructure.Integration;
 using MiniShop.Infrastructure.Outbox;
 using MiniShop.Infrastructure.Persistence;
 using MiniShop.Tests.TestDoubles;
@@ -32,6 +35,7 @@ public sealed class OrderServiceTests : IDisposable
 
     private readonly InMemoryDatabase _database = new();
     private readonly RecordingOrderNotifier _notifier = new();
+    private readonly RecordingIntegrationEventBus _bus = new();
     private readonly List<IDomainEvent> _dispatched = new();
     private readonly ServiceProvider _services;
 
@@ -49,9 +53,13 @@ public sealed class OrderServiceTests : IDisposable
         services.AddDomainEventHandler<OrderCompleted, SendCompletionNoticeHandler>();
         services.AddDomainEventHandler<OrderCancelled, ReturnStockOnOrderCancelledHandler>();
         services.AddDomainEventHandler<OrderCancelled, SendCancellationNoticeHandler>();
+        services.AddDomainEventHandler<OrderPlaced, PublishOrderIntegrationEventsHandler>();
+        services.AddDomainEventHandler<OrderCompleted, PublishOrderIntegrationEventsHandler>();
+        services.AddDomainEventHandler<OrderCancelled, PublishOrderIntegrationEventsHandler>();
 
-        // Testovací náhrady: notifikace do seznamu, skutečný dispatcher obalený záznamníkem.
+        // Testovací náhrady: notifikace a "broker" do seznamu, skutečný dispatcher obalený záznamníkem.
         services.AddSingleton<IOrderNotifier>(_notifier);
+        services.AddSingleton<IIntegrationEventBus>(_bus);
         services.AddScoped<DomainEventDispatcher>();
         services.AddScoped<IDomainEventDispatcher>(sp =>
             new RecordingDomainEventDispatcher(_dispatched, sp.GetRequiredService<DomainEventDispatcher>()));
@@ -194,8 +202,10 @@ public sealed class OrderServiceTests : IDisposable
         await ProcessOutboxAsync();
 
         // Čas je v testu pevný, takže pořadí podle OccurredAtUtc nerozhodne – porovnáme seřazené typy.
+        // Ke každé doménové události přibyla integrační (krok 7).
         var messages = await Db(db => db.OutboxMessages.ToListAsync());
-        Assert.Equal(new[] { "OrderCancelled", "OrderPlaced" }, messages.Select(m => m.Type).Order());
+        Assert.Equal(new[] { "OrderCancelled", "OrderCancelledV1", "OrderPlaced", "OrderPlacedV1" },
+            messages.Select(m => m.Type).Order());
         Assert.All(messages, m => Assert.Equal(Now.UtcDateTime, m.ProcessedAtUtc));
     }
 
@@ -241,7 +251,7 @@ public sealed class OrderServiceTests : IDisposable
         await Orders(s => s.CancelAsync(order.Id));
 
         // 1. kolo workera: vrácení skladu uspěje, notifikace selže → zpráva zůstane nezpracovaná.
-        await ProcessOutboxAsync();
+        await ProcessOneRoundAsync();
         Assert.Equal(5, await StockAsync());
         Assert.DoesNotContain($"cancelled:{order.Id}", _notifier.Events);
 
@@ -253,16 +263,89 @@ public sealed class OrderServiceTests : IDisposable
         var message = await Db(db => db.OutboxMessages.SingleAsync(m => m.Type == "OrderCancelled"));
         Assert.NotNull(message.ProcessedAtUtc);
         Assert.Equal(1, message.Attempts);
+
+        // I překladový handler (krok 7) chrání inbox – integrační událost odešla jen jednou.
+        Assert.Single(_bus.Published.OfType<OrderCancelledV1>());
     }
 
-    /// <summary>Zpracuje outbox, dokud v něm něco je – jako několik kol OutboxWorkeru.</summary>
+    [Fact]
+    public async Task PlaceOrder_WorkerPublikujeOrderPlacedV1SDatyObjednavky()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+
+        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 3))));
+        await ProcessOutboxAsync();
+
+        var placed = Assert.IsType<OrderPlacedV1>(Assert.Single(_bus.Published));
+        Assert.Equal(order.Id, placed.OrderId);
+        Assert.Equal("jan@example.com", placed.CustomerEmail);
+        Assert.Equal(300m, placed.TotalPrice);
+        Assert.Equal(Now.UtcDateTime, placed.OccurredAtUtc);   // kdy se fakt stal, ne kdy odešla zpráva
+        Assert.Equal(new OrderLineV1(product.Id, 3), Assert.Single(placed.Lines));
+    }
+
+    [Fact]
+    public async Task PlaceOrder_IntegracniUdalostJeVOutboxuJakoSamostatnaZprava()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 1))));
+
+        // 1. kolo: handlery doménové události zapíšou integrační do outboxu – ven ještě neodešla.
+        await ProcessOneRoundAsync();
+        var integration = await Db(db => db.OutboxMessages.SingleAsync(m => m.Kind == OutboxMessageKind.Integration));
+        Assert.Equal("OrderPlacedV1", integration.Type);
+        Assert.Null(integration.ProcessedAtUtc);
+        Assert.Empty(_bus.Published);
+
+        // 2. kolo: worker ji pošle ven. Handlery v aplikaci ji nedostanou (dispatcher zná jen doménové události).
+        await ProcessOneRoundAsync();
+        Assert.Single(_bus.Published);
+        Assert.Single(_dispatched);
+        Assert.All(await Db(db => db.OutboxMessages.ToListAsync()), m => Assert.NotNull(m.ProcessedAtUtc));
+    }
+
+    [Fact]
+    public async Task CancelAComplete_WorkerPublikujeIntegracniUdalosti()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var cancelledOrder = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 2))));
+        var completedOrder = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 1))));
+
+        await Orders(s => s.CancelAsync(cancelledOrder.Id));
+        await Orders(s => s.CompleteAsync(completedOrder.Id));
+        await ProcessOutboxAsync();
+
+        var cancelled = Assert.Single(_bus.Published.OfType<OrderCancelledV1>());
+        Assert.Equal(cancelledOrder.Id, cancelled.OrderId);
+        Assert.Equal(new OrderLineV1(product.Id, 2), Assert.Single(cancelled.Lines));   // sklad ví, co vrátit
+
+        var completed = Assert.Single(_bus.Published.OfType<OrderCompletedV1>());
+        Assert.Equal(completedOrder.Id, completed.OrderId);
+        Assert.Equal("jan@example.com", completed.CustomerEmail);
+
+        Assert.Equal(2, _bus.Published.OfType<OrderPlacedV1>().Count());
+    }
+
+    /// <summary>
+    /// Zpracuje outbox jako několik kol OutboxWorkeru: pokračuje, dokud byla dávka plná nebo handlery
+    /// přidaly nové zprávy (integrační události z kroku 7). Pozor: v dalších kolech se zkusí znovu
+    /// i zprávy, které selhaly – pro jedno kolo je <see cref="ProcessOneRoundAsync"/>.
+    /// </summary>
     private async Task ProcessOutboxAsync()
     {
         var processor = _services.GetRequiredService<OutboxProcessor>();
-        while (await processor.ProcessPendingAsync() == OutboxProcessor.BatchSize)
+        bool again;
+        do
         {
+            var before = await Db(db => db.OutboxMessages.CountAsync());
+            var processed = await processor.ProcessPendingAsync();
+            again = processed == OutboxProcessor.BatchSize || await Db(db => db.OutboxMessages.CountAsync()) > before;
         }
+        while (again);
     }
+
+    /// <summary>Právě jedno kolo workera (jedna dávka).</summary>
+    private Task<int> ProcessOneRoundAsync() => _services.GetRequiredService<OutboxProcessor>().ProcessPendingAsync();
 
     /// <summary>Zavolá OrderService ve vlastním scope – jako jeden HTTP požadavek.</summary>
     private async Task<T> Orders<T>(Func<IOrderService, Task<T>> action)

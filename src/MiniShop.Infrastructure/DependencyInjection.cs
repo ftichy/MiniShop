@@ -7,6 +7,7 @@ using MiniShop.Domain.Orders.Events;
 using MiniShop.Infrastructure.Events;
 using MiniShop.Infrastructure.Events.Handlers;
 using MiniShop.Infrastructure.Inbox;
+using MiniShop.Infrastructure.Integration;
 using MiniShop.Infrastructure.Notifications;
 using MiniShop.Infrastructure.Outbox;
 using MiniShop.Infrastructure.Persistence;
@@ -37,6 +38,10 @@ public static class DependencyInjection
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<OutboxEventReader>();
         services.AddSingleton<OutboxProcessor>();
+
+        // Integrační události (krok 7): publikování = zápis do outboxu, odeslání ven = bus (zatím jen log, v kroku 8 RabbitMQ).
+        services.AddScoped<IIntegrationEventPublisher, OutboxIntegrationEventPublisher>();
+        services.AddSingleton<IIntegrationEventBus, LoggingIntegrationEventBus>();
 
         return services;
     }

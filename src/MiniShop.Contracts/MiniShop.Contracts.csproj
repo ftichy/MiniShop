@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Kontrakty integračních událostí (krok 7): veřejné API pro jiné služby.
+    Žádné závislosti – projekt se dá sdílet s kýmkoli. Tvar existujících zpráv se NEMĚNÍ, jen přidávají nové verze.
+  -->
+</Project>

@@ -11,6 +11,9 @@ internal sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outb
         builder.ToTable("OutboxMessages");
         builder.HasKey(m => m.Id);
         builder.Property(m => m.Type).IsRequired().HasMaxLength(200);
+
+        // Text místo čísla – v DB Browseru je hned vidět "Domain" / "Integration".
+        builder.Property(m => m.Kind).HasConversion<string>().HasMaxLength(20);
         builder.Property(m => m.Payload).IsRequired();
         builder.Property(m => m.Error).HasMaxLength(2000);
 

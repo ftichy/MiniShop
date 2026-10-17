@@ -1,4 +1,5 @@
 using MiniShop.Application.Orders.EventHandlers;
+using MiniShop.Application.Orders.IntegrationEvents;
 using MiniShop.Application.Pricing;
 using MiniShop.Application.Services;
 using MiniShop.Domain.Orders.Events;
@@ -27,6 +28,11 @@ public static class ApplicationServiceCollectionExtensions
         services.AddDomainEventHandler<OrderCompleted, SendCompletionNoticeHandler>();
         services.AddDomainEventHandler<OrderCancelled, ReturnStockOnOrderCancelledHandler>();
         services.AddDomainEventHandler<OrderCancelled, SendCancellationNoticeHandler>();
+
+        // Překlad doménových událostí na integrační (krok 7) – jedna třída pro všechny události objednávky.
+        services.AddDomainEventHandler<OrderPlaced, PublishOrderIntegrationEventsHandler>();
+        services.AddDomainEventHandler<OrderCompleted, PublishOrderIntegrationEventsHandler>();
+        services.AddDomainEventHandler<OrderCancelled, PublishOrderIntegrationEventsHandler>();
 
         return services;
     }

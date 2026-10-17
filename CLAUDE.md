@@ -11,9 +11,10 @@ Výukový e-shop: ASP.NET Core (.NET 10), EF Core + SQLite, REST API + Razor Pag
 Cíl: postupně ho převést na EDA podle plánu v `docs/EDA-roadmap.md`.
 
 ```
+src/MiniShop.Contracts       integrační události (OrderPlacedV1, …) – veřejné kontrakty, žádné závislosti
 src/MiniShop.Domain          entity (Product, Order, OrderItem), doménové události, žádné závislosti
-src/MiniShop.Application     služby, rozhraní (repozitáře, IUnitOfWork, IOrderNotifier, IDomainEvent*), handlery událostí
-src/MiniShop.Infrastructure  EF Core, repozitáře, DomainEventDispatcher, Outbox, Inbox, LoggingOrderNotifier
+src/MiniShop.Application     služby, rozhraní (repozitáře, IUnitOfWork, IOrderNotifier, IDomainEvent*, IIntegrationEventPublisher), handlery událostí
+src/MiniShop.Infrastructure  EF Core, repozitáře, DomainEventDispatcher, Outbox, Inbox, Integration (bus), LoggingOrderNotifier
 src/MiniShop.Web             API controllery, Razor Pages, OutboxWorker, Program.cs (composition root)
 tests/MiniShop.Tests         testy domény, OrderService (SQLite in-memory), dispatcheru, outboxu, inboxu
 docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), diagramy/
@@ -26,7 +27,9 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
 - Po každé změně kódu spusť build a testy a oprav chyby, než ohlásíš hotovo.
 
 ## Konvence a záměrná rozhodnutí
-- Závislosti vedou dovnitř: Web → Application → Domain, Infrastructure → Application.
+- Závislosti vedou dovnitř: Web → Application → Domain, Infrastructure → Application, Application → Contracts.
+- `MiniShop.Contracts` (zprávy pro jiné služby) ≠ `MiniShop.Application/Contracts` (DTO pro REST API).
+  Kontrakty se nepřejmenovávají ani nemění – větší změna = nová verze (`…V2`). Hlídají to `IntegrationEventContractTests`.
 - `MiniShop.Application` **nemá žádné NuGet balíčky** (ani DI ani Logging) – předchází se tím konfliktu verzí
   (NU1605). Registrace aplikačních služeb a handlerů proto žije ve
   `src/MiniShop.Web/Extensions/ApplicationServiceCollectionExtensions.cs`, infrastruktury v
@@ -54,12 +57,15 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
 | 4. Outbox pattern (`OutboxMessages` v téže transakci jako data) | hotovo | `docs/kroky/krok-04-outbox.md` |
 | 5. Background worker (`OutboxWorker` → `OutboxProcessor`, jediná cesta doručení, retry max. 5×) | hotovo | `docs/kroky/krok-05-worker.md` |
 | 6. Idempotentní handlery (`EventId`, inbox `ProcessedMessages`, dekorátor `IdempotentDomainEventHandler`) | hotovo | `docs/kroky/krok-06-inbox.md` |
-| 7. Integrační události a kontrakty | **další na řadě** | |
-| 8.–11. | čeká | |
+| 7. Integrační události a kontrakty (`MiniShop.Contracts`, překladový handler, `Kind` v outboxu, `IIntegrationEventBus`) | hotovo | `docs/kroky/krok-07-integracni-udalosti.md` |
+| 8. Message broker (RabbitMQ) | **další na řadě** | |
+| 9.–11. | čeká | |
 
-Známé omezení po kroku 6: vnější akce (notifikace) nejsou v transakci – při pádu mezi odesláním a zápisem
+Známé omezení po kroku 7: vnější akce (notifikace) nejsou v transakci – při pádu mezi odesláním a zápisem
 do inboxu odejdou znovu. Inbox se nečistí. Worker počítá s jednou instancí aplikace, retry je bez backoffu.
-`OutboxEventReader` převádí payload zpět na událost načtením `Order` podle `OrderId`.
+`OutboxEventReader` převádí payload zpět na událost načtením `Order` podle `OrderId` (handlery vidí aktuální stav).
+Integrační události jdou zatím jen do logu (`LoggingIntegrationEventBus`); v kroku 8 se vymění jen implementace busu.
+Testy: `ProcessOutboxAsync` jede kola, dokud přibývají zprávy (opakuje i selhané), `ProcessOneRoundAsync` = jedno kolo.
 
 ## Postup práce na dalším kroku EDA
 1. Nejdřív **shrň**, co se bude přidávat/měnit a **proč** (teorie + konkrétní případ v MiniShopu),

@@ -12,7 +12,10 @@ public sealed class OutboxMessage
 {
     public Guid Id { get; init; }
 
-    /// <summary>Název typu události, např. "OrderCancelled".</summary>
+    /// <summary>Doménová (pro handlery v aplikaci), nebo integrační (ven pro jiné služby, krok 7)?</summary>
+    public OutboxMessageKind Kind { get; init; }
+
+    /// <summary>Název typu události, např. "OrderCancelled" nebo "OrderCancelledV1".</summary>
     public string Type { get; init; } = string.Empty;
 
     /// <summary>Data události jako JSON – jen jednoduché hodnoty, ne celá entita.</summary>
@@ -31,4 +34,14 @@ public sealed class OutboxMessage
     /// přestane zkoušet ("poison message") a čeká, až se na ni podívá člověk.
     /// </summary>
     public int Attempts { get; set; }
+}
+
+/// <summary>Druh zprávy v outboxu – podle něj worker rozhodne, kam ji doručit.</summary>
+public enum OutboxMessageKind
+{
+    /// <summary>Doménová událost – worker ji předá dispatcheru a handlerům v této aplikaci.</summary>
+    Domain,
+
+    /// <summary>Integrační událost (kontrakt z MiniShop.Contracts) – worker ji pošle ven přes IIntegrationEventBus.</summary>
+    Integration
 }

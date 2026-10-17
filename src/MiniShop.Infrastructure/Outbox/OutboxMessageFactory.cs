@@ -1,4 +1,5 @@
 using System.Text.Json;
+using MiniShop.Contracts;
 using MiniShop.Domain.Common;
 using MiniShop.Domain.Orders;
 using MiniShop.Domain.Orders.Events;
@@ -18,9 +19,23 @@ public static class OutboxMessageFactory
     public static OutboxMessage Create(IDomainEvent domainEvent) => new()
     {
         Id = domainEvent.EventId,   // ID řádku = ID události, aby ho worker mohl vrátit do znovu sestavené události
+        Kind = OutboxMessageKind.Domain,
         Type = domainEvent.GetType().Name,
         Payload = JsonSerializer.Serialize(ToPayload(domainEvent)),
         OccurredAtUtc = domainEvent.OccurredAtUtc
+    };
+
+    /// <summary>
+    /// Integrační událost (krok 7) je už sama o sobě jen data – payload je přímo její JSON, žádný převod.
+    /// Type je název kontraktu včetně verze ("OrderPlacedV1"), podle něj ji <see cref="IntegrationEventReader"/> načte zpět.
+    /// </summary>
+    public static OutboxMessage Create(IIntegrationEvent integrationEvent) => new()
+    {
+        Id = integrationEvent.EventId,
+        Kind = OutboxMessageKind.Integration,
+        Type = integrationEvent.GetType().Name,
+        Payload = JsonSerializer.Serialize(integrationEvent, integrationEvent.GetType()),
+        OccurredAtUtc = integrationEvent.OccurredAtUtc
     };
 
     private static object ToPayload(IDomainEvent domainEvent) => domainEvent switch

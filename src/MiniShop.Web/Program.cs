@@ -1,4 +1,5 @@
 using System.Globalization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Localization;
 using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Hosting;
@@ -57,6 +58,17 @@ try
 
     // Kroky 5 a 8: outbox worker + RabbitMQ (fronty minishop.ordering a minishop.audit), viz sekce "Messaging".
     builder.Services.AddMessaging(builder.Configuration);
+
+    // Cloud krok 1: klíče, kterými ASP.NET podepisuje antiforgery token formulářů. V kontejneru se jinak
+    // drží jen v paměti → po restartu (každém nasazení) by otevřený formulář objednávky skončil chybou 400.
+    // Cestu nastavuje image (/data/keys na volume); lokálně prázdná = výchozí chování.
+    var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"];
+    if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))
+    {
+        builder.Services.AddDataProtection()
+            .SetApplicationName("MiniShop.Web")
+            .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
+    }
 
     builder.Services.AddControllers();
     builder.Services.AddRazorPages();

@@ -57,7 +57,8 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
 - **Samostatné služby (krok 10B):** Web hostuje jen Ordering (`AddInfrastructureCore` + `AddOrderingInfrastructure`),
   Inventory.Api jen Inventory. `AddInfrastructure(ordering, inventory)` (oba moduly) používají jen testy.
   Web volá sklad přes HTTP jen kvůli UI (`InventoryApiClient` : `IProductService`, `https+http://inventory-api`,
-  bez Aspire adresa v `Services:inventory-api` v appsettings Webu); business tok jde jen přes zprávy.
+  bez Aspire adresa v `Services:inventory-api` v `appsettings.Development.json` Webu – jinde ji dává Aspire/Compose,
+  `https` adresa má přednost a v kontejneru by přebila `http`); business tok jde jen přes zprávy.
   Formulář objednávky bere nabídku z kopie katalogu (`IOrderService.GetCatalogAsync`), zásobu ze skladu jen volitelně.
   Web nesmí referencovat `Domain/Infrastructure.Inventory`, Inventory.Api nic z Orderingu (testy architektury).
   Auditní frontu poslouchá jen Web (`AuditQueue` prázdná v Inventory.Api). RabbitMQ adresu dává Aspire v `ConnectionStrings:messaging`.
@@ -140,6 +141,31 @@ dashboardu (v paměti, bez vzorkování); bez Aspire se neexportuje, trace ID je
 Testy běží bez RabbitMQ (`RecordingIntegrationBus` nad `InProcessIntegrationBus` – celá sága v procesu).
 Testy: `ProcessOutboxAsync` jede kola, dokud přibývají zprávy (opakuje i selhané), `ProcessOneRoundAsync` = jedno kolo,
 čas posouvá `FixedTimeProvider.Advance` (timeout ságy).
+
+## Stav nasazení do cloudu (viz `docs/Cloud-roadmap.md`)
+Cíl: Oracle Cloud Always Free (ARM VM) + Docker Compose + Caddy, CI/CD v GitHub Actions, image v GHCR, IaC v OpenTofu.
+Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v cloudové konzoli dělá uživatel sám.
+- Image: `docker build -f src/MiniShop.Web/Dockerfile -t minishop-web .` (z kořene; totéž `src/MiniShop.Inventory.Api/Dockerfile`).
+  Nový projekt, na kterém služba závisí, přidat do `COPY *.csproj` v obou Dockerfile.
+- Konfigurace kontejneru jen proměnnými prostředí; výchozí cesty (`/data/*.db`, `/data/keys`, `/data/logs`) nastavuje
+  `ENV` v Dockerfile. RabbitMQ (`ConnectionStrings__messaging`) a adresu skladu (`Services__inventory-api__http__0`) dodá spouštěč.
+- Web ukládá Data Protection klíče do `DataProtection:KeysPath` (jen když je nastavené – lokálně ne).
+- Git Bash: u `docker exec … /cesta` použít `MSYS_NO_PATHCONV=1`.
+
+| Krok | Stav | Souhrn |
+| --- | --- | --- |
+| 1. Kontejnerizace a produkční konfigurace (Dockerfile multi-stage, uživatel `app`, data v `/data`, Data Protection klíče) | hotovo | `docs/kroky-cloud/krok-01-kontejnery.md` |
+| 2. Docker Compose | čeká | — |
+| 3. Cloudový účet, rozpočet, IAM | čeká | — |
+| 4. Síť a VM ručně, první nasazení | čeká | — |
+| 5. Doména, HTTPS a zámek (Caddy) | čeká | — |
+| 6. CI – build a testy | čeká | — |
+| 7. Image do registry (GHCR) | čeká | — |
+| 8. CD – automatické nasazení | čeká | — |
+| 9. Infrastruktura jako kód (OpenTofu) | čeká | — |
+| 10. Secrets a konfigurace | čeká | — |
+| 11. Monitoring a logy v cloudu | čeká | — |
+| 12. Zálohy a obnova po havárii | čeká | — |
 
 ## Postup práce na dalším kroku EDA
 1. Nejdřív **shrň**, co se bude přidávat/měnit a **proč** (teorie + konkrétní případ v MiniShopu),

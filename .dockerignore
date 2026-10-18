@@ -1,0 +1,19 @@
+# Cloud krok 1: co se NEposílá do Dockeru při "docker build".
+# Menší kontext = rychlejší build; a hlavně se do image nesmí dostat lokální databáze, logy ani tajnosti.
+**/bin/
+**/obj/
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/logs/
+**/*.user
+**/appsettings.Development.json
+**/Properties/launchSettings.json
+.git/
+.vs/
+.vscode/
+docs/
+tests/
+src/MiniShop.AppHost/
+**/Dockerfile
+.dockerignore

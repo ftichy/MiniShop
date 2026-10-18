@@ -25,5 +25,11 @@ public enum JourneyEventType
     ValidationFailed,
 
     /// <summary>Objednávka vznikla – tím je proud spojený s jejím číslem (OrderId). Zapisuje jen server.</summary>
-    OrderSubmitted
+    OrderSubmitted,
+
+    /// <summary>
+    /// Prohlížeč nepustil odeslání – pole neprošlo jeho vlastní kontrolou (např. „eva@“ v poli typu e-mail).
+    /// Na server pak nic nedorazí, proto to hlásí skript. Value = hláška, kterou uživatel viděl. (Krok 12B.)
+    /// </summary>
+    FieldInvalid
 }

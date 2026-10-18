@@ -16,15 +16,15 @@ src/MiniShop.Domain          Common/ (Entity, IDomainEvent), Orders/ (Order, Cat
                              Journeys/ (JourneyEvent, JourneyEventType)
 src/MiniShop.Application     Abstractions/ (sdílené: IUnitOfWork, IDomainEvent*, IIntegrationMessage*, TraceTags),
                              Ordering/ (OrderService, DTO, Saga, Catalog projekce, EventHandlers, Pricing), Inventory/ (ProductService, Reserve/ReleaseStock),
-                             Journeys/ (JourneyService, OrderJourneyProjection, DTO)
+                             Journeys/ (JourneyService, OrderJourneyProjection, JourneyReplayProjection, DTO)
 src/MiniShop.Infrastructure  sdílené: Persistence/ModuleDbContext, Outbox, Inbox (InboxGuard), Integration (bus, routing, dispatcher, RabbitMq/), Events,
                              Observability/ (MessagingTelemetry – ActivitySource + Meter, OutboxHealthCheck),
                              Hosting/ (OutboxWorker, RabbitMqConsumersWorker, AddMessaging);
                              Ordering/ (OrderingDbContext, repozitáře, notifier, DB init), Inventory/ (InventoryDbContext, repozitáře, DB init + seed),
                              Journeys/ (JourneysDbContext – journeys.db bez outboxu/inboxu, repozitář, DB init)
 src/MiniShop.Web             služba Ordering (7180): API objednávek, Razor Pages (celé UI), Inventory/InventoryApiClient (HTTP na sklad),
-                             OrderSagaTimeoutWorker, Program.cs (composition root); krok 12: JourneysController, Pages/Orders/Journey,
-                             wwwroot/js/order-form-tracker.js
+                             OrderSagaTimeoutWorker, Program.cs (composition root); krok 12: JourneysController, Pages/Orders/Journey + Replay,
+                             wwwroot/js/order-form-tracker.js + journey-player.js
 src/MiniShop.Inventory.Api   služba skladu (7181): ProductsController, jen modul Inventory, inventory.db, fronta minishop.inventory
 src/MiniShop.ServiceDefaults AddServiceDefaults (service discovery, HTTP resilience, health checky /health, /alive, OpenTelemetry → OTLP)
 src/MiniShop.AppHost         .NET Aspire: RabbitMQ (persistentní kontejner) + inventory-api + web, dashboard
@@ -104,6 +104,9 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   (stránka `Orders/Index`), Ordering o Journeys neví (hlídá `ModuleBoundariesTests`). Průběh = projekce při čtení
   (`OrderJourneyProjection`, fold). Sledování nesmí rozbít objednávku (chyba zápisu jen do logu). Ukládá se skutečně napsaný text.
   Automatické obnovení stránky Objednávky jen přes `reloadWhenIdle()` (nespustí se, když uživatel vyplňuje).
+  Přehrání (12B) = druhá projekce `JourneyReplayProjection` (scénář počítá server, `journey-player.js` jen přehrává);
+  `Replay.cshtml` má ruční kopii formuláře – **nové pole formuláře objednávky přidat i tam**. Nové typy událostí jen na konec
+  `JourneyEventType` (ukládá se jako text). Prvky, které má přehrávač najít, mají `data-track`.
 
 ## Stav EDA (viz `docs/EDA-roadmap.md`)
 | Krok | Stav | Souhrn |
@@ -121,7 +124,7 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
 | 10B. Vyjmutí Inventory do samostatné služby (`MiniShop.Inventory.Api`, .NET Aspire AppHost, ServiceDefaults, `InventoryApiClient`, resilience) | hotovo | `docs/kroky/krok-10b-samostatna-sluzba.md` |
 | 11. Observabilita (OpenTelemetry, `TraceParent` v outboxu + hlavička `traceparent` v RabbitMQ, metriky, health check outboxu) | hotovo | `docs/kroky/krok-11-observabilita.md` |
 | 12A. Průběh objednávky – proud událostí z formuláře (`JourneyEvents`, modul Journeys), projekce časová osa + souhrn (`/Orders/Journey/{id}`) | hotovo | `docs/kroky/krok-12a-prubeh-objednavky.md` |
-| 12B. Přehrání průběhu objednávky na webu (vstup = číslo objednávky) | plán | — |
+| 12B. Přehrání průběhu objednávky (`/Orders/Replay/{id}`, `JourneyReplayProjection`, `journey-player.js`, událost `FieldInvalid`) | hotovo | `docs/kroky/krok-12b-prehrani-objednavky.md` |
 
 Známé omezení po kroku 11: vnější akce (notifikace) nejsou v transakci – při pádu mezi odesláním a zápisem
 do inboxu odejdou znovu. Inbox se nečistí. Worker počítá s jednou instancí aplikace, retry je bez backoffu.

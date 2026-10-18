@@ -12,6 +12,10 @@
     </div>
     <div class="col-auto">
         <button type="submit" class="btn btn-sm btn-primary">Zobrazit</button>
+        @if (Model.Journey is not null)
+        {
+            <a asp-page="/Orders/Replay" asp-route-orderId="@Model.OrderId" asp-route-autoplay="1" class="btn btn-sm btn-outline-primary">▶ Přehrát</a>
+        }
         <a asp-page="/Orders/Index" class="btn btn-sm btn-link">Zpět na objednávky</a>
     </div>
 </form>

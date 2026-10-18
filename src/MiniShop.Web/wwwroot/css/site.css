@@ -1,3 +1,16 @@
 body { padding-bottom: 3rem; }
 .table td, .table th { vertical-align: middle; }
 .num { text-align: right; white-space: nowrap; }
+
+/* Krok 12B: přehrávání průběhu objednávky. */
+.replay-stage .form-control,
+.replay-stage .form-select,
+.replay-stage .btn { pointer-events: none; }
+.replay-stage .form-control[readonly] { background-color: var(--bs-body-bg); }
+.replay-focus { outline: 3px solid var(--bs-primary); outline-offset: 1px; }
+.replay-click { animation: replay-click 0.7s ease-out; }
+@keyframes replay-click {
+    0% { box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.95); }
+    100% { box-shadow: 0 0 0 16px rgba(255, 193, 7, 0); }
+}
+.replay-steps { max-height: 28rem; overflow-y: auto; }

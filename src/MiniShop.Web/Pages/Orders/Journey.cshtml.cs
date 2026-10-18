@@ -52,6 +52,7 @@ public sealed class JourneyModel(IJourneyService journeyService) : PageModel
         "Clicked" => "bg-warning text-dark",
         "SubmitClicked" => "bg-primary",
         "ValidationFailed" => "bg-danger",
+        "FieldInvalid" => "bg-danger",
         "OrderSubmitted" => "bg-success",
         _ => "bg-secondary"
     };
@@ -64,6 +65,7 @@ public sealed class JourneyModel(IJourneyService journeyService) : PageModel
         "Clicked" => "klik",
         "SubmitClicked" => "odeslání",
         "ValidationFailed" => "chyba",
+        "FieldInvalid" => "prohlížeč",
         "OrderSubmitted" => "objednávka",
         _ => kind
     };

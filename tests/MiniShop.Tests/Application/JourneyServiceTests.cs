@@ -126,6 +126,28 @@ public sealed class JourneyServiceTests : IDisposable
         Assert.Contains("Server formulář vrátil: Neplatný e-mail.", journey.Steps.Select(s => s.Description));
     }
 
+    [Fact]
+    public async Task Zapis_ProhlizecNepustilOdeslani_JeVSouhrnu()
+    {
+        // Ověřeno v Chrome: „eva@“ v poli type=email → prohlížeč odeslání zastaví a server nic nedostane.
+        await Journeys(s => s.RecordAsync(_journeyId,
+        [
+            Event("FormOpened", 0),
+            Event("Clicked", 1_000, "order-submit", "Objednat"),
+            Event("FieldInvalid", 1_001, "Input.CustomerName", "Jméno zákazníka", "Vyplňte toto pole."),
+            Event("FieldInvalid", 1_002, "Input.CustomerEmail", "E-mail", "Zadejte část za znakem @."),   // stejný pokus
+            Event("Clicked", 5_000, "order-submit", "Objednat"),
+            Event("FieldInvalid", 5_001, "Input.CustomerEmail", "E-mail", "Zadejte část za znakem @."),   // další pokus
+            Event("SubmitClicked", 9_000)
+        ]));
+        await Journeys(s => s.RecordOrderSubmittedAsync(_journeyId, 9_001, orderId: 11));
+
+        var journey = await Journeys(s => s.GetByOrderIdAsync(11));
+
+        Assert.Equal(2, journey.Summary.FailedSubmits);
+        Assert.Contains("Prohlížeč nepustil odeslání – „E-mail“: Zadejte část za znakem @.", journey.Steps.Select(s => s.Description));
+    }
+
     [Theory]
     [InlineData("OrderSubmitted")]     // číslo objednávky smí zapsat jen server
     [InlineData("ValidationFailed")]
@@ -143,6 +165,26 @@ public sealed class JourneyServiceTests : IDisposable
         var batch = Enumerable.Range(0, JourneyService.MaxBatchSize + 1).Select(i => Event("Clicked", i, "a", "Odkaz")).ToList();
 
         await Assert.ThrowsAsync<DomainException>(() => Journeys(s => s.RecordAsync(_journeyId, batch)));
+    }
+
+    [Fact]
+    public async Task Prehrani_StejnyProudJakoPrubeh()
+    {
+        await Journeys(s => s.RecordAsync(_journeyId,
+        [
+            Event("FormOpened", 0),
+            Event("FieldChanged", 1_000, "Input.CustomerName", "Jméno zákazníka", "J"),
+            Event("FieldChanged", 1_300, "Input.CustomerName", "Jméno zákazníka", "Jo"),
+            Event("SubmitClicked", 60_000)                  // minuta přemýšlení
+        ]));
+        await Journeys(s => s.RecordOrderSubmittedAsync(_journeyId, 60_001, orderId: 9));
+
+        var replay = await Journeys(s => s.GetReplayByOrderIdAsync(9));
+
+        // Přehrávač dostane všechny události (i každý znak) a minuta čekání se zkrátí na 3 s.
+        Assert.Equal(replay.Journey.Events, replay.Frames.Select(f => f.Event));
+        Assert.Equal([0L, 1_000, 1_300, 4_300, 4_301], replay.Frames.Select(f => f.PlayAtMs));
+        Assert.Equal(60_001, replay.Journey.Summary.DurationMs);
     }
 
     [Fact]

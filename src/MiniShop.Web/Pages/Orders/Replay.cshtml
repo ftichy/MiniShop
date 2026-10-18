@@ -1,0 +1,123 @@
+@page "{orderId:int?}"
+@model MiniShop.Web.Pages.Orders.ReplayModel
+@{
+    ViewData["Title"] = Model.OrderId is { } id ? $"Přehrání objednávky č. {id}" : "Přehrání objednávky";
+}
+<h1>@ViewData["Title"]</h1>
+
+<form method="get" class="row g-2 align-items-end mb-4">
+    <div class="col-auto">
+        <label for="orderId" class="form-label small mb-0">Číslo objednávky</label>
+        <input id="orderId" name="orderId" type="number" min="1" value="@Model.OrderId" class="form-control form-control-sm" required />
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-sm btn-primary">Přehrát</button>
+        @if (Model.OrderId is { } orderId)
+        {
+            <a asp-page="/Orders/Journey" asp-route-orderId="@orderId" class="btn btn-sm btn-link">Časová osa</a>
+        }
+        <a asp-page="/Orders/Index" class="btn btn-sm btn-link">Zpět na objednávky</a>
+    </div>
+</form>
+
+@if (Model.ErrorMessage is not null)
+{
+    <div class="alert alert-warning">@Model.ErrorMessage</div>
+}
+
+@if (Model.Replay is { } replay)
+{
+    var journey = replay.Journey;
+
+    <p class="text-muted small">
+        Skutečná doba vyplňování @JourneyModel.FormatDuration(journey.Summary.DurationMs),
+        přehrání trvá @JourneyModel.FormatDuration(replay.DurationMs) (pauzy delší než
+        @JourneyModel.FormatDuration(replay.MaxPauseMs) se zkracují). Psaní běží ve skutečném tempu.
+    </p>
+
+    @* Ovládání přehrávače. *@
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <button id="replay-play" type="button" class="btn btn-primary btn-sm" style="min-width: 7rem">▶ Přehrát</button>
+        <button id="replay-restart" type="button" class="btn btn-outline-secondary btn-sm">⟲ Od začátku</button>
+        <div class="btn-group btn-group-sm" role="group" aria-label="Rychlost">
+            <button type="button" class="btn btn-outline-secondary active" data-speed="1">1×</button>
+            <button type="button" class="btn btn-outline-secondary" data-speed="2">2×</button>
+            <button type="button" class="btn btn-outline-secondary" data-speed="4">4×</button>
+        </div>
+        <input id="replay-progress" type="range" class="form-range flex-grow-1" style="min-width: 12rem"
+               min="0" max="@Math.Max(replay.DurationMs, 1)" step="10" value="0" aria-label="Pozice přehrávání" />
+        <span id="replay-clock" class="text-muted small num" style="min-width: 6rem">+0,0 s</span>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-7">
+            @* Kopie formuláře z /Orders – stejná jména polí, jaká posílá order-form-tracker.js (Target).
+               Nedá se do ní psát ani klikat, hodnoty mění jen přehrávač. *@
+            <div id="replay-stage" class="card replay-stage">
+                <div class="card-header d-flex justify-content-between">
+                    <span>Nová objednávka <span class="text-muted small">(přehrávání)</span></span>
+                    <span id="replay-pause" class="small text-warning-emphasis" hidden></span>
+                </div>
+                <div class="card-body">
+                    <div id="replay-alert" class="alert py-2 small" hidden></div>
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <label class="form-label">Jméno zákazníka</label>
+                            <input class="form-control" data-replay-target="Input.CustomerName" value="" readonly tabindex="-1" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">E-mail</label>
+                            <input class="form-control" data-replay-target="Input.CustomerEmail" value="" readonly tabindex="-1" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Produkt</label>
+                            @* Možnosti doplní přehrávač podle toho, co uživatel vybíral (ValueText) – nezávisí na dnešním katalogu. *@
+                            <select class="form-select" data-replay-target="Input.ProductId" tabindex="-1">
+                                <option value="0">-- vyberte --</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Množství</label>
+                            <input class="form-control" data-replay-target="Input.Quantity" value="1" readonly tabindex="-1" />
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button type="button" class="btn btn-primary w-100" data-replay-target="order-submit" tabindex="-1">Objednat</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <span id="replay-caption" class="fw-semibold">Stiskněte Přehrát.</span>
+                </div>
+            </div>
+            <p class="text-muted small mt-2">
+                Kliky na odkazy v menu blikají přímo v horní liště, ostatní kliky (např. na jiné objednávky) ukáže popisek pod formulářem.
+            </p>
+        </div>
+
+        <div class="col-lg-5">
+            <h2 class="h5">Kroky</h2>
+            <div class="replay-steps">
+                <table class="table table-sm mb-0">
+                    <tbody>
+                        @for (var i = 0; i < journey.Steps.Count; i++)
+                        {
+                            var step = journey.Steps[i];
+                            <tr data-step-index="@i">
+                                <td class="num text-muted small">@JourneyModel.FormatOffset(step.OffsetMs)</td>
+                                <td><span class="badge @JourneyModel.KindBadge(step.Kind)">@JourneyModel.KindText(step.Kind)</span></td>
+                                <td class="small">@step.Description</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script id="journey-replay" type="application/json">@Html.Raw(Model.ReplayJson)</script>
+}
+
+@section Scripts {
+    @* Bez scénáře (#journey-replay) přehrávač nic nedělá. *@
+    <script src="~/js/journey-player.js" asp-append-version="true"></script>
+}

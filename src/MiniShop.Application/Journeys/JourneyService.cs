@@ -75,6 +75,10 @@ public sealed class JourneyService(
         return OrderJourneyProjection.Project(orderId, journeyId, journey);
     }
 
+    /// <summary>Stejný proud, dvě projekce za sebou: průběh (12A) → scénář přehrávání (12B).</summary>
+    public async Task<JourneyReplayDto> GetReplayByOrderIdAsync(int orderId, CancellationToken cancellationToken = default) =>
+        JourneyReplayProjection.Project(await GetByOrderIdAsync(orderId, cancellationToken));
+
     /// <summary>Prohlížeč smí poslat jen „své“ typy – číslo objednávky nebo chybu validace zapisuje jen server.</summary>
     private static JourneyEventType ParseClientType(string type)
     {

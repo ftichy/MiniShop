@@ -123,7 +123,8 @@ se nemění, **mazat nic nemusíte**.
 Ověřeno i naživo (bez Aspire, HTTP požadavky místo prohlížeče): dávky → 204, opakovaná dávka nic nepřidala,
 `OrderSubmitted` od klienta → 400, chybný e-mail → `ValidationFailed` a stránka pokračovala ve stejném proudu
 (`data-journey-offset="3002"`), po opravě objednávka vznikla a průběh ukázal 14 kroků z 18 událostí.
-Samotný skript v prohlížeči (kliky, psaní) zkoušel až uživatel.
+Samotný skript v prohlížeči (kliky, psaní) je ověřený v Chrome v kroku 12B – tam se také ukázalo, že chybí
+zablokované odeslání prohlížečem (doplněna událost `FieldInvalid`).
 
 ## Vyzkoušejte sami
 

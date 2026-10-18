@@ -60,7 +60,7 @@
         <span asp-validation-for="Input.Quantity" class="text-danger small"></span>
     </div>
     <div class="col-md-1 d-flex align-items-end">
-        <button type="submit" class="btn btn-primary w-100">Objednat</button>
+        <button type="submit" class="btn btn-primary w-100" data-track="order-submit">Objednat</button>
     </div>
 </form>
 
@@ -99,6 +99,8 @@
     </div>
     <div class="col-auto">
         <button type="submit" class="btn btn-sm btn-outline-secondary">Zobrazit průběh</button>
+        @* Krok 12B: stejné číslo, jiná projekce – přehrání. *@
+        <button type="submit" formaction="@Url.Page("/Orders/Replay")" class="btn btn-sm btn-outline-primary">▶ Přehrát</button>
     </div>
 </form>
 
@@ -113,6 +115,7 @@
             </span>
             <span>
                 <a asp-page="/Orders/Journey" asp-route-orderId="@order.Id" class="btn btn-sm btn-link">Průběh zadání</a>
+                <a asp-page="/Orders/Replay" asp-route-orderId="@order.Id" asp-route-autoplay="1" class="btn btn-sm btn-link">▶ Přehrát</a>
                 <span class="badge @IndexModel.StatusBadge(order.Status) me-2">@IndexModel.StatusText(order.Status)</span>
                 @if (order.Status == "Confirmed")
                 {

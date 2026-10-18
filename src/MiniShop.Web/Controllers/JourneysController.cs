@@ -24,4 +24,9 @@ public sealed class JourneysController(IJourneyService journeyService) : Control
     [HttpGet("orders/{orderId:int}")]
     public async Task<ActionResult<OrderJourneyDto>> GetByOrder(int orderId, CancellationToken cancellationToken) =>
         Ok(await journeyService.GetByOrderIdAsync(orderId, cancellationToken));
+
+    /// <summary>Krok 12B: scénář přehrávání – události s časem přehrání (dlouhé pauzy zkrácené).</summary>
+    [HttpGet("orders/{orderId:int}/replay")]
+    public async Task<ActionResult<JourneyReplayDto>> GetReplay(int orderId, CancellationToken cancellationToken) =>
+        Ok(await journeyService.GetReplayByOrderIdAsync(orderId, cancellationToken));
 }

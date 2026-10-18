@@ -14,4 +14,7 @@ public interface IJourneyService
 
     /// <summary>Průběh zakládání objednávky (projekce proudu). NotFoundException, když pro objednávku proud není.</summary>
     Task<OrderJourneyDto> GetByOrderIdAsync(int orderId, CancellationToken cancellationToken = default);
+
+    /// <summary>Krok 12B: podklad pro přehrání průběhu objednávky. NotFoundException, když pro objednávku proud není.</summary>
+    Task<JourneyReplayDto> GetReplayByOrderIdAsync(int orderId, CancellationToken cancellationToken = default);
 }

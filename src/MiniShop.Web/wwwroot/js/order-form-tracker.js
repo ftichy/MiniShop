@@ -96,6 +96,10 @@
         }
     }, true);
 
+    // Prohlížeč sám odmítl pole (type="email", required…) a odeslání zastavil – na server nic nedorazí.
+    // Událost 'invalid' nebublá, proto se poslouchá ve fázi capture.
+    form.addEventListener('invalid', e => record('FieldInvalid', e.target, { value: e.target.validationMessage }), true);
+
     form.addEventListener('submit', () => {
         record('SubmitClicked', null);
         // Server zapíše své události (chyba validace, vznik objednávky) hned za tento okamžik.

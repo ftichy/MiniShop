@@ -10,10 +10,11 @@
 <body>
     <nav class="navbar navbar-expand navbar-dark bg-dark mb-4">
         <div class="container">
-            <a class="navbar-brand" asp-page="/Index">MiniShop</a>
+            @* data-track = stabilní jméno prvku pro sledování a přehrávání průběhu objednávky (krok 12). *@
+            <a class="navbar-brand" asp-page="/Index" data-track="nav-home">MiniShop</a>
             <ul class="navbar-nav">
-                <li class="nav-item"><a class="nav-link" asp-page="/Products/Index">Produkty</a></li>
-                <li class="nav-item"><a class="nav-link" asp-page="/Orders/Index">Objednávky</a></li>
+                <li class="nav-item"><a class="nav-link" asp-page="/Products/Index" data-track="nav-products">Produkty</a></li>
+                <li class="nav-item"><a class="nav-link" asp-page="/Orders/Index" data-track="nav-orders">Objednávky</a></li>
             </ul>
         </div>
     </nav>

@@ -81,6 +81,15 @@ public sealed class OrderJourneyProjection
                 AddStep(e, $"Server formulář vrátil: {e.Value}");
                 break;
 
+            case JourneyEventType.FieldInvalid:
+                // Jeden pokus o odeslání může odmítnout víc polí najednou – neúspěšné odeslání se počítá jednou.
+                if (_steps.LastOrDefault()?.Type != JourneyEventType.FieldInvalid)
+                {
+                    _failedSubmits++;
+                }
+                AddStep(e, $"Prohlížeč nepustil odeslání – „{label}“: {e.Value}");
+                break;
+
             case JourneyEventType.OrderSubmitted:
                 _submittedAtMs = e.OffsetMs;
                 AddStep(e, $"Objednávka č. {e.OrderId} vznikla");

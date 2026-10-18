@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.AspNetCore.Localization;
 using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Hosting;
+using MiniShop.Infrastructure.Journeys;
 using MiniShop.Infrastructure.Ordering;
 using MiniShop.ServiceDefaults;
 using MiniShop.Web.BackgroundServices;
@@ -38,10 +39,15 @@ try
     var orderingConnectionString = builder.Configuration.GetConnectionString("Ordering")
         ?? throw new InvalidOperationException("Chybí connection string 'Ordering' v appsettings.json.");
 
+    // Krok 12: průběh zakládání objednávek (modul Journeys) má vlastní databázi.
+    var journeysConnectionString = builder.Configuration.GetConnectionString("Journeys")
+        ?? throw new InvalidOperationException("Chybí connection string 'Journeys' v appsettings.json.");
+
     // Registrace vrstev (composition root).
     builder.Services.AddApplication(builder.Configuration);
     builder.Services.AddInfrastructureCore();
     builder.Services.AddOrderingInfrastructure(orderingConnectionString);
+    builder.Services.AddJourneysInfrastructure(journeysConnectionString);
 
     // Krok 9: hlídání termínů ságy (sklad neodpověděl včas → zamítnout).
     builder.Services.AddHostedService<OrderSagaTimeoutWorker>();
@@ -61,6 +67,7 @@ try
     var app = builder.Build();
 
     await OrderingDatabaseInitializer.InitializeAsync(app.Services);
+    await JourneysDatabaseInitializer.InitializeAsync(app.Services);
 
     if (app.Environment.IsDevelopment())
     {

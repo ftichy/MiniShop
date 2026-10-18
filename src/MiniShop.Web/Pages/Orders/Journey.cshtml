@@ -1,0 +1,93 @@
+@page "{orderId:int?}"
+@model MiniShop.Web.Pages.Orders.JourneyModel
+@{
+    ViewData["Title"] = Model.OrderId is { } id ? $"Průběh objednávky č. {id}" : "Průběh objednávky";
+}
+<h1>@ViewData["Title"]</h1>
+
+<form method="get" class="row g-2 align-items-end mb-4">
+    <div class="col-auto">
+        <label for="orderId" class="form-label small mb-0">Číslo objednávky</label>
+        <input id="orderId" name="orderId" type="number" min="1" value="@Model.OrderId" class="form-control form-control-sm" required />
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-sm btn-primary">Zobrazit</button>
+        <a asp-page="/Orders/Index" class="btn btn-sm btn-link">Zpět na objednávky</a>
+    </div>
+</form>
+
+@if (Model.ErrorMessage is not null)
+{
+    <div class="alert alert-warning">@Model.ErrorMessage</div>
+}
+
+@if (Model.Journey is { } journey)
+{
+    var summary = journey.Summary;
+
+    <p class="text-muted small">
+        Formulář otevřen @journey.StartedAtUtc.ToLocalTime().ToString("g"), proud <code>@journey.JourneyId</code>,
+        @journey.Events.Count událostí. V Aspire dashboardu najdete trasy objednávky filtrem <code>minishop.order.id = @journey.OrderId</code>.
+    </p>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card h-100"><div class="card-body">
+                <div class="text-muted small">Doba vyplňování</div>
+                <div class="fs-4">@JourneyModel.FormatDuration(summary.DurationMs)</div>
+            </div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card h-100"><div class="card-body">
+                <div class="text-muted small">Neúspěšná odeslání</div>
+                <div class="fs-4">@summary.FailedSubmits</div>
+            </div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card h-100"><div class="card-body">
+                <div class="text-muted small">Změny polí</div>
+                @foreach (var (field, count) in summary.ChangesByField)
+                {
+                    <div class="small">@field: @(count)×</div>
+                }
+            </div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card h-100"><div class="card-body">
+                <div class="text-muted small">Čas v polích</div>
+                @foreach (var field in summary.TimeInFields)
+                {
+                    <div class="small">@field.Label: @JourneyModel.FormatDuration(field.DurationMs)</div>
+                }
+                <div class="small text-muted">Kliků: @summary.ClickCount</div>
+            </div></div>
+        </div>
+    </div>
+
+    <h2 class="h4">Časová osa</h2>
+    <table class="table table-sm">
+        <thead>
+            <tr>
+                <th class="num">Čas</th>
+                <th>Typ</th>
+                <th>Co uživatel udělal</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var step in journey.Steps)
+            {
+                <tr>
+                    <td class="num text-muted">
+                        @JourneyModel.FormatOffset(step.OffsetMs)
+                        @if (step.EndOffsetMs > step.OffsetMs)
+                        {
+                            <span class="small">(@JourneyModel.FormatDuration(step.EndOffsetMs - step.OffsetMs))</span>
+                        }
+                    </td>
+                    <td><span class="badge @JourneyModel.KindBadge(step.Kind)">@JourneyModel.KindText(step.Kind)</span></td>
+                    <td>@step.Description</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}

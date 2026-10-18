@@ -1,5 +1,6 @@
 using MiniShop.Application;
 using MiniShop.Application.Inventory;
+using MiniShop.Application.Journeys;
 using MiniShop.Application.Ordering;
 using MiniShop.Application.Ordering.Catalog;
 using MiniShop.Application.Ordering.EventHandlers;
@@ -25,8 +26,16 @@ public static class ApplicationServiceCollectionExtensions
         services.AddSingleton(TimeProvider.System);
 
         services.AddOrderingModule(configuration);
+        services.AddJourneysModule();
         services.AddInventoryApiClient();
 
+        return services;
+    }
+
+    /// <summary>Krok 12: modul Journeys – co uživatel dělá ve formuláři objednávky (proud událostí + projekce).</summary>
+    public static IServiceCollection AddJourneysModule(this IServiceCollection services)
+    {
+        services.AddScoped<IJourneyService, JourneyService>();
         return services;
     }
 

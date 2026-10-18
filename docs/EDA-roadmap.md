@@ -81,6 +81,7 @@ Kosočtverec mezi fázemi B a C označuje rozumné místo, kde se můžete zasta
 | 9. Saga objednávky | C | Rezervace skladu s kompenzací | MassTransit state machine |
 | 10. Samostatné služby | C | Ordering, Inventory, Notifications | více projektů a databází |
 | 11. Observabilita | D – provoz | Sledování toku napříč službami | OpenTelemetry |
+| 12. Průběh objednávky (A: záznam a projekce, B: přehrání) | E – události jako data | Jak uživatel objednávku zakládal | tabulka v SQLite, JavaScript |
 
 Každý krok níže má stejnou strukturu: **teorie** (co to je), **proč** (jaký problém řeší), **v MiniShopu** (konkrétní změna s ukázkou kódu) a **hotovo, když** (jak ověřit, že krok je dokončený).
 
@@ -447,6 +448,19 @@ Každá služba má svou databázi. Jediná společná věc je broker a kontrakt
 
 **Hotovo, když:** v dashboardu uvidíte jednu trasu „POST /api/orders“ se všemi navazujícími kroky: zápis do DB, publikace, rezervace skladu, potvrzení.
 
+## Krok 12: Průběh zakládání objednávky – event sourcing a projekce
+
+**Teorie.** Dosud byly události „oznámení“: něco se stalo, handler zareaguje a událost je pryč. V **event sourcingu** jsou události **zdrojem pravdy**: neukládá se výsledný stav, ale neměnný seznam všeho, co se stalo (proud, *event stream*). Stav nebo jakýkoli jiný pohled si z proudu spočítá **projekce**: projde události po pořadí a „složí“ je (fold), jako zůstatek účtu z výpisu pohybů. Z jednoho proudu může vzniknout víc projekcí.
+
+**Proč.** Hotová objednávka neřekne, jak vznikla: kolikrát uživatel měnil produkt, kde ho zarazila chyba validace, jak dlouho váhal. Proud akcí ve formuláři to zachytí a projekce odpoví i na otázky, které nás napadnou až později – bez změny dat.
+
+**V MiniShopu:**
+
+1. **12A:** skript `order-form-tracker.js` posílá akce z formuláře (pole, psaní, výběr, kliky, odeslání) dávkově na `POST /api/journeys/{id}/events`. Modul **Journeys** je ukládá do vlastní `journeys.db` (jen INSERT, idempotentně podle `EventId`). Po vzniku objednávky zapíše server `OrderSubmitted(OrderId)` – spojku proudu s číslem objednávky. `OrderJourneyProjection` z proudu složí časovou osu a souhrn (`/Orders/Journey/{číslo}`).
+2. **12B:** druhá projekce stejného proudu – přehrání: kopie formuláře, ve které se akce uživatele krok za krokem znovu odehrají.
+
+**Hotovo, když:** po zadání čísla objednávky uvidíte, co uživatel ve formuláři dělal (12A), a můžete si to přehrát (12B).
+
 ## Slovníček a další čtení
 
 | Pojem | Stručně | Krok |
@@ -456,12 +470,14 @@ Každá služba má svou databázi. Jediná společná věc je broker a kontrakt
 | Correlation ID | Společné ID všech zpráv jednoho business procesu | 11 |
 | Dead-letter queue | Odkladiště zpráv, které opakovaně selhaly | 5, 8 |
 | Dual-write problém | Zápis do DB a odeslání zprávy nejsou atomické | 4 |
+| Event sourcing | Zdrojem pravdy je neměnný proud událostí, ne poslední stav | 12 |
 | Eventual consistency | Data se srovnají s malým zpožděním | 5, 9 |
 | Idempotence | Opakování operace nezmění výsledek | 6 |
 | Inbox | Záznam o zpracovaných zprávách, chrání před duplicitou | 6 |
 | Kompenzace | Business opak kroku, který už proběhl | 9 |
 | Modulární monolit | Jedna aplikace s přísně oddělenými moduly | 10 |
 | Outbox | Události ukládané do DB ve stejné transakci jako data | 4 |
+| Projekce | Pohled složený z proudu událostí (fold); uložená, nebo počítaná při čtení | 10, 12 |
 | Saga | Proces z lokálních transakcí s kompenzacemi | 9 |
 | Tolerant reader | Příjemce ignoruje neznámá pole zprávy | 7 |
 

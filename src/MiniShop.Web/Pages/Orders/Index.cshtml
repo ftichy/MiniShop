@@ -5,6 +5,20 @@
 }
 <h1>Objednávky</h1>
 
+<script>
+    // Automatické obnovení stránky (čekající objednávky, načítání katalogu). Krok 12A: jakmile uživatel začal
+    // formulář vyplňovat, stránka se neobnoví – jinak by smazala rozepsaný text a rozdělila proud událostí na kusy.
+    function reloadWhenIdle() {
+        setTimeout(function check() {
+            if (window.orderJourney && window.orderJourney.touched) {
+                setTimeout(check, 2000);
+            } else {
+                location.reload();
+            }
+        }, 2000);
+    }
+</script>
+
 <partial name="_StatusMessage" model="Model.StatusMessage" />
 <div asp-validation-summary="ModelOnly" class="text-danger"></div>
 
@@ -18,7 +32,11 @@
 
 <h2 class="h4">Nová objednávka</h2>
 <p class="text-muted small">Od 10 ks jednoho produktu se uplatní množstevní sleva 10 %.</p>
-<form method="post" asp-page-handler="Create" class="row g-2 mb-4">
+@* Krok 12A: order-form-tracker.js zapisuje, co uživatel ve formuláři dělá (proud JourneyId). *@
+<form id="order-form" method="post" asp-page-handler="Create" class="row g-2 mb-4"
+      data-journey-id="@Model.JourneyId" data-journey-offset="@Model.JourneyOffsetMs">
+    <input type="hidden" name="JourneyId" value="@Model.JourneyId" />
+    <input type="hidden" name="JourneyOffsetMs" value="@Model.JourneyOffsetMs" />
     <div class="col-md-3">
         <label asp-for="Input.CustomerName" class="form-label"></label>
         <input asp-for="Input.CustomerName" class="form-control" />
@@ -53,7 +71,7 @@
         Katalog produktů se načítá ze skladu… Stránka se sama obnoví. Pokud produkty nepřibývají, zkontrolujte,
         že běží služba skladu a RabbitMQ.
     </div>
-    <script>setTimeout(() => location.reload(), 2000);</script>
+    <script>reloadWhenIdle();</script>
 }
 
 <form method="post" asp-page-handler="SyncCatalog" class="mb-4">
@@ -70,8 +88,19 @@
 {
     @* Krok 9: sklad objednávku ověřuje na pozadí (sága) – za 2 s se podíváme znovu. *@
     <p class="text-muted small">Některé objednávky čekají na ověření skladu, stránka se sama obnoví…</p>
-    <script>setTimeout(() => location.reload(), 2000);</script>
+    <script>reloadWhenIdle();</script>
 }
+
+@* Krok 12A: vstupem je číslo objednávky – zobrazí, jak uživatel formulář vyplňoval. *@
+<form method="get" asp-page="/Orders/Journey" class="row g-2 align-items-end mb-4">
+    <div class="col-auto">
+        <label for="journey-order-id" class="form-label small mb-0">Průběh zakládání objednávky č.</label>
+        <input id="journey-order-id" name="orderId" type="number" min="1" class="form-control form-control-sm" required />
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-sm btn-outline-secondary">Zobrazit průběh</button>
+    </div>
+</form>
 
 @foreach (var order in Model.Orders)
 {
@@ -83,6 +112,7 @@
                 @order.CreatedAtUtc.ToLocalTime().ToString("g")
             </span>
             <span>
+                <a asp-page="/Orders/Journey" asp-route-orderId="@order.Id" class="btn btn-sm btn-link">Průběh zadání</a>
                 <span class="badge @IndexModel.StatusBadge(order.Status) me-2">@IndexModel.StatusText(order.Status)</span>
                 @if (order.Status == "Confirmed")
                 {
@@ -127,4 +157,8 @@
             </tbody>
         </table>
     </div>
+}
+
+@section Scripts {
+    <script src="~/js/order-form-tracker.js" asp-append-version="true"></script>
 }

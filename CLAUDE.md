@@ -12,15 +12,19 @@ Cíl: postupně ho převést na EDA podle plánu v `docs/EDA-roadmap.md`.
 
 ```
 src/MiniShop.Contracts       integrační zprávy – události (OrderPlacedV1, StockReservedV1, …) a příkazy (ReserveStockV1, …), žádné závislosti
-src/MiniShop.Domain          Common/ (Entity, IDomainEvent), Orders/ (Order, CatalogProduct, Saga/OrderSaga), Inventory/ (Product, StockReservation)
-src/MiniShop.Application     Abstractions/ (sdílené: IUnitOfWork, IDomainEvent*, IIntegrationMessage*),
-                             Ordering/ (OrderService, DTO, Saga, Catalog projekce, EventHandlers, Pricing), Inventory/ (ProductService, Reserve/ReleaseStock)
+src/MiniShop.Domain          Common/ (Entity, IDomainEvent), Orders/ (Order, CatalogProduct, Saga/OrderSaga), Inventory/ (Product, StockReservation),
+                             Journeys/ (JourneyEvent, JourneyEventType)
+src/MiniShop.Application     Abstractions/ (sdílené: IUnitOfWork, IDomainEvent*, IIntegrationMessage*, TraceTags),
+                             Ordering/ (OrderService, DTO, Saga, Catalog projekce, EventHandlers, Pricing), Inventory/ (ProductService, Reserve/ReleaseStock),
+                             Journeys/ (JourneyService, OrderJourneyProjection, DTO)
 src/MiniShop.Infrastructure  sdílené: Persistence/ModuleDbContext, Outbox, Inbox (InboxGuard), Integration (bus, routing, dispatcher, RabbitMq/), Events,
                              Observability/ (MessagingTelemetry – ActivitySource + Meter, OutboxHealthCheck),
                              Hosting/ (OutboxWorker, RabbitMqConsumersWorker, AddMessaging);
-                             Ordering/ (OrderingDbContext, repozitáře, notifier, DB init), Inventory/ (InventoryDbContext, repozitáře, DB init + seed)
+                             Ordering/ (OrderingDbContext, repozitáře, notifier, DB init), Inventory/ (InventoryDbContext, repozitáře, DB init + seed),
+                             Journeys/ (JourneysDbContext – journeys.db bez outboxu/inboxu, repozitář, DB init)
 src/MiniShop.Web             služba Ordering (7180): API objednávek, Razor Pages (celé UI), Inventory/InventoryApiClient (HTTP na sklad),
-                             OrderSagaTimeoutWorker, Program.cs (composition root)
+                             OrderSagaTimeoutWorker, Program.cs (composition root); krok 12: JourneysController, Pages/Orders/Journey,
+                             wwwroot/js/order-form-tracker.js
 src/MiniShop.Inventory.Api   služba skladu (7181): ProductsController, jen modul Inventory, inventory.db, fronta minishop.inventory
 src/MiniShop.ServiceDefaults AddServiceDefaults (service discovery, HTTP resilience, health checky /health, /alive, OpenTelemetry → OTLP)
 src/MiniShop.AppHost         .NET Aspire: RabbitMQ (persistentní kontejner) + inventory-api + web, dashboard
@@ -73,7 +77,7 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   logují přes `ILogger<T>` a o Serilogu nevědí. `UseSerilogRequestLogging` musí být v pipeline **před** `UseExceptionHandler`
   (jinak loguje ošetřené 404/400 jako 500).
 - Databáze vznikají přes `EnsureCreated` (bez migrací) v `DatabaseInitializer`. **Při změně schématu** (nová tabulka/sloupec)
-  je potřeba smazat `src/MiniShop.Web/ordering.db` a/nebo `src/MiniShop.Inventory.Api/inventory.db` – upozorni na to uživatele.
+  je potřeba smazat `src/MiniShop.Web/ordering.db`, `src/MiniShop.Web/journeys.db` a/nebo `src/MiniShop.Inventory.Api/inventory.db` – upozorni na to uživatele.
 - Testy OrderService používají skutečný dispatcher a skutečné handlery (testují celou cestu).
   Služby skládají přes `AddInfrastructure` nad dvěma SQLite v paměti (`InMemoryDatabase` pro každý modul), každá akce
   běží ve vlastním scope a outboxy všech modulů se zpracují ručně přes `ProcessOutboxAsync()` – žádné čekání na workera.
@@ -94,6 +98,12 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   Číslo objednávky na span dává `TraceTags.TagOrder` (`Application/Abstractions`, tag `minishop.order.id`) – volá se tam, kde se pracuje s objednávkou.
   Serilog: `ClearProviders()` + `writeToProviders: true` (logy i do OTLP, na konzoli jednou).
 - Objednávka: Pending → Confirmed/Rejected (rozhoduje sága), z Confirmed → Completed/Cancelled. `POST /api/orders` vrací 202.
+- **Průběh objednávky (krok 12):** modul Journeys (`…Journeys` ve všech vrstvách, hostuje ho Web, vlastní `journeys.db`,
+  bez zpráv → `JourneysDbContext` nedědí z `ModuleDbContext`). Proud `JourneyEvents` = jen INSERT, idempotence přes unikátní `EventId`
+  z prohlížeče, řazení podle `OffsetMs` (čas od otevření formuláře). `ValidationFailed`/`OrderSubmitted` zapisuje jen server
+  (stránka `Orders/Index`), Ordering o Journeys neví (hlídá `ModuleBoundariesTests`). Průběh = projekce při čtení
+  (`OrderJourneyProjection`, fold). Sledování nesmí rozbít objednávku (chyba zápisu jen do logu). Ukládá se skutečně napsaný text.
+  Automatické obnovení stránky Objednávky jen přes `reloadWhenIdle()` (nespustí se, když uživatel vyplňuje).
 
 ## Stav EDA (viz `docs/EDA-roadmap.md`)
 | Krok | Stav | Souhrn |
@@ -110,6 +120,8 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
 | 10A. Modulární monolit (2 DB, outbox/inbox na modul, kopie katalogu `CatalogProduct`, test architektury) | hotovo | `docs/kroky/krok-10a-modularni-monolit.md` |
 | 10B. Vyjmutí Inventory do samostatné služby (`MiniShop.Inventory.Api`, .NET Aspire AppHost, ServiceDefaults, `InventoryApiClient`, resilience) | hotovo | `docs/kroky/krok-10b-samostatna-sluzba.md` |
 | 11. Observabilita (OpenTelemetry, `TraceParent` v outboxu + hlavička `traceparent` v RabbitMQ, metriky, health check outboxu) | hotovo | `docs/kroky/krok-11-observabilita.md` |
+| 12A. Průběh objednávky – proud událostí z formuláře (`JourneyEvents`, modul Journeys), projekce časová osa + souhrn (`/Orders/Journey/{id}`) | hotovo | `docs/kroky/krok-12a-prubeh-objednavky.md` |
+| 12B. Přehrání průběhu objednávky na webu (vstup = číslo objednávky) | plán | — |
 
 Známé omezení po kroku 11: vnější akce (notifikace) nejsou v transakci – při pádu mezi odesláním a zápisem
 do inboxu odejdou znovu. Inbox se nečistí. Worker počítá s jednou instancí aplikace, retry je bez backoffu.

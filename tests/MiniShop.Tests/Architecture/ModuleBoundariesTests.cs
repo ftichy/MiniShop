@@ -23,17 +23,23 @@ public sealed class ModuleBoundariesTests
 
     private const string Ordering = "Ordering";
     private const string Inventory = "Inventory";
+    private const string Journeys = "Journeys";
 
     /// <summary>Namespace modulu v každé vrstvě (Domain používá "Orders").</summary>
     private static readonly IReadOnlyDictionary<string, string[]> ModuleNamespaces = new Dictionary<string, string[]>
     {
         [Ordering] = ["MiniShop.Domain.Orders", "MiniShop.Application.Ordering", "MiniShop.Infrastructure.Ordering"],
-        [Inventory] = ["MiniShop.Domain.Inventory", "MiniShop.Application.Inventory", "MiniShop.Infrastructure.Inventory"]
+        [Inventory] = ["MiniShop.Domain.Inventory", "MiniShop.Application.Inventory", "MiniShop.Infrastructure.Inventory"],
+        [Journeys] = ["MiniShop.Domain.Journeys", "MiniShop.Application.Journeys", "MiniShop.Infrastructure.Journeys"]
     };
 
     [Theory]
     [InlineData(Ordering, Inventory)]
     [InlineData(Inventory, Ordering)]
+    [InlineData(Ordering, Journeys)]       // krok 12: objednávky o sledování formuláře nevědí
+    [InlineData(Journeys, Ordering)]       // … a sledování o objednávkách (zná jen číslo)
+    [InlineData(Inventory, Journeys)]
+    [InlineData(Journeys, Inventory)]
     public void Modul_NezavisiNaJinemModulu(string module, string forbiddenModule)
     {
         foreach (var moduleNamespace in ModuleNamespaces[module])
@@ -62,7 +68,7 @@ public sealed class ModuleBoundariesTests
     {
         var result = Types.InAssemblies(SourceAssemblies)
             .That().ResideInNamespace(sharedNamespace)
-            .ShouldNot().HaveDependencyOnAny([.. ModuleNamespaces[Ordering], .. ModuleNamespaces[Inventory]])
+            .ShouldNot().HaveDependencyOnAny([.. ModuleNamespaces[Ordering], .. ModuleNamespaces[Inventory], .. ModuleNamespaces[Journeys]])
             .GetResult();
 
         Assert.True(result.IsSuccessful,

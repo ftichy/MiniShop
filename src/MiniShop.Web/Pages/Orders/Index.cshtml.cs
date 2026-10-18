@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using MiniShop.Application.Inventory;
+using MiniShop.Application.Journeys;
 using MiniShop.Application.Ordering;
 using MiniShop.Application.Ordering.Catalog;
 using MiniShop.Application.Exceptions;
@@ -11,14 +12,29 @@ using MiniShop.Web.Inventory;
 
 namespace MiniShop.Web.Pages.Orders;
 
-public sealed class IndexModel(IOrderService orderService, IProductService productService, CatalogSyncService catalogSync)
-    : PageModel
+public sealed class IndexModel(
+    IOrderService orderService,
+    IProductService productService,
+    CatalogSyncService catalogSync,
+    IJourneyService journeyService,
+    ILogger<IndexModel> logger) : PageModel
 {
     public IReadOnlyList<OrderDto> Orders { get; private set; } = [];
     public IReadOnlyList<SelectListItem> ProductOptions { get; private set; } = [];
 
     [BindProperty]
     public NewOrderInput Input { get; set; } = new();
+
+    /// <summary>
+    /// Krok 12A: proud událostí této návštěvy formuláře (skryté pole). Po neúspěšném odeslání se vrátí zpět,
+    /// takže oprava chyby pokračuje ve stejném proudu. Prázdné = formulář bez JavaScriptu (nic se nesleduje).
+    /// </summary>
+    [BindProperty]
+    public Guid JourneyId { get; set; }
+
+    /// <summary>Krok 12A: čas odeslání od otevření formuláře (vyplní skript) – od něj pokračují události serveru.</summary>
+    [BindProperty]
+    public long JourneyOffsetMs { get; set; }
 
     [TempData]
     public string? StatusMessage { get; set; }
@@ -27,8 +43,12 @@ public sealed class IndexModel(IOrderService orderService, IProductService produ
 
     public async Task<IActionResult> OnPostCreateAsync(CancellationToken cancellationToken)
     {
+        // Události serveru se zařadí hned za odeslání formuláře (SubmitClicked má čas JourneyOffsetMs).
+        var serverOffsetMs = JourneyOffsetMs + 1;
+
         if (!ModelState.IsValid)
         {
+            await RecordValidationFailedAsync(serverOffsetMs, cancellationToken);
             await LoadAsync(cancellationToken);
             return Page();
         }
@@ -40,11 +60,49 @@ public sealed class IndexModel(IOrderService orderService, IProductService produ
             Items = [new CreateOrderItemRequest { ProductId = Input.ProductId, Quantity = Input.Quantity }]
         };
 
-        return await ExecuteAsync(async () =>
+        var result = await ExecuteAsync(async () =>
         {
             var order = await orderService.PlaceOrderAsync(request, cancellationToken);
             StatusMessage = $"Objednávka č. {order.Id} přijata (celkem {order.TotalPrice:N2} Kč), ověřujeme sklad…";
+            await TrackAsync(() => journeyService.RecordOrderSubmittedAsync(JourneyId, serverOffsetMs, order.Id, cancellationToken));
         }, cancellationToken);
+
+        if (!ModelState.IsValid)
+        {
+            // Objednávku odmítla aplikace (např. produkt mezitím zmizel z katalogu) – uživatel to vidí stejně jako chybu formuláře.
+            await RecordValidationFailedAsync(serverOffsetMs, cancellationToken);
+        }
+
+        return result;
+    }
+
+    /// <summary>Krok 12A: hlášky, které uživatel po odeslání uviděl, do proudu – a stránka pak pokračuje za nimi.</summary>
+    private async Task RecordValidationFailedAsync(long offsetMs, CancellationToken cancellationToken)
+    {
+        var errors = string.Join(" ", ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage));
+        await TrackAsync(() => journeyService.RecordValidationFailedAsync(JourneyId, offsetMs, errors, cancellationToken));
+        JourneyOffsetMs = offsetMs + 1;
+    }
+
+    /// <summary>
+    /// Sledování nesmí rozbít objednávku: když se zápis do journeys.db nepovede, objednávka platí dál a jen se zaloguje.
+    /// Bez skriptu (JourneyId prázdné) se nesleduje nic.
+    /// </summary>
+    private async Task TrackAsync(Func<Task> record)
+    {
+        if (JourneyId == Guid.Empty)
+        {
+            return;
+        }
+
+        try
+        {
+            await record();
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Průběh objednávky (proud {JourneyId}) se nepodařilo zapsat", JourneyId);
+        }
     }
 
     /// <summary>Ruční obnova kopie katalogu – požádá sklad o všechny produkty (SyncCatalogV1).</summary>
@@ -96,6 +154,13 @@ public sealed class IndexModel(IOrderService orderService, IProductService produ
     /// </summary>
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
+        // Krok 12A: nová návštěva formuláře = nový proud. Po chybě odeslání zůstává původní (přišel ve formuláři).
+        if (JourneyId == Guid.Empty)
+        {
+            JourneyId = Guid.NewGuid();
+            JourneyOffsetMs = 0;
+        }
+
         Orders = await orderService.GetAllAsync(cancellationToken);
         var catalog = await orderService.GetCatalogAsync(cancellationToken);
         CatalogEmpty = catalog.Count == 0;

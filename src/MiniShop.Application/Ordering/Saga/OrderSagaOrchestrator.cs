@@ -34,6 +34,7 @@ public sealed class OrderSagaOrchestrator(
     public async Task HandleAsync(OrderPlaced domainEvent, CancellationToken cancellationToken)
     {
         var order = domainEvent.Order;
+        TraceTags.TagOrder(order.Id);
         if (await sagas.GetAsync(order.Id, cancellationToken) is not null)
         {
             return;   // sága už běží
@@ -74,6 +75,7 @@ public sealed class OrderSagaOrchestrator(
     private async Task<OrderSagaAction> StepAsync(int orderId, Func<OrderSaga, OrderSagaAction> transition,
         CancellationToken cancellationToken)
     {
+        TraceTags.TagOrder(orderId);   // span "process StockReservedV1", "dispatch OrderCancelled", "saga timeout"…
         var saga = await sagas.GetAsync(orderId, cancellationToken)
             ?? throw new InvalidOperationException($"Sága objednávky {orderId} neexistuje.");
 

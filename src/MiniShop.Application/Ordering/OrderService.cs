@@ -76,6 +76,7 @@ public sealed class OrderService(
 
         orders.Add(order);
         await unitOfWork.SaveChangesAsync(cancellationToken);   // → OrderPlaced do outboxu → sága → ReserveStockV1
+        TraceTags.TagOrder(order.Id);                            // ID přidělila až databáze
 
         return order.ToDto();
     }
@@ -110,7 +111,10 @@ public sealed class OrderService(
             .DefaultIfEmpty(0m)
             .Max();
 
-    private async Task<Order> GetOrderAsync(int id, CancellationToken cancellationToken) =>
-        await orders.GetByIdAsync(id, cancellationToken)
-        ?? throw new NotFoundException($"Objednávka s ID {id} nebyla nalezena.");
+    private async Task<Order> GetOrderAsync(int id, CancellationToken cancellationToken)
+    {
+        TraceTags.TagOrder(id);   // krok 11: trasu požadavku (detail, vyřízení, zrušení) půjde najít podle čísla objednávky
+        return await orders.GetByIdAsync(id, cancellationToken)
+            ?? throw new NotFoundException($"Objednávka s ID {id} nebyla nalezena.");
+    }
 }

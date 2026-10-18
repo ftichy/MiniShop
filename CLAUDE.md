@@ -91,6 +91,7 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   `MessagingTelemetry` (zdroj `MiniShop.Messaging`, `System.Diagnostics` – Infrastructure nemá balíčky OpenTelemetry).
   OpenTelemetry je jen v `ServiceDefaults` (`AddSource/AddMeter("MiniShop.*")`). Nový background worker, který ukládá zprávy,
   má otevřít vlastní span (jako `OrderSagaTimeoutWorker`), jinak zprávy nemají trasu. SQL spany jen s rodičem (filtr v EF instrumentaci).
+  Číslo objednávky na span dává `TraceTags.TagOrder` (`Application/Abstractions`, tag `minishop.order.id`) – volá se tam, kde se pracuje s objednávkou.
   Serilog: `ClearProviders()` + `writeToProviders: true` (logy i do OTLP, na konzoli jednou).
 - Objednávka: Pending → Confirmed/Rejected (rozhoduje sága), z Confirmed → Completed/Cancelled. `POST /api/orders` vrací 202.
 

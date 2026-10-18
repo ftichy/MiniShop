@@ -17,6 +17,7 @@ public sealed class ReleaseStockHandler(
 {
     public async Task HandleAsync(ReleaseStockV1 command, CancellationToken cancellationToken)
     {
+        TraceTags.TagOrder(command.OrderId);   // span "process ReleaseStockV1" ve skladu
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var active = await reservations.GetActiveByOrderIdAsync(command.OrderId, cancellationToken);
 

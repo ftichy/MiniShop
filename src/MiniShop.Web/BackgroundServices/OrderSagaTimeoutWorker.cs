@@ -1,3 +1,4 @@
+using MiniShop.Application.Abstractions;
 using MiniShop.Application.Ordering;
 using MiniShop.Application.Ordering.Saga;
 using MiniShop.Infrastructure.Observability;
@@ -51,7 +52,7 @@ public sealed class OrderSagaTimeoutWorker(
         {
             // Krok 11: timeout nevzniká z HTTP požadavku – začne vlastní trasu, na kterou navážou zprávy, které vyvolá.
             using var activity = MessagingTelemetry.ActivitySource.StartActivity("saga timeout");
-            activity?.SetTag("minishop.order.id", orderId);
+            activity?.SetTag(TraceTags.OrderId, orderId);
 
             try
             {

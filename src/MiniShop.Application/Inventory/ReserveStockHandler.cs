@@ -21,6 +21,7 @@ public sealed class ReserveStockHandler(
 {
     public async Task HandleAsync(ReserveStockV1 command, CancellationToken cancellationToken)
     {
+        TraceTags.TagOrder(command.OrderId);   // span "process ReserveStockV1" ve skladu
         var now = timeProvider.GetUtcNow().UtcDateTime;
 
         // Pro tuhle objednávku už rezervace je (stejný příkaz s jiným ID) – jen odpovědět znovu.

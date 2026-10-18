@@ -581,6 +581,16 @@ public sealed class OrderServiceTests : IDisposable
         var indexes = expected.Select(name => spans.IndexOf(name)).ToList();
         Assert.Equal(indexes.Order(), indexes);
 
+        // Trasu jde najít podle čísla objednávky: tag má požadavek i kroky ságy v obou modulech.
+        Assert.Equal(order.Id, request.GetTagItem(TraceTags.OrderId));
+        var tagged = recorder.SpansOf(request.TraceId)
+            .Where(a => Equals(a.GetTagItem(TraceTags.OrderId), order.Id))
+            .Select(a => a.DisplayName)
+            .ToList();
+        Assert.Contains("dispatch OrderPlaced", tagged);
+        Assert.Contains("process ReserveStockV1", tagged);
+        Assert.Contains("process StockReservedV1", tagged);
+
         // Všechny zprávy objednávky v outboxech OBOU modulů nesou trace ID původního požadavku.
         var messages = (await OrderingDb(db => db.OutboxMessages.ToListAsync()))
             .Concat(await InventoryDb(db => db.OutboxMessages.ToListAsync()))

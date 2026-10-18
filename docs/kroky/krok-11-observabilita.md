@@ -69,6 +69,7 @@ nejvýš pár sekund.
 | `src/MiniShop.Infrastructure/Observability/MessagingTelemetry.cs` | `ActivitySource` + `Meter`, `CurrentTraceParent()`, `StartOutboxActivity()`, `StartProcessActivity()`, `RecordError()`, čítače |
 | `src/MiniShop.Infrastructure/Observability/OutboxHealthCheck.cs` | `OutboxHealthCheck<TDbContext>` – Degraded při zprávě starší 5 min |
 | `tests/MiniShop.Tests/TestDoubles/ActivityRecorder.cs` | „mini OpenTelemetry“ pro testy – posluchač zdroje MiniShop.Messaging |
+| `src/MiniShop.Application/Abstractions/TraceTags.cs` | tag `minishop.order.id` na aktuální span (`TraceTags.TagOrder`) – hledání trasy podle čísla objednávky |
 
 ## Změněné soubory
 
@@ -86,6 +87,7 @@ nejvýš pár sekund.
 | `Web/Program.cs`, `Inventory.Api/Program.cs` | `ClearProviders()` + Serilog `writeToProviders: true` (logy i do OpenTelemetry, na konzoli jen jednou) |
 | `Web/appsettings.json`, `Inventory.Api/appsettings.json` | `[{TraceId}]` v šabloně souborového logu |
 | `Web/BackgroundServices/OrderSagaTimeoutWorker.cs` | span `saga timeout` (s tagem `minishop.order.id`) |
+| `Application/Ordering/OrderService.cs`, `Ordering/Saga/OrderSagaOrchestrator.cs`, `Inventory/ReserveStockHandler.cs`, `Inventory/ReleaseStockHandler.cs` | `TraceTags.TagOrder(…)` – HTTP span, kroky ságy i spany skladu nesou číslo objednávky |
 | `tests/.../Application/OrderServiceTests.cs` | `PlaceOrder_CelaSagaJeVJedneTrase`, `PlaceOrder_MimoSledovanouOperaci_ZpravyBezTraceParent` |
 | `tests/.../Infrastructure/OutboxTests.cs` | `Ulozeni_ZapamatujeSiTraceIdOperace`, `HealthCheck_NedorucenaZprava_PodleStari` (2×), `HealthCheck_StaraUzDorucenaZprava_JeHealthy` |
 | `tests/.../Infrastructure/RabbitMqTests.cs` | `Zprava_VSledovaneOperaci_NeseTraceparentVHlavicce`, `Zprava_MimoSledovanouOperaci_BezHlavicek` |
@@ -143,6 +145,8 @@ spadnou na chybějícím sloupci. Obě se při startu vytvoří znovu (sklad s u
    `web: POST /api/orders`. Do ~8 s se v ní objeví spany obou služeb (`web` a `inventory-api` mají jinou barvu):
    INSERT objednávky, `dispatch OrderPlaced`, `publish ReserveStockV1`, `process ReserveStockV1` (inventory-api),
    UPDATE Products, `publish StockReservedV1`, `process StockReservedV1` (web), `dispatch OrderConfirmed`.
+   **Hledání podle čísla objednávky:** Traces → Filter → `minishop.order.id` equals `2`. Najdou se všechny trasy
+   objednávky 2: vytvoření (celá sága), vyřízení/zrušení (vlastní požadavek) i případný `saga timeout`.
 4. **Structured logs** → filtr `Objednávka` → klikněte na trace ID u logu „Objednávka … potvrzena“. Otevře se stejná trasa.
 5. **Metrics** → `web` → `minishop.outbox.delay`: histogram čekání v outboxu (typicky do 2 s).
 

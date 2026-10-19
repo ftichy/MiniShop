@@ -6,3 +6,6 @@ obj/
 *.db-shm
 *.db-wal
 logs/
+
+# Cloud krok 2: tajné hodnoty pro docker compose (vzor je deploy/.env.example)
+.env

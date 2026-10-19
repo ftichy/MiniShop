@@ -15,5 +15,8 @@
 docs/
 tests/
 src/MiniShop.AppHost/
+# Cloud krok 2: konfigurace nasazení a tajné hodnoty (.env) do image nepatří.
+deploy/
+**/.env
 **/Dockerfile
 .dockerignore

@@ -151,11 +151,15 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   `ENV` v Dockerfile. RabbitMQ (`ConnectionStrings__messaging`) a adresu skladu (`Services__inventory-api__http__0`) dodá spouštěč.
 - Web ukládá Data Protection klíče do `DataProtection:KeysPath` (jen když je nastavené – lokálně ne).
 - Git Bash: u `docker exec … /cesta` použít `MSYS_NO_PATHCONV=1`.
+- Compose (krok 2): `cd deploy && docker compose up -d --build` → http://localhost:8080, RabbitMQ UI http://localhost:15673
+  (údaje z `deploy/.env`, vzor `.env.example`, `.env` je v `.gitignore`). `docker compose down` data nechá, `down -v` smaže volumes.
+  Nová proměnná prostředí pro službu = přidat do `compose.yaml` (a tajnou hodnotu do `.env.example` jako vzor).
+  Healthcheck .NET služeb: bash `/dev/tcp` na `/health` (image nemá curl). `/health` nehlídá RabbitMQ.
 
 | Krok | Stav | Souhrn |
 | --- | --- | --- |
 | 1. Kontejnerizace a produkční konfigurace (Dockerfile multi-stage, uživatel `app`, data v `/data`, Data Protection klíče) | hotovo | `docs/kroky-cloud/krok-01-kontejnery.md` |
-| 2. Docker Compose | čeká | — |
+| 2. Docker Compose (`deploy/compose.yaml`, healthchecky, volumes, `.env`) | hotovo | `docs/kroky-cloud/krok-02-compose.md` |
 | 3. Cloudový účet, rozpočet, IAM | čeká | — |
 | 4. Síť a VM ručně, první nasazení | čeká | — |
 | 5. Doména, HTTPS a zámek (Caddy) | čeká | — |

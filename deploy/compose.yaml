@@ -1,0 +1,100 @@
+# Cloud krok 2: celý MiniShop v kontejnerech bez Aspire – "produkce na mém PC".
+# Stejný soubor poběží v kroku 4 na VM v cloudu.
+#
+#   cd deploy
+#   cp .env.example .env        # jednou: heslo k RabbitMQ (soubor .env je v .gitignore)
+#   docker compose up -d --build
+#   → http://localhost:8080
+#
+# Co dřív dělal AppHost (src/MiniShop.AppHost/AppHost.cs), dělá teď tento soubor:
+#   AddRabbitMQ(...)                → služba "rabbitmq"
+#   AddProject<...>("inventory-api") → služba "inventory-api" (jméno = adresa v síti Compose)
+#   WithReference(messaging)        → proměnná ConnectionStrings__messaging
+#   WithReference(inventoryApi)     → proměnná Services__inventory-api__http__0
+#   WaitFor(...)                    → depends_on + condition: service_healthy
+
+name: minishop
+
+# Společná kontrola stavu obou .NET služeb (YAML "kotva" &dotnet-healthcheck, použitá níže přes *).
+# Image nemá curl, ale má bash: /dev/tcp otevře TCP spojení, pošleme ručně HTTP požadavek na /health
+# a hledáme v odpovědi status 200. Unhealthy vrací 503 → kontrola selže.
+x-dotnet-healthcheck: &dotnet-healthcheck
+  test:
+    - CMD
+    - bash
+    - -c
+    - exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /health HTTP/1.0\r\n\r\n' >&3 && grep -q ' 200 ' <&3
+  interval: 10s
+  timeout: 5s
+  retries: 3
+  start_period: 30s
+
+services:
+  rabbitmq:
+    image: rabbitmq:4-management
+    # Pevné jméno uzlu: RabbitMQ ukládá data do složky pojmenované podle hostname.
+    # Bez něj by nový kontejner dostal náhodné jméno a fronty z volume by "nenašel".
+    hostname: rabbitmq
+    restart: unless-stopped
+    environment:
+      # Uživatel "guest" smí jen z localhostu uvnitř kontejneru – služby se proto přihlašují vlastním účtem.
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?chybí .env – zkopírujte .env.example do .env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?chybí .env – zkopírujte .env.example do .env}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    ports:
+      # Jen management UI a jen z tohoto počítače (127.0.0.1). Port 5672 ven nepotřebujeme –
+      # služby se k RabbitMQ připojují uvnitř sítě Compose. 15673, aby se nepraly s minishop-rabbit (15672).
+      - "127.0.0.1:15673:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  inventory-api:
+    image: minishop-inventory-api:${IMAGE_TAG:-local}
+    build:
+      context: ..
+      dockerfile: src/MiniShop.Inventory.Api/Dockerfile
+    restart: unless-stopped
+    environment:
+      ConnectionStrings__messaging: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+    volumes:
+      - inventory-data:/data
+    # Žádné "ports": sklad je dostupný jen uvnitř sítě Compose (pro Web), zvenku ne.
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    healthcheck: *dotnet-healthcheck
+
+  web:
+    image: minishop-web:${IMAGE_TAG:-local}
+    build:
+      context: ..
+      dockerfile: src/MiniShop.Web/Dockerfile
+    restart: unless-stopped
+    environment:
+      ConnectionStrings__messaging: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      # Jméno služby "inventory-api" je zároveň DNS jméno kontejneru v síti Compose.
+      Services__inventory-api__http__0: http://inventory-api:8080
+      # Za reverse proxy (Caddy, krok 5) věřit hlavičkám X-Forwarded-Proto/For. Bez proxy nic nemění.
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+    volumes:
+      - web-data:/data
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      inventory-api:
+        condition: service_healthy
+    healthcheck: *dotnet-healthcheck
+
+# Pojmenované volumes = trvalá data. Přežijí "docker compose down" i nový build image.
+# Smaže je jen "docker compose down -v" (pozor!).
+volumes:
+  rabbitmq-data:
+  inventory-data:
+  web-data:

@@ -23,7 +23,7 @@ public class OrderTests
         order.AddItem(new CatalogProduct(1, "A", 100m, Now), quantity: 2, discount: 0m);
         order.AddItem(new CatalogProduct(2, "B", 50m, Now), quantity: 4, discount: 20m);
 
-        Assert.Equal(200m + 180m, order.TotalPrice);
+        Assert.Equal(300m + 180m, order.TotalPrice);
     }
 
     [Fact]

@@ -70,8 +70,9 @@ GitHubu *Settings → Emails → Keep my email addresses private*).
 
 - [ ] **B1.** Repozitář → **Settings** → **General** → úplně dole *Danger Zone* → **Change visibility** →
   **Make public** → potvrdit názvem repozitáře.
-- [ ] **B2.** *Settings* → **Code security** (*Security*): zapnout **Secret scanning** a **Push protection**
-  (u veřejných repozitářů zdarma) – GitHub odmítne push, ve kterém pozná heslo nebo token.
+- [ ] **B2.** *Settings* → **Advanced Security** → úplně dole sekce **Secret Protection** (dřív „Secret scanning“)
+  → **Enable**; pod ní se objeví **Push protection** → **Enable** (u veřejných repozitářů zdarma) – GitHub odmítne
+  push, ve kterém pozná heslo nebo token. Ostatní (Dependabot, CodeQL) zatím nechat – krok 10.
 
 ### C. Ochrana větve `main` – ruleset (vy)
 

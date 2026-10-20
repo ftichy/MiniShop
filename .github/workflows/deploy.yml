@@ -1,0 +1,82 @@
+# Cloud krok 8: CD – nasazení konkrétního commitu na VM.
+#   - automaticky: volá ho CI (ci.yml, job "deploy") po publikaci image z main,
+#   - ručně: záložka Actions → "Deploy" → Run workflow → SHA commitu (= i ruční rollback na starší verzi).
+#
+# Cesta na VM: runner se připojí do soukromé sítě Tailscale (dočasně, jako "tag:ci") a přes ni SSH na VM.
+# Port 22 je z internetu zavřený. Klíč uživatele "deploy" smí na VM spustit jen /usr/local/bin/minishop-deploy.
+name: Deploy
+
+on:
+  workflow_call:
+    inputs:
+      sha:
+        description: Celý SHA commitu, jehož image se nasadí
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Celý SHA commitu (40 znaků) – image sha-<7 znaků> musí v GHCR existovat
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Nasazení na VM
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # Environment = vlastní secrets a proměnné pro produkci (Settings → Environments → production).
+    environment:
+      name: production
+      url: https://minishop-tichy.duckdns.org
+    # Nikdy dvě nasazení najednou a rozběhnuté nasazení se nepřerušuje (čeká se na něj).
+    concurrency:
+      group: production
+      cancel-in-progress: false
+
+    steps:
+      - name: Kontrola vstupu
+        env:
+          SHA: ${{ inputs.sha }}
+        run: |
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Čekám celý SHA commitu (40 hexa znaků), dostal jsem '$SHA'"; exit 1; }
+
+      - name: Připojení do Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+          ping: ${{ vars.DEPLOY_HOST }}
+
+      - name: SSH klíč a otisk serveru
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # Otisk serveru je pevně daný – kdyby se za adresou ozval jiný server, SSH odmítne spojení.
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      - name: Nasazení (deploy.sh na VM)
+        env:
+          SHA: ${{ inputs.sha }}
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+        # Jediné, co se posílá, je SHA – vynucený příkaz na VM ho dostane v SSH_ORIGINAL_COMMAND.
+        run: ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes "deploy@$DEPLOY_HOST" "$SHA"
+
+      # Zvenku přes internet: platný certifikát (curl bez -k) a Caddy odpovídá. 401 = zámek funguje.
+      - name: Smoke test zvenku
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' --retry 5 --retry-all-errors --retry-delay 5 https://minishop-tichy.duckdns.org/)
+          echo "HTTPS → $code"
+          [[ "$code" == "401" || "$code" == "200" ]] || { echo "::error::Neočekávaná odpověď $code"; exit 1; }
+
+      - name: Úklid klíče
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

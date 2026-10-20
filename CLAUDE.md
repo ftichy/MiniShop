@@ -160,7 +160,7 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
 | --- | --- | --- |
 | 1. Kontejnerizace a produkční konfigurace (Dockerfile multi-stage, uživatel `app`, data v `/data`, Data Protection klíče) | hotovo | `docs/kroky-cloud/krok-01-kontejnery.md` |
 | 2. Docker Compose (`deploy/compose.yaml`, healthchecky, volumes, `.env`) | hotovo | `docs/kroky-cloud/krok-02-compose.md` |
-| 3. Cloudový účet, rozpočet, IAM | čeká | — |
+| 3. Cloudový účet, rozpočet, IAM (OCI Frankfurt, compartment `minishop`, uživatel `minishop-automation`, OCI CLI z Dockeru) | probíhá – uživatel v konzoli | `docs/kroky-cloud/krok-03-ucet-oci.md` |
 | 4. Síť a VM ručně, první nasazení | čeká | — |
 | 5. Doména, HTTPS a zámek (Caddy) | čeká | — |
 | 6. CI – build a testy | čeká | — |

@@ -9,3 +9,7 @@ logs/
 
 # Cloud krok 2: tajné hodnoty pro docker compose (vzor je deploy/.env.example)
 .env
+
+# Cloud krok 3: soukromé klíče (OCI API klíč, SSH) nikdy do gitu
+*.pem
+.oci/

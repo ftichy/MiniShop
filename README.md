@@ -1,5 +1,7 @@
 # MiniShop
 
+[![CI](https://github.com/ftichy/MiniShop/actions/workflows/ci.yml/badge.svg)](https://github.com/ftichy/MiniShop/actions/workflows/ci.yml)
+
 Jednoduchý e-shop pro výuku: **ASP.NET Core (.NET 10)**, **EF Core + SQLite**, REST API + Razor Pages,
 vrstvená architektura a principy **SOLID**. Je připravený na pozdější přestavbu na **event-driven architekturu (EDA)**.
 

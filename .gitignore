@@ -13,3 +13,6 @@ logs/
 # Cloud krok 3: soukromé klíče (OCI API klíč, SSH) nikdy do gitu
 *.pem
 .oci/
+
+# Cloud krok 6: výsledky testů (dotnet test --results-directory)
+TestResults/

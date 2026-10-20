@@ -1,0 +1,66 @@
+# Cloud krok 6: CI – každá změna se sestaví a otestuje na čistém stroji (runner = dočasná Linux VM od GitHubu).
+# Testy nepotřebují RabbitMQ ani Docker: sága běží nad InProcessIntegrationBus, databáze jsou SQLite v paměti.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:        # ruční spuštění tlačítkem "Run workflow" v záložce Actions
+
+# Nový push do stejné větve/PR zruší ještě běžící starší běh – výsledek starého commitu už nikoho nezajímá.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Nejmenší oprávnění: workflow jen čte kód (krok 7 přidá zápis do registry jen tam, kde je potřeba).
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build a testy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: .NET SDK podle global.json
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      # NuGet balíčky se mezi běhy pamatují. Klíč = otisk všech .csproj a .props – změní se jen při změně závislostí.
+      - name: Cache NuGet balíčků
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/*.props', 'global.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore MiniShop.slnx
+
+      - name: Build
+        run: dotnet build MiniShop.slnx --configuration Release --no-restore
+
+      - name: Testy
+        run: >
+          dotnet test MiniShop.slnx --configuration Release --no-build
+          --logger "trx;LogFileName=test-results.trx"
+          --results-directory TestResults
+
+      # Výsledky testů ke stažení u běhu (i když testy selžou – právě pak jsou nejzajímavější).
+      - name: Výsledky testů jako artefakt
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults/*.trx
+          retention-days: 14

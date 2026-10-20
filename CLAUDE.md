@@ -163,6 +163,9 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   + `deploy/Caddyfile`, na VM zapnuté přes `COMPOSE_FILE=compose.yaml:compose.cloud.yaml` v `.env`. Web není publikovaný ven.
   Basic auth (uživatel `minishop`, heslo zná jen uživatel – změna `bash set-basic-auth.sh` na VM), vypíná `BASIC_AUTH=off`.
   Security list: 80/443 z celého internetu, 22 jen z IP uživatele. Volume `caddy-data` (certifikáty) nemazat.
+- CI (krok 6): workflow „CI“, job „Build a testy“ (= povinný status check v rulesetu). Repozitář `ftichy/MiniShop` je veřejný –
+  nic tajného do gitu. `main` jen přes PR se zeleným CI (bez přímého push). SDK určuje `global.json` (10.0.200, `latestFeature`).
+  Nový projekt/závislost = ověřit, že CI na Linuxu projde.
 
 | Krok | Stav | Souhrn |
 | --- | --- | --- |
@@ -171,7 +174,7 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
 | 3. Cloudový účet, rozpočet, IAM (OCI Frankfurt, compartment `minishop`, uživatel `minishop-automation`, OCI CLI z Dockeru) | hotovo (kvóta `minishop-quota`: v `minishop` jen A1 do 2 OCPU / 12 GB) | `docs/kroky-cloud/krok-03-ucet-oci.md` |
 | 4. Síť a VM ručně, první nasazení (VCN, security list, VM A1 Ubuntu 24.04, Docker, image přes `docker save` + `scp`) | hotovo | `docs/kroky-cloud/krok-04-sit-a-vm.md` |
 | 5. Doména, HTTPS a zámek (DuckDNS `minishop-tichy.duckdns.org`, reserved IP, Caddy + Let's Encrypt, basic auth) | hotovo | `docs/kroky-cloud/krok-05-https.md` |
-| 6. CI – build a testy | čeká | — |
+| 6. CI – build a testy (`.github/workflows/ci.yml`, `global.json`, veřejný repozitář, ruleset `main-protection`) | probíhá – uživatel na GitHubu | `docs/kroky-cloud/krok-06-ci.md` |
 | 7. Image do registry (GHCR) | čeká | — |
 | 8. CD – automatické nasazení | čeká | — |
 | 9. Infrastruktura jako kód (OpenTofu) | čeká | — |

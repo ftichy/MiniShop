@@ -36,9 +36,16 @@
     const targetOf = el =>
         el.dataset.track || el.name || el.id || el.getAttribute('href') || el.tagName.toLowerCase();
 
+    // crypto.randomUUID existuje jen v zabezpečeném kontextu (HTTPS nebo localhost) – na http://<IP> chybí.
+    // Náhradou je stejné UUID v4 z crypto.getRandomValues, které je dostupné všude.
+    const newEventId = () => crypto.randomUUID
+        ? crypto.randomUUID()
+        : ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c =>
+            (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16));
+
     function record(type, el, extra) {
         queue.push({
-            eventId: crypto.randomUUID(),
+            eventId: newEventId(),
             type,
             offsetMs: now(),
             target: el ? targetOf(el).slice(0, 200) : null,

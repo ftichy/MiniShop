@@ -1,0 +1,31 @@
+# Cloud krok 5: Caddy = "recepce" před MiniShopem na VM.
+#   - získá a sám obnovuje HTTPS certifikát od Let's Encrypt pro {$DOMAIN} (ověření přes port 80),
+#   - http:// automaticky přesměruje na https://,
+#   - pustí dál jen s heslem (basic auth) – MiniShop zatím nemá vlastní přihlašování,
+#   - předá požadavek Webu uvnitř sítě Compose (web:8080) i s hlavičkami X-Forwarded-*.
+# Hodnoty {$…} doplní Caddy z proměnných prostředí (compose.cloud.yaml ← .env na VM) ještě před čtením souboru.
+
+{
+	servers {
+		# Jen HTTP/1.1 a HTTP/2 přes TCP. HTTP/3 by potřeboval UDP 443 v security listu i iptables.
+		protocols h1 h2
+	}
+}
+
+# Zámek. BASIC_AUTH=off ho vypne (až bude mít aplikace vlastní přihlašování) – bez úpravy tohoto souboru.
+(auth-on) {
+	basic_auth {
+		# BASIC_AUTH_HASH = bcrypt otisk hesla z "caddy hash-password", ne heslo samotné.
+		{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
+	}
+}
+
+(auth-off) {
+}
+
+{$DOMAIN} {
+	import auth-{$BASIC_AUTH:on}
+
+	encode zstd gzip
+	reverse_proxy web:8080
+}

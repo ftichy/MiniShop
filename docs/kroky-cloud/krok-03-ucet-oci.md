@@ -177,23 +177,42 @@ function oci { docker run --rm -it -v "$env:USERPROFILE\.oci:/oracle/.oci" `
 Alternativa bez Dockeru: **Cloud Shell** (ikona `>_` nahoře v konzoli) – terminál v prohlížeči s předinstalovaným
 CLI, přihlášený jako vy (administrátor). Hodí se na rychlé dotazy, ale neověří práva technického uživatele.
 
-### H. (Volitelně) Kvóta jako pojistka
+### H. (Volitelně) Kvóta jako pojistka – odloženo až po kroku 4
 
 Budget jen upozorní. **Kvóta** zakáže vytvořit víc, než povolíte – placenou VM v `minishop` pak nejde
 vytvořit vůbec.
 
-- [ ] **H1.** ☰ → *Governance & Administration* → *Limits, Quotas and Usage*: najděte službu *Compute*, řádek
-  pro **Ampere A1** a zjistěte přesný název kvóty (konzole umí příkaz kvóty vygenerovat).
-- [ ] **H2.** ☰ → *Governance & Administration* → *Quota Policies* → Create, v kořeni. Princip:
+- [ ] **H1.** Stav před kvótou (technický uživatel smí číst dostupnost ve svém compartmentu):
 
-  ```
-  zero compute-core quotas in compartment minishop
-  set compute-core quota <název kvóty pro A1 OCPU> to 2 in compartment minishop
-  set compute-memory quota <název kvóty pro A1 paměť> to 12 in compartment minishop
+  ```powershell
+  oci limits resource-availability get --compartment-id <OCID minishop> --service-name compute `
+    --limit-name standard-a1-core-count --availability-domain <AD, např. xmpj:EU-FRANKFURT-1-AD-3>
   ```
 
-  Přesné názvy kvót se liší podle rodiny tvarů – použijte ty z H1. Když si nejste jistí, tento bod přeskočte;
-  budget z bodu C stačí.
+  → `"effective-quota-value": null` (žádná kvóta) a `"available"` ve stovkách – tolik ARM jader by šlo vytvořit.
+  Seznam AD: `oci iam availability-domain list --compartment-id <OCID minishop>`.
+- [ ] **H2.** ☰ → *Governance & Administration* → *Tenancy Management* → **Quota policies** (nebo vyhledávání
+  „Quota policies“) → vlevo **kořenový** compartment → **Create quota policy**:
+  - Name: `minishop-quota`, Description: „Compartment minishop jen v mezích Always Free“
+  - Statements (každý řádek zvlášť, tlačítko *+ Another statement*, nebo jeden blok podle konzole):
+
+    ```
+    zero compute-core quotas in compartment minishop
+    zero compute-memory quotas in compartment minishop
+    set compute-core quota standard-a1-core-count to 2 in compartment minishop
+    set compute-memory quota standard-a1-memory-count to 12 in compartment minishop
+    ```
+
+  Čte se to: „v `minishop` vynuluj všechna jádra a paměť všech tvarů, ARM A1 pak povol do 2 jader a 12 GB“.
+  Pořadí je důležité – pozdější `set` přepíše dřívější `zero` jen pro jmenovanou kvótu.
+  ⚠️ Každý řádek = jeden příkaz. Za posledním řádkem **nesmí** zůstat prázdný řádek, jinak konzole hlásí
+  „Syntax error starting with '' at statement 5 char 0“.
+- [ ] **H3.** Ověření – zopakujte H1: `"effective-quota-value": 2.0` a `"available": 0` (VM z kroku 4 limit
+  vyčerpala). Pro jiný tvar, např. `--limit-name standard-e4-core-count` → kvóta `0.0`.
+- **Kdy:** až po kroku 4, kdy VM běží – hned ověříte, že kvóta free VM neblokuje.
+  Smysl má hlavně s Pay As You Go (bod I) a během trialu (placené zdroje by čerpaly kredit).
+- Kvóta hlídá jen **compute** v `minishop`. Placené služby jiného druhu (databáze, load balancer…) nebo zdroje
+  mimo `minishop` dál hlídá jen budget.
 
 ### I. Pay As You Go (doporučeno, můžete odložit)
 
@@ -230,6 +249,8 @@ Mimo repozitář (na vašem PC): `C:\Users\<vy>\.oci\config`, `C:\Users\<vy>\.oc
 - **`manage all-resources` v compartmentu** – na výukový projekt rozumný kompromis. V praxi by se práva
   dělila jemněji (síť, VM, úložiště zvlášť).
 - **Kvóta volitelná** – názvy kvót pro A1 se mezi zdroji liší a chybná kvóta by v kroku 4 zablokovala i free VM.
+- **Pay As You Go hned, ne až po potížích** – snižuje riziko chyby *Out of host capacity* v kroku 4 a rušení
+  nečinné VM. Cena: dočasná blokace ~100 USD na kartě při jejím přidání.
 
 ## Známá omezení
 

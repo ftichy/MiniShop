@@ -156,8 +156,10 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   Nová proměnná prostředí pro službu = přidat do `compose.yaml` (a tajnou hodnotu do `.env.example` jako vzor).
   Healthcheck .NET služeb: bash `/dev/tcp` na `/health` (image nemá curl). `/health` nehlídá RabbitMQ.
 - VM (krok 4): `ssh minishop-vm` (zkratka v `~/.ssh/config` uživatele, klíč s passphrase – neinteraktivně jen přes ssh-agent),
-  Compose v `~/minishop` (`compose.yaml` + `.env` s `WEB_PORT=80`, `IMAGE_TAG=arm64`). Ruční nasazení: `docker buildx build
-  --platform linux/arm64 … -t minishop-web:arm64 --load .` → `docker save -o` → `scp` → `docker load -i` → `docker compose up -d --no-build`.
+  Compose v `~/minishop` (`compose.yaml` + `.env`). Od kroku 7 image z GHCR: `.env` `IMAGE_PREFIX=ghcr.io/ftichy/`,
+  `IMAGE_TAG=sha-<commit>` → `docker compose pull && docker compose up -d` (rollback = starší `sha-…`). Image publikuje CI
+  jen z `main` po zelených testech (`ghcr.io/ftichy/minishop-web`, `…/minishop-inventory-api`, veřejné, amd64+arm64).
+  Lokálně `IMAGE_PREFIX` prázdný → `minishop-…:local` z `build:`.
   Z PowerShellu přes `ssh "…"` pozor na `\n` a uvozovky – skript poslat souborem.
 - HTTPS (krok 5): `https://minishop-tichy.duckdns.org` (reserved IP `141.144.255.238`), Caddy z `deploy/compose.cloud.yaml`
   + `deploy/Caddyfile`, na VM zapnuté přes `COMPOSE_FILE=compose.yaml:compose.cloud.yaml` v `.env`. Web není publikovaný ven.
@@ -174,8 +176,8 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
 | 3. Cloudový účet, rozpočet, IAM (OCI Frankfurt, compartment `minishop`, uživatel `minishop-automation`, OCI CLI z Dockeru) | hotovo (kvóta `minishop-quota`: v `minishop` jen A1 do 2 OCPU / 12 GB) | `docs/kroky-cloud/krok-03-ucet-oci.md` |
 | 4. Síť a VM ručně, první nasazení (VCN, security list, VM A1 Ubuntu 24.04, Docker, image přes `docker save` + `scp`) | hotovo | `docs/kroky-cloud/krok-04-sit-a-vm.md` |
 | 5. Doména, HTTPS a zámek (DuckDNS `minishop-tichy.duckdns.org`, reserved IP, Caddy + Let's Encrypt, basic auth) | hotovo | `docs/kroky-cloud/krok-05-https.md` |
-| 6. CI – build a testy (`.github/workflows/ci.yml`, `global.json`, veřejný repozitář, ruleset `main-protection`) | probíhá – uživatel na GitHubu | `docs/kroky-cloud/krok-06-ci.md` |
-| 7. Image do registry (GHCR) | čeká | — |
+| 6. CI – build a testy (`.github/workflows/ci.yml`, `global.json`, veřejný repozitář, ruleset `main-protection`) | hotovo | `docs/kroky-cloud/krok-06-ci.md` |
+| 7. Image do registry (GHCR, job `images`: PR zkušební build, `main` push x86+ARM, tagy `sha-…`/`latest`, veřejné) | probíhá – PR a VM | `docs/kroky-cloud/krok-07-registry.md` |
 | 8. CD – automatické nasazení | čeká | — |
 | 9. Infrastruktura jako kód (OpenTofu) | čeká | — |
 | 10. Secrets a konfigurace | čeká | — |

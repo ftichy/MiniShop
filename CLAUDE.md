@@ -185,7 +185,7 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
 | 5. Doména, HTTPS a zámek (DuckDNS `minishop-tichy.duckdns.org`, reserved IP, Caddy + Let's Encrypt, basic auth) | hotovo | `docs/kroky-cloud/krok-05-https.md` |
 | 6. CI – build a testy (`.github/workflows/ci.yml`, `global.json`, veřejný repozitář, ruleset `main-protection`) | hotovo | `docs/kroky-cloud/krok-06-ci.md` |
 | 7. Image do registry (GHCR, job `images`: PR zkušební build, `main` push x86+ARM, tagy `sha-…`/`latest`, veřejné) | hotovo | `docs/kroky-cloud/krok-07-registry.md` |
-| 8. CD – automatické nasazení (`deploy.yml`, Tailscale, uživatel `deploy` s vynuceným příkazem, rollback) | probíhá – PR | `docs/kroky-cloud/krok-08-cd.md` |
+| 8. CD – automatické nasazení (`deploy.yml`, Tailscale, uživatel `deploy` s vynuceným příkazem, rollback) | hotovo | `docs/kroky-cloud/krok-08-cd.md` |
 | 9. Infrastruktura jako kód (OpenTofu) | čeká | — |
 | 10. Secrets a konfigurace | čeká | — |
 | 11. Monitoring a logy v cloudu | čeká | — |

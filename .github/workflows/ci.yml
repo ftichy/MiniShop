@@ -5,13 +5,19 @@ name: CI
 on:
   push:
     branches: [main]
+    # Krok 8: změna jen dokumentace po sloučení nic nestaví ani nenasazuje (testy proběhly už v PR).
+    # U pull_request se NEfiltruje – povinný check "Build a testy" musí dorazit u každého PR, jinak by nešel sloučit.
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
   pull_request:
   workflow_dispatch:        # ruční spuštění tlačítkem "Run workflow" v záložce Actions
 
-# Nový push do stejné větve/PR zruší ještě běžící starší běh – výsledek starého commitu už nikoho nezajímá.
+# Nový push do stejného PR zruší ještě běžící starší běh – výsledek starého commitu už nikoho nezajímá.
+# Na main se nic neruší (krok 8): rozběhnutá publikace a nasazení se dokončí, další běh počká.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Nejmenší oprávnění: workflow jen čte kód. Zápis do registry má jen job "images" (krok 7).
 permissions:
@@ -138,3 +144,13 @@ jobs:
           # Vrstvy (restore NuGet, runtime image) se pamatují v cache GitHub Actions – další build je rychlejší.
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,scope=${{ matrix.service }},mode=max
+
+  # Cloud krok 8: po publikaci image z main se commit sám nasadí na VM (workflow deploy.yml).
+  deploy:
+    name: Nasazení
+    needs: images
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/deploy.yml
+    with:
+      sha: ${{ github.sha }}
+    secrets: inherit

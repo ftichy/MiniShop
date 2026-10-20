@@ -33,7 +33,7 @@ GitHub Actions ── workflow .github/workflows/ci.yml ("CI")
 | --- | --- | --- |
 | **Workflow** | automatizace popsaná v YAML | `.github/workflows/ci.yml`, jméno „CI“ |
 | **Trigger** (`on:`) | kdy se spustí | push do `main`, každý pull request, ručně (*Run workflow*) |
-| **Runner** | stroj, kde workflow běží | `ubuntu-latest` (zdarma, u veřejného repozitáře bez limitu minut) |
+| **Runner** | stroj, kde workflow běží | `ubuntu-24.04` (zdarma, u veřejného repozitáře bez limitu minut; pevná verze místo `ubuntu-latest`) |
 | **Job / step** | skupina kroků / jeden příkaz nebo akce | job `build-and-test` („Build a testy“), 7 kroků |
 | **Action** | hotový krok od někoho jiného | `actions/checkout`, `setup-dotnet`, `cache`, `upload-artifact` |
 | **Artefakt** | soubor uložený u běhu | `test-results` (.trx, 14 dní) |
@@ -132,7 +132,7 @@ Mimo repozitář: repozitář veřejný, secret scanning + push protection, rule
 - **Cache přes `actions/cache`, ne `setup-dotnet` cache** – ta vyžaduje `packages.lock.json`, které projekt nemá.
 - **0 povinných schválení PR** – jediný vývojář sám sobě schválit nemůže; ochranu dělá CI.
 - **Prázdný bypass list** – pravidla platí i pro správce. „Rychlá oprava přímo do main“ je přesně ta, co se rozbije.
-- **Akce verzované hlavní verzí** (`@v4`) – běžná praxe; přísnější je připnout na SHA commitu (krok 10).
+- **Akce verzované hlavní verzí** (`checkout@v7`, `setup-dotnet@v6`, `cache@v6`, `upload-artifact@v7` – všechny na Node 24; `@v4` běžely na zastaralém Node 20) – běžná praxe; přísnější je připnout na SHA commitu (krok 10).
 - **Bez testů v Dockeru a bez sestavení image** – to je krok 7 (image do registry jen z `main` po zeleném CI).
 
 ## Známá omezení

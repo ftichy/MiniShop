@@ -20,7 +20,8 @@ permissions:
 jobs:
   build-and-test:
     name: Build a testy
-    runs-on: ubuntu-latest
+    # Pevná verze, ne ubuntu-latest: prostředí se nezmění pod rukama (latest přešel 10/2026 na Ubuntu 26).
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     env:
@@ -29,16 +30,16 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: .NET SDK podle global.json
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
       # NuGet balíčky se mezi běhy pamatují. Klíč = otisk všech .csproj a .props – změní se jen při změně závislostí.
       - name: Cache NuGet balíčků
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/*.props', 'global.json') }}
@@ -59,7 +60,7 @@ jobs:
       # Výsledky testů ke stažení u běhu (i když testy selžou – právě pak jsou nejzajímavější).
       - name: Výsledky testů jako artefakt
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results
           path: TestResults/*.trx

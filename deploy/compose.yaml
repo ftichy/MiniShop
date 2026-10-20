@@ -54,7 +54,8 @@ services:
       start_period: 20s
 
   inventory-api:
-    image: minishop-inventory-api:${IMAGE_TAG:-local}
+    # Krok 7: na VM IMAGE_PREFIX=ghcr.io/ftichy/ → image z registry; lokálně prázdný → image z build:.
+    image: ${IMAGE_PREFIX:-}minishop-inventory-api:${IMAGE_TAG:-local}
     build:
       context: ..
       dockerfile: src/MiniShop.Inventory.Api/Dockerfile
@@ -70,7 +71,7 @@ services:
     healthcheck: *dotnet-healthcheck
 
   web:
-    image: minishop-web:${IMAGE_TAG:-local}
+    image: ${IMAGE_PREFIX:-}minishop-web:${IMAGE_TAG:-local}
     build:
       context: ..
       dockerfile: src/MiniShop.Web/Dockerfile

@@ -13,7 +13,7 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-# Nejmenší oprávnění: workflow jen čte kód (krok 7 přidá zápis do registry jen tam, kde je potřeba).
+# Nejmenší oprávnění: workflow jen čte kód. Zápis do registry má jen job "images" (krok 7).
 permissions:
   contents: read
 
@@ -65,3 +65,76 @@ jobs:
           name: test-results
           path: TestResults/*.trx
           retention-days: 14
+
+  # Cloud krok 7: Docker image obou služeb.
+  #   pull request → jen zkušební sestavení pro x86 (rozbitý Dockerfile se pozná před sloučením), nic se neukládá,
+  #   main         → sestavení pro x86 i ARM a push do GHCR s tagy sha-<commit> a latest.
+  # Běží až po zelených testech (needs) – do registry se nedostane image z kódu, který neprošel.
+  images:
+    name: Image ${{ matrix.service }}
+    needs: build-and-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [web, inventory-api]
+        include:
+          - service: web
+            dockerfile: src/MiniShop.Web/Dockerfile
+          - service: inventory-api
+            dockerfile: src/MiniShop.Inventory.Api/Dockerfile
+
+    env:
+      PUBLISH: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+
+    # Zápis do registry jen pro tento job (ostatní joby mají jen čtení).
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Emulace ARM na x86 runneru. Kompilace .NET jede nativně (FROM --platform=$BUILDPLATFORM v Dockerfile),
+      # emuluje se jen závěrečná fáze (RUN mkdir/chown nad runtime image pro ARM).
+      - name: QEMU (emulace ARM)
+        if: env.PUBLISH == 'true'
+        uses: docker/setup-qemu-action@v4
+
+      - name: Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Přihlášení do GHCR
+        if: env.PUBLISH == 'true'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Jména a štítky: ghcr.io/ftichy/minishop-web:sha-1a2b3c4 a :latest.
+      # Label org.opencontainers.image.source propojí balíček s repozitářem (zdědí jeho viditelnost).
+      - name: Tagy a labely
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/minishop-${{ matrix.service }}
+          tags: |
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build${{ env.PUBLISH == 'true' && ' a push' || ' (zkušební)' }}
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: ${{ env.PUBLISH == 'true' && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
+          push: ${{ env.PUBLISH == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Vrstvy (restore NuGet, runtime image) se pamatují v cache GitHub Actions – další build je rychlejší.
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,scope=${{ matrix.service }},mode=max

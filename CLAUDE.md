@@ -172,6 +172,13 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   + `deploy/Caddyfile`, na VM zapnuté přes `COMPOSE_FILE=compose.yaml:compose.cloud.yaml` v `.env`. Web není publikovaný ven.
   Basic auth (uživatel `minishop`, heslo zná jen uživatel – změna `cd /opt/minishop && sudo -u deploy bash set-basic-auth.sh`),
   vypíná `BASIC_AUTH=off`. Security list: 80/443 z celého internetu (22 od kroku 8 zavřený). Volume `caddy-data` (certifikáty) nemazat.
+- IaC (krok 9): `infra/` (OpenTofu, provider `oracle/oci`), spouští uživatel na PC: `tofu init "-backend-config=backend.hcl"` (v PowerShellu v uvozovkách – jinak rozdělí argument s tečkou),
+  `tofu plan`, `tofu apply` (přihlášení `~/.oci/config` = `minishop-automation`). State v bucketu `minishop-tfstate` (S3 API,
+  klíč `~/.oci/s3-credentials`); `backend.hcl`, `terraform.tfvars` a state nejsou v gitu. VM připraví cloud-init
+  (`cloud-init.yaml.tftpl` → `bootstrap.sh.tftpl`, log `/var/log/minishop-bootstrap.log`), `deploy/deploy.sh` jde na VM
+  přes `filebase64`. VM má `ignore_changes` na obraz a metadata – změna cloud-init/`deploy.sh` = `tofu apply -replace=oci_core_instance.vm`
+  (ztráta dat!). Reserved IP má `prevent_destroy`. Bash v šablonách `.tftpl`: jen `$var`, ne `${var}` (to je OpenTofu).
+  Nová VM: nový Tailscale auth key, IP v Tailscale adminu vrátit na `100.126.167.103`, aktualizovat `DEPLOY_KNOWN_HOSTS`.
 - CI (krok 6): workflow „CI“, job „Build a testy“ (= povinný status check v rulesetu). Repozitář `ftichy/MiniShop` je veřejný –
   nic tajného do gitu. `main` jen přes PR se zeleným CI (bez přímého push). SDK určuje `global.json` (10.0.200, `latestFeature`).
   Nový projekt/závislost = ověřit, že CI na Linuxu projde.
@@ -180,13 +187,13 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
 | --- | --- | --- |
 | 1. Kontejnerizace a produkční konfigurace (Dockerfile multi-stage, uživatel `app`, data v `/data`, Data Protection klíče) | hotovo | `docs/kroky-cloud/krok-01-kontejnery.md` |
 | 2. Docker Compose (`deploy/compose.yaml`, healthchecky, volumes, `.env`) | hotovo | `docs/kroky-cloud/krok-02-compose.md` |
-| 3. Cloudový účet, rozpočet, IAM (OCI Frankfurt, compartment `minishop`, uživatel `minishop-automation`, OCI CLI z Dockeru) | hotovo (kvóta `minishop-quota`: v `minishop` jen A1 do 2 OCPU / 12 GB) | `docs/kroky-cloud/krok-03-ucet-oci.md` |
+| 3. Cloudový účet, rozpočet, IAM (OCI Frankfurt, compartment `minishop`, uživatel `minishop-automation`, OCI CLI z Dockeru) | hotovo (kvóta `minishop-quota`: v `minishop` jen A1 do 2 OCPU / 12 GB, od kroku 9 i `…-regional-count`) | `docs/kroky-cloud/krok-03-ucet-oci.md` |
 | 4. Síť a VM ručně, první nasazení (VCN, security list, VM A1 Ubuntu 24.04, Docker, image přes `docker save` + `scp`) | hotovo | `docs/kroky-cloud/krok-04-sit-a-vm.md` |
 | 5. Doména, HTTPS a zámek (DuckDNS `minishop-tichy.duckdns.org`, reserved IP, Caddy + Let's Encrypt, basic auth) | hotovo | `docs/kroky-cloud/krok-05-https.md` |
 | 6. CI – build a testy (`.github/workflows/ci.yml`, `global.json`, veřejný repozitář, ruleset `main-protection`) | hotovo | `docs/kroky-cloud/krok-06-ci.md` |
 | 7. Image do registry (GHCR, job `images`: PR zkušební build, `main` push x86+ARM, tagy `sha-…`/`latest`, veřejné) | hotovo | `docs/kroky-cloud/krok-07-registry.md` |
 | 8. CD – automatické nasazení (`deploy.yml`, Tailscale, uživatel `deploy` s vynuceným příkazem, rollback) | hotovo | `docs/kroky-cloud/krok-08-cd.md` |
-| 9. Infrastruktura jako kód (OpenTofu) | čeká | — |
+| 9. Infrastruktura jako kód (OpenTofu `infra/`: síť, VM, cloud-init, import reserved IP, state v OCI bucketu) | hotovo (ruční VM/VCN smazané, vše z `tofu apply`) | `docs/kroky-cloud/krok-09-iac.md` |
 | 10. Secrets a konfigurace | čeká | — |
 | 11. Monitoring a logy v cloudu | čeká | — |
 | 12. Zálohy a obnova po havárii | čeká | — |

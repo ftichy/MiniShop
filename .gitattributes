@@ -1,0 +1,4 @@
+# Cloud krok 9: skripty pro Linux vždy s konci řádků LF – i na Windows s core.autocrlf=true.
+# OpenTofu je čte z disku PC a posílá na VM (cloud-init); s CRLF by bash na VM spadl ("$'\r': command not found").
+*.sh    text eol=lf
+*.tftpl text eol=lf

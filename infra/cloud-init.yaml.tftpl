@@ -1,0 +1,32 @@
+#cloud-config
+# Cloud krok 9: první start VM. cloud-init ho provede JEDNOU (při vytvoření VM), jako root.
+# Šablona – hodnoty v dolar-složených závorkách doplní OpenTofu (compute.tf). Průběh na VM: /var/log/cloud-init-output.log
+# a /var/log/minishop-bootstrap.log.
+
+# Aktualizace balíčků jako v kroku 4 (E1).
+package_update: true
+package_upgrade: true
+
+write_files:
+  # Při prvním startu běží na pozadí i automatické aktualizace Ubuntu a drží zámek apt.
+  # Instalace Dockeru by pak hned spadla – takhle apt na uvolnění zámku počká.
+  - path: /etc/apt/apt.conf.d/90minishop-lock-timeout
+    content: |
+      DPkg::Lock::Timeout "600";
+
+  # Skript nasazení z kroku 8 (deploy/deploy.sh) – volá ho GitHub Actions přes uživatele deploy.
+  - path: /usr/local/bin/minishop-deploy
+    owner: root:root
+    permissions: '0755'
+    encoding: b64
+    content: ${deploy_script_b64}
+
+  # Vlastní příprava serveru (infra/bootstrap.sh.tftpl).
+  - path: /usr/local/sbin/minishop-bootstrap
+    owner: root:root
+    permissions: '0700'
+    encoding: b64
+    content: ${bootstrap_b64}
+
+runcmd:
+  - [/usr/local/sbin/minishop-bootstrap]

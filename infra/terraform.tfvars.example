@@ -1,0 +1,22 @@
+# Cloud krok 9: vzor vstupů. Zkopírujte do terraform.tfvars (je v .gitignore) a doplňte:
+#   Copy-Item terraform.tfvars.example terraform.tfvars
+
+# OCID compartmentu minishop (krok 3, 📝).
+compartment_ocid = "ocid1.compartment.oc1..aaaa…"
+
+# Tailscale admin → Settings → Keys → Generate auth key: Reusable VYPNUTO, Ephemeral VYPNUTO,
+# Pre-approved zapnuto, Tags: tag:minishop-vm, Expiration 1 den. Jednorázový – na další novou VM nový.
+tailscale_auth_key = "tskey-auth-…"
+
+# Otisk hesla pro zámek v Caddy (krok 5). Stávající ze staré VM:
+#   ssh minishop-vm "sudo -u deploy grep BASIC_AUTH_HASH /opt/minishop/.env"
+# nebo nový: docker run --rm -it caddy:2 caddy hash-password
+# Sem BEZ jednoduchých uvozovek, jen $2a$14$… (v HCL řetězci $ nevadí).
+basic_auth_hash = "$2a$14$…"
+
+# Volitelné (výchozí hodnoty ve variables.tf):
+# availability_domain_index = 1      # při "Out of host capacity"
+# vm_ocpus                  = 1
+# vm_memory_gbs             = 6
+# ssh_public_key_path        = "~/.ssh/minishop_oci.pub"
+# deploy_ssh_public_key_path = "~/.ssh/minishop_deploy.pub"

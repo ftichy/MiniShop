@@ -14,5 +14,15 @@ logs/
 *.pem
 .oci/
 
+# Cloud krok 9: OpenTofu – stažené providery, state (obsahuje tajné hodnoty) a skutečné vstupy
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+!*.tfvars.example
+infra/backend.hcl
+crash.log
+
 # Cloud krok 6: výsledky testů (dotnet test --results-directory)
 TestResults/

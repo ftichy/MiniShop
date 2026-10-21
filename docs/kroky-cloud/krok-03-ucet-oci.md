@@ -201,7 +201,13 @@ vytvořit vůbec.
     zero compute-memory quotas in compartment minishop
     set compute-core quota standard-a1-core-count to 2 in compartment minishop
     set compute-memory quota standard-a1-memory-count to 12 in compartment minishop
+    set compute-core quota standard-a1-core-regional-count to 2 in compartment minishop
+    set compute-memory quota standard-a1-memory-regional-count to 12 in compartment minishop
     ```
+
+  Poslední dva řádky doplněny v cloud kroku 9: OCI při vytváření VM kontroluje i **regionální** počítadla A1
+  (`…-regional-count`). Bez nich `zero` nechá regionální kvótu na nule a nová VM skončí chybou
+  `400-QuotaExceeded … by 2 … by 12` (stará VM vznikla před kvótou, proto se to neprojevilo).
 
   Čte se to: „v `minishop` vynuluj všechna jádra a paměť všech tvarů, ARM A1 pak povol do 2 jader a 12 GB“.
   Pořadí je důležité – pozdější `set` přepíše dřívější `zero` jen pro jmenovanou kvótu.

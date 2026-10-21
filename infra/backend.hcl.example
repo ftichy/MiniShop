@@ -1,0 +1,13 @@
+# Cloud krok 9: kde leží state. Zkopírujte do backend.hcl (je v .gitignore) a doplňte:
+#   Copy-Item backend.hcl.example backend.hcl
+#   tofu init "-backend-config=backend.hcl"      # v PowerShellu v uvozovkách
+
+# S3-kompatibilní adresa Object Storage: <namespace> = výstup "oci os ns get" (krok 3 G1).
+endpoints = {
+  s3 = "https://<namespace>.compat.objectstorage.eu-frankfurt-1.oraclecloud.com"
+}
+
+# Customer Secret Key uživatele minishop-automation ve formátu AWS credentials (návod, bod B).
+# Celá cesta, s lomítky /.
+shared_credentials_files = ["C:/Users/<vy>/.oci/s3-credentials"]
+profile                  = "default"

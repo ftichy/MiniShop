@@ -54,24 +54,7 @@ variable "tailscale_auth_key" {
 }
 
 variable "domain" {
-  description = "Doména, pro kterou Caddy získá certifikát (krok 5)."
+  description = "Doména MiniShopu – jen pro výpis dalších kroků (Caddy ji bere z deploy/production.env)."
   type        = string
   default     = "minishop-tichy.duckdns.org"
-}
-
-variable "basic_auth_user" {
-  description = "Uživatel pro zámek v Caddy (krok 5)."
-  type        = string
-  default     = "minishop"
-}
-
-variable "basic_auth_hash" {
-  description = "Bcrypt otisk hesla pro zámek v Caddy (caddy hash-password), ne heslo samotné."
-  type        = string
-  sensitive   = true
-
-  validation {
-    condition     = can(regex("^\\$2[aby]\\$[0-9]{2}\\$[./A-Za-z0-9]{53}$", var.basic_auth_hash))
-    error_message = "Čekám bcrypt otisk z 'caddy hash-password' (začíná $2a$14$…), bez uvozovek."
-  }
 }

@@ -8,11 +8,10 @@ set -euo pipefail
 exec > >(tee -a /var/log/minishop-bootstrap.log) 2>&1
 
 APP_DIR=/opt/minishop
-REPO=ftichy/MiniShop
 
 step() { echo; echo "=== [$(date -u +%FT%TZ)] $* ==="; }
 
-step "1/6 iptables: 80 a 443 (krok 4 E2)"
+step "1/5 iptables: 80 a 443 (krok 4 E2)"
 # Oraclův obraz Ubuntu odmítá vše kromě SSH pravidlem REJECT na konci INPUT. Povolení vložíme PŘED něj
 # a uložíme – ještě před instalací Dockeru, aby se do souboru neuložila i jeho dočasná pravidla.
 reject=$(iptables -L INPUT -n --line-numbers | awk '$2 == "REJECT" {print $1; exit}')
@@ -25,20 +24,20 @@ else
 fi
 iptables -L INPUT -n --line-numbers
 
-step "2/6 Docker (krok 4 E3)"
+step "2/5 Docker (krok 4 E3)"
 curl -fsSL https://get.docker.com | sh
 usermod -aG docker ubuntu
 docker version --format 'Docker {{.Server.Version}} ({{.Server.Arch}})'
 docker compose version
 
-step "3/6 Tailscale (krok 8 C1)"
+step "3/5 Tailscale (krok 8 C1)"
 # Auth key nahrazuje ruční přihlášení odkazem. Je jednorázový a s tagem – po použití je bezcenný.
 curl -fsSL https://tailscale.com/install.sh | sh
 tailscale up --auth-key='${tailscale_auth_key}' --hostname=minishop-vm \
     --advertise-tags=tag:minishop-vm --accept-dns=false
 echo "Tailscale IP: $(tailscale ip -4)"
 
-step "4/6 Uživatel deploy s vynuceným příkazem (krok 8 D1, D3)"
+step "4/5 Uživatel deploy s vynuceným příkazem (krok 8 D1, D3)"
 useradd --create-home --shell /bin/bash --groups docker deploy
 install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
 # Klíč GitHub Actions smí spustit jen minishop-deploy (ten z cloud-init/write_files).
@@ -46,33 +45,9 @@ echo 'restrict,command="/usr/local/bin/minishop-deploy" ${deploy_ssh_public_key}
 chown deploy:deploy /home/deploy/.ssh/authorized_keys
 chmod 600 /home/deploy/.ssh/authorized_keys
 
-step "5/6 Konfigurace aplikace v $APP_DIR (kroky 2, 5, 7)"
+step "5/5 Složka aplikace $APP_DIR"
+# Krok 10: VM nedostane žádné secrets aplikace. Konfiguraci (deploy/production.env), .env i první start
+# udělá až první nasazení z GitHubu: Actions → Deploy → Run workflow (secrets z environmentu production).
 install -d -m 755 -o deploy -g deploy "$APP_DIR"
-for f in compose.yaml compose.cloud.yaml Caddyfile set-basic-auth.sh; do
-    curl -fsSL --retry 3 "https://raw.githubusercontent.com/$REPO/main/deploy/$f" -o "$APP_DIR/$f"
-done
-# Heslo k RabbitMQ vymyslí server sám (jako v kroku 4 G2) – nikde jinde neexistuje.
-# IMAGE_TAG=latest jen pro první start; první nasazení z GitHubu ho přepíše na sha-… (deploy.sh).
-umask 077
-cat > "$APP_DIR/.env" <<EOF
-RABBITMQ_USER=minishop
-RABBITMQ_PASSWORD=$(openssl rand -hex 24)
-IMAGE_PREFIX=ghcr.io/ftichy/
-IMAGE_TAG=latest
-COMPOSE_FILE=compose.yaml:compose.cloud.yaml
-DOMAIN=${domain}
-BASIC_AUTH=on
-BASIC_AUTH_USER=${basic_auth_user}
-EOF
-# Otisk hesla obsahuje znaky $ – zapsat doslova (printf, jednoduché uvozovky), ne přes heredoc výše.
-printf "BASIC_AUTH_HASH='%s'\n" '${basic_auth_hash}' >> "$APP_DIR/.env"
-umask 022
-chown -R deploy:deploy "$APP_DIR"
-chmod 600 "$APP_DIR/.env"
 
-step "6/6 První start MiniShopu"
-cd "$APP_DIR"
-sudo -u deploy docker compose up -d --wait --wait-timeout 300
-sudo -u deploy docker compose ps --format '{{.Service}}\t{{.Image}}\t{{.Status}}'
-
-step "Hotovo"
+step "Hotovo – MiniShop nasadí první běh workflow Deploy"

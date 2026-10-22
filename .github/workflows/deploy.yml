@@ -67,8 +67,16 @@ jobs:
         env:
           SHA: ${{ inputs.sha }}
           DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
-        # Jediné, co se posílá, je SHA – vynucený příkaz na VM ho dostane v SSH_ORIGINAL_COMMAND.
-        run: ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes "deploy@$DEPLOY_HOST" "$SHA"
+          # Krok 10: secrets aplikace – jediný zdroj pravdy je environment production. Výměna hesla = změnit
+          # secret + spustit Deploy (deploy.sh heslo RabbitMQ sám vymění i v běžícím RabbitMQ).
+          RABBITMQ_PASSWORD: ${{ secrets.RABBITMQ_PASSWORD }}
+          BASIC_AUTH_HASH: ${{ secrets.BASIC_AUTH_HASH }}
+        # Jako příkaz jde jen SHA (vynucený příkaz ho dostane v SSH_ORIGINAL_COMMAND). Secrets jdou na
+        # standardní vstup – nejsou v příkazové řádce runneru ani VM a v logu je GitHub zamaskuje (***).
+        run: |
+          [[ -n "$RABBITMQ_PASSWORD" && -n "$BASIC_AUTH_HASH" ]] || { echo "::error::Chybí secret RABBITMQ_PASSWORD nebo BASIC_AUTH_HASH v environmentu production"; exit 1; }
+          printf 'RABBITMQ_PASSWORD=%s\nBASIC_AUTH_HASH=%s\n' "$RABBITMQ_PASSWORD" "$BASIC_AUTH_HASH" \
+            | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes "deploy@$DEPLOY_HOST" "$SHA"
 
       # Zvenku přes internet: platný certifikát (curl bez -k) a Caddy odpovídá. 401 = zámek funguje.
       - name: Smoke test zvenku

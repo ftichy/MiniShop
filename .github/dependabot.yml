@@ -16,6 +16,8 @@ updates:
     groups:
       microsoft:
         patterns: ["Microsoft.*", "Aspire.*"]
+        # Test.Sdk patří do skupiny tests – jinak by ho nabízely dva PR najednou.
+        exclude-patterns: ["Microsoft.NET.Test.Sdk"]
       opentelemetry:
         patterns: ["OpenTelemetry*"]
       serilog:

@@ -8,11 +8,8 @@ compartment_ocid = "ocid1.compartment.oc1..aaaa…"
 # Pre-approved zapnuto, Tags: tag:minishop-vm, Expiration 1 den. Jednorázový – na další novou VM nový.
 tailscale_auth_key = "tskey-auth-…"
 
-# Otisk hesla pro zámek v Caddy (krok 5). Stávající ze staré VM:
-#   ssh minishop-vm "sudo -u deploy grep BASIC_AUTH_HASH /opt/minishop/.env"
-# nebo nový: docker run --rm -it caddy:2 caddy hash-password
-# Sem BEZ jednoduchých uvozovek, jen $2a$14$… (v HCL řetězci $ nevadí).
-basic_auth_hash = "$2a$14$…"
+# Secrets aplikace (heslo RabbitMQ, otisk hesla do webu) sem NEPATŘÍ – od kroku 10 jsou jen v GitHubu
+# (environment production) a na VM je pošle workflow Deploy. Viz docs/secrets.md.
 
 # Volitelné (výchozí hodnoty ve variables.tf):
 # availability_domain_index = 1      # při "Out of host capacity"

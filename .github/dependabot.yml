@@ -1,0 +1,47 @@
+# Cloud krok 10: Dependabot – jednou týdně zkontroluje závislosti a na nové verze otevře PR.
+# PR projde stejným CI jako každý jiný (Build a testy, zkušební build image); sloučení je ruční.
+# Bezpečnostní opravy (Dependabot security updates) chodí hned, nezávisle na tomto rozvrhu.
+version: 2
+updates:
+  # NuGet balíčky všech projektů. Skupiny = související balíčky v jednom PR – jinak by např. Microsoft.Extensions.*
+  # přišly v různých verzích a build by spadl na NU1605 (konflikt verzí, viz CLAUDE.md).
+  - package-ecosystem: nuget
+    directories: ["/src/*", "/tests/*"]
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: deps
+    groups:
+      microsoft:
+        patterns: ["Microsoft.*", "Aspire.*"]
+      opentelemetry:
+        patterns: ["OpenTelemetry*"]
+      serilog:
+        patterns: ["Serilog*"]
+      tests:
+        patterns: ["xunit*", "Microsoft.NET.Test.Sdk", "NetArchTest*"]
+
+  # Akce ve workflows (actions/checkout, docker/*, tailscale/github-action…).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # Základní image v Dockerfile (.NET SDK a runtime).
+  - package-ecosystem: docker
+    directories:
+      - /src/MiniShop.Web
+      - /src/MiniShop.Inventory.Api
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: docker

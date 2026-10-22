@@ -6,13 +6,21 @@
 # Text, který klient pošle jako příkaz (ssh deploy@vm "<sha>"), dostane skript v SSH_ORIGINAL_COMMAND.
 # Ručně (jako ubuntu): sudo -u deploy /usr/local/bin/minishop-deploy <celý sha commitu>
 #
-# Postup: ověří vstup → stáhne deploy/ z GitHubu přesně pro daný commit → IMAGE_TAG=sha-<7 znaků>
+# Krok 10: tajné hodnoty posílá GitHub Actions na standardní vstup (ne v příkazu – ten je vidět v logu
+# a v seznamu procesů), každou na řádek KLÍČ=hodnota:
+#   RABBITMQ_PASSWORD=…
+#   BASIC_AUTH_HASH=$2a$14$…
+# Co na vstupu chybí (ruční spuštění z terminálu), vezme se z dosavadního .env. Netajná konfigurace je v gitu
+# (deploy/production.env). Soubor .env na VM skript pokaždé sestaví znovu – ruční změny v něm nepřežijí.
+# Změněné heslo RabbitMQ nejdřív vymění v běžícím RabbitMQ (RABBITMQ_DEFAULT_PASS platí jen při prvním startu).
+#
+# Postup: ověří vstup → stáhne deploy/ z GitHubu přesně pro daný commit → sestaví .env (IMAGE_TAG=sha-<7 znaků>)
 #         → docker compose pull → up --wait (čeká na healthchecky) → při chybě vrátí předchozí verzi.
 set -euo pipefail
 
 APP_DIR=/opt/minishop
 REPO=ftichy/MiniShop
-FILES=(compose.yaml compose.cloud.yaml Caddyfile)
+FILES=(compose.yaml compose.cloud.yaml Caddyfile production.env)
 
 sha="${SSH_ORIGINAL_COMMAND:-${1:-}}"
 # Jen celý SHA commitu (40 malých hexa znaků). Nic jiného – žádné mezery, středníky, cesty.
@@ -22,14 +30,47 @@ if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]]; then
 fi
 tag="sha-${sha:0:7}"
 
+# Tajné hodnoty ze vstupu – jen známé klíče a jen hodnoty v očekávaném tvaru (do .env se nesmí dostat nic jiného).
+# Z terminálu (ruční spuštění) se nečte nic.
+rabbitmq_password=""
+basic_auth_hash=""
+if [ ! -t 0 ]; then
+    while IFS= read -r line || [ -n "$line" ]; do
+        [ -z "$line" ] && continue
+        key="${line%%=*}"
+        value="${line#*=}"
+        case "$key" in
+            RABBITMQ_PASSWORD)
+                # Jen písmena a číslice: heslo je součástí adresy amqp://uzivatel:heslo@rabbitmq.
+                [[ "$value" =~ ^[A-Za-z0-9]{24,128}$ ]] || { echo "Chybný RABBITMQ_PASSWORD (24–128 písmen/číslic)." >&2; exit 2; }
+                rabbitmq_password="$value" ;;
+            BASIC_AUTH_HASH)
+                [[ "$value" =~ ^\$2[aby]\$[0-9]{2}\$[./A-Za-z0-9]{53}$ ]] || { echo "Chybný BASIC_AUTH_HASH (čekám bcrypt otisk)." >&2; exit 2; }
+                basic_auth_hash="$value" ;;
+            *)
+                echo "Neznámý klíč na vstupu: $key" >&2
+                exit 2 ;;
+        esac
+    done
+fi
+
 cd "$APP_DIR"
 exec 9>"$APP_DIR/.deploy.lock"
 flock -n 9 || { echo "Jiné nasazení právě běží." >&2; exit 3; }
 
 log() { echo "[$(date -u +%FT%TZ)] $*" | tee -a "$APP_DIR/deploy.log"; }
 
-previous_tag=$(grep '^IMAGE_TAG=' .env | cut -d= -f2 || true)
-log "Nasazuji $tag (commit $sha), předchozí $previous_tag"
+# Hodnota z dosavadního .env (bez případných jednoduchých uvozovek); prázdná, když soubor nebo řádek chybí.
+current() { [ -f .env ] && grep "^$1=" .env | tail -n 1 | cut -d= -f2- | tr -d "'" || true; }
+
+previous_tag=$(current IMAGE_TAG)
+previous_rabbitmq_password=$(current RABBITMQ_PASSWORD)
+rabbitmq_password="${rabbitmq_password:-$previous_rabbitmq_password}"
+basic_auth_hash="${basic_auth_hash:-$(current BASIC_AUTH_HASH)}"
+[ -n "$rabbitmq_password" ] || { echo "Chybí RABBITMQ_PASSWORD (na vstupu ani v .env)." >&2; exit 2; }
+[ -n "$basic_auth_hash" ] || { echo "Chybí BASIC_AUTH_HASH (na vstupu ani v .env)." >&2; exit 2; }
+
+log "Nasazuji $tag (commit $sha), předchozí ${previous_tag:-žádná}"
 
 # 1. Konfigurace pro daný commit – stáhne se do dočasné složky; když cokoli chybí, nic se nezmění.
 work=$(mktemp -d)
@@ -38,24 +79,57 @@ for f in "${FILES[@]}"; do
     curl -fsSL --retry 3 "https://raw.githubusercontent.com/$REPO/$sha/deploy/$f" -o "$work/$f"
 done
 
+# 2. Nový .env = netajná konfigurace z gitu + štítek image + tajné hodnoty. Práva 600 od vzniku souboru.
+(
+    umask 077
+    {
+        echo "# Generuje minishop-deploy při každém nasazení – ruční změny přepíše. Zdroj: deploy/production.env + secrets z GitHubu."
+        grep -v -e '^\s*#' -e '^\s*$' "$work/production.env"
+        echo "IMAGE_TAG=$tag"
+        echo "RABBITMQ_PASSWORD=$rabbitmq_password"
+        # Otisk obsahuje znaky $ – v jednoduchých uvozovkách, jinak by je Compose bral jako proměnné.
+        echo "BASIC_AUTH_HASH='$basic_auth_hash'"
+    } > "$work/.env"
+)
+rabbitmq_user=$(grep '^RABBITMQ_USER=' "$work/.env" | cut -d= -f2-)
+
 # Záloha současného stavu pro rollback.
 mkdir -p previous
-cp .env previous/.env
+[ -f .env ] && cp -p .env previous/.env
 for f in "${FILES[@]}"; do [ -f "$f" ] && cp "$f" "previous/$f"; done
 
+rabbitmq_rotated=false
+rotate_rabbitmq_password() {
+    # Heslo v příkazu je na VM krátce vidět v seznamu procesů – rabbitmqctl ho jinak převzít neumí.
+    docker compose exec -T rabbitmq rabbitmqctl --quiet change_password "$rabbitmq_user" "$1" > /dev/null
+}
+
 rollback() {
-    log "CHYBA – vracím $previous_tag"
-    cp previous/.env .env
-    for f in "${FILES[@]}"; do [ -f "previous/$f" ] && cp "previous/$f" "$f"; done
-    docker compose up -d --wait --wait-timeout 180 || log "Rollback se také nepovedl – zásah ručně!"
+    log "CHYBA – vracím ${previous_tag:-(nic – první nasazení)}"
+    if [ "$rabbitmq_rotated" = true ]; then
+        rotate_rabbitmq_password "$previous_rabbitmq_password" || log "Heslo RabbitMQ se nepodařilo vrátit!"
+    fi
+    if [ -f previous/.env ]; then
+        cp -p previous/.env .env
+        for f in "${FILES[@]}"; do [ -f "previous/$f" ] && cp "previous/$f" "$f"; done
+        docker compose up -d --wait --wait-timeout 180 || log "Rollback se také nepovedl – zásah ručně!"
+    fi
     exit 1
 }
 
-# 2. Nová konfigurace a tag.
-cp "$work"/* .
-sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=$tag/" .env
+# 3. Výměna hesla RabbitMQ (rotace): změnit ho v běžícím RabbitMQ dřív, než se služby spustí s novým.
+if [ -n "$previous_rabbitmq_password" ] && [ "$rabbitmq_password" != "$previous_rabbitmq_password" ] \
+    && [ -n "$(docker compose ps --status running --quiet rabbitmq 2>/dev/null)" ]; then
+    log "Měním heslo RabbitMQ (uživatel $rabbitmq_user)"
+    rotate_rabbitmq_password "$rabbitmq_password" || rollback
+    rabbitmq_rotated=true
+fi
 
-# 3. Image a spuštění. --wait = počkat, až budou kontejnery healthy (smoke test na VM).
+# 4. Nová konfigurace a tag.
+cp "$work"/* .
+cp -p "$work/.env" .env
+
+# 5. Image a spuštění. --wait = počkat, až budou kontejnery healthy (smoke test na VM).
 docker compose pull --quiet || rollback
 docker compose up -d --remove-orphans --wait --wait-timeout 180 || rollback
 

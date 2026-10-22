@@ -153,7 +153,8 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
 - Git Bash: u `docker exec … /cesta` použít `MSYS_NO_PATHCONV=1`.
 - Compose (krok 2): `cd deploy && docker compose up -d --build` → http://localhost:8080, RabbitMQ UI http://localhost:15673
   (údaje z `deploy/.env`, vzor `.env.example`, `.env` je v `.gitignore`). `docker compose down` data nechá, `down -v` smaže volumes.
-  Nová proměnná prostředí pro službu = přidat do `compose.yaml` (a tajnou hodnotu do `.env.example` jako vzor).
+  Nová proměnná prostředí pro službu = přidat do `compose.yaml` (a tajnou hodnotu do `.env.example` jako vzor;
+  pro produkci netajnou do `deploy/production.env`, tajnou viz Secrets níže).
   Healthcheck .NET služeb: bash `/dev/tcp` na `/health` (image nemá curl). `/health` nehlídá RabbitMQ.
 - VM (krok 4): `ssh minishop-vm` (zkratka v `~/.ssh/config` uživatele → Tailscale IP `100.126.167.103`, uživatel `ubuntu`,
   klíč s passphrase – neinteraktivně jen přes ssh-agent). Aplikace v `/opt/minishop` (vlastník `deploy`, `.env` 600 –
@@ -167,18 +168,27 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   rollback). Ruční nasazení/rollback: *Actions → Deploy → Run workflow* se SHA, nebo na VM
   `sudo -u deploy minishop-deploy <SHA>`. Změna `deploy/deploy.sh` = ručně znovu nainstalovat na VM.
   Port 22 je z internetu zavřený – SSH jen přes Tailscale. Nouzově: pravidlo 22 v security listu vrátit.
-  Secrets/proměnné jen v environmentu `production`: `TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`, `DEPLOY_SSH_KEY`, `DEPLOY_HOST`, `DEPLOY_KNOWN_HOSTS`.
+  Secrets/proměnné jen v environmentu `production`: `TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`, `DEPLOY_SSH_KEY`,
+  `RABBITMQ_PASSWORD`, `BASIC_AUTH_HASH` (krok 10), `DEPLOY_HOST`, `DEPLOY_KNOWN_HOSTS`.
 - HTTPS (krok 5): `https://minishop-tichy.duckdns.org` (reserved IP `141.144.255.238`), Caddy z `deploy/compose.cloud.yaml`
   + `deploy/Caddyfile`, na VM zapnuté přes `COMPOSE_FILE=compose.yaml:compose.cloud.yaml` v `.env`. Web není publikovaný ven.
-  Basic auth (uživatel `minishop`, heslo zná jen uživatel – změna `cd /opt/minishop && sudo -u deploy bash set-basic-auth.sh`),
-  vypíná `BASIC_AUTH=off`. Security list: 80/443 z celého internetu (22 od kroku 8 zavřený). Volume `caddy-data` (certifikáty) nemazat.
+  Basic auth (uživatel `minishop`, heslo zná jen uživatel – změna = secret `BASIC_AUTH_HASH`, viz `docs/secrets.md` R2),
+  vypíná `BASIC_AUTH=off` v `deploy/production.env`. Security list: 80/443 z celého internetu (22 od kroku 8 zavřený). Volume `caddy-data` (certifikáty) nemazat.
 - IaC (krok 9): `infra/` (OpenTofu, provider `oracle/oci`), spouští uživatel na PC: `tofu init "-backend-config=backend.hcl"` (v PowerShellu v uvozovkách – jinak rozdělí argument s tečkou),
   `tofu plan`, `tofu apply` (přihlášení `~/.oci/config` = `minishop-automation`). State v bucketu `minishop-tfstate` (S3 API,
   klíč `~/.oci/s3-credentials`); `backend.hcl`, `terraform.tfvars` a state nejsou v gitu. VM připraví cloud-init
   (`cloud-init.yaml.tftpl` → `bootstrap.sh.tftpl`, log `/var/log/minishop-bootstrap.log`), `deploy/deploy.sh` jde na VM
   přes `filebase64`. VM má `ignore_changes` na obraz a metadata – změna cloud-init/`deploy.sh` = `tofu apply -replace=oci_core_instance.vm`
   (ztráta dat!). Reserved IP má `prevent_destroy`. Bash v šablonách `.tftpl`: jen `$var`, ne `${var}` (to je OpenTofu).
-  Nová VM: nový Tailscale auth key, IP v Tailscale adminu vrátit na `100.126.167.103`, aktualizovat `DEPLOY_KNOWN_HOSTS`.
+  Nová VM: nový Tailscale auth key, IP v Tailscale adminu vrátit na `100.126.167.103`, aktualizovat `DEPLOY_KNOWN_HOSTS`,
+  pak *Run workflow* Deploy (od kroku 10 cloud-init aplikaci nespouští – nemá secrets).
+- Secrets (krok 10): registr všech secrets a postupy výměny v `docs/secrets.md` (nový secret = nový řádek tam).
+  Secrets aplikace jen v GitHub environmentu `production` (`RABBITMQ_PASSWORD`, `BASIC_AUTH_HASH`); Deploy je pošle
+  na stdin SSH, `deploy.sh` přijme jen známé klíče a sestaví `.env` na VM pokaždé znovu (`deploy/production.env`
+  + `IMAGE_TAG` + secrets) – ruční úpravy `.env` na VM nepřežijí. Netajná konfigurace produkce = `deploy/production.env`
+  (změna přes PR). Nový secret aplikace = `deploy.yml` (env + printf), `deploy.sh` (case + kontrola tvaru), registr.
+  Změněné heslo RabbitMQ `deploy.sh` vymění i v běžícím RabbitMQ (`rabbitmqctl change_password`). OpenTofu nemá secrets aplikace.
+  Secret scanning + push protection a Dependabot (`.github/dependabot.yml`) zapnuté; historie ověřená gitleaks.
 - CI (krok 6): workflow „CI“, job „Build a testy“ (= povinný status check v rulesetu). Repozitář `ftichy/MiniShop` je veřejný –
   nic tajného do gitu. `main` jen přes PR se zeleným CI (bez přímého push). SDK určuje `global.json` (10.0.200, `latestFeature`).
   Nový projekt/závislost = ověřit, že CI na Linuxu projde.
@@ -194,7 +204,7 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
 | 7. Image do registry (GHCR, job `images`: PR zkušební build, `main` push x86+ARM, tagy `sha-…`/`latest`, veřejné) | hotovo | `docs/kroky-cloud/krok-07-registry.md` |
 | 8. CD – automatické nasazení (`deploy.yml`, Tailscale, uživatel `deploy` s vynuceným příkazem, rollback) | hotovo | `docs/kroky-cloud/krok-08-cd.md` |
 | 9. Infrastruktura jako kód (OpenTofu `infra/`: síť, VM, cloud-init, import reserved IP, state v OCI bucketu) | hotovo (ruční VM/VCN smazané, vše z `tofu apply`) | `docs/kroky-cloud/krok-09-iac.md` |
-| 10. Secrets a konfigurace | čeká | — |
+| 10. Secrets a konfigurace (secrets jen v GitHub `production` → stdin → `deploy.sh`, `production.env`, rotace RabbitMQ, registr `docs/secrets.md`, secret scanning, Dependabot) | kód hotový, čeká na provedení (secrets v GitHubu, PR, nový `deploy.sh` na VM, rotace) | `docs/kroky-cloud/krok-10-secrets.md` |
 | 11. Monitoring a logy v cloudu | čeká | — |
 | 12. Zálohy a obnova po havárii | čeká | — |
 

@@ -23,16 +23,14 @@ data "oci_core_images" "ubuntu" {
 locals {
   shape = "VM.Standard.A1.Flex"
 
-  # cloud-init = co VM provede při prvním startu (Docker, firewall, Tailscale, uživatel deploy, MiniShop).
+  # cloud-init = co VM provede při prvním startu (Docker, firewall, Tailscale, uživatel deploy).
   # Skripty se vloží jako base64, aby jejich obsah nerozbilo odsazení YAML.
+  # Krok 10: žádné secrets aplikace – ty na VM pošle až workflow Deploy z GitHubu.
   user_data = templatefile("${path.module}/cloud-init.yaml.tftpl", {
     deploy_script_b64 = filebase64("${path.module}/../deploy/deploy.sh")
     bootstrap_b64 = base64encode(templatefile("${path.module}/bootstrap.sh.tftpl", {
       tailscale_auth_key    = var.tailscale_auth_key
       deploy_ssh_public_key = trimspace(file(pathexpand(var.deploy_ssh_public_key_path)))
-      domain                = var.domain
-      basic_auth_user       = var.basic_auth_user
-      basic_auth_hash       = var.basic_auth_hash
     }))
   })
 }

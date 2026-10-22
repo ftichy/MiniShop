@@ -204,7 +204,7 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
 | 7. Image do registry (GHCR, job `images`: PR zkušební build, `main` push x86+ARM, tagy `sha-…`/`latest`, veřejné) | hotovo | `docs/kroky-cloud/krok-07-registry.md` |
 | 8. CD – automatické nasazení (`deploy.yml`, Tailscale, uživatel `deploy` s vynuceným příkazem, rollback) | hotovo | `docs/kroky-cloud/krok-08-cd.md` |
 | 9. Infrastruktura jako kód (OpenTofu `infra/`: síť, VM, cloud-init, import reserved IP, state v OCI bucketu) | hotovo (ruční VM/VCN smazané, vše z `tofu apply`) | `docs/kroky-cloud/krok-09-iac.md` |
-| 10. Secrets a konfigurace (secrets jen v GitHub `production` → stdin → `deploy.sh`, `production.env`, rotace RabbitMQ, registr `docs/secrets.md`, secret scanning, Dependabot) | kód hotový, čeká na provedení (secrets v GitHubu, PR, nový `deploy.sh` na VM, rotace) | `docs/kroky-cloud/krok-10-secrets.md` |
+| 10. Secrets a konfigurace (secrets jen v GitHub `production` → stdin → `deploy.sh`, `production.env`, rotace RabbitMQ, registr `docs/secrets.md`, secret scanning, Dependabot) | hotovo (heslo RabbitMQ vyměněno pipeline, ověřeno objednávkou) | `docs/kroky-cloud/krok-10-secrets.md` |
 | 11. Monitoring a logy v cloudu | čeká | — |
 | 12. Zálohy a obnova po havárii | čeká | — |
 

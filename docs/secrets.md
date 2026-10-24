@@ -14,6 +14,7 @@ Pravidla:
 | --- | --- | --- | --- | --- |
 | `RABBITMQ_PASSWORD` | heslo účtu `minishop` v RabbitMQ (Web a sklad se jím přihlašují) | `.env` na VM (600, vlastník `deploy`) – sestaví ho `deploy.sh` | [R1](#r1-heslo-rabbitmq) | při podezření na únik, jinak 1× ročně |
 | `BASIC_AUTH_HASH` | bcrypt otisk hesla pro zámek v Caddy (heslo zná jen uživatel) | `.env` na VM | [R2](#r2-heslo-do-webu-basic-auth) | při podezření, při odchodu člověka, který heslo zná |
+| `HEALTHCHECKS_BACKUP_URL` | adresa, kam noční záloha hlásí průběh (healthchecks.io, krok 12) – kdo ji zná, může hlídači „nalhat“ zálohu | `.env` na VM | healthchecks.io → kontrola → *Ping URL* → *Regenerate* → secret → Deploy | při podezření |
 
 ## Secrets nasazení (GitHub → Environments → `production`)
 
@@ -32,6 +33,7 @@ Pravidla:
 | Customer Secret Key `tofu-state` | OpenTofu čte/zapisuje state přes S3 API | `~/.oci/s3-credentials` | [R6](#r6-customer-secret-key-pro-state) | 1× za 90 dní |
 | SSH klíč `minishop_oci` (s passphrase) | správcovský přístup `ubuntu@minishop-vm` přes Tailscale | `~/.ssh/minishop_oci` | [R7](#r7-ssh-klíč-správce) | při ztrátě PC |
 | Tailscale auth key | připojení NOVÉ VM do Tailscale (cloud-init) | `infra/terraform.tfvars`, state OpenTofu, metadata VM | jednorázový – na každou novou VM nový | po použití je bezcenný |
+| Identita VM (instance principal) | VM se přihlásí k bucketu záloh bez klíče (krok 12) | nikde – OCI ji odvozuje z dynamické skupiny `minishop-vm` | není co měnit; práva řídí politika `minishop-backups` | — |
 
 ## Netajné, ale citlivé
 

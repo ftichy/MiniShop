@@ -1,0 +1,16 @@
+# Cloud krok 12: jedna záloha MiniShopu (spouští ji minishop-backup.timer). Na VM v /etc/systemd/system/.
+#   sudo systemctl start minishop-backup     # záloha hned
+#   journalctl -u minishop-backup -n 50      # výpis posledních záloh
+[Unit]
+Description=MiniShop – záloha databází do OCI Object Storage
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=deploy
+WorkingDirectory=/opt/minishop
+ExecStart=/opt/minishop/backup.sh
+# Ať noční záloha nikdy nevisí donekonečna.
+TimeoutStartSec=20min

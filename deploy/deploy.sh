@@ -10,6 +10,7 @@
 # a v seznamu procesů), každou na řádek KLÍČ=hodnota:
 #   RABBITMQ_PASSWORD=…
 #   BASIC_AUTH_HASH=$2a$14$…
+#   HEALTHCHECKS_BACKUP_URL=https://hc-ping.com/…   (krok 12, volitelný)
 # Co na vstupu chybí (ruční spuštění z terminálu), vezme se z dosavadního .env. Netajná konfigurace je v gitu
 # (deploy/production.env). Soubor .env na VM skript pokaždé sestaví znovu – ruční změny v něm nepřežijí.
 # Změněné heslo RabbitMQ nejdřív vymění v běžícím RabbitMQ (RABBITMQ_DEFAULT_PASS platí jen při prvním startu).
@@ -21,6 +22,8 @@ set -euo pipefail
 APP_DIR=/opt/minishop
 REPO=ftichy/MiniShop
 FILES=(compose.yaml compose.cloud.yaml Caddyfile production.env)
+# Krok 12: skripty záloh. Volitelné – starší commity (ruční rollback přes Deploy) je ještě nemají.
+OPTIONAL_FILES=(backup.py backup.sh restore.sh)
 
 sha="${SSH_ORIGINAL_COMMAND:-${1:-}}"
 # Jen celý SHA commitu (40 malých hexa znaků). Nic jiného – žádné mezery, středníky, cesty.
@@ -34,6 +37,7 @@ tag="sha-${sha:0:7}"
 # Z terminálu (ruční spuštění) se nečte nic.
 rabbitmq_password=""
 basic_auth_hash=""
+healthchecks_backup_url=""
 if [ ! -t 0 ]; then
     while IFS= read -r line || [ -n "$line" ]; do
         [ -z "$line" ] && continue
@@ -47,6 +51,10 @@ if [ ! -t 0 ]; then
             BASIC_AUTH_HASH)
                 [[ "$value" =~ ^\$2[aby]\$[0-9]{2}\$[./A-Za-z0-9]{53}$ ]] || { echo "Chybný BASIC_AUTH_HASH (čekám bcrypt otisk)." >&2; exit 2; }
                 basic_auth_hash="$value" ;;
+            HEALTHCHECKS_BACKUP_URL)
+                # Krok 12: adresa, kam backup.sh hlásí průběh zálohy (prázdná = nehlásit).
+                [[ -z "$value" || "$value" =~ ^https://hc-ping\.com/[A-Za-z0-9-]{8,64}$ ]] || { echo "Chybný HEALTHCHECKS_BACKUP_URL (čekám https://hc-ping.com/<uuid>)." >&2; exit 2; }
+                healthchecks_backup_url="$value" ;;
             *)
                 echo "Neznámý klíč na vstupu: $key" >&2
                 exit 2 ;;
@@ -67,6 +75,7 @@ previous_tag=$(current IMAGE_TAG)
 previous_rabbitmq_password=$(current RABBITMQ_PASSWORD)
 rabbitmq_password="${rabbitmq_password:-$previous_rabbitmq_password}"
 basic_auth_hash="${basic_auth_hash:-$(current BASIC_AUTH_HASH)}"
+healthchecks_backup_url="${healthchecks_backup_url:-$(current HEALTHCHECKS_BACKUP_URL)}"
 [ -n "$rabbitmq_password" ] || { echo "Chybí RABBITMQ_PASSWORD (na vstupu ani v .env)." >&2; exit 2; }
 [ -n "$basic_auth_hash" ] || { echo "Chybí BASIC_AUTH_HASH (na vstupu ani v .env)." >&2; exit 2; }
 
@@ -78,6 +87,11 @@ trap 'rm -rf "$work"' EXIT
 for f in "${FILES[@]}"; do
     curl -fsSL --retry 3 "https://raw.githubusercontent.com/$REPO/$sha/deploy/$f" -o "$work/$f"
 done
+for f in "${OPTIONAL_FILES[@]}"; do
+    curl -fsSL --retry 3 "https://raw.githubusercontent.com/$REPO/$sha/deploy/$f" -o "$work/$f" 2>/dev/null \
+        || { rm -f "$work/$f"; log "  $f v commitu není – přeskočeno"; }
+done
+chmod 755 "$work"/*.sh 2>/dev/null || true
 
 # 2. Nový .env = netajná konfigurace z gitu + štítek image + tajné hodnoty. Práva 600 od vzniku souboru.
 (
@@ -89,6 +103,8 @@ done
         echo "RABBITMQ_PASSWORD=$rabbitmq_password"
         # Otisk obsahuje znaky $ – v jednoduchých uvozovkách, jinak by je Compose bral jako proměnné.
         echo "BASIC_AUTH_HASH='$basic_auth_hash'"
+        [ -n "$healthchecks_backup_url" ] && echo "HEALTHCHECKS_BACKUP_URL=$healthchecks_backup_url"
+        true
     } > "$work/.env"
 )
 rabbitmq_user=$(grep '^RABBITMQ_USER=' "$work/.env" | cut -d= -f2-)
@@ -131,7 +147,7 @@ if [ -n "$previous_rabbitmq_password" ] && [ "$rabbitmq_password" != "$previous_
 fi
 
 # 4. Nová konfigurace a tag.
-cp "$work"/* .
+cp -p "$work"/* .   # -p: zachovat práva (skripty záloh spustitelné)
 cp -p "$work/.env" .env
 
 # 5. Image a spuštění. --wait = počkat, až budou kontejnery healthy (smoke test na VM).

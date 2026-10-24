@@ -27,7 +27,9 @@ locals {
   # Skripty se vloží jako base64, aby jejich obsah nerozbilo odsazení YAML.
   # Krok 10: žádné secrets aplikace – ty na VM pošle až workflow Deploy z GitHubu.
   user_data = templatefile("${path.module}/cloud-init.yaml.tftpl", {
-    deploy_script_b64 = filebase64("${path.module}/../deploy/deploy.sh")
+    deploy_script_b64  = filebase64("${path.module}/../deploy/deploy.sh")
+    backup_service_b64 = filebase64("${path.module}/../deploy/minishop-backup.service")
+    backup_timer_b64   = filebase64("${path.module}/../deploy/minishop-backup.timer")
     bootstrap_b64 = base64encode(templatefile("${path.module}/bootstrap.sh.tftpl", {
       tailscale_auth_key    = var.tailscale_auth_key
       deploy_ssh_public_key = trimspace(file(pathexpand(var.deploy_ssh_public_key_path)))

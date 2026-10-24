@@ -20,6 +20,7 @@ output "next_steps" {
     2. ssh minishop-vm "cloud-init status; sudo tail -n 15 /var/log/minishop-bootstrap.log"
     3. ssh minishop-vm "ssh-keyscan -t ed25519 100.126.167.103 2>/dev/null"  → GitHub proměnná DEPLOY_KNOWN_HOSTS
     4. GitHub → Actions → Deploy → Run workflow (SHA posledního commitu na main s image) → MiniShop se spustí
-    5. https://${var.domain}
+    5. Data ze zálohy: ssh minishop-vm "sudo -u deploy /opt/minishop/restore.sh latest"
+    6. https://${var.domain}
   EOT
 }

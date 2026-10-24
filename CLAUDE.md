@@ -183,7 +183,7 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   přes `filebase64`. VM má `ignore_changes` na obraz a metadata – změna cloud-init/`deploy.sh` = `tofu apply -replace=oci_core_instance.vm`
   (ztráta dat!). Reserved IP má `prevent_destroy`. Bash v šablonách `.tftpl`: jen `$var`, ne `${var}` (to je OpenTofu).
   Nová VM: nový Tailscale auth key, IP v Tailscale adminu vrátit na `100.126.167.103`, aktualizovat `DEPLOY_KNOWN_HOSTS`,
-  pak *Run workflow* Deploy (od kroku 10 cloud-init aplikaci nespouští – nemá secrets).
+  pak *Run workflow* Deploy (od kroku 10 cloud-init aplikaci nespouští – nemá secrets) a data `restore.sh latest` (krok 12).
 - Secrets (krok 10): registr všech secrets a postupy výměny v `docs/secrets.md` (nový secret = nový řádek tam).
   Secrets aplikace jen v GitHub environmentu `production` (`RABBITMQ_PASSWORD`, `BASIC_AUTH_HASH`); Deploy je pošle
   na stdin SSH, `deploy.sh` přijme jen známé klíče a sestaví `.env` na VM pokaždé znovu (`deploy/production.env`
@@ -197,6 +197,14 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   (keyword `Healthy`, case sensitive). Smoke test v `deploy.yml` kontroluje obě na `Healthy`. Nová služba s telemetrií =
   `<<: *otel-env` + `OTEL_SERVICE_NAME` v compose. Alarmy VM (CPU, paměť, chybějící metriky) + e-mail v `infra/monitoring.tf`
   (OCI Monitoring + Notifications, `alert_email` v `terraform.tfvars`).
+- Zálohy (krok 12): `minishop-backup.timer` (02:30 UTC, uživatel `deploy`) → `/opt/minishop/backup.sh` → `backup.py`
+  v kontejneru `ghcr.io/oracle/oci-cli:20261007` (online backup SQLite `ordering/journeys/inventory.db` + `/data/keys`
+  → `minishop-RRRRMMDDTHHMMSSZ.tar.gz` → bucket `minishop-backups`, lifecycle 7 dní). VM se přihlašuje jako instance principal
+  (dynamická skupina `minishop-vm`, politika v `infra/backup.tf`: číst + vytvářet, ne mazat). Obnova:
+  `sudo -u deploy /opt/minishop/restore.sh latest|<jméno>|list` (zastaví web + inventory-api, původní soubory nechá jako
+  `*.before-restore-…`). Skripty záloh přináší `deploy.sh` z gitu (volitelné soubory – starší commity je nemají),
+  jednotky systemd cloud-init. Hlídač zálohy: healthchecks.io (`HEALTHCHECKS_BACKUP_URL`, volitelný secret).
+  Nová DB/soubor s daty = přidat do `DATABASES` v `backup.py`. Před rizikovou akcí ruční záloha `sudo systemctl start minishop-backup`.
 - CI (krok 6): workflow „CI“, job „Build a testy“ (= povinný status check v rulesetu). Repozitář `ftichy/MiniShop` je veřejný –
   nic tajného do gitu. `main` jen přes PR se zeleným CI (bez přímého push). SDK určuje `global.json` (10.0.200, `latestFeature`).
   Nový projekt/závislost = ověřit, že CI na Linuxu projde.
@@ -214,7 +222,7 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
 | 9. Infrastruktura jako kód (OpenTofu `infra/`: síť, VM, cloud-init, import reserved IP, state v OCI bucketu) | hotovo (ruční VM/VCN smazané, vše z `tofu apply`) | `docs/kroky-cloud/krok-09-iac.md` |
 | 10. Secrets a konfigurace (secrets jen v GitHub `production` → stdin → `deploy.sh`, `production.env`, rotace RabbitMQ, registr `docs/secrets.md`, secret scanning, Dependabot) | hotovo (heslo RabbitMQ vyměněno pipeline, ověřeno objednávkou) | `docs/kroky-cloud/krok-10-secrets.md` |
 | 11. Monitoring a logy v cloudu (Aspire dashboard v Compose, `/health` pro UptimeRobot, alarmy OCI v `infra/monitoring.tf`) | kód hotový, čeká na provedení (PR, UptimeRobot, alarmy, zkouška výpadku) | `docs/kroky-cloud/krok-11-monitoring.md` |
-| 12. Zálohy a obnova po havárii | čeká | — |
+| 12. Zálohy a obnova po havárii (noční online backup SQLite → OCI bucket přes instance principal, `restore.sh`, healthchecks.io, cvičná havárie) | kód hotový, čeká na provedení (dynamická skupina, tofu, PR, první záloha, cvičná havárie) | `docs/kroky-cloud/krok-12-zalohy.md` |
 
 ## Postup práce na dalším kroku EDA
 1. Nejdřív **shrň**, co se bude přidávat/měnit a **proč** (teorie + konkrétní případ v MiniShopu),

@@ -8,6 +8,9 @@ compartment_ocid = "ocid1.compartment.oc1..aaaa…"
 # Pre-approved zapnuto, Tags: tag:minishop-vm, Expiration 1 den. Jednorázový – na další novou VM nový.
 tailscale_auth_key = "tskey-auth-…"
 
+# Kam posílat alarmy VM (krok 11, OCI Notifications). Po prvním apply potvrďte odběr odkazem v e-mailu.
+alert_email = "vy@example.com"
+
 # Secrets aplikace (heslo RabbitMQ, otisk hesla do webu) sem NEPATŘÍ – od kroku 10 jsou jen v GitHubu
 # (environment production) a na VM je pošle workflow Deploy. Viz docs/secrets.md.
 

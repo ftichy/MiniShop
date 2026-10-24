@@ -29,7 +29,30 @@ x-dotnet-healthcheck: &dotnet-healthcheck
   retries: 3
   start_period: 30s
 
+# Cloud krok 11: telemetrie (trasy, logy, metriky) do Aspire dashboardu – stejně jako lokálně přes AppHost.
+# ServiceDefaults exportují OTLP jen tehdy, když je nastavené OTEL_EXPORTER_OTLP_ENDPOINT (kód se nemění).
+# OTEL_SERVICE_NAME = jméno služby v dashboardu (lokálně ho nastavuje Aspire).
+x-otel-env: &otel-env
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://aspire-dashboard:18889
+
 services:
+  # Cloud krok 11: samostatný Aspire dashboard. Telemetrii drží jen v paměti (restart = prázdný).
+  # Lokálně http://localhost:18888, na VM https://dashboard.<doména> přes Caddy s heslem (compose.cloud.yaml).
+  aspire-dashboard:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:13.6
+    restart: unless-stopped
+    environment:
+      DASHBOARD__APPLICATIONNAME: MiniShop
+      # Přihlášení řeší Caddy (basic auth) – port dashboardu není z internetu přímo dostupný.
+      DASHBOARD__FRONTEND__AUTHMODE: Unsecured
+      # OTLP (18889) jen uvnitř sítě Compose – posílat sem můžou jen naše kontejnery.
+      DASHBOARD__OTLP__AUTHMODE: Unsecured
+    ports:
+      # Jen z tohoto počítače (127.0.0.1). OTLP port 18889 ven nepublikujeme.
+      - "127.0.0.1:18888:18888"
+    # Telemetrie v paměti roste až k limitům dashboardu (10 000 tras/logů na službu) – pojistka pro malou VM.
+    mem_limit: 512m
+
   rabbitmq:
     image: rabbitmq:4-management
     # Pevné jméno uzlu: RabbitMQ ukládá data do složky pojmenované podle hostname.
@@ -61,6 +84,8 @@ services:
       dockerfile: src/MiniShop.Inventory.Api/Dockerfile
     restart: unless-stopped
     environment:
+      <<: *otel-env
+      OTEL_SERVICE_NAME: inventory-api
       ConnectionStrings__messaging: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
     volumes:
       - inventory-data:/data
@@ -77,6 +102,8 @@ services:
       dockerfile: src/MiniShop.Web/Dockerfile
     restart: unless-stopped
     environment:
+      <<: *otel-env
+      OTEL_SERVICE_NAME: web
       ConnectionStrings__messaging: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
       # Jméno služby "inventory-api" je zároveň DNS jméno kontejneru v síti Compose.
       Services__inventory-api__http__0: http://inventory-api:8080

@@ -11,6 +11,10 @@ services:
     # !reset smaže "ports" zděděné z compose.yaml (nestačí je jen nevypsat – seznamy se slučují).
     ports: !reset []
 
+  # Krok 11: dashboard jen přes Caddy (https://dashboard.<doména>, basic auth) – ne přímo z VM.
+  aspire-dashboard:
+    ports: !reset []
+
   caddy:
     image: caddy:2
     restart: unless-stopped

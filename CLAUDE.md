@@ -137,7 +137,8 @@ Služby sdílí knihovny Application/Infrastructure (změna jádra = nasadit ob�
 Obnova katalogu (`SyncCatalogV1`) produkty nemaže – zmeškané `ProductRemovedV1` neopraví.
 Při výpadku skladu trvají první načtení stránek ~4 s, pak circuit breaker (ServiceDefaults) odpovídá hned.
 Timeout ságy a obnova katalogu začínají vlastní trasu (nenavazují na původní požadavek). Telemetrie jde jen do Aspire
-dashboardu (v paměti, bez vzorkování); bez Aspire se neexportuje, trace ID je jen v logu a v outboxu.
+dashboardu (v paměti, bez vzorkování) – lokálně přes AppHost, v Compose/cloudu do kontejneru `aspire-dashboard`
+(cloud krok 11); bez `OTEL_EXPORTER_OTLP_ENDPOINT` se neexportuje, trace ID je jen v logu a v outboxu.
 Testy běží bez RabbitMQ (`RecordingIntegrationBus` nad `InProcessIntegrationBus` – celá sága v procesu).
 Testy: `ProcessOutboxAsync` jede kola, dokud přibývají zprávy (opakuje i selhané), `ProcessOneRoundAsync` = jedno kolo,
 čas posouvá `FixedTimeProvider.Advance` (timeout ságy).
@@ -189,6 +190,12 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   (změna přes PR). Nový secret aplikace = `deploy.yml` (env + printf), `deploy.sh` (case + kontrola tvaru), registr.
   Změněné heslo RabbitMQ `deploy.sh` vymění i v běžícím RabbitMQ (`rabbitmqctl change_password`). OpenTofu nemá secrets aplikace.
   Secret scanning + push protection a Dependabot (`.github/dependabot.yml`) zapnuté; historie ověřená gitleaks.
+- Monitoring (krok 11): služba `aspire-dashboard` v `compose.yaml` (OTLP `aspire-dashboard:18889` přes `OTEL_EXPORTER_OTLP_ENDPOINT`
+  + `OTEL_SERVICE_NAME`, telemetrie jen v paměti; lokálně http://localhost:18888, v cloudu https://dashboard.minishop-tichy.duckdns.org
+  přes Caddy vždy s basic auth). Caddy pouští bez hesla jen `/health` (web) a `/health/inventory` (sklad) – hlídá je UptimeRobot
+  (keyword `Healthy`, case sensitive). Smoke test v `deploy.yml` kontroluje obě na `Healthy`. Nová služba s telemetrií =
+  `<<: *otel-env` + `OTEL_SERVICE_NAME` v compose. Alarmy VM (CPU, paměť, chybějící metriky) + e-mail v `infra/monitoring.tf`
+  (OCI Monitoring + Notifications, `alert_email` v `terraform.tfvars`).
 - CI (krok 6): workflow „CI“, job „Build a testy“ (= povinný status check v rulesetu). Repozitář `ftichy/MiniShop` je veřejný –
   nic tajného do gitu. `main` jen přes PR se zeleným CI (bez přímého push). SDK určuje `global.json` (10.0.200, `latestFeature`).
   Nový projekt/závislost = ověřit, že CI na Linuxu projde.
@@ -205,7 +212,7 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
 | 8. CD – automatické nasazení (`deploy.yml`, Tailscale, uživatel `deploy` s vynuceným příkazem, rollback) | hotovo | `docs/kroky-cloud/krok-08-cd.md` |
 | 9. Infrastruktura jako kód (OpenTofu `infra/`: síť, VM, cloud-init, import reserved IP, state v OCI bucketu) | hotovo (ruční VM/VCN smazané, vše z `tofu apply`) | `docs/kroky-cloud/krok-09-iac.md` |
 | 10. Secrets a konfigurace (secrets jen v GitHub `production` → stdin → `deploy.sh`, `production.env`, rotace RabbitMQ, registr `docs/secrets.md`, secret scanning, Dependabot) | hotovo (heslo RabbitMQ vyměněno pipeline, ověřeno objednávkou) | `docs/kroky-cloud/krok-10-secrets.md` |
-| 11. Monitoring a logy v cloudu | čeká | — |
+| 11. Monitoring a logy v cloudu (Aspire dashboard v Compose, `/health` pro UptimeRobot, alarmy OCI v `infra/monitoring.tf`) | kód hotový, čeká na provedení (PR, UptimeRobot, alarmy, zkouška výpadku) | `docs/kroky-cloud/krok-11-monitoring.md` |
 | 12. Zálohy a obnova po havárii | čeká | — |
 
 ## Postup práce na dalším kroku EDA

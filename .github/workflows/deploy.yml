@@ -84,6 +84,12 @@ jobs:
           code=$(curl -s -o /dev/null -w '%{http_code}' --retry 5 --retry-all-errors --retry-delay 5 https://minishop-tichy.duckdns.org/)
           echo "HTTPS → $code"
           [[ "$code" == "401" || "$code" == "200" ]] || { echo "::error::Neočekávaná odpověď $code"; exit 1; }
+          # Krok 11: zdraví obou služeb je zvenku bez hesla (pro UptimeRobot) – musí být přesně "Healthy".
+          for path in /health /health/inventory; do
+            body=$(curl -s --retry 5 --retry-all-errors --retry-delay 5 "https://minishop-tichy.duckdns.org$path")
+            echo "$path → $body"
+            [[ "$body" == "Healthy" ]] || { echo "::error::$path vrací '$body'"; exit 1; }
+          done
 
       - name: Úklid klíče
         if: always()

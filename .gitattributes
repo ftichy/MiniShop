@@ -2,3 +2,8 @@
 # OpenTofu je čte z disku PC a posílá na VM (cloud-init); s CRLF by bash na VM spadl ("$'\r': command not found").
 *.sh    text eol=lf
 *.tftpl text eol=lf
+# Cloud krok 12: jednotky systemd jdou na VM i přes OpenTofu (filebase64 z disku Windows) – s CRLF by systemd
+# četl "ExecStart=/opt/minishop/backup.sh\r". Python skript záloh běží v Linuxu.
+*.service text eol=lf
+*.timer   text eol=lf
+*.py      text eol=lf

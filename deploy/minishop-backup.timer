@@ -1,0 +1,13 @@
+# Cloud krok 12: každou noc záloha MiniShopu (minishop-backup.service). Na VM v /etc/systemd/system/.
+#   systemctl list-timers minishop-backup    # kdy poběží příště
+[Unit]
+Description=MiniShop – noční záloha (02:30 UTC)
+
+[Timer]
+OnCalendar=*-*-* 02:30:00 UTC
+# Když VM v tu dobu neběžela, zálohovat hned po startu.
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

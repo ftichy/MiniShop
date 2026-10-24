@@ -50,4 +50,10 @@ step "5/5 Složka aplikace $APP_DIR"
 # udělá až první nasazení z GitHubu: Actions → Deploy → Run workflow (secrets z environmentu production).
 install -d -m 755 -o deploy -g deploy "$APP_DIR"
 
+step "Noční záloha (krok 12)"
+# Jednotky zapsal cloud-init (write_files). Skripty záloh do $APP_DIR přinese první nasazení (deploy.sh).
+systemctl daemon-reload
+systemctl enable --now minishop-backup.timer
+systemctl list-timers minishop-backup.timer --no-pager
+
 step "Hotovo – MiniShop nasadí první běh workflow Deploy"

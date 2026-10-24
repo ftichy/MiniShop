@@ -63,6 +63,24 @@ variable "alert_email" {
   }
 }
 
+variable "identity_domain" {
+  description = "Identity domain, ve které je dynamická skupina VM (krok 12)."
+  type        = string
+  default     = "Default"
+}
+
+variable "vm_dynamic_group" {
+  description = "Dynamická skupina = identita VM pro zálohy (instance principal). Zakládá se ručně v konzoli (krok 12)."
+  type        = string
+  default     = "minishop-vm"
+}
+
+variable "backup_retention_days" {
+  description = "Po kolika dnech OCI zálohu samo smaže."
+  type        = number
+  default     = 7
+}
+
 variable "domain" {
   description = "Doména MiniShopu – jen pro výpis dalších kroků (Caddy ji bere z deploy/production.env)."
   type        = string

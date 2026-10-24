@@ -21,6 +21,19 @@ write_files:
     encoding: b64
     content: ${deploy_script_b64}
 
+  # Krok 12: noční záloha (deploy/minishop-backup.*) – timer zapne bootstrap. Skripty záloh přinese deploy.sh.
+  - path: /etc/systemd/system/minishop-backup.service
+    owner: root:root
+    permissions: '0644'
+    encoding: b64
+    content: ${backup_service_b64}
+
+  - path: /etc/systemd/system/minishop-backup.timer
+    owner: root:root
+    permissions: '0644'
+    encoding: b64
+    content: ${backup_timer_b64}
+
   # Vlastní příprava serveru (infra/bootstrap.sh.tftpl).
   - path: /usr/local/sbin/minishop-bootstrap
     owner: root:root

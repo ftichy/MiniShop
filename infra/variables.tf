@@ -53,6 +53,16 @@ variable "tailscale_auth_key" {
   sensitive   = true
 }
 
+variable "alert_email" {
+  description = "E-mail pro alarmy VM (krok 11). Po prvním apply přijde výzva k potvrzení odběru."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.alert_email))
+    error_message = "Čekám e-mailovou adresu."
+  }
+}
+
 variable "domain" {
   description = "Doména MiniShopu – jen pro výpis dalších kroků (Caddy ji bere z deploy/production.env)."
   type        = string

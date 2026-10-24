@@ -24,8 +24,29 @@
 }
 
 {$DOMAIN} {
-	import auth-{$BASIC_AUTH:on}
+	# Krok 11: zdraví služeb pro externího hlídače (UptimeRobot) BEZ hesla – jen tyto dvě přesné adresy.
+	# Odpověď je jen Healthy / Degraded / Unhealthy, žádná data.
+	handle /health {
+		reverse_proxy web:8080
+	}
+	handle /health/inventory {
+		rewrite * /health
+		reverse_proxy inventory-api:8080
+	}
 
-	encode zstd gzip
-	reverse_proxy web:8080
+	handle {
+		import auth-{$BASIC_AUTH:on}
+
+		encode zstd gzip
+		reverse_proxy web:8080
+	}
+}
+
+# Krok 11: Aspire dashboard (trasy, logy, metriky) na subdoméně – DuckDNS ji obslouží sám (*.minishop-tichy…),
+# certifikát získá Caddy stejně jako pro hlavní doménu. Pod cestou (/dashboard) dashboard běžet neumí.
+# Vždy se zámkem (i při BASIC_AUTH=off) – logy obsahují údaje z objednávek.
+dashboard.{$DOMAIN} {
+	import auth-on
+
+	reverse_proxy aspire-dashboard:18888
 }

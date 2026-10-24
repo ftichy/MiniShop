@@ -146,6 +146,17 @@ na současné VM jednotky systemd v `/etc/systemd/system/` a nový `minishop-dep
   hlídač proto čeká, že se ozve on.
 - **Bez zálohy RabbitMQ a certifikátů** – dočasná data / vyžádají se znovu.
 
+## Výsledek cvičné havárie (24. 10. 2026)
+
+VM smazaná v konzoli i s diskem → `tofu apply` → Tailscale IP + `DEPLOY_KNOWN_HOSTS` → Deploy → `restore.sh latest`.
+Objednávky vytvořené před poslední zálohou jsou zpět se stejnými čísly. Samotná obnova dat (`restore.sh`) trvala
+přibližně 5 minut (nestopováno přesně). Celkové RTO tvoří hlavně čekání: vytvoření VM (~1 min), cloud-init
+(~5–8 min), ruční kroky v Tailscale a GitHubu, nasazení (~1 min) a obnova.
+
+Co by RTO zkrátilo: pevný otisk SSH serveru (odpadne `DEPLOY_KNOWN_HOSTS`), Tailscale OAuth klient pro VM
+(odpadne ruční auth key a úprava IP), obnova spouštěná automaticky po prvním nasazení na prázdnou VM.
+Pro výukový projekt s RPO 24 h je ruční postup přijatelný – a hlavně je teď vyzkoušený.
+
 ## Známá omezení
 
 - **RPO až 24 h** – před rizikovou akcí (změna schématu, ruční zásah) spusťte zálohu ručně (F1).

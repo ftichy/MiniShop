@@ -98,6 +98,7 @@ subdoménu vašeho jména (`*.minishop-tichy.duckdns.org` → stejná IP) a Cadd
 | `deploy/compose.cloud.yaml` | dashboard bez publikovaného portu (jen přes Caddy) |
 | `deploy/Caddyfile` | `/health` a `/health/inventory` bez hesla, subdoména `dashboard.{$DOMAIN}` vždy se zámkem |
 | `.github/workflows/deploy.yml` | smoke test: `/health` a `/health/inventory` musí vrátit `Healthy` |
+| `deploy/deploy.sh` | při změně `Caddyfile` `caddy reload` (i při rollbacku) – viz *Past: Caddy nenačte nový Caddyfile* |
 | `infra/variables.tf`, `infra/terraform.tfvars.example` | proměnná `alert_email` |
 
 Mimo repozitář: účet UptimeRobot se 2 monitory, potvrzený odběr OCI Notifications, `alert_email` v `terraform.tfvars`.
@@ -113,6 +114,19 @@ Mimo repozitář: účet UptimeRobot se 2 monitory, potvrzený odběr OCI Notifi
 - **UptimeRobot, ne healthchecks.io** – aktivně se ptá zvenku (healthchecks.io čeká, až se ozve VM – „dead man's switch“).
 - **Alarmy OCI v OpenTofu** – další kus infrastruktury jako kód; po nové VM se alarmy přenastaví samy (nové OCID).
 - **15 minut trvání podmínky** – restart nebo build krátce vytíží CPU a alarm by zbytečně budil.
+
+## Past: Caddy nenačte nový Caddyfile
+
+První nasazení kroku 11 skončilo v smoke testu chybou `/health vrací ''`: zvenku `/health` vracel `401` a subdoména
+dashboardu neměla certifikát. `deploy.sh` sice na VM přepsal `Caddyfile` novou verzí, ale ten je do kontejneru
+připojený jako soubor – **Caddy jeho změnu sám nenačte** a Compose kontejner nerestartuje (image ani proměnné se
+nezměnily). Od kroku 5 se `Caddyfile` neměnil, proto se na to dosud nepřišlo.
+
+Oprava: `deploy.sh` po `up` porovná `Caddyfile` s předchozím a při změně zavolá
+`docker compose exec caddy caddy reload` – nová konfigurace bez výpadku (i při rollbacku). Nový `deploy.sh`
+se na VM musel nainstalovat ručně ještě **před** sloučením opravy (jinak by nasazení opravy provedl starý skript).
+Ponaučení: smoke test, který kontroluje i konfiguraci proxy, chybu odhalil hned – bez něj by se na ni přišlo,
+až by UptimeRobot hlásil „down“.
 
 ## Známá omezení
 

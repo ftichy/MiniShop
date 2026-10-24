@@ -167,7 +167,8 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   runner přes Tailscale (`tag:ci`, OAuth) → `ssh deploy@100.126.167.103 "<celý SHA>"` → vynucený příkaz
   `/usr/local/bin/minishop-deploy` (= `deploy/deploy.sh`; stáhne `deploy/` z GitHubu pro commit, `pull`, `up --wait`,
   rollback). Ruční nasazení/rollback: *Actions → Deploy → Run workflow* se SHA, nebo na VM
-  `sudo -u deploy minishop-deploy <SHA>`. Změna `deploy/deploy.sh` = ručně znovu nainstalovat na VM.
+  `sudo -u deploy minishop-deploy <SHA>`. Změna `deploy/deploy.sh` = ručně znovu nainstalovat na VM
+  (**před** sloučením, pokud na změně závisí její vlastní nasazení). Změněný `Caddyfile` `deploy.sh` načte přes `caddy reload`.
   Port 22 je z internetu zavřený – SSH jen přes Tailscale. Nouzově: pravidlo 22 v security listu vrátit.
   Secrets/proměnné jen v environmentu `production`: `TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`, `DEPLOY_SSH_KEY`,
   `RABBITMQ_PASSWORD`, `BASIC_AUTH_HASH` (krok 10), `DEPLOY_HOST`, `DEPLOY_KNOWN_HOSTS`.

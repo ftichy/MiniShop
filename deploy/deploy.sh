@@ -104,6 +104,10 @@ rotate_rabbitmq_password() {
     docker compose exec -T rabbitmq rabbitmqctl --quiet change_password "$rabbitmq_user" "$1" > /dev/null
 }
 
+reload_caddy() {
+    docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile
+}
+
 rollback() {
     log "CHYBA – vracím ${previous_tag:-(nic – první nasazení)}"
     if [ "$rabbitmq_rotated" = true ]; then
@@ -113,6 +117,7 @@ rollback() {
         cp -p previous/.env .env
         for f in "${FILES[@]}"; do [ -f "previous/$f" ] && cp "previous/$f" "$f"; done
         docker compose up -d --wait --wait-timeout 180 || log "Rollback se také nepovedl – zásah ručně!"
+        reload_caddy || log "Caddy se nepodařilo znovu načíst – zásah ručně!"
     fi
     exit 1
 }
@@ -132,6 +137,13 @@ cp -p "$work/.env" .env
 # 5. Image a spuštění. --wait = počkat, až budou kontejnery healthy (smoke test na VM).
 docker compose pull --quiet || rollback
 docker compose up -d --remove-orphans --wait --wait-timeout 180 || rollback
+
+# 6. Krok 11: Caddyfile je do kontejneru připojený jako soubor – Caddy jeho změnu sám nenačte a kontejner
+#    se nerestartuje (image ani proměnné se nezměnily). Proto ho při změně načíst znovu (bez výpadku).
+if ! cmp -s Caddyfile previous/Caddyfile; then
+    log "Caddyfile se změnil – načítám ho v Caddy znovu"
+    reload_caddy || rollback
+fi
 
 log "Hotovo: $tag"
 docker compose ps --format '{{.Service}}\t{{.Image}}\t{{.Status}}'

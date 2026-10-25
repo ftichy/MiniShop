@@ -114,11 +114,12 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   (`src/MiniShop.Web/Documentation/`, Markdig; Mermaid lokálně ve `wwwroot/lib/mermaid`). Soubory se kopírují do buildu
   i do image (`COPY docs/prirucka` v Dockerfile Webu, výjimka v `.dockerignore`); v Development se čtou přímo z repozitáře.
 - Odkazy: na stránku relativně `[x](../eda/inbox.md)`, do kódu `[x](code:src/…)`, v diagramu `click uzel "/Docs/…"`.
-  Automatické bloky `{{auto:contracts|domain-events|journey-event-types}}`.
+  Automatické bloky `{{auto:contracts|domain-events|journey-event-types|nuget-packages}}` (balíčky z `*.deps.json`).
 - **Změna chování/struktury = upravit příslušnou stránku ve stejné změně.** `DocumentationTests` hlídají odkazy na stránky
-  i soubory, zmínku každého projektu ve `src/`, kontraktu a doménové události.
-- Stav: fáze 1 hotová (aplikace: architektura, moduly, EDA koncepty, sekvenční a stavové diagramy);
-  fáze 2 čeká (nasazení, cloud, GitHub, aplikace třetích stran, slovníček).
+  i soubory, zmínku každého projektu ve `src/`, kontraktu, doménové události, NuGet balíčku (katalog `treti-strany/`),
+  Docker image, GitHub Action, secretu/proměnné workflow a souboru v `deploy/` a `infra/`.
+- Push do `main` jen se změnou `docs/prirucka/**` spustí CI i nasazení (`paths` v `ci.yml`); jiné změny jen v `docs/` a `*.md` ne.
+- Sekce: přehled, architektura, EDA, toky (sekvenční diagramy), nasazení, GitHub a CI/CD, třetí strany, slovníček, historie.
 
 ## Stav EDA (viz `docs/EDA-roadmap.md`)
 | Krok | Stav | Souhrn |

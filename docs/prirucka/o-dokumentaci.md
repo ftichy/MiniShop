@@ -49,7 +49,7 @@ v MiniShopu** (diagram) → **Proč takhle** → **Kód** → **Na internetu**.
 | obsah vygenerovaný z kódu | samostatný řádek `{{auto:contracts}}` |
 
 Dostupné automatické bloky: `contracts` (integrační zprávy), `domain-events` (doménové události),
-`journey-event-types` (typy událostí Journeys).
+`journey-event-types` (typy událostí Journeys), `nuget-packages` (NuGet balíčky s verzemi z `*.deps.json` běžící aplikace).
 
 Odkazy do kódu vedou na produkci na **commit, ze kterého běží image** (proměnná `Documentation__Commit`
 = `IMAGE_TAG`), jinak na větev `main`.
@@ -63,6 +63,15 @@ Text se sám nepřepíše, ale testy v
 - odkazy mezi stránkami (i kliky v diagramech) vedou na existující stránky,
 - odkazy do kódu vedou na existující soubory – **přejmenujete-li třídu, test vám řekne, kterou stránku opravit**,
 - každý projekt ve `src/` je v dokumentaci zmíněný,
-- každý kontrakt a každá doménová událost je zmíněná i mimo automatickou tabulku (tj. někdo popsal, k čemu je).
+- každý kontrakt a každá doménová událost je zmíněná i mimo automatickou tabulku (tj. někdo popsal, k čemu je),
+- každý NuGet balíček (ze všech `.csproj`), každá Docker image z Compose a Dockerfile a každá GitHub Action
+  z workflow je v katalogu [třetích stran](treti-strany/index.md),
+- každý secret a proměnná z `deploy.yml` je popsaná v [Secrets](github/secrets.md),
+- každý soubor ve `deploy/` a `infra/` je v dokumentaci zmíněný.
+
+## Kdy se dokumentace nasadí
+
+Příručka je součást image Webu. Push do `main`, který mění jen `docs/prirucka/**`, proto **spustí CI i nasazení**
+(ostatní čistě dokumentační změny nic nestaví) – viz [CI](github/ci.md).
 
 Pravidlo pro vývoj: **změna chování = úprava příslušné stránky ve stejném PR.**

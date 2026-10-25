@@ -1,4 +1,5 @@
 using System.Text;
+using Microsoft.Extensions.DependencyModel;
 using MiniShop.Contracts;
 using MiniShop.Domain.Common;
 using MiniShop.Domain.Journeys;
@@ -19,7 +20,8 @@ public static class DocumentationAutoBlocks
     {
         ["contracts"] = Contracts,
         ["domain-events"] = DomainEvents,
-        ["journey-event-types"] = JourneyEventTypes
+        ["journey-event-types"] = JourneyEventTypes,
+        ["nuget-packages"] = NuGetPackages
     };
 
     public static IReadOnlyCollection<string> Names => Blocks.Keys.ToList();
@@ -72,6 +74,44 @@ public static class DocumentationAutoBlocks
     private static string JourneyEventTypes() =>
         string.Join(" → ", Enum.GetNames<JourneyEventType>().Select(n => $"`{n}`"))
         + "\n\n*Seznam je vygenerovaný z `JourneyEventType` při zobrazení stránky.*\n";
+
+    /// <summary>
+    /// NuGet balíčky, na které přímo odkazují projekty MiniShop.* – i s verzí, která skutečně běží.
+    /// Zdroj je <c>*.deps.json</c> spuštěné aplikace (vzniká při buildu), takže tabulka nikdy nelže.
+    /// </summary>
+    private static string NuGetPackages()
+    {
+        var context = DependencyContext.Default;
+        if (context is null)
+        {
+            return "> Seznam balíčků není k dispozici (chybí soubor *.deps.json).\n";
+        }
+
+        var packages = context.RuntimeLibraries
+            .Where(l => l.Type == "package")
+            .ToDictionary(l => l.Name, l => l.Version, StringComparer.OrdinalIgnoreCase);
+
+        var usage = context.RuntimeLibraries
+            .Where(l => l.Type == "project" && l.Name.StartsWith("MiniShop.", StringComparison.Ordinal))
+            .SelectMany(project => project.Dependencies
+                .Where(d => packages.ContainsKey(d.Name))
+                .Select(d => (Package: d.Name, Project: project.Name)))
+            .GroupBy(x => x.Package, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase);
+
+        var table = new StringBuilder()
+            .AppendLine("| Balíček | Verze | Projekty |")
+            .AppendLine("| --- | --- | --- |");
+        foreach (var group in usage)
+        {
+            var projects = string.Join(", ", group.Select(x => x.Project).Distinct().Order().Select(p => $"`{p}`"));
+            table.AppendLine($"| [{group.Key}](https://www.nuget.org/packages/{group.Key}) | {packages[group.Key]} | {projects} |");
+        }
+
+        return table.AppendLine()
+            .AppendLine("*Tabulka je vygenerovaná ze souboru `*.deps.json` běžící aplikace – verze odpovídají nasazenému buildu.*")
+            .ToString();
+    }
 
     private static string LastNamespaceSegment(Type type) => type.Namespace?.Split('.')[^1] ?? string.Empty;
 

@@ -70,11 +70,29 @@ je všechno v jedné databázi a jednom procesu. MiniShop ukazuje, co dělat, kd
 
 ASP.NET Core (.NET 10), EF Core + SQLite (každý modul vlastní soubor DB), RabbitMQ, .NET Aspire pro lokální
 spouštění, OpenTelemetry, Serilog, xUnit. V cloudu Docker Compose na virtuálním stroji v Oracle Cloud, před
-ním Caddy (HTTPS), nasazování přes GitHub Actions.
+ním Caddy (HTTPS), nasazování přes GitHub Actions. Celý katalog s důvody výběru: [Aplikace třetích stran](treti-strany/index.md).
+
+## Kde MiniShop běží
+
+```mermaid
+flowchart LR
+    pc(["PC vývojáře<br/>Aspire"]) -->|"pull request"| gh["GitHub<br/>CI/CD"]
+    gh -->|"image + nasazení"| vm["Oracle Cloud<br/>VM s Docker Compose"]
+    user(["Uživatel"]) -->|HTTPS| vm
+
+    click pc "/Docs/nasazeni/lokalne"
+    click gh "/Docs/github"
+    click vm "/Docs/nasazeni"
+```
+
+Podrobně: [Nasazení a provoz](nasazeni/index.md) a [GitHub a CI/CD](github/index.md).
 
 ## Kde začít
 
 - **Jste tu poprvé?** Přečtěte si [Event-driven architekturu](eda/index.md) – vysvětluje pojmy v pořadí, ve kterém vznikaly.
 - **Chcete vidět, co se děje při objednávce?** [Sekvenční diagramy](toky/index.md).
 - **Zajímá vás struktura kódu?** [Architektura aplikace](architektura/index.md).
+- **Jak se aplikace dostane do cloudu?** [Nasazení a provoz](nasazeni/index.md), [GitHub a CI/CD](github/index.md).
+- **Neznámý pojem?** [Slovníček](slovnicek.md).
+- **Jak to celé vznikalo?** [Historie](historie.md).
 - **Chcete dokumentaci upravit?** [O této dokumentaci](o-dokumentaci.md).

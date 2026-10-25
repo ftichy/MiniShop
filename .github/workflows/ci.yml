@@ -6,10 +6,14 @@ on:
   push:
     branches: [main]
     # Krok 8: změna jen dokumentace po sloučení nic nestaví ani nenasazuje (testy proběhly už v PR).
+    # Výjimka: příručka v aplikaci (docs/prirucka, /Docs) je součást image Webu – její změna se nasadit musí.
+    # Pořadí vzorů je důležité: rozhoduje poslední, který na soubor pasuje.
     # U pull_request se NEfiltruje – povinný check "Build a testy" musí dorazit u každého PR, jinak by nešel sloučit.
-    paths-ignore:
-      - 'docs/**'
-      - '**/*.md'
+    paths:
+      - '**'
+      - '!docs/**'
+      - '!**/*.md'
+      - 'docs/prirucka/**'
   pull_request:
   workflow_dispatch:        # ruční spuštění tlačítkem "Run workflow" v záložce Actions
 

@@ -113,6 +113,68 @@ public sealed partial class DocumentationTests
         AssertMentioned(events, "Doménové události");
     }
 
+    [Fact]
+    public void KazdyNuGetBalicek_JeVKataloguTretichStran()
+    {
+        var packages = Directory.EnumerateFiles(RepositoryRoot, "*.csproj", SearchOption.AllDirectories)
+            .Where(path => !IsBuildOutput(path))
+            .SelectMany(path => PackageReferencePattern().Matches(File.ReadAllText(path))
+                .Select(m => m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value))
+            .Distinct();
+
+        AssertMentionedLiterally(packages, "NuGet balíčky");
+    }
+
+    [Fact]
+    public void KazdaDockerImage_JeVKataloguTretichStran()
+    {
+        var sources = Directory.EnumerateFiles(Path.Combine(RepositoryRoot, "deploy"))
+            .Concat(Directory.EnumerateFiles(Path.Combine(RepositoryRoot, "src"), "Dockerfile", SearchOption.AllDirectories))
+            .Select(File.ReadAllText);
+        var images = sources
+            .SelectMany(text => DockerImagePattern().Matches(text).Select(m => m.Groups[1].Value))
+            .Where(image => !image.Contains('$') && image != "build")
+            .Select(image => image.Split(':')[0])
+            .Distinct();
+
+        AssertMentionedLiterally(images, "Docker image");
+    }
+
+    [Fact]
+    public void KazdaGitHubAction_JeVDokumentaci()
+    {
+        var actions = Directory.EnumerateFiles(Path.Combine(RepositoryRoot, ".github", "workflows"))
+            .SelectMany(path => GitHubActionPattern().Matches(File.ReadAllText(path)).Select(m => m.Groups[1].Value))
+            .Distinct();
+
+        AssertMentionedLiterally(actions, "GitHub Actions");
+    }
+
+    [Fact]
+    public void KazdySecretAPromennaWorkflow_JsouPopsane()
+    {
+        var names = Directory.EnumerateFiles(Path.Combine(RepositoryRoot, ".github", "workflows"))
+            .SelectMany(path => WorkflowSecretPattern().Matches(File.ReadAllText(path)).Select(m => m.Groups[1].Value))
+            .Distinct();
+
+        AssertMentionedLiterally(names, "Secrets a proměnné workflow");
+    }
+
+    [Fact]
+    public void KazdySouborNasazeniAInfrastruktury_JeVDokumentaci()
+    {
+        // Jen soubory z gitu – skutečné vstupy OpenTofu (terraform.tfvars, backend.hcl, state) a .env v repozitáři nejsou.
+        string[] ignored = ["terraform.tfvars", "backend.hcl", "crash.log"];
+        var files = new[] { "deploy", "infra" }
+            .SelectMany(dir => Directory.EnumerateFiles(Path.Combine(RepositoryRoot, dir)))
+            .Select(Path.GetFileName)
+            .OfType<string>()
+            .Where(name => !name.StartsWith('.') && !ignored.Contains(name)
+                           && !name.Contains(".tfstate", StringComparison.Ordinal) && !name.EndsWith(".tfplan", StringComparison.Ordinal));
+
+        AssertMentionedLiterally(files, "Soubory v deploy/ a infra/");
+    }
+
     [Theory]
     [InlineData("../CLAUDE")]
     [InlineData("eda/../../CLAUDE")]
@@ -166,6 +228,20 @@ public sealed partial class DocumentationTests
         Assert.True(missing.Count == 0, $"{what} bez popisu v docs/prirucka: " + string.Join(", ", missing));
     }
 
+    private static void AssertMentionedLiterally(IEnumerable<string> names, string what)
+    {
+        var all = names.ToList();
+        Assert.NotEmpty(all);   // pojistka: test nesmí projít jen proto, že vzor nic nenašel
+
+        var text = AllMarkdown();
+        var missing = all.Where(name => !text.Contains(name, StringComparison.Ordinal)).OrderBy(n => n).ToList();
+
+        Assert.True(missing.Count == 0, $"{what} bez zmínky v docs/prirucka: " + string.Join(", ", missing));
+    }
+
+    private static bool IsBuildOutput(string path) =>
+        path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Any(part => part is "bin" or "obj");
+
     private static string AllMarkdown() => string.Join('\n', Store.All().Select(p => p.Markdown));
 
     private static string FileOf(DocumentationPage page) => page.Slug.Length == 0 ? "index.md" : page.Slug;
@@ -191,4 +267,17 @@ public sealed partial class DocumentationTests
 
     [GeneratedRegex(@"\]\(code:([^)\s#]+)\)")]
     private static partial Regex CodeLinkPattern();
+
+    [GeneratedRegex("""<PackageReference\s+Include="([^"]+)"|Sdk="([^"/]+)/""")]
+    private static partial Regex PackageReferencePattern();
+
+    /// <summary>image: x v Compose, FROM [--platform=…] x [AS y] v Dockerfile, IMAGE=x ve skriptech.</summary>
+    [GeneratedRegex(@"(?m)^\s*(?:image:\s*|FROM\s+(?:--platform=\S+\s+)?|IMAGE=)(\S+)")]
+    private static partial Regex DockerImagePattern();
+
+    [GeneratedRegex(@"uses:\s*([\w.-]+/[\w.-]+)@")]
+    private static partial Regex GitHubActionPattern();
+
+    [GeneratedRegex(@"(?:secrets|vars)\.([A-Z][A-Z0-9_]+)")]
+    private static partial Regex WorkflowSecretPattern();
 }

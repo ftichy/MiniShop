@@ -7,6 +7,7 @@ using MiniShop.Infrastructure.Journeys;
 using MiniShop.Infrastructure.Ordering;
 using MiniShop.ServiceDefaults;
 using MiniShop.Web.BackgroundServices;
+using MiniShop.Web.Documentation;
 using MiniShop.Web.ErrorHandling;
 using MiniShop.Web.Extensions;
 using Serilog;
@@ -69,6 +70,9 @@ try
             .SetApplicationName("MiniShop.Web")
             .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
     }
+
+    // Příručka v aplikaci (/Docs): Markdown z docs/prirucka → HTML, diagramy Mermaid.
+    builder.Services.AddDocumentation(builder.Configuration, builder.Environment);
 
     builder.Services.AddControllers();
     builder.Services.AddRazorPages();

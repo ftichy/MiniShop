@@ -1,0 +1,107 @@
+---
+title: Modul Ordering
+summary: Objednávky, sága, kopie katalogu a oznámení zákazníkovi – komponenty a jejich spolupráce.
+order: 1
+---
+
+> **V jedné větě:** Ordering přijímá objednávky, řídí jejich životní cyklus (přes [ságu](../../eda/saga.md)) a zná
+> produkty jen ze své [kopie katalogu](../../eda/kopie-katalogu.md). Běží ve službě **Web**, data má v `ordering.db`.
+
+## Komponentní diagram
+
+```mermaid
+flowchart TB
+    subgraph entry["Vstupy"]
+        ui["Razor Page Orders/Index<br/>OrdersController (REST)"]
+        consumer["Consumer fronty<br/>minishop.ordering"]
+        timeout["OrderSagaTimeoutWorker<br/>(každých 5 s)"]
+        sync["CatalogSyncOnStartupWorker"]
+    end
+
+    subgraph app["Application/Ordering"]
+        svc["OrderService<br/>use-casy objednávek"]
+        saga["OrderSagaOrchestrator<br/>řídí rezervaci skladu"]
+        translate["PublishOrderIntegrationEventsHandler<br/>doménové → integrační"]
+        notify["Send…Handler (4×)<br/>oznámení zákazníkovi"]
+        catalog["CatalogProjectionHandler<br/>kopie katalogu"]
+        catsync["CatalogSyncService"]
+        pricing["IDiscountPolicy<br/>QuantityDiscountPolicy"]
+    end
+
+    subgraph domain["Domain/Orders"]
+        order["Order + OrderItem"]
+        sagaState["OrderSaga<br/>stavový automat"]
+        catProd["CatalogProduct"]
+    end
+
+    subgraph infra["Infrastructure/Ordering"]
+        db[("OrderingDbContext<br/>ordering.db + outbox + inbox")]
+        notifier["LoggingOrderNotifier"]
+    end
+
+    ui --> svc
+    svc --> pricing
+    svc --> order
+    svc --> db
+    consumer -->|"StockReserved/Failed/Released"| saga
+    consumer -->|"ProductUpdated/Removed"| catalog
+    timeout --> saga
+    sync --> catsync
+    db -.->|"OutboxWorker doručí<br/>OrderPlaced, OrderConfirmed…"| saga
+    db -.-> translate
+    db -.-> notify
+    saga --> sagaState
+    saga --> order
+    catalog --> catProd
+    notify --> notifier
+
+    click svc "/Docs/architektura/solid"
+    click saga "/Docs/eda/saga"
+    click sagaState "/Docs/architektura/stavove-diagramy"
+    click order "/Docs/architektura/stavove-diagramy"
+    click translate "/Docs/eda/integracni-zpravy"
+    click catalog "/Docs/eda/kopie-katalogu"
+    click catsync "/Docs/toky/obnova-katalogu"
+    click db "/Docs/eda/outbox"
+    click consumer "/Docs/eda/broker"
+    click timeout "/Docs/toky/timeout-a-kompenzace"
+```
+
+Plné šipky = přímé volání v rámci jednoho požadavku. Čárkované = **doručení události přes outbox** – o chvilku
+později, v jiném scope, případně i opakovaně.
+
+## Komponenty
+
+| Komponenta | K čemu slouží | Kód |
+| --- | --- | --- |
+| **OrderService** | Use-casy: založit, vyřídit, zrušit objednávku, číst katalog. O skladu ani notifikacích neví – jen uloží objednávku a ta vyvolá událost. | [OrderService.cs](code:src/MiniShop.Application/Ordering/OrderService.cs) |
+| **Order** | Entita s business pravidly (potvrdit jde jen čekající objednávku…). Každá změna stavu vyvolá [doménovou událost](../../eda/domenove-udalosti.md). | [Order.cs](code:src/MiniShop.Domain/Orders/Order.cs) |
+| **OrderSagaOrchestrator** | „Dirigent“: na `OrderPlaced` založí ságu a pošle `ReserveStockV1`; na odpověď skladu objednávku potvrdí/zamítne; na zrušení pošle `ReleaseStockV1`. | [OrderSagaOrchestrator.cs](code:src/MiniShop.Application/Ordering/Saga/OrderSagaOrchestrator.cs) |
+| **OrderSaga** | Stavový automat ságy – jen rozhoduje, co dál, nic neprovádí. | [OrderSaga.cs](code:src/MiniShop.Domain/Orders/Saga/OrderSaga.cs) |
+| **PublishOrderIntegrationEventsHandler** | Překladač: z interních událostí vyrobí veřejné `OrderPlacedV1`, `OrderCompletedV1`, `OrderCancelledV1`. | [PublishOrderIntegrationEventsHandler.cs](code:src/MiniShop.Application/Ordering/IntegrationEvents/PublishOrderIntegrationEventsHandler.cs) |
+| **Send…Handler** | Čtyři malé handlery: potvrzení, omluva při zamítnutí, vyřízení, zrušení. Volají `IOrderNotifier`. | [EventHandlers/](code:src/MiniShop.Application/Ordering/EventHandlers/) |
+| **LoggingOrderNotifier** | „E-mail“, který jen píše do logu. Skutečný e-mail by se doplnil bez zásahu do aplikační vrstvy. | [LoggingOrderNotifier.cs](code:src/MiniShop.Infrastructure/Ordering/LoggingOrderNotifier.cs) |
+| **CatalogProjectionHandler** | Udržuje kopii katalogu z `ProductUpdatedV1` / `ProductRemovedV1`. | [CatalogProjectionHandler.cs](code:src/MiniShop.Application/Ordering/Catalog/CatalogProjectionHandler.cs) |
+| **CatalogSyncService** | Požádá sklad o celý katalog (`SyncCatalogV1`) – po startu s prázdnou DB nebo tlačítkem. | [CatalogSyncService.cs](code:src/MiniShop.Application/Ordering/Catalog/CatalogSyncService.cs) |
+| **QuantityDiscountPolicy** | Množstevní sleva (od 10 ks 10 %). Další pravidlo = nová třída, `OrderService` se nemění. | [QuantityDiscountPolicy.cs](code:src/MiniShop.Application/Ordering/Pricing/QuantityDiscountPolicy.cs) |
+| **OrderSagaTimeoutWorker** | Každých 5 s hledá ságy, na které sklad neodpověděl včas (výchozí 30 s). | [OrderSagaTimeoutWorker.cs](code:src/MiniShop.Web/BackgroundServices/OrderSagaTimeoutWorker.cs) |
+| **OrderingDbContext** | `ordering.db`: objednávky, ságy, kopie katalogu, outbox, inbox. | [OrderingDbContext.cs](code:src/MiniShop.Infrastructure/Ordering/OrderingDbContext.cs) |
+
+## Jaké zprávy modul posílá a přijímá
+
+| Směr | Zprávy |
+| --- | --- |
+| posílá (příkazy skladu) | `ReserveStockV1`, `ReleaseStockV1`, `SyncCatalogV1` |
+| posílá (události pro kohokoli) | `OrderPlacedV1`, `OrderCompletedV1`, `OrderCancelledV1` |
+| přijímá (fronta `minishop.ordering`) | `StockReservedV1`, `StockReservationFailedV1`, `StockReleasedV1`, `ProductUpdatedV1`, `ProductRemovedV1` |
+
+## Rozhraní navenek
+
+- UI: stránka **Objednávky** (`/Orders`), detail průběhu (`/Orders/Journey/{id}`), přehrání (`/Orders/Replay/{id}`).
+- REST: `GET/POST /api/orders`, `POST /api/orders/{id}/complete`, `POST /api/orders/{id}/cancel`.
+  `POST` vrací **202 Accepted** – objednávka je přijatá, ale o potvrzení teprve rozhodne sága.
+
+## Dál
+
+- Krok za krokem: [Vytvoření objednávky](../../toky/vytvoreni-objednavky.md), [Zrušení a vyřízení](../../toky/zruseni-a-vyrizeni.md)
+- Stavy objednávky a ságy: [Stavové diagramy](../stavove-diagramy.md)

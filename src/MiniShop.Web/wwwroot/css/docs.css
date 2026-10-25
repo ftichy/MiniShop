@@ -1,0 +1,38 @@
+/* Příručka v aplikaci (/Docs). */
+
+.docs-nav { font-size: 0.925rem; }
+.docs-nav ul ul { padding-left: 0.9rem; border-left: 1px solid var(--bs-border-color); margin: 0.15rem 0 0.35rem 0.35rem; }
+.docs-nav li { margin: 0.1rem 0; }
+.docs-nav a { display: block; padding: 0.15rem 0.5rem; border-radius: 0.3rem; color: var(--bs-body-color); text-decoration: none; }
+.docs-nav a:hover { background-color: var(--bs-tertiary-bg); }
+.docs-nav a.active { background-color: var(--bs-primary); color: #fff; }
+@media (min-width: 992px) {
+    .docs-nav > ul { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; }
+}
+
+.docs-toc { border: 1px solid var(--bs-border-color); border-radius: 0.4rem; padding: 0.5rem 1rem; background: var(--bs-tertiary-bg); }
+.docs-toc summary { cursor: pointer; font-weight: 600; }
+
+.doc-content { line-height: 1.65; }
+.doc-content h2 { margin-top: 2.25rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--bs-border-color); font-size: 1.5rem; }
+.doc-content h3 { margin-top: 1.75rem; font-size: 1.2rem; }
+.doc-content h2, .doc-content h3 { scroll-margin-top: 1rem; }
+.doc-content table { width: 100%; margin-bottom: 1rem; border-collapse: collapse; font-size: 0.925rem; }
+.doc-content th, .doc-content td { border: 1px solid var(--bs-border-color); padding: 0.4rem 0.6rem; vertical-align: top; }
+.doc-content th { background: var(--bs-tertiary-bg); }
+.doc-content code { color: #a02c6b; }
+.doc-content pre { background: var(--bs-tertiary-bg); padding: 0.75rem 1rem; border-radius: 0.4rem; }
+.doc-content pre code { color: inherit; }
+.doc-content blockquote { border-left: 4px solid var(--bs-primary); background: var(--bs-primary-bg-subtle); padding: 0.6rem 1rem; border-radius: 0 0.4rem 0.4rem 0; }
+.doc-content blockquote > :last-child { margin-bottom: 0; }
+
+/* Odkazy ven: ↗ na internet, </> do zdrojového kódu na GitHubu. */
+.doc-content a.doc-external-link::after { content: " ↗"; font-size: 0.8em; }
+.doc-content a.doc-code-link::before { content: "</> "; font-family: var(--bs-font-monospace); font-size: 0.75em; opacity: 0.7; }
+
+/* Diagramy Mermaid: zmenšené na šířku stránky, tlačítkem lze zobrazit v plné velikosti (s posuvníkem). */
+.doc-diagram { position: relative; margin: 1rem 0 1.5rem; padding: 0.75rem; border: 1px solid var(--bs-border-color); border-radius: 0.4rem; background: #fff; }
+.doc-diagram .mermaid { text-align: center; }
+.doc-diagram.expanded { overflow-x: auto; }
+.doc-diagram-toggle { position: absolute; top: 0.4rem; right: 0.4rem; z-index: 1; }
+.mermaid:not([data-processed]) { color: transparent; min-height: 4rem; }

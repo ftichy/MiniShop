@@ -23,6 +23,8 @@ COPY src/MiniShop.Web/MiniShop.Web.csproj src/MiniShop.Web/
 RUN dotnet restore src/MiniShop.Web/MiniShop.Web.csproj -a $TARGETARCH
 
 COPY src/ src/
+# Příručka (/Docs) – publish ji zkopíruje vedle DLL (viz Content v MiniShop.Web.csproj).
+COPY docs/prirucka/ docs/prirucka/
 RUN dotnet publish src/MiniShop.Web/MiniShop.Web.csproj -c Release -a $TARGETARCH --no-restore \
     -p:UseAppHost=false -o /app/publish
 

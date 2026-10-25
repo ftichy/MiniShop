@@ -1,0 +1,87 @@
+@page "/Docs/{**slug}"
+@using MiniShop.Web.Documentation
+@model MiniShop.Web.Pages.Docs.IndexModel
+@{
+    ViewData["Title"] = Model.Current.Title + " – Dokumentace";
+    ViewData["Docs"] = Model;   // pro _NavNode (strom navigace)
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/docs.css" asp-append-version="true" />
+}
+
+<div class="row g-4 docs">
+    <nav class="col-lg-3 docs-nav" aria-label="Obsah dokumentace">
+        @if (Model.Tree is not null)
+        {
+            <ul class="list-unstyled">
+                <partial name="_NavNode" model="Model.Tree" />
+            </ul>
+        }
+    </nav>
+
+    <article class="col-lg-9">
+        @if (Model.Ancestors.Count > 0)
+        {
+            <nav aria-label="Drobečková navigace">
+                <ol class="breadcrumb small">
+                    @foreach (var ancestor in Model.Ancestors)
+                    {
+                        <li class="breadcrumb-item"><a href="@DocumentationRenderer.PageUrl(ancestor.Slug)">@ancestor.Title</a></li>
+                    }
+                    <li class="breadcrumb-item active" aria-current="page">@Model.Current.Title</li>
+                </ol>
+            </nav>
+        }
+
+        <h1 class="mb-2">@Model.Current.Title</h1>
+        @if (!string.IsNullOrWhiteSpace(Model.Current.Summary))
+        {
+            <p class="lead text-body-secondary">@Model.Current.Summary</p>
+        }
+
+        @if (Model.Rendered.Headings.Count >= 3)
+        {
+            <details class="docs-toc mb-4">
+                <summary>Na této stránce</summary>
+                <ul class="mb-0">
+                    @foreach (var heading in Model.Rendered.Headings)
+                    {
+                        <li><a href="#@heading.Id">@heading.Text</a></li>
+                    }
+                </ul>
+            </details>
+        }
+
+        <div class="doc-content">
+            @Html.Raw(Model.Rendered.Html)
+        </div>
+
+        @if (Model.Children.Count > 0)
+        {
+            <section class="docs-children mt-5">
+                <h2 class="h4">Jdi hlouběji</h2>
+                <div class="row g-3">
+                    @foreach (var child in Model.Children)
+                    {
+                        <div class="col-md-6">
+                            <a class="card h-100 text-decoration-none" href="@DocumentationRenderer.PageUrl(child.Slug)">
+                                <div class="card-body">
+                                    <h3 class="h6 card-title mb-1">@child.Title</h3>
+                                    @if (!string.IsNullOrWhiteSpace(child.Summary))
+                                    {
+                                        <p class="card-text small text-body-secondary mb-0">@child.Summary</p>
+                                    }
+                                </div>
+                            </a>
+                        </div>
+                    }
+                </div>
+            </section>
+        }
+    </article>
+</div>
+
+@section Scripts {
+    <script src="~/lib/mermaid/mermaid.min.js"></script>
+    <script src="~/js/docs.js" asp-append-version="true"></script>
+}

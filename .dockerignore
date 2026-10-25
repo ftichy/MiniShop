@@ -13,6 +13,8 @@
 .vs/
 .vscode/
 docs/
+# Výjimka: příručka (/Docs) je součást image Webu.
+!docs/prirucka/
 tests/
 src/MiniShop.AppHost/
 # Cloud krok 2: konfigurace nasazení a tajné hodnoty (.env) do image nepatří.

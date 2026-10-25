@@ -1,0 +1,20 @@
+@using MiniShop.Web.Documentation
+@model DocumentationNode
+@{
+    // Jeden uzel stromu navigace; děti vykreslí rekurzivně sám sebe. Aktuální stránku zná PageModel (ViewData["Docs"]).
+    var docs = (MiniShop.Web.Pages.Docs.IndexModel)ViewData["Docs"]!;
+    var isCurrent = Model.Page.Slug == docs.Current.Slug;
+}
+<li>
+    <a href="@DocumentationRenderer.PageUrl(Model.Page.Slug)" class="@(isCurrent ? "active" : null)"
+       aria-current="@(isCurrent ? "page" : null)">@Model.Page.Title</a>
+    @if (Model.Children.Count > 0 && docs.IsExpanded(Model))
+    {
+        <ul class="list-unstyled">
+            @foreach (var child in Model.Children)
+            {
+                <partial name="_NavNode" model="child" />
+            }
+        </ul>
+    }
+</li>

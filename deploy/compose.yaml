@@ -109,6 +109,8 @@ services:
       Services__inventory-api__http__0: http://inventory-api:8080
       # Za reverse proxy (Caddy, krok 5) věřit hlavičkám X-Forwarded-Proto/For. Bez proxy nic nemění.
       ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+      # Příručka (/Docs) odkazuje do kódu na GitHubu na commit, ze kterého je image ("sha-…"); jinak na main.
+      Documentation__Commit: ${IMAGE_TAG:-}
     volumes:
       - web-data:/data
     ports:

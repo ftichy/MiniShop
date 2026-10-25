@@ -7,8 +7,13 @@
     <ProjectReference Include="..\MiniShop.ServiceDefaults\MiniShop.ServiceDefaults.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Markdig" Version="1.5.0" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.13" />
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+  </ItemGroup>
+  <!-- Příručka (/Docs): Markdown z docs/prirucka se kopíruje vedle DLL do složky prirucka – při buildu i do image. -->
+  <ItemGroup>
+    <Content Include="..\..\docs\prirucka\**\*.md" LinkBase="prirucka" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

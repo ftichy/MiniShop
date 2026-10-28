@@ -1,8 +1,10 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using MiniShop.Application.Inventory;
 using MiniShop.Application.Exceptions;
 using MiniShop.Domain.Exceptions;
+using MiniShop.Web.Accounts;
 using MiniShop.Web.Inventory;
 
 namespace MiniShop.Web.Pages.Products;
@@ -11,6 +13,7 @@ namespace MiniShop.Web.Pages.Products;
 /// Správa produktů. Krok 10B: produkty patří službě skladu – <see cref="IProductService"/> je tu
 /// <see cref="InventoryApiClient"/>, který volá její HTTP API.
 /// </summary>
+[Authorize(Policy = AuthorizationPolicies.RequireAdmin)]   // účty krok 2: sklad a produkty spravuje jen admin
 public sealed class IndexModel(IProductService productService) : PageModel
 {
     public IReadOnlyList<ProductDto> Products { get; private set; } = [];

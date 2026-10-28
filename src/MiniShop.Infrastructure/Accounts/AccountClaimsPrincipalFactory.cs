@@ -9,6 +9,12 @@ public static class AccountClaimTypes
 {
     /// <summary>Zobrazované jméno uživatele (hlavička stránky) – ať se kvůli němu nemusí číst databáze.</summary>
     public const string DisplayName = "minishop:display_name";
+
+    /// <summary>
+    /// Účty krok 2: uživatel musí změnit heslo (první admin se známým heslem). Je to claim uživatele
+    /// v tabulce AspNetUserClaims – Identity ho sama přidá do cookie, schéma users.db se nemění.
+    /// </summary>
+    public const string MustChangePassword = "minishop:must_change_password";
 }
 
 /// <summary>

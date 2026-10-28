@@ -7,6 +7,7 @@ using MiniShop.Infrastructure.Hosting;
 using MiniShop.Infrastructure.Journeys;
 using MiniShop.Infrastructure.Ordering;
 using MiniShop.ServiceDefaults;
+using MiniShop.Web.Accounts;
 using MiniShop.Web.BackgroundServices;
 using MiniShop.Web.Documentation;
 using MiniShop.Web.ErrorHandling;
@@ -88,9 +89,20 @@ try
 
     var app = builder.Build();
 
+    // Účty krok 2: "dotnet MiniShop.Web.dll create-admin --email …" jen založí prvního admina a skončí (web nespustí).
+    if (CreateAdminCommand.IsRequested(args))
+    {
+        Environment.ExitCode = await CreateAdminCommand.RunAsync(app.Services, args);
+        return;
+    }
+
     await OrderingDatabaseInitializer.InitializeAsync(app.Services);
     await JourneysDatabaseInitializer.InitializeAsync(app.Services);
-    await AccountsDatabaseInitializer.InitializeAsync(app.Services);
+
+    // Účty krok 2: role + první admin. AdminBootstrap je nastavený jen ve vývoji (appsettings.Development.json),
+    // v produkci admina založí příkaz create-admin.
+    await AccountsDatabaseInitializer.InitializeAsync(app.Services,
+        builder.Configuration.GetSection("AdminBootstrap").Get<AdminBootstrapSettings>());
 
     if (app.Environment.IsDevelopment())
     {
@@ -122,6 +134,7 @@ try
 
     // Účty krok 1: z cookie přečte přihlášeného uživatele (User), autorizace pak rozhodne, kam smí.
     app.UseAuthentication();
+    app.UseMustChangePassword();   // krok 2: první admin se známým heslem si ho musí nejdřív změnit
     app.UseAuthorization();
 
     app.MapControllers();

@@ -1,8 +1,14 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MiniShop.Application.Ordering;
+using MiniShop.Web.Accounts;
 
 namespace MiniShop.Web.Controllers;
 
+/// <summary>
+/// REST API objednávek. Účty krok 2: všechno jen pro přihlášené (fallback policy), založení jen zákazník,
+/// vyřízení jen admin. Nepřihlášený dostane 401, bez oprávnění 403.
+/// </summary>
 [ApiController]
 [Route("api/orders")]
 public sealed class OrdersController(IOrderService orderService) : ControllerBase
@@ -21,6 +27,7 @@ public sealed class OrdersController(IOrderService orderService) : ControllerBas
     /// (Pending → Confirmed / Rejected).
     /// </summary>
     [HttpPost]
+    [Authorize(Policy = AuthorizationPolicies.RequireCustomer)]   // účty krok 2: admin neobjednává
     public async Task<ActionResult<OrderDto>> Create(CreateOrderRequest request, CancellationToken cancellationToken)
     {
         var order = await orderService.PlaceOrderAsync(request, cancellationToken);
@@ -28,6 +35,7 @@ public sealed class OrdersController(IOrderService orderService) : ControllerBas
     }
 
     [HttpPost("{id:int}/complete")]
+    [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
     public async Task<ActionResult<OrderDto>> Complete(int id, CancellationToken cancellationToken) =>
         Ok(await orderService.CompleteAsync(id, cancellationToken));
 

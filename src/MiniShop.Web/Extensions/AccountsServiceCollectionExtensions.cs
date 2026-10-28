@@ -1,13 +1,15 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using MiniShop.Infrastructure.Accounts;
+using MiniShop.Web.Accounts;
 
 namespace MiniShop.Web.Extensions;
 
 /// <summary>
 /// Účty krok 1: přihlašování do Webu. Jádro Identity (uživatelé, hesla, users.db) dodá Infrastructure,
-/// tady přibude SignInManager a přihlašovací cookie.
+/// tady přibude SignInManager a přihlašovací cookie. Krok 2: role a pravidla, kdo smí co (policies).
 /// </summary>
 public static class AccountsServiceCollectionExtensions
 {
@@ -18,6 +20,13 @@ public static class AccountsServiceCollectionExtensions
 
         services.AddAuthentication(IdentityConstants.ApplicationScheme)
             .AddIdentityCookies();
+
+        services.AddAuthorizationBuilder()
+            .AddPolicy(AuthorizationPolicies.RequireAdmin, policy => policy.RequireRole(AccountRoles.Admin))
+            .AddPolicy(AuthorizationPolicies.RequireCustomer, policy => policy.RequireRole(AccountRoles.User))
+            // Secure by default: co není výslovně [AllowAnonymous], to vyžaduje přihlášení.
+            // Na novou stránku se tak nedá „zapomenout“ – bez zámku by ji viděl každý.
+            .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
 
         services.ConfigureApplicationCookie(options =>
         {
@@ -32,6 +41,7 @@ public static class AccountsServiceCollectionExtensions
 
             options.LoginPath = "/Account/Login";
             options.LogoutPath = "/Account/Logout";
+            options.AccessDeniedPath = "/Account/AccessDenied";
 
             // REST API nemá kam přesměrovat – volající (skript, Postman) dostane 401/403, ne HTML přihlašovací stránky.
             options.Events = new CookieAuthenticationEvents

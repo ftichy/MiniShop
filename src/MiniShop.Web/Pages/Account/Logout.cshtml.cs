@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -9,6 +10,7 @@ namespace MiniShop.Web.Pages.Account;
 /// Účty krok 1: odhlášení smaže přihlašovací cookie. Jen přes POST s antiforgery tokenem – odkaz nebo obrázek
 /// z cizího webu (GET) uživatele odhlásit nesmí.
 /// </summary>
+[AllowAnonymous]
 public sealed class LogoutModel(SignInManager<ApplicationUser> signInManager) : PageModel
 {
     public IActionResult OnGet() => RedirectToPage("/Index");

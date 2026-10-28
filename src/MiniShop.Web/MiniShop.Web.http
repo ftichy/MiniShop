@@ -41,12 +41,19 @@ Content-Type: application/json
 ### Smazání produktu
 DELETE {{inventory}}/api/products/6
 
+# Účty krok 2: API objednávek chce přihlášení (bez něj 401). Přihlaste se v prohlížeči na {{host}}/Account/Login,
+# zkopírujte cookie .MiniShop.Auth (F12 → Application → Cookies) a vložte ji sem. Objednávky zakládá jen zákazník
+# (role User), vyřizuje jen admin.
+@auth = .MiniShop.Auth=SEM-VLOZTE-HODNOTU-COOKIE
+
 ### Seznam objednávek
 GET {{host}}/api/orders
+Cookie: {{auth}}
 
 ### Nová objednávka (10 ks kabelů => množstevní sleva 10 %)
 POST {{host}}/api/orders
 Content-Type: application/json
+Cookie: {{auth}}
 
 {
   "customerName": "Jan Novák",
@@ -60,6 +67,7 @@ Content-Type: application/json
 ### Objednávka s nedostatkem zboží => 400 Bad Request
 POST {{host}}/api/orders
 Content-Type: application/json
+Cookie: {{auth}}
 
 {
   "customerName": "Petra Malá",
@@ -67,8 +75,10 @@ Content-Type: application/json
   "items": [ { "productId": 3, "quantity": 999 } ]
 }
 
-### Vyřízení objednávky
+### Vyřízení objednávky (jen admin)
 POST {{host}}/api/orders/1/complete
+Cookie: {{auth}}
 
 ### Zrušení objednávky (vrátí zboží na sklad)
 POST {{host}}/api/orders/1/cancel
+Cookie: {{auth}}

@@ -32,7 +32,7 @@ public sealed class CzechIdentityErrorDescriber : IdentityErrorDescriber
         new() { Code = nameof(PasswordRequiresUniqueChars), Description = $"Heslo musí obsahovat alespoň {uniqueChars} různých znaků." };
 
     public override IdentityError PasswordMismatch() =>
-        new() { Code = nameof(PasswordMismatch), Description = "Nesprávné heslo." };
+        new() { Code = nameof(PasswordMismatch), Description = "Současné heslo není správné." };
 
     public override IdentityError DefaultError() =>
         new() { Code = nameof(DefaultError), Description = "Něco se nepovedlo, zkuste to prosím znovu." };

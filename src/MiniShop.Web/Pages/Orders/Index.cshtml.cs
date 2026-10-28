@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -8,6 +9,7 @@ using MiniShop.Application.Ordering;
 using MiniShop.Application.Ordering.Catalog;
 using MiniShop.Application.Exceptions;
 using MiniShop.Domain.Exceptions;
+using MiniShop.Web.Accounts;
 using MiniShop.Web.Inventory;
 
 namespace MiniShop.Web.Pages.Orders;
@@ -17,8 +19,15 @@ public sealed class IndexModel(
     IProductService productService,
     CatalogSyncService catalogSync,
     IJourneyService journeyService,
+    IAuthorizationService authorization,
     ILogger<IndexModel> logger) : PageModel
 {
+    /// <summary>Účty krok 2: formulář nové objednávky jen pro zákazníka (admin neobjednává).</summary>
+    public bool CanPlaceOrders { get; private set; }
+
+    /// <summary>Účty krok 2: vyřízení, obnova katalogu a průběh objednávek jen pro admina.</summary>
+    public bool CanManageOrders { get; private set; }
+
     public IReadOnlyList<OrderDto> Orders { get; private set; } = [];
     public IReadOnlyList<SelectListItem> ProductOptions { get; private set; } = [];
 
@@ -43,6 +52,11 @@ public sealed class IndexModel(
 
     public async Task<IActionResult> OnPostCreateAsync(CancellationToken cancellationToken)
     {
+        if (!await IsAuthorizedAsync(AuthorizationPolicies.RequireCustomer))
+        {
+            return Forbid();
+        }
+
         // Události serveru se zařadí hned za odeslání formuláře (SubmitClicked má čas JourneyOffsetMs).
         var serverOffsetMs = JourneyOffsetMs + 1;
 
@@ -108,21 +122,32 @@ public sealed class IndexModel(
     /// <summary>Ruční obnova kopie katalogu – požádá sklad o všechny produkty (SyncCatalogV1).</summary>
     public async Task<IActionResult> OnPostSyncCatalogAsync(CancellationToken cancellationToken)
     {
+        if (!await IsAuthorizedAsync(AuthorizationPolicies.RequireAdmin))
+        {
+            return Forbid();
+        }
+
         await catalogSync.RequestAsync(cancellationToken);
         StatusMessage = "Požádali jsme sklad o celý katalog, produkty se doplní během pár sekund.";
         return RedirectToPage();
     }
 
-    public Task<IActionResult> OnPostCompleteAsync(int id, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostCompleteAsync(int id, CancellationToken cancellationToken)
     {
+        if (!await IsAuthorizedAsync(AuthorizationPolicies.RequireAdmin))
+        {
+            return Forbid();
+        }
+
         ModelState.Clear();
-        return ExecuteAsync(async () =>
+        return await ExecuteAsync(async () =>
         {
             await orderService.CompleteAsync(id, cancellationToken);
             StatusMessage = $"Objednávka č. {id} byla vyřízena.";
         }, cancellationToken);
     }
 
+    /// <summary>Zrušit smí každý přihlášený – kdo smí rušit kterou objednávku, rozhodnou účty kroky 3 a 4.</summary>
     public Task<IActionResult> OnPostCancelAsync(int id, CancellationToken cancellationToken)
     {
         ModelState.Clear();
@@ -154,6 +179,9 @@ public sealed class IndexModel(
     /// </summary>
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
+        CanPlaceOrders = await IsAuthorizedAsync(AuthorizationPolicies.RequireCustomer);
+        CanManageOrders = await IsAuthorizedAsync(AuthorizationPolicies.RequireAdmin);
+
         // Krok 12A: nová návštěva formuláře = nový proud. Po chybě odeslání zůstává původní (přišel ve formuláři).
         if (JourneyId == Guid.Empty)
         {
@@ -180,6 +208,13 @@ public sealed class IndexModel(
                 $"{p.Name} – {p.Price:N2} Kč ({StockText(stock, p.ProductId)})", p.ProductId.ToString()))
             .ToList();
     }
+
+    /// <summary>
+    /// Účty krok 2: Razor Pages umí [Authorize] jen na celou stránku, tady má ale každý handler jiné pravidlo.
+    /// Proto kontrola v kódu – se stejnými policies, aby pravidla zůstala na jednom místě.
+    /// </summary>
+    private async Task<bool> IsAuthorizedAsync(string policy) =>
+        (await authorization.AuthorizeAsync(User, policy)).Succeeded;
 
     private static string StockText(IReadOnlyDictionary<int, int>? stock, int productId) =>
         stock is null ? "zásoba nedostupná"

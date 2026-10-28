@@ -19,6 +19,7 @@ public static class AccountsInfrastructure
     public static IdentityBuilder AddAccountsInfrastructure(this IServiceCollection services, string connectionString)
     {
         services.AddDbContext<AccountsDbContext>(options => options.UseSqlite(connectionString));
+        services.AddScoped<AccountsSeeder>();
 
         return services.AddIdentityCore<ApplicationUser>(ConfigureIdentity)
             .AddRoles<IdentityRole>()

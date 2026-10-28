@@ -1,0 +1,157 @@
+using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
+using MiniShop.Application.Inventory;
+using MiniShop.Infrastructure.Accounts;
+using MiniShop.Tests.TestDoubles;
+
+namespace MiniShop.Tests.Web;
+
+/// <summary>
+/// Účty krok 2: celý Web (Program.cs) v paměti – skutečné HTTP požadavky, skutečné přihlášení cookie,
+/// skutečné policies. Databáze jsou SQLite v paměti, workery (outbox, RabbitMQ, sága) neběží a sklad
+/// nahrazuje <see cref="StubProductService"/>.
+/// </summary>
+/// <remarks>
+/// Typový parametr jen určuje assembly Webu – <c>Program</c> nejde, testy vidí i <c>Program</c> z Inventory.Api.
+/// Sdílí se přes <see cref="WebCollection"/> – Program nastavuje statický Serilog logger, dva Weby najednou
+/// by si ho přepisovaly.
+/// </remarks>
+public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.Web.Inventory.InventoryApiClient>, IAsyncLifetime
+{
+    public const string AdminEmail = "admin@test.local";
+    public const string AdminPassword = "admin-heslo-pro-test";
+    public const string UserEmail = "jan@test.local";
+    public const string UserPassword = "jan-heslo-pro-test";
+
+    private readonly InMemoryDatabase _ordering = new();
+    private readonly InMemoryDatabase _journeys = new();
+    private readonly InMemoryDatabase _accounts = new();
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        builder.UseEnvironment("Testing");
+        builder.UseSetting("ConnectionStrings:Ordering", _ordering.ConnectionString);
+        builder.UseSetting("ConnectionStrings:Journeys", _journeys.ConnectionString);
+        builder.UseSetting("ConnectionStrings:Accounts", _accounts.ConnectionString);
+
+        // První admin z konfigurace (seed) – stejně jako ve vývoji, jen bez vynucené změny hesla.
+        builder.UseSetting("AdminBootstrap:Email", AdminEmail);
+        builder.UseSetting("AdminBootstrap:Password", AdminPassword);
+        builder.UseSetting("AdminBootstrap:MustChangePassword", "false");
+
+        builder.ConfigureTestServices(services =>
+        {
+            // Workery MiniShopu pryč (outbox, consumery RabbitMQ, timeout ságy, obnova katalogu).
+            // Server samotný je také IHostedService – ten musí zůstat.
+            var workers = services
+                .Where(d => d.ServiceType == typeof(IHostedService)
+                            && d.ImplementationType?.Namespace?.StartsWith("MiniShop", StringComparison.Ordinal) == true)
+                .ToList();
+            foreach (var worker in workers)
+            {
+                services.Remove(worker);
+            }
+
+            services.RemoveAll<IProductService>();
+            services.AddSingleton<IProductService, StubProductService>();
+        });
+    }
+
+    public async Task InitializeAsync()
+    {
+        // Spustí Web (seed vytvoří roli a admina) a založí zákazníka.
+        await CreateUserAsync(UserEmail, UserPassword);
+    }
+
+    /// <summary>Zákazník (role User), volitelně s příznakem „musí změnit heslo“.</summary>
+    public async Task CreateUserAsync(string email, string password, bool mustChangePassword = false)
+    {
+        await using var scope = Services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = new ApplicationUser { UserName = email, Email = email, DisplayName = "Test" };
+        Assert.True((await users.CreateAsync(user, password)).Succeeded);
+        await users.AddToRoleAsync(user, AccountRoles.User);
+        if (mustChangePassword)
+        {
+            await users.AddClaimAsync(user, new(AccountClaimTypes.MustChangePassword, "true"));
+        }
+    }
+
+    /// <summary>Klient jako prohlížeč: HTTPS (kvůli Secure cookie), cookies, bez automatického přesměrování.</summary>
+    public HttpClient CreateBrowser() => CreateClient(new WebApplicationFactoryClientOptions
+    {
+        BaseAddress = new Uri("https://localhost"),
+        AllowAutoRedirect = false,
+        HandleCookies = true
+    });
+
+    /// <summary>Přihlášení přes skutečný formulář /Account/Login.</summary>
+    public async Task<HttpClient> LoginAsync(string email, string password)
+    {
+        var client = CreateBrowser();
+        var response = await client.PostAsync("/Account/Login", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = await GetAntiforgeryTokenAsync(client, "/Account/Login"),
+            ["Input.Email"] = email,
+            ["Input.Password"] = password
+        }));
+
+        Assert.Equal(System.Net.HttpStatusCode.Redirect, response.StatusCode);
+        return client;
+    }
+
+    /// <summary>Antiforgery token z formuláře na stránce (patří k identitě klienta, proto se čte jeho vlastním klientem).</summary>
+    public static async Task<string> GetAntiforgeryTokenAsync(HttpClient client, string pagePath)
+    {
+        var html = await client.GetStringAsync(pagePath);
+        var match = AntiforgeryTokenPattern().Match(html);
+        Assert.True(match.Success, $"Na stránce {pagePath} není antiforgery token.");
+        return match.Groups[1].Value;
+    }
+
+    // WebApplicationFactory má vlastní DisposeAsync (ValueTask) – xUnit volá tuhle, explicitní.
+    async Task IAsyncLifetime.DisposeAsync()
+    {
+        await base.DisposeAsync();
+        _ordering.Dispose();
+        _journeys.Dispose();
+        _accounts.Dispose();
+    }
+
+    [GeneratedRegex("name=\"__RequestVerificationToken\" type=\"hidden\" value=\"([^\"]+)\"")]
+    private static partial Regex AntiforgeryTokenPattern();
+}
+
+[CollectionDefinition(Name)]
+public sealed class WebCollection : ICollectionFixture<MiniShopWebFactory>
+{
+    public const string Name = "Web v paměti";
+}
+
+/// <summary>Sklad v testech Webu – Inventory.Api neběží, stránka Produkty dostane jeden produkt.</summary>
+public sealed class StubProductService : IProductService
+{
+    private static readonly ProductDto Product = new(1, "Testovací produkt", null, 100m, 10);
+
+    public Task<IReadOnlyList<ProductDto>> GetAllAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<ProductDto>>([Product]);
+
+    public Task<ProductDto> GetByIdAsync(int id, CancellationToken cancellationToken = default) => Task.FromResult(Product);
+
+    public Task<ProductDto> CreateAsync(CreateProductRequest request, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Product);
+
+    public Task<ProductDto> UpdateAsync(int id, UpdateProductRequest request, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Product);
+
+    public Task<ProductDto> AddStockAsync(int id, int quantity, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Product);
+
+    public Task DeleteAsync(int id, CancellationToken cancellationToken = default) => Task.CompletedTask;
+}

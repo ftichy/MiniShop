@@ -31,7 +31,7 @@ Zrušit nejde objednávka Zamítnutá (Rejected), Vyřízená (Completed) ani u�
 
 - User se registruje sám (e-mail + heslo, později i Google účet).
 - Admina může vytvořit jen admin – povýšením existujícího uživatele.
-- První admin vznikne bezpečným „bootstrapem“ ze secretu (krok 2).
+- První admin vznikne bezpečným „bootstrapem“ – v produkci příkazem `create-admin` na serveru (krok 2).
 - E-maily (potvrzení adresy, zapomenuté heslo, stav objednávky) se odesílají skutečně a zdarma (krok 5).
 - Basic auth v Caddy zůstává, dokud účty nejsou zpevněné; vypne se v kroku 9 (dashboard ho ponechá).
 
@@ -59,7 +59,7 @@ a posilovnu, ne kancelář ředitele (autorizace). Recepce kartu vydá jednou, d
 | IDOR | Chyba: k cizím datům se dostanu jen změnou čísla v URL | `/Orders/Journey/43` – brání krok 3 |
 | Lockout | Dočasné zablokování po opakovaném špatném hesle | 5 pokusů → 15 minut |
 | Security stamp | „Verze“ účtu; po změně hesla zneplatní staré cookie | odhlášení na všech zařízeních |
-| Bootstrap admina | Jak bezpečně vznikne první admin, když ho nemá kdo jmenovat | seed ze secretu při startu |
+| Bootstrap admina | Jak bezpečně vznikne první admin, když ho nemá kdo jmenovat | příkaz `create-admin` na serveru |
 | OAuth / OpenID Connect | Přihlášení přes jiného poskytovatele, který ověří identitu | „Přihlásit přes Google“ |
 
 ## Best practice, kterých se držíme
@@ -69,7 +69,8 @@ a posilovnu, ne kancelář ředitele (autorizace). Recepce kartu vydá jednou, d
    přímo v dotazu (`OrderService`), ne až v šabloně.
 3. **Cizí objednávka = 404, ne 403** – útočník nepozná, že existuje (ochrana proti IDOR).
 4. **Nejmenší nutná oprávnění a oddělení povinností** – admin spravuje obchod, ale neobjednává.
-5. **Bezpečný bootstrap** – první admin ze secretu, jen když žádný admin neexistuje, s vynucenou změnou hesla.
+5. **Bezpečný bootstrap** – první admin jen když žádný admin neexistuje: v produkci příkazem na serveru (heslo
+   nikde neleží), ve vývoji ze známého hesla s vynucenou změnou.
    Ne „první registrovaný je admin“ (na veřejném webu vyhraje kdokoli rychlejší).
 6. **Hesla podle NIST** – délka (≥ 10 znaků) místo povinných speciálních znaků.
 7. **Ochrana přihlášení** – lockout, rate limiting, stejná hláška pro neznámý e-mail i špatné heslo.
@@ -96,7 +97,7 @@ a posilovnu, ne kancelář ředitele (autorizace). Recepce kartu vydá jednou, d
 | Krok | Fáze | Co přinese | Nový nástroj | Cena |
 | --- | --- | --- | --- | --- |
 | 1. Účty, registrace, přihlášení | A – základ | Uživatel se zaregistruje a přihlásí, `users.db` | ASP.NET Core Identity | 0 |
-| 2. Role a první admin | A | Role User/Admin, policies, bootstrap admina, zamčené admin akce | policies, secret | 0 |
+| 2. Role a první admin | A | Role User/Admin, policies, bootstrap admina, zamčené admin akce | policies, `WebApplicationFactory` | 0 |
 | 3. Vlastník objednávky | A | User vidí jen své objednávky, admin neobjednává | resource-based authorization | 0 |
 | 4. Zrušení objednávky (i Pending) | B – EDA | Zrušení během rezervace, kompenzace ságou | – | 0 |
 | 5. Skutečné e-maily | B | Potvrzení e-mailu, reset hesla, e-mail o objednávce | MailKit, Mailpit, SMTP | 0 |
@@ -136,13 +137,17 @@ všude. Bootstrap admina řeší problém slepice a vejce: admina jmenuje admin 
 **V MiniShopu:**
 
 - Role `User` (dostane každý při registraci) a `Admin`; policies `RequireAdmin`, `RequireCustomer`.
-- Seed při startu: když žádný admin neexistuje, vytvoří ho z `AdminBootstrap:Email` / `AdminBootstrap:Password`
-  (lokálně user secrets, v cloudu secret `ADMIN_BOOTSTRAP_PASSWORD`), s příznakem „musí změnit heslo“.
+- První admin (jen když žádný neexistuje): v produkci příkazem
+  `docker compose exec web dotnet MiniShop.Web.dll create-admin --email …` (heslo se píše do terminálu, žádný secret);
+  ve vývoji seed z `AdminBootstrap` v `appsettings.Development.json` s příznakem „musí změnit heslo“.
+  *(Původně plánovaný secret `ADMIN_BOOTSTRAP_PASSWORD` jsme nahradili příkazem – admin vzniká jednou za život
+  aplikace a `users.db` je v záloze.)*
 - Zamčené pro admina: stránka Produkty, obnova katalogu, vyřízení objednávky, Průběh a Přehrání objednávky
   (stránky i API skladu ve Webu).
 - Menu podle role, stránka „Přístup odepřen“.
 
-**Hotovo, když:** test matice oprávnění (role × akce) prochází, admin se v cloudu přihlásí a změní heslo.
+**Hotovo, když:** test matice oprávnění (role × akce) prochází, admin založený příkazem se v cloudu přihlásí
+a vidí Produkty, běžný uživatel ne.
 
 ## Krok 3: Vlastník objednávky
 

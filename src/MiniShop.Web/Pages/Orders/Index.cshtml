@@ -30,6 +30,9 @@
     </div>
 }
 
+@* Účty krok 2: formulář vidí jen zákazník (role User) – admin neobjednává. Server to hlídá i v OnPostCreate. *@
+@if (Model.CanPlaceOrders)
+{
 <h2 class="h4">Nová objednávka</h2>
 <p class="text-muted small">Od 10 ks jednoho produktu se uplatní množstevní sleva 10 %.</p>
 @* Krok 12A: order-form-tracker.js zapisuje, co uživatel ve formuláři dělá (proud JourneyId). *@
@@ -63,6 +66,7 @@
         <button type="submit" class="btn btn-primary w-100" data-track="order-submit">Objednat</button>
     </div>
 </form>
+}
 
 @if (Model.CatalogEmpty)
 {
@@ -74,10 +78,13 @@
     <script>reloadWhenIdle();</script>
 }
 
-<form method="post" asp-page-handler="SyncCatalog" class="mb-4">
-    <button type="submit" class="btn btn-link btn-sm p-0">Obnovit katalog ze skladu</button>
-    <span class="text-muted small">– když v nabídce chybí produkt, který sklad má</span>
-</form>
+@if (Model.CanManageOrders)
+{
+    <form method="post" asp-page-handler="SyncCatalog" class="mb-4">
+        <button type="submit" class="btn btn-link btn-sm p-0">Obnovit katalog ze skladu</button>
+        <span class="text-muted small">– když v nabídce chybí produkt, který sklad má</span>
+    </form>
+}
 
 @if (Model.Orders.Count == 0)
 {
@@ -91,18 +98,21 @@
     <script>reloadWhenIdle();</script>
 }
 
-@* Krok 12A: vstupem je číslo objednávky – zobrazí, jak uživatel formulář vyplňoval. *@
-<form method="get" asp-page="/Orders/Journey" class="row g-2 align-items-end mb-4">
-    <div class="col-auto">
-        <label for="journey-order-id" class="form-label small mb-0">Průběh zakládání objednávky č.</label>
-        <input id="journey-order-id" name="orderId" type="number" min="1" class="form-control form-control-sm" required />
-    </div>
-    <div class="col-auto">
-        <button type="submit" class="btn btn-sm btn-outline-secondary">Zobrazit průběh</button>
-        @* Krok 12B: stejné číslo, jiná projekce – přehrání. *@
-        <button type="submit" formaction="@Url.Page("/Orders/Replay")" class="btn btn-sm btn-outline-primary">▶ Přehrát</button>
-    </div>
-</form>
+@* Krok 12A: vstupem je číslo objednávky – zobrazí, jak uživatel formulář vyplňoval. Účty krok 2: jen admin. *@
+@if (Model.CanManageOrders)
+{
+    <form method="get" asp-page="/Orders/Journey" class="row g-2 align-items-end mb-4">
+        <div class="col-auto">
+            <label for="journey-order-id" class="form-label small mb-0">Průběh zakládání objednávky č.</label>
+            <input id="journey-order-id" name="orderId" type="number" min="1" class="form-control form-control-sm" required />
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-sm btn-outline-secondary">Zobrazit průběh</button>
+            @* Krok 12B: stejné číslo, jiná projekce – přehrání. *@
+            <button type="submit" formaction="@Url.Page("/Orders/Replay")" class="btn btn-sm btn-outline-primary">▶ Přehrát</button>
+        </div>
+    </form>
+}
 
 @foreach (var order in Model.Orders)
 {
@@ -114,14 +124,20 @@
                 @order.CreatedAtUtc.ToLocalTime().ToString("g")
             </span>
             <span>
-                <a asp-page="/Orders/Journey" asp-route-orderId="@order.Id" class="btn btn-sm btn-link">Průběh zadání</a>
-                <a asp-page="/Orders/Replay" asp-route-orderId="@order.Id" asp-route-autoplay="1" class="btn btn-sm btn-link">▶ Přehrát</a>
+                @if (Model.CanManageOrders)
+                {
+                    <a asp-page="/Orders/Journey" asp-route-orderId="@order.Id" class="btn btn-sm btn-link">Průběh zadání</a>
+                    <a asp-page="/Orders/Replay" asp-route-orderId="@order.Id" asp-route-autoplay="1" class="btn btn-sm btn-link">▶ Přehrát</a>
+                }
                 <span class="badge @IndexModel.StatusBadge(order.Status) me-2">@IndexModel.StatusText(order.Status)</span>
                 @if (order.Status == "Confirmed")
                 {
-                    <form method="post" asp-page-handler="Complete" asp-route-id="@order.Id" class="d-inline">
-                        <button type="submit" class="btn btn-sm btn-success">Vyřídit</button>
-                    </form>
+                    @if (Model.CanManageOrders)
+                    {
+                        <form method="post" asp-page-handler="Complete" asp-route-id="@order.Id" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-success">Vyřídit</button>
+                        </form>
+                    }
                     <form method="post" asp-page-handler="Cancel" asp-route-id="@order.Id" class="d-inline">
                         <button type="submit" class="btn btn-sm btn-outline-danger">Zrušit</button>
                     </form>
@@ -163,5 +179,8 @@
 }
 
 @section Scripts {
-    <script src="~/js/order-form-tracker.js" asp-append-version="true"></script>
+    @if (Model.CanPlaceOrders)
+    {
+        <script src="~/js/order-form-tracker.js" asp-append-version="true"></script>
+    }
 }

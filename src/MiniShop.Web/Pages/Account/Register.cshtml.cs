@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -7,6 +8,7 @@ using MiniShop.Infrastructure.Accounts;
 namespace MiniShop.Web.Pages.Account;
 
 /// <summary>Účty krok 1: registrace nového uživatele. Po úspěchu je rovnou přihlášený.</summary>
+[AllowAnonymous]
 public sealed class RegisterModel(
     UserManager<ApplicationUser> userManager,
     SignInManager<ApplicationUser> signInManager,
@@ -49,6 +51,9 @@ public sealed class RegisterModel(
 
             return Page();
         }
+
+        // Účty krok 2: každý nový účet je zákazník. (Kdyby přiřazení selhalo, roli doplní seed při dalším startu.)
+        await userManager.AddToRoleAsync(user, AccountRoles.User);
 
         // Do logu jen ID – e-mail je osobní údaj.
         logger.LogInformation("Zaregistrován nový uživatel {UserId}", user.Id);

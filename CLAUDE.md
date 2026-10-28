@@ -240,11 +240,17 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
 Role User (objednává, vidí a ruší jen své) a Admin (sklad, produkty, vyřízení, všechny objednávky a uživatelé, neobjednává).
 Modul Accounts (ASP.NET Core Identity, `users.db`). Souhrny kroků do `docs/kroky-ucty/`. Každý krok se nasadí do cloudu
 (DB na volume, `backup.py`, secrets) – basic auth v Caddy zůstává do kroku 9.
+- Fallback policy = přihlášený: **nová veřejná stránka/endpoint potřebuje `[AllowAnonymous]`**, admin/zákaznické
+  `[Authorize(Policy = AuthorizationPolicies.RequireAdmin/RequireCustomer)]` (`Web/Accounts`). Handlery stránky
+  Objednávky ověřují policy v kódu (`IAuthorizationService`). **Nová stránka/akce/endpoint = řádek
+  v `AuthorizationMatrixTests`** (Web v paměti přes `MiniShopWebFactory`, typ `InventoryApiClient` – `Program` je dvojznačný).
+- První admin: produkce `docker compose exec web dotnet MiniShop.Web.dll create-admin --email …` (jen bez admina),
+  vývoj `AdminBootstrap` v `appsettings.Development.json` (`admin@minishop.local` / `admin-heslo-pro-vyvoj`, vynucená změna hesla).
 
 | Krok | Stav | Souhrn |
 | --- | --- | --- |
 | 1. Účty, registrace, přihlášení (modul Accounts, Identity, `users.db`) | hotovo | `docs/kroky-ucty/krok-01-ucty.md` |
-| 2. Role a první admin (policies, bootstrap ze secretu, zamčené admin akce) | plán | — |
+| 2. Role a první admin (policies, fallback policy, `create-admin` / `AdminBootstrap` ve vývoji, matice oprávnění) | hotovo | `docs/kroky-ucty/krok-02-role.md` |
 | 3. Vlastník objednávky (`CustomerId`, cizí = 404, admin neobjednává) | plán | — |
 | 4. Zrušení objednávky i ve stavu Pending (nový přechod ságy, kompenzace) | plán | — |
 | 5. Skutečné e-maily (MailKit, Mailpit lokálně, Gmail SMTP v cloudu, potvrzení e-mailu, reset hesla) | plán | — |

@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MiniShop.Application.Journeys;
+using MiniShop.Web.Accounts;
 
 namespace MiniShop.Web.Controllers;
 
@@ -22,11 +24,13 @@ public sealed class JourneysController(IJourneyService journeyService) : Control
 
     /// <summary>Průběh zakládání objednávky: souhrn, časová osa (kroky) a všechny události pro přehrání.</summary>
     [HttpGet("orders/{orderId:int}")]
+    [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]   // účty krok 2: průběh vidí jen admin
     public async Task<ActionResult<OrderJourneyDto>> GetByOrder(int orderId, CancellationToken cancellationToken) =>
         Ok(await journeyService.GetByOrderIdAsync(orderId, cancellationToken));
 
     /// <summary>Krok 12B: scénář přehrávání – události s časem přehrání (dlouhé pauzy zkrácené).</summary>
     [HttpGet("orders/{orderId:int}/replay")]
+    [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
     public async Task<ActionResult<JourneyReplayDto>> GetReplay(int orderId, CancellationToken cancellationToken) =>
         Ok(await journeyService.GetReplayByOrderIdAsync(orderId, cancellationToken));
 }

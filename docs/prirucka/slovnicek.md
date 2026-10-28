@@ -49,8 +49,11 @@ order: 80
 | **Autentizace / autorizace** | *kdo jsi?* (přihlášení) / *co smíš?* (role, vlastnictví záznamu) | [Accounts](architektura/moduly/accounts.md) |
 | **Claim** | jeden údaj o přihlášeném uživateli uložený v cookie (ID, e-mail, jméno, role) | [Accounts](architektura/moduly/accounts.md) |
 | **Hash hesla se solí** | jednosměrný otisk hesla s náhodnou přísadou – heslo samo se neukládá | [Accounts](architektura/moduly/accounts.md) |
+| **Fallback policy (secure by default)** | pravidlo pro vše, co nemá vlastní: v MiniShopu „musí být přihlášen“ – zapomenutá stránka je zamčená | [Accounts](architektura/moduly/accounts.md) |
 | **Open redirect** | chyba: web po přihlášení přesměruje na adresu, kterou podstrčil útočník | [Accounts](architektura/moduly/accounts.md) |
+| **Policy** | pojmenované pravidlo autorizace (`RequireAdmin`), používané na stránkách i v API | [Accounts](architektura/moduly/accounts.md) |
 | **Přihlašovací cookie** | zašifrovaná identita v prohlížeči; `HttpOnly`, `Secure`, `SameSite` | [Accounts](architektura/moduly/accounts.md) |
+| **Role** | štítek na uživateli (`User`, `Admin`), podle kterého policies rozhodují | [Accounts](architektura/moduly/accounts.md) |
 
 ## Nasazení a provoz
 

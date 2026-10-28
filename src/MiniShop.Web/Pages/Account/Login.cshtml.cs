@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -7,6 +8,7 @@ using MiniShop.Infrastructure.Accounts;
 namespace MiniShop.Web.Pages.Account;
 
 /// <summary>Účty krok 1: přihlášení e-mailem a heslem. Výsledek je zašifrovaná cookie s identitou.</summary>
+[AllowAnonymous]
 public sealed class LoginModel(
     SignInManager<ApplicationUser> signInManager,
     ILogger<LoginModel> logger) : PageModel

@@ -57,6 +57,7 @@ Plán (role User a Admin, best practice): [docs/Ucty-roadmap.md](code:docs/Ucty-
 | Krok | Co přinesl | Souhrn |
 | --- | --- | --- |
 | 1 | Účty, registrace, přihlášení (ASP.NET Core Identity, `users.db`) | [ucty-01](code:docs/kroky-ucty/krok-01-ucty.md) |
+| 2 | Role User/Admin, policies, fallback policy, první admin příkazem `create-admin` | [ucty-02](code:docs/kroky-ucty/krok-02-role.md) |
 
 ## Proč po krocích
 

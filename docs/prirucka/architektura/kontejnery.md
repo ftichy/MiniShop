@@ -19,6 +19,7 @@ flowchart TB
         ow1["OutboxWorker<br/>+ consumer fronty minishop.ordering"]
         odb[("ordering.db<br/>objednávky, ságy, kopie katalogu,<br/>outbox, inbox")]
         jdb[("journeys.db<br/>proud událostí formuláře")]
+        udb[("users.db<br/>uživatelské účty")]
     end
 
     subgraph invSvc["Inventory.Api – služba skladu (port 7181 lokálně)"]
@@ -37,6 +38,7 @@ flowchart TB
     ow2 <-->|AMQP| mq
     ui --- odb
     ui --- jdb
+    ui --- udb
     api --- idb
     webSvc -.->|OTLP| dash
     invSvc -.->|OTLP| dash
@@ -47,6 +49,7 @@ flowchart TB
     click ow1 "/Docs/eda/outbox"
     click ow2 "/Docs/eda/outbox"
     click jdb "/Docs/architektura/moduly/journeys"
+    click udb "/Docs/architektura/moduly/accounts"
     click dash "/Docs/eda/observabilita"
 ```
 
@@ -54,7 +57,7 @@ flowchart TB
 
 | Část | Co dělá | Proč existuje |
 | --- | --- | --- |
-| **Web** ([MiniShop.Web](code:src/MiniShop.Web/)) | UI pro celý obchod, REST API objednávek, sága objednávky, kopie katalogu, sledování formuláře | Hostuje moduly Ordering a Journeys. UI je jedno pro celý e-shop, i když data skladu patří jiné službě. |
+| **Web** ([MiniShop.Web](code:src/MiniShop.Web/)) | UI pro celý obchod, REST API objednávek, sága objednávky, kopie katalogu, sledování formuláře, účty a přihlášení | Hostuje moduly Ordering, Journeys a Accounts. UI je jedno pro celý e-shop, i když data skladu patří jiné službě. |
 | **Inventory.Api** ([MiniShop.Inventory.Api](code:src/MiniShop.Inventory.Api/)) | Produkty a zásoby, vyřizuje příkazy rezervace a uvolnění | Sklad je samostatná služba: může se nasadit, restartovat či spadnout nezávisle na objednávkách. |
 | **RabbitMQ** | Doručuje zprávy mezi službami, drží je, když příjemce neběží | Služby se nevolají přímo – odesílatel nemusí vědět, kdo zprávu čte, ani čekat, až příjemce odpoví. Viz [Broker](../eda/broker.md). |
 | **SQLite databáze** | Jeden soubor na modul | Žádná sdílená databáze = žádné skryté závislosti mezi moduly. Outbox a inbox leží v DB modulu, aby byly v téže transakci jako data. |

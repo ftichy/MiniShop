@@ -42,6 +42,16 @@ order: 80
 | **traceparent** | standardní hlavička W3C nesoucí ID trasy mezi procesy | [Observabilita](eda/observabilita.md) |
 | **Wire tap** | „odposlech“ – fronta, která dostává kopii všech zpráv (audit) | [Broker](eda/broker.md) |
 
+## Účty a zabezpečení
+
+| Pojem | Význam | Víc |
+| --- | --- | --- |
+| **Autentizace / autorizace** | *kdo jsi?* (přihlášení) / *co smíš?* (role, vlastnictví záznamu) | [Accounts](architektura/moduly/accounts.md) |
+| **Claim** | jeden údaj o přihlášeném uživateli uložený v cookie (ID, e-mail, jméno, role) | [Accounts](architektura/moduly/accounts.md) |
+| **Hash hesla se solí** | jednosměrný otisk hesla s náhodnou přísadou – heslo samo se neukládá | [Accounts](architektura/moduly/accounts.md) |
+| **Open redirect** | chyba: web po přihlášení přesměruje na adresu, kterou podstrčil útočník | [Accounts](architektura/moduly/accounts.md) |
+| **Přihlašovací cookie** | zašifrovaná identita v prohlížeči; `HttpOnly`, `Secure`, `SameSite` | [Accounts](architektura/moduly/accounts.md) |
+
 ## Nasazení a provoz
 
 | Pojem | Význam | Víc |

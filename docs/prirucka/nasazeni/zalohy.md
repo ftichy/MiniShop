@@ -22,7 +22,7 @@ sequenceDiagram
     T->>S: spustit (uživatel deploy)
     S->>HC: /start
     S->>P: docker run … backup
-    P->>V: online backup SQLite (ordering, journeys, inventory) + /data/keys
+    P->>V: online backup SQLite (ordering, journeys, users, inventory) + /data/keys
     P->>P: integrity_check, tar.gz minishop-RRRRMMDDTHHMMSSZ
     P->>B: upload (přihlášení instance principal – bez klíče)
     S->>HC: ping OK (jinak /fail)

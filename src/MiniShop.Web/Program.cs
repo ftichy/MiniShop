@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Localization;
 using MiniShop.Infrastructure;
+using MiniShop.Infrastructure.Accounts;
 using MiniShop.Infrastructure.Hosting;
 using MiniShop.Infrastructure.Journeys;
 using MiniShop.Infrastructure.Ordering;
@@ -45,11 +46,16 @@ try
     var journeysConnectionString = builder.Configuration.GetConnectionString("Journeys")
         ?? throw new InvalidOperationException("Chybí connection string 'Journeys' v appsettings.json.");
 
+    // Účty krok 1: uživatelské účty (modul Accounts) mají vlastní databázi.
+    var accountsConnectionString = builder.Configuration.GetConnectionString("Accounts")
+        ?? throw new InvalidOperationException("Chybí connection string 'Accounts' v appsettings.json.");
+
     // Registrace vrstev (composition root).
     builder.Services.AddApplication(builder.Configuration);
     builder.Services.AddInfrastructureCore();
     builder.Services.AddOrderingInfrastructure(orderingConnectionString);
     builder.Services.AddJourneysInfrastructure(journeysConnectionString);
+    builder.Services.AddAccounts(accountsConnectionString);
 
     // Krok 9: hlídání termínů ságy (sklad neodpověděl včas → zamítnout).
     builder.Services.AddHostedService<OrderSagaTimeoutWorker>();
@@ -84,6 +90,7 @@ try
 
     await OrderingDatabaseInitializer.InitializeAsync(app.Services);
     await JourneysDatabaseInitializer.InitializeAsync(app.Services);
+    await AccountsDatabaseInitializer.InitializeAsync(app.Services);
 
     if (app.Environment.IsDevelopment())
     {
@@ -112,6 +119,10 @@ try
     app.UseExceptionHandler();
 
     app.UseRouting();
+
+    // Účty krok 1: z cookie přečte přihlášeného uživatele (User), autorizace pak rozhodne, kam smí.
+    app.UseAuthentication();
+    app.UseAuthorization();
 
     app.MapControllers();
     app.MapRazorPages();

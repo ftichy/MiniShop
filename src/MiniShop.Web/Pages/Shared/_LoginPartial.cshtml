@@ -1,0 +1,20 @@
+@using MiniShop.Infrastructure.Accounts
+@* Účty krok 1: pravá část hlavičky – kdo je přihlášený, nebo odkazy na přihlášení a registraci. *@
+<ul class="navbar-nav ms-auto">
+    @if (User.Identity?.IsAuthenticated == true)
+    {
+        <li class="nav-item">
+            <span class="navbar-text me-2">@(User.FindFirst(AccountClaimTypes.DisplayName)?.Value ?? User.Identity.Name)</span>
+        </li>
+        <li class="nav-item">
+            <form method="post" asp-page="/Account/Logout" class="d-inline">
+                <button type="submit" class="btn btn-link nav-link" data-track="nav-logout">Odhlásit</button>
+            </form>
+        </li>
+    }
+    else
+    {
+        <li class="nav-item"><a class="nav-link" asp-page="/Account/Login" data-track="nav-login">Přihlásit</a></li>
+        <li class="nav-item"><a class="nav-link" asp-page="/Account/Register" data-track="nav-register">Registrovat</a></li>
+    }
+</ul>

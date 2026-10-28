@@ -32,6 +32,7 @@ PREFIX = "minishop-"
 DATABASES = [
     ("/web/ordering.db", "ordering.db"),
     ("/web/journeys.db", "journeys.db"),
+    ("/web/users.db", "users.db"),  # účty krok 1 – starší zálohy ho nemají, obnova ho pak přeskočí
     ("/inventory/inventory.db", "inventory.db"),
 ]
 KEYS_DIR = ("/web/keys", "keys")  # Data Protection klíče Webu (cookies, antiforgery)
@@ -114,12 +115,20 @@ def restore(name: str) -> None:
         with tarfile.open(archive) as tar:
             tar.extractall(content, filter="data")
 
+        # Databáze přidaná později (users.db) ve starší záloze chybí – ta se přeskočí a zůstane současná.
+        databases = []
+        for destination, target in DATABASES:
+            if os.path.exists(os.path.join(content, target)):
+                databases.append((destination, target))
+            else:
+                log(f"  {target}: v záloze není, ponechávám současný stav")
+
         # Nejdřív zkontrolovat všechno – teprve pak cokoli měnit.
-        for _, target in DATABASES:
+        for _, target in databases:
             check_integrity(os.path.join(content, target))
 
         stamp = f"{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}"
-        for destination, target in DATABASES:
+        for destination, target in databases:
             owner = os.stat(os.path.dirname(destination))  # vlastník volume = uživatel "app" z image
             if os.path.exists(destination):
                 # Původní soubor nechat vedle (pro jistotu), WAL/SHM smazat – patří ke starému souboru.

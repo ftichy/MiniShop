@@ -21,6 +21,7 @@ v tabulce nejsou – jsou popsané níže.
 | **.NET 10 / C#** | běhové prostředí a jazyk | LTS verze, multiplatformní (ARM i x86), výkon | [dotnet.microsoft.com](https://dotnet.microsoft.com/) |
 | **ASP.NET Core** | web: Razor Pages (UI), kontrolery (REST API), DI, konfigurace, health checky | součást .NET, vše potřebné v jednom | [docs](https://learn.microsoft.com/aspnet/core/) |
 | **Microsoft.AspNetCore.OpenApi** | dokument `/openapi/v1.json` (popis REST API, jen ve vývoji) | standardní popis API pro nástroje a klienty | [docs](https://learn.microsoft.com/aspnet/core/fundamentals/openapi/overview) |
+| **ASP.NET Core Identity** (Microsoft.AspNetCore.Identity.EntityFrameworkCore) | uživatelské účty: hash hesla, pravidla hesla, role, přihlašovací cookie; tabulky v `users.db` | hotové a prověřené – vlastní kryptografie se nepíše; umí i zámek účtu, reset hesla a přihlášení přes Google | [docs](https://learn.microsoft.com/aspnet/core/security/authentication/identity) |
 | **Microsoft.Extensions.Hosting.Abstractions**, **Microsoft.Extensions.Configuration.Binder**, **Microsoft.Extensions.Diagnostics.HealthChecks** | background služby (outbox worker, consumery), načtení nastavení, health checky | Infrastructure není web projekt, potřebuje jen tyto části | [docs](https://learn.microsoft.com/dotnet/core/extensions/generic-host) |
 
 ## Data a zprávy

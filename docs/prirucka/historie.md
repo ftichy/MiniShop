@@ -50,6 +50,14 @@ Plán (včetně výběru cloudu a rozpočtu): [docs/Cloud-roadmap.md](code:docs/
 | 11 | Monitoring, Aspire dashboard v cloudu, alarmy | [cloud-11](code:docs/kroky-cloud/krok-11-monitoring.md) |
 | 12 | Zálohy a obnova, cvičná havárie | [cloud-12](code:docs/kroky-cloud/krok-12-zalohy.md) |
 
+## Uživatelské účty a role
+
+Plán (role User a Admin, best practice): [docs/Ucty-roadmap.md](code:docs/Ucty-roadmap.md)
+
+| Krok | Co přinesl | Souhrn |
+| --- | --- | --- |
+| 1 | Účty, registrace, přihlášení (ASP.NET Core Identity, `users.db`) | [ucty-01](code:docs/kroky-ucty/krok-01-ucty.md) |
+
 ## Proč po krocích
 
 Každý krok řeší **jeden** problém, který předchozí krok odhalil, a po každém aplikace funguje. Tak je u každé

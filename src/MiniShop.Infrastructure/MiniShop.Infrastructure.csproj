@@ -4,6 +4,8 @@
     <ProjectReference Include="..\MiniShop.Application\MiniShop.Application.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Účty krok 1: ASP.NET Core Identity – uživatelé a role v users.db (modul Accounts). -->
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.13" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.13" />
     <!-- Krok 10B: workery (BackgroundService) a AddMessaging sdílí obě služby (Web i Inventory.Api). -->
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.13" />

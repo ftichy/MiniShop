@@ -236,6 +236,24 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
 | 11. Monitoring a logy v cloudu (Aspire dashboard v Compose, `/health` pro UptimeRobot, alarmy OCI v `infra/monitoring.tf`) | kód hotový, čeká na provedení (PR, UptimeRobot, alarmy, zkouška výpadku) | `docs/kroky-cloud/krok-11-monitoring.md` |
 | 12. Zálohy a obnova po havárii (noční online backup SQLite → OCI bucket přes instance principal, `restore.sh`, healthchecks.io, cvičná havárie) | hotovo (cvičná havárie: VM smazaná → tofu apply → Deploy → `restore.sh latest`, objednávky zpět) | `docs/kroky-cloud/krok-12-zalohy.md` |
 
+## Stav uživatelských účtů (viz `docs/Ucty-roadmap.md`)
+Role User (objednává, vidí a ruší jen své) a Admin (sklad, produkty, vyřízení, všechny objednávky a uživatelé, neobjednává).
+Modul Accounts (ASP.NET Core Identity, `users.db`). Souhrny kroků do `docs/kroky-ucty/`. Každý krok se nasadí do cloudu
+(DB na volume, `backup.py`, secrets) – basic auth v Caddy zůstává do kroku 9.
+
+| Krok | Stav | Souhrn |
+| --- | --- | --- |
+| 1. Účty, registrace, přihlášení (modul Accounts, Identity, `users.db`) | hotovo | `docs/kroky-ucty/krok-01-ucty.md` |
+| 2. Role a první admin (policies, bootstrap ze secretu, zamčené admin akce) | plán | — |
+| 3. Vlastník objednávky (`CustomerId`, cizí = 404, admin neobjednává) | plán | — |
+| 4. Zrušení objednávky i ve stavu Pending (nový přechod ságy, kompenzace) | plán | — |
+| 5. Skutečné e-maily (MailKit, Mailpit lokálně, Gmail SMTP v cloudu, potvrzení e-mailu, reset hesla) | plán | — |
+| 6. Administrace uživatelů (přehled, povýšení, blokace, poslední admin, audit) | plán | — |
+| 7. Zabezpečení skladu (servisní klíč pro zápis do Inventory.Api) | plán | — |
+| 8. Zpevnění (lockout, rate limiting, bezpečnostní hlavičky) | plán | — |
+| 9. Otevření webu (vypnutý basic auth, ochrana registrace, smazání účtu) | plán | — |
+| 10. Přihlášení přes Google | plán | — |
+
 ## Postup práce na dalším kroku EDA
 1. Nejdřív **shrň**, co se bude přidávat/měnit a **proč** (teorie + konkrétní případ v MiniShopu),
    a počkej na souhlas uživatele.

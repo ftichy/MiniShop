@@ -24,13 +24,15 @@ public sealed class ModuleBoundariesTests
     private const string Ordering = "Ordering";
     private const string Inventory = "Inventory";
     private const string Journeys = "Journeys";
+    private const string Accounts = "Accounts";
 
-    /// <summary>Namespace modulu v každé vrstvě (Domain používá "Orders").</summary>
+    /// <summary>Namespace modulu v každé vrstvě (Domain používá "Orders"; Accounts je zatím jen v Infrastructure).</summary>
     private static readonly IReadOnlyDictionary<string, string[]> ModuleNamespaces = new Dictionary<string, string[]>
     {
         [Ordering] = ["MiniShop.Domain.Orders", "MiniShop.Application.Ordering", "MiniShop.Infrastructure.Ordering"],
         [Inventory] = ["MiniShop.Domain.Inventory", "MiniShop.Application.Inventory", "MiniShop.Infrastructure.Inventory"],
-        [Journeys] = ["MiniShop.Domain.Journeys", "MiniShop.Application.Journeys", "MiniShop.Infrastructure.Journeys"]
+        [Journeys] = ["MiniShop.Domain.Journeys", "MiniShop.Application.Journeys", "MiniShop.Infrastructure.Journeys"],
+        [Accounts] = ["MiniShop.Infrastructure.Accounts"]
     };
 
     [Theory]
@@ -40,6 +42,12 @@ public sealed class ModuleBoundariesTests
     [InlineData(Journeys, Ordering)]       // … a sledování o objednávkách (zná jen číslo)
     [InlineData(Inventory, Journeys)]
     [InlineData(Journeys, Inventory)]
+    [InlineData(Ordering, Accounts)]       // účty krok 1: objednávky znají jen ID uživatele, ne modul účtů
+    [InlineData(Accounts, Ordering)]
+    [InlineData(Inventory, Accounts)]
+    [InlineData(Accounts, Inventory)]
+    [InlineData(Journeys, Accounts)]
+    [InlineData(Accounts, Journeys)]
     public void Modul_NezavisiNaJinemModulu(string module, string forbiddenModule)
     {
         foreach (var moduleNamespace in ModuleNamespaces[module])
@@ -68,7 +76,7 @@ public sealed class ModuleBoundariesTests
     {
         var result = Types.InAssemblies(SourceAssemblies)
             .That().ResideInNamespace(sharedNamespace)
-            .ShouldNot().HaveDependencyOnAny([.. ModuleNamespaces[Ordering], .. ModuleNamespaces[Inventory], .. ModuleNamespaces[Journeys]])
+            .ShouldNot().HaveDependencyOnAny([.. ModuleNamespaces.Values.SelectMany(namespaces => namespaces)])
             .GetResult();
 
         Assert.True(result.IsSuccessful,

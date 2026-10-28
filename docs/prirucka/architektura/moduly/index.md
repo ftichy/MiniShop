@@ -1,6 +1,6 @@
 ---
 title: Moduly
-summary: Ordering, Inventory a Journeys – tři business oblasti s vlastními daty, které se navzájem neznají.
+summary: Ordering, Inventory, Journeys a Accounts – business oblasti s vlastními daty, které se navzájem neznají.
 order: 3
 ---
 
@@ -29,6 +29,10 @@ flowchart LR
     i2 -->|"StockReservedV1, StockReservationFailedV1, StockReleasedV1"| o2
     i1 -->|"ProductUpdatedV1, ProductRemovedV1"| o3
     o3 -->|SyncCatalogV1| i1
+    subgraph acc["Accounts (služba Web)"]
+        a1[Uživatelské účty, přihlášení]
+    end
+
     jou -.-|"spojené jen číslem objednávky (zapíše UI)"| ord
 
     click o2 "/Docs/eda/saga"
@@ -38,6 +42,7 @@ flowchart LR
     click i1 "/Docs/architektura/moduly/inventory"
     click i2 "/Docs/architektura/moduly/inventory"
     click j2 "/Docs/architektura/moduly/journeys"
+    click a1 "/Docs/architektura/moduly/accounts"
 ```
 
 | Modul | Odpovídá za | Databáze | Kde v kódu |
@@ -45,6 +50,7 @@ flowchart LR
 | [Ordering](ordering.md) | objednávky, jejich stavy, ságu, kopii katalogu, oznámení zákazníkovi | `ordering.db` | `Domain/Orders`, `Application/Ordering`, `Infrastructure/Ordering` |
 | [Inventory](inventory.md) | produkty, skladové zásoby, rezervace | `inventory.db` | `Domain/Inventory`, `Application/Inventory`, `Infrastructure/Inventory` |
 | [Journeys](journeys.md) | co uživatel dělal ve formuláři objednávky | `journeys.db` | `Domain/Journeys`, `Application/Journeys`, `Infrastructure/Journeys` |
+| [Accounts](accounts.md) | uživatelské účty, registrace a přihlášení (ASP.NET Core Identity) | `users.db` | `Infrastructure/Accounts`, stránky `Pages/Account` ve Webu |
 
 ## Pravidla hranic
 

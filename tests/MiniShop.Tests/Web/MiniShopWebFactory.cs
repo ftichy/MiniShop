@@ -45,6 +45,8 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
         builder.UseSetting("ConnectionStrings:Ordering", _ordering.ConnectionString);
         builder.UseSetting("ConnectionStrings:Journeys", _journeys.ConnectionString);
         builder.UseSetting("ConnectionStrings:Accounts", _accounts.ConnectionString);
+        // Účty krok 7: servisní klíč skladu (sklad tu nahrazuje StubProductService, ale bez klíče by se Web nespustil).
+        builder.UseSetting("InventoryApi:ApiKey", new string('k', 64));
 
         // První admin z konfigurace (seed) – stejně jako ve vývoji, jen bez vynucené změny hesla.
         builder.UseSetting("AdminBootstrap:Email", AdminEmail);

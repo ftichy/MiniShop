@@ -12,6 +12,7 @@ order: 2
 ```mermaid
 flowchart TB
     subgraph entry["Vstupy"]
+        key["ApiKeyAuthenticationHandler<br/>X-Api-Key, jinak 401"]
         rest["ProductsController<br/>/api/products"]
         consumer["Consumer fronty<br/>minishop.inventory"]
     end
@@ -30,6 +31,7 @@ flowchart TB
 
     db[("InventoryDbContext<br/>inventory.db + outbox + inbox")]
 
+    key --> rest
     rest --> svc
     consumer -->|ReserveStockV1| reserve
     consumer -->|ReleaseStockV1| release
@@ -55,6 +57,7 @@ flowchart TB
 
 | Komponenta | K čemu slouží | Kód |
 | --- | --- | --- |
+| **ApiKeyAuthenticationHandler** | Účty krok 7: `/api` jen se servisním klíčem Webu v hlavičce `X-Api-Key` (jinak 401). Web ho přidává v `InventoryApiKeyHandler`. | [ApiKeyAuthentication.cs](code:src/MiniShop.Inventory.Api/ApiKeyAuthentication.cs), [ServiceApiKey.cs](code:src/MiniShop.ServiceDefaults/ServiceApiKey.cs), [InventoryApiKeyHandler.cs](code:src/MiniShop.Web/Inventory/InventoryApiKeyHandler.cs) |
 | **ProductsController** | REST API produktů – čte ho UI Webu přes `InventoryApiClient`. | [ProductsController.cs](code:src/MiniShop.Inventory.Api/Controllers/ProductsController.cs) |
 | **ProductService** | Založení, změna, smazání, naskladnění produktu. Změna názvu/ceny vyvolá událost → `ProductUpdatedV1`. | [ProductService.cs](code:src/MiniShop.Application/Inventory/ProductService.cs) |
 | **Product** | Entita s pravidly (cena > 0, zásoba nesmí být záporná). | [Product.cs](code:src/MiniShop.Domain/Inventory/Product.cs) |
@@ -65,6 +68,12 @@ flowchart TB
 | **InventoryDbContext** | `inventory.db`. Doménové události produktu převádí na integrační **rovnou při uložení**. | [InventoryDbContext.cs](code:src/MiniShop.Infrastructure/Inventory/InventoryDbContext.cs) |
 
 ## Zajímavá rozhodnutí
+
+- **Zero trust – servisní klíč (účty krok 7).** Sklad nevěří tomu, že je schovaný v síti Dockeru: celé `/api`
+  (i čtení) chce klíč, který zná jen Web (secret `INVENTORY_API_KEY`, lokálně ho vygeneruje Aspire). Otevřené
+  zůstaly jen `/health` a `/alive`. Bez klíče v konfiguraci se sklad ani Web nespustí. Porovnání klíče běží
+  v konstantním čase. **Kdo z uživatelů smí co, rozhoduje Web** (role) – sklad ověřuje jen, že volá Web.
+  Správnější varianta – token uživatele (JWT), ze kterého by sklad sám poznal roli Admin – je odložená na později.
 
 - **Sklad nezná objednávky.** Pracuje jen s daty z příkazu (číslo objednávky, položky). Kdyby se Ordering
   přepsal, sklad se nemusí měnit.

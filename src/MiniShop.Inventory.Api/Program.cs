@@ -5,6 +5,7 @@ using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Hosting;
 using MiniShop.Infrastructure.Inventory;
 using MiniShop.Inventory.Api;
+using Microsoft.AspNetCore.Authorization;
 using MiniShop.ServiceDefaults;
 using Serilog;
 
@@ -45,6 +46,15 @@ try
     // Outbox worker + RabbitMQ (fronta minishop.inventory).
     builder.Services.AddMessaging(builder.Configuration);
 
+    // Účty krok 7: zero trust – /api jen se servisním klíčem Webu (401 bez něj). Bez klíče v konfiguraci se sklad nespustí.
+    var apiKey = ServiceApiKey.Read(key => builder.Configuration[key]);
+    builder.Services.AddAuthentication(ApiKeyAuthenticationHandler.SchemeName)
+        .AddScheme<ApiKeyAuthenticationOptions, ApiKeyAuthenticationHandler>(
+            ApiKeyAuthenticationHandler.SchemeName, options => options.ApiKey = apiKey);
+    builder.Services.AddAuthorizationBuilder()
+        // Co není výslovně [AllowAnonymous] (health checky), to vyžaduje klíč – i čtení.
+        .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+
     builder.Services.AddControllers();
     builder.Services.AddOpenApi();
     builder.Services.AddProblemDetails();
@@ -57,12 +67,15 @@ try
     if (app.Environment.IsDevelopment())
     {
         // OpenAPI dokument: /openapi/v1.json
-        app.MapOpenApi();
+        app.MapOpenApi().AllowAnonymous();
     }
 
     // Request logging vně exception handleru – loguje výsledný status (404/400), ne výjimku.
     app.UseSerilogRequestLogging();
     app.UseExceptionHandler();
+
+    app.UseAuthentication();
+    app.UseAuthorization();
 
     app.MapControllers();
     app.MapDefaultEndpoints();

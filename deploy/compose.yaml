@@ -87,6 +87,8 @@ services:
       <<: *otel-env
       OTEL_SERVICE_NAME: inventory-api
       ConnectionStrings__messaging: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      # Účty krok 7: servisní klíč – /api skladu jen pro Web. Bez něj se Compose ani nespustí (:?).
+      InventoryApi__ApiKey: ${INVENTORY_API_KEY:?Chybí INVENTORY_API_KEY v .env}
     volumes:
       - inventory-data:/data
     # Žádné "ports": sklad je dostupný jen uvnitř sítě Compose (pro Web), zvenku ne.
@@ -107,6 +109,8 @@ services:
       ConnectionStrings__messaging: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
       # Jméno služby "inventory-api" je zároveň DNS jméno kontejneru v síti Compose.
       Services__inventory-api__http__0: http://inventory-api:8080
+      # Účty krok 7: stejný servisní klíč – Web ho posílá v hlavičce X-Api-Key.
+      InventoryApi__ApiKey: ${INVENTORY_API_KEY:?Chybí INVENTORY_API_KEY v .env}
       # Za reverse proxy (Caddy, krok 5) věřit hlavičkám X-Forwarded-Proto/For. Bez proxy nic nemění.
       ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
       # Příručka (/Docs) odkazuje do kódu na GitHubu na commit, ze kterého je image ("sha-…"); jinak na main.

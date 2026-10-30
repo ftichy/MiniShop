@@ -3,8 +3,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.RateLimiting;
 using MiniShop.Infrastructure.Accounts;
 using MiniShop.Web.Accounts;
+using MiniShop.Web.Security;
 
 namespace MiniShop.Web.Pages.Account;
 
@@ -13,6 +15,7 @@ namespace MiniShop.Web.Pages.Account;
 /// security stamp, se kterým je token podepsaný (a zároveň odhlásí ostatní zařízení).
 /// </summary>
 [AllowAnonymous]
+[EnableRateLimiting(AccountRateLimiting.PolicyName)]   // účty krok 8: max. 10 odeslání za minutu z jedné IP
 public sealed class ResetPasswordModel(
     UserManager<ApplicationUser> userManager,
     ILogger<ResetPasswordModel> logger) : PageModel

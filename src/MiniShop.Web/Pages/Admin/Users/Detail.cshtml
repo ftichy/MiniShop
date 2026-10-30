@@ -19,7 +19,7 @@
     <dt class="col-sm-3">Role</dt>
     <dd class="col-sm-9"><partial name="_RoleBadge" model="account.IsAdmin" /></dd>
     <dt class="col-sm-3">Stav</dt>
-    <dd class="col-sm-9"><partial name="_LockBadge" model="account.IsLocked" /></dd>
+    <dd class="col-sm-9"><partial name="_LockBadge" model="account" /></dd>
 </dl>
 
 @if (Model.IsCurrentUser)
@@ -41,13 +41,13 @@ else
                 <button type="submit" class="btn btn-outline-dark">Povýšit na admina</button>
             </form>
         }
-        @if (account.IsLocked)
+        @if (account.IsBlocked || account.LockedOutUntil is not null)
         {
             <form method="post" asp-page-handler="Unlock" asp-route-id="@account.Id">
-                <button type="submit" class="btn btn-outline-success">Odblokovat</button>
+                <button type="submit" class="btn btn-outline-success">@(account.IsBlocked ? "Odblokovat" : "Zrušit dočasný zámek")</button>
             </form>
         }
-        else
+        @if (!account.IsBlocked)
         {
             <form method="post" asp-page-handler="Lock" asp-route-id="@account.Id">
                 <button type="submit" class="btn btn-outline-danger">Zablokovat</button>

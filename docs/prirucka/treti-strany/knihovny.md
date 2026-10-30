@@ -56,7 +56,7 @@ v tabulce nejsou – jsou popsané níže.
 
 | Co | K čemu | Proč | Odkazy |
 | --- | --- | --- | --- |
-| **Bootstrap 5** (z CDN jsDelivr) | vzhled UI – mřížka, formuláře, tabulky | hotový vzhled bez vlastního CSS | [getbootstrap.com](https://getbootstrap.com/) |
+| **Bootstrap 5** (5.3.3, jen CSS, lokálně ve `wwwroot/lib/bootstrap`) | vzhled UI – mřížka, formuláře, tabulky | hotový vzhled bez vlastního CSS; od účtů kroku 8 ne z CDN – CSP pouští jen vlastní soubory a cizí server nevidí návštěvníky | [getbootstrap.com](https://getbootstrap.com/) |
 | **Markdig** | převod Markdownu této dokumentace na HTML (na serveru) | nejrychlejší a nejúplnější Markdown pro .NET, tabulky i Mermaid bloky | [GitHub](https://github.com/xoofx/markdig) |
 | **Mermaid** (lokální kopie ve `wwwroot/lib/mermaid`) | diagramy z textu v prohlížeči | diagram se píše jako text vedle dokumentace a mění se s ní v PR | [mermaid.js.org](https://mermaid.js.org/) |
 

@@ -63,6 +63,7 @@ Plán (role User a Admin, best practice): [docs/Ucty-roadmap.md](code:docs/Ucty-
 | 5 | Skutečné e-maily – potvrzení e-mailu, nové heslo, stav objednávky (Gmail, lokálně Mailpit) | [ucty-05](code:docs/kroky-ucty/krok-05-emaily.md) |
 | 6 | Správa uživatelů – povýšení, blokace, poslední admin, audit; EF Core migrace `users.db` | [ucty-06](code:docs/kroky-ucty/krok-06-sprava-uzivatelu.md) |
 | 7 | Zabezpečení skladu – servisní klíč mezi Webem a Inventory.Api (zero trust) | [ucty-07](code:docs/kroky-ucty/krok-07-zabezpeceni-skladu.md) |
+| 8 | Zpevnění – zámek účtu, rate limiting, CSP a bezpečnostní hlavičky, logy bez osobních údajů | [ucty-08](code:docs/kroky-ucty/krok-08-zpevneni.md) |
 
 ## Proč po krocích
 

@@ -106,7 +106,7 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   z prohlížeče, řazení podle `OffsetMs` (čas od otevření formuláře). `ValidationFailed`/`OrderSubmitted` zapisuje jen server
   (stránka `Orders/Index`), Ordering o Journeys neví (hlídá `ModuleBoundariesTests`). Průběh = projekce při čtení
   (`OrderJourneyProjection`, fold). Sledování nesmí rozbít objednávku (chyba zápisu jen do logu). Ukládá se skutečně napsaný text.
-  Automatické obnovení stránky Objednávky jen přes `reloadWhenIdle()` (nespustí se, když uživatel vyplňuje).
+  Automatické obnovení stránky Objednávky jen atributem `data-reload-when-idle` (`wwwroot/js/orders-reload.js`, nespustí se, když uživatel vyplňuje).
   Přehrání (12B) = druhá projekce `JourneyReplayProjection` (scénář počítá server, `journey-player.js` jen přehrává);
   `Replay.cshtml` má ruční kopii formuláře – **nové pole formuláře objednávky přidat i tam**. Nové typy událostí jen na konec
   `JourneyEventType` (ukládá se jako text). Prvky, které má přehrávač najít, mají `data-track`.
@@ -264,6 +264,13 @@ Modul Accounts (ASP.NET Core Identity, `users.db`). Souhrny kroků do `docs/krok
   **nespustí**): Aspire ho generuje (parametr `inventory-api-key`), bez Aspire `appsettings.Development.json` obou služeb,
   Compose `INVENTORY_API_KEY` (povinný – lokální `deploy/.env` ho musí mít), produkce secret. Web ho přidává v `InventoryApiKeyHandler`.
   Testy Webu: klíč v `MiniShopWebFactory`; sklad v paměti `InventoryApiFactory` (stejná kolekce kvůli Serilogu).
+- Zpevnění (krok 8): **CSP `script-src 'self'` – žádné inline `<script>` ani `onclick=`**, skripty jen soubory ve `wwwroot/js`
+  (data v `<script type="application/json">` smí; hlídá `HardeningTests`). Žádné CDN – knihovny lokálně ve `wwwroot/lib`.
+  Hlavičky v `Web/Security/SecurityHeaders.cs` (+ HSTS mimo vývoj), `enduser.id` do trasy. Zámek účtu 5 / 15 min
+  (`AccountsInfrastructure`, `lockoutOnFailure: true`); zablokovaný adminem = `LockoutEnd` rok 9999 (`IsBlocked`),
+  dočasný zámek admina práva nebere. **Nový formulář účtu = `[EnableRateLimiting(AccountRateLimiting.PolicyName)]`**
+  (limit jen POST, podle IP, `RateLimiting:AccountForms`; testy ho mají vysoko). Do logu nikdy e-mail ani heslo, jen ID účtu
+  (`HardeningTests` to hlídá přes `MiniShopWebFactory.Logs`). Serilog = statický logger – test logů potřebuje vlastní instanci Webu.
 
 | Krok | Stav | Souhrn |
 | --- | --- | --- |
@@ -274,7 +281,7 @@ Modul Accounts (ASP.NET Core Identity, `users.db`). Souhrny kroků do `docs/krok
 | 5. Skutečné e-maily (MailKit, Mailpit lokálně, Gmail SMTP v cloudu, potvrzení e-mailu, reset hesla) | hotovo | `docs/kroky-ucty/krok-05-emaily.md` |
 | 6. Administrace uživatelů (přehled, povýšení, blokace, poslední admin, audit, EF migrace `users.db`) | hotovo | `docs/kroky-ucty/krok-06-sprava-uzivatelu.md` |
 | 7. Zabezpečení skladu (servisní klíč `X-Api-Key` pro celé `/api` Inventory.Api, secret `INVENTORY_API_KEY`, fail fast; JWT odloženo) | hotovo | `docs/kroky-ucty/krok-07-zabezpeceni-skladu.md` |
-| 8. Zpevnění (lockout, rate limiting, bezpečnostní hlavičky) | plán | — |
+| 8. Zpevnění (zámek 5 pokusů / 15 min, rate limiting formulářů účtu 10/min/IP → 429, CSP a bezpečnostní hlavičky, Bootstrap lokálně, `enduser.id`, logy bez e-mailů) | hotovo | `docs/kroky-ucty/krok-08-zpevneni.md` |
 | 9. Otevření webu (vypnutý basic auth, ochrana registrace, smazání účtu) | plán | — |
 | 10. Přihlášení přes Google | plán | — |
 

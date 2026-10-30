@@ -5,13 +5,16 @@ using Microsoft.Extensions.Logging;
 namespace MiniShop.Infrastructure.Accounts;
 
 /// <summary>Účet v přehledu pro admina (účty krok 6).</summary>
+/// <param name="IsBlocked">Zablokovaný adminem (do odblokování).</param>
+/// <param name="LockedOutUntil">Účty krok 8: dočasně zamčený po špatných heslech – do kdy (jinak null).</param>
 public sealed record AccountSummary(
     string Id,
     string DisplayName,
     string Email,
     bool IsAdmin,
     bool EmailConfirmed,
-    bool IsLocked);
+    bool IsBlocked,
+    DateTimeOffset? LockedOutUntil);
 
 /// <summary>Řádek auditu pro zobrazení.</summary>
 public sealed record AccountAuditItem(
@@ -153,26 +156,34 @@ public sealed class AccountAdministration(
                 return isSelf ? "Roli admina si nemůžete odebrat sám – požádejte jiného admina." : null;
 
             case AccountAuditAction.Locked:
-                if (await userManager.IsLockedOutAsync(target)) return "Účet už je zablokovaný.";
+                if (IsBlocked(target)) return "Účet už je zablokovaný.";
                 if (targetIsAdmin && !await AnotherActiveAdminExistsAsync(target)) return "Posledního admina nejde zablokovat.";
                 return isSelf ? "Sám sebe zablokovat nemůžete." : null;
 
             case AccountAuditAction.Unlocked:
-                return await userManager.IsLockedOutAsync(target) ? null : "Účet není zablokovaný.";
+                // Odblokovat jde i dočasný zámek po špatných heslech (účty krok 8).
+                return await userManager.IsLockedOutAsync(target) ? null : "Účet není zablokovaný ani zamčený.";
 
             default:
                 throw new ArgumentOutOfRangeException(nameof(action), action, null);
         }
     }
 
+    /// <summary>
+    /// Zablokovaný adminem = zámek do <see cref="DateTimeOffset.MaxValue"/>. Účty krok 8: dočasný zámek po špatných
+    /// heslech (15 minut) používá stejné pole LockoutEnd, ale admina o práva nepřipraví – jinak by útočník mohl
+    /// zkoušením hesel „odstavit“ všechny adminy.
+    /// </summary>
+    private static bool IsBlocked(ApplicationUser user) => user.LockoutEnd?.Year == DateTimeOffset.MaxValue.Year;
+
     private async Task<bool> IsActiveAdminAsync(ApplicationUser user) =>
-        await userManager.IsInRoleAsync(user, AccountRoles.Admin) && !await userManager.IsLockedOutAsync(user);
+        await userManager.IsInRoleAsync(user, AccountRoles.Admin) && !IsBlocked(user);
 
     private async Task<bool> AnotherActiveAdminExistsAsync(ApplicationUser except)
     {
         foreach (var admin in await userManager.GetUsersInRoleAsync(AccountRoles.Admin))
         {
-            if (admin.Id != except.Id && !await userManager.IsLockedOutAsync(admin))
+            if (admin.Id != except.Id && !IsBlocked(admin))
             {
                 return true;
             }
@@ -215,9 +226,14 @@ public sealed class AccountAdministration(
         select userRole.UserId;
 
     /// <summary>Zámek se počítá v paměti – SQLite neumí v dotazu porovnávat DateTimeOffset (LockoutEnd).</summary>
-    private AccountSummary ToSummary(ApplicationUser user, bool isAdmin) =>
-        new(user.Id, user.DisplayName, user.Email ?? string.Empty, isAdmin, user.EmailConfirmed,
-            user.LockoutEnabled && user.LockoutEnd > timeProvider.GetUtcNow());
+    private AccountSummary ToSummary(ApplicationUser user, bool isAdmin)
+    {
+        var blocked = IsBlocked(user);
+        var lockedOutUntil = !blocked && user.LockoutEnabled && user.LockoutEnd > timeProvider.GetUtcNow()
+            ? user.LockoutEnd
+            : null;
+        return new(user.Id, user.DisplayName, user.Email ?? string.Empty, isAdmin, user.EmailConfirmed, blocked, lockedOutUntil);
+    }
 
     private static string SuccessMessage(AccountAuditAction action, ApplicationUser target) => action switch
     {

@@ -37,6 +37,12 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Anonymous, "/Account/ForgotPassword", Expect.Allowed },     // účty krok 5
         { Who.Anonymous, "/Account/ResetPassword", Expect.Allowed },
         { Who.Anonymous, "/Account/ConfirmEmail", Expect.Allowed },
+        { Who.Anonymous, "/Privacy", Expect.Allowed },                   // účty krok 9
+
+        // Účty krok 9: smazání účtu – jen přihlášený (admin stránku uvidí, ale smazat nemůže)
+        { Who.Anonymous, "/Account/Delete", Expect.Login },
+        { Who.User, "/Account/Delete", Expect.Allowed },
+        { Who.Admin, "/Account/Delete", Expect.Allowed },
 
         // Objednávky: jen přihlášení
         { Who.Anonymous, "/Orders", Expect.Login },
@@ -84,6 +90,10 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         // Účty krok 5: znovu poslat potvrzení e-mailu – jen přihlášený
         { Who.Anonymous, "/Account/ResendConfirmation", Expect.Login },
         { Who.User, "/Account/ResendConfirmation", Expect.Allowed },
+
+        // Účty krok 9: smazání účtu (bez hesla – neprojde validací, nic se nesmaže)
+        { Who.Anonymous, "/Account/Delete", Expect.Login },
+        { Who.User, "/Account/Delete", Expect.Allowed },
 
         // Produkty a sklad: jen admin
         { Who.User, "/Products?handler=AddStock&id=1&quantity=5", Expect.Denied },

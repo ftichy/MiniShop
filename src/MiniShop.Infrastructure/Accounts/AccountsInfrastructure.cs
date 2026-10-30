@@ -24,6 +24,7 @@ public static class AccountsInfrastructure
         services.AddDbContext<AccountsDbContext>(options => options.UseSqlite(connectionString));
         services.AddScoped<AccountsSeeder>();
         services.AddScoped<AccountAdministration>();   // účty krok 6: správa uživatelů adminem
+        services.AddScoped<AccountDeletion>();         // účty krok 9: smazání vlastního účtu
         services.TryAddSingleton(TimeProvider.System);
 
         return services.AddIdentityCore<ApplicationUser>(ConfigureIdentity)

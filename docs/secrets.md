@@ -13,7 +13,7 @@ Pravidla:
 | Secret | K čemu | Kde ještě leží | Výměna | Kdy |
 | --- | --- | --- | --- | --- |
 | `RABBITMQ_PASSWORD` | heslo účtu `minishop` v RabbitMQ (Web a sklad se jím přihlašují) | `.env` na VM (600, vlastník `deploy`) – sestaví ho `deploy.sh` | [R1](#r1-heslo-rabbitmq) | při podezření na únik, jinak 1× ročně |
-| `BASIC_AUTH_HASH` | bcrypt otisk hesla pro zámek v Caddy (heslo zná jen uživatel) | `.env` na VM | [R2](#r2-heslo-do-webu-basic-auth) | při podezření, při odchodu člověka, který heslo zná |
+| `BASIC_AUTH_HASH` | bcrypt otisk hesla pro zámek v Caddy (heslo zná jen uživatel) – od účtů kroku 9 jen Aspire dashboard, web je veřejný | `.env` na VM | [R2](#r2-heslo-do-webu-basic-auth) | při podezření, při odchodu člověka, který heslo zná |
 | `HEALTHCHECKS_BACKUP_URL` | adresa, kam noční záloha hlásí průběh (healthchecks.io, krok 12) – kdo ji zná, může hlídači „nalhat“ zálohu | `.env` na VM | healthchecks.io → kontrola → *Ping URL* → *Regenerate* → secret → Deploy | při podezření |
 | `SMTP_PASSWORD` | heslo aplikace Gmailu účtu `ftichy.gemini@gmail.com` – Web jím posílá e-maily (účty krok 5). Dává přístup k **celé schránce** toho účtu. Volitelný: prázdný = e-maily jen do logu | `.env` na VM | [R8](#r8-heslo-aplikace-gmailu) | při podezření, jinak 1× ročně |
 | `INVENTORY_API_KEY` | servisní klíč mezi Webem a skladem (účty krok 7) – kdo ho zná a dostane se do sítě Dockeru, může měnit produkty a zásoby. 64 hex znaků, povinný | `.env` na VM → proměnná `InventoryApi__ApiKey` v kontejnerech `web` a `inventory-api` | [R9](#r9-servisní-klíč-skladu) | při podezření, jinak 1× ročně |
@@ -69,6 +69,8 @@ DuckDNS token se nikde neukládá (reserved IP se nemění).
    vrátí staré heslo i verzi.
 
 ### R2. Heslo do webu (basic auth)
+
+Od účtů kroku 9 chrání jen Aspire dashboard (`dashboard.minishop-tichy.duckdns.org`), web je veřejný.
 
 1. Otisk nového hesla: `docker run --rm -it caddy:2 caddy hash-password` (heslo 2×, vypíše `$2a$14$…`).
 2. GitHub → `production` → `BASIC_AUTH_HASH` → *Update* → otisk (bez uvozovek).

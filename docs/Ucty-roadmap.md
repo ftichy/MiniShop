@@ -243,7 +243,8 @@ a nechat sklad ověřit roli sám.
 ## Krok 9: Otevření webu
 
 - `BASIC_AUTH=off` pro web; Aspire dashboard basic auth ponechá.
-- Ochrana registrace: objednat jde až s potvrzeným e-mailem; volitelně CAPTCHA (Cloudflare Turnstile, zdarma).
+- Ochrana registrace: objednat jde až s potvrzeným e-mailem; volitelně CAPTCHA (Cloudflare Turnstile, zdarma) – **odloženo**
+  (stačí rate limiting a potvrzení e-mailu; doplnit při falešných registracích).
 - GDPR minimum: uživatel může smazat účet → anonymizace (objednávky zůstanou bez osobních údajů).
 
 **Hotovo, když:** web je veřejný bez basic auth a registrace je chráněná.

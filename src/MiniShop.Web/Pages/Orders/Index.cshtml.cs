@@ -9,6 +9,7 @@ using MiniShop.Application.Ordering;
 using MiniShop.Application.Ordering.Catalog;
 using MiniShop.Application.Exceptions;
 using MiniShop.Domain.Exceptions;
+using MiniShop.Infrastructure.Accounts;
 using MiniShop.Web.Accounts;
 using MiniShop.Web.Inventory;
 
@@ -24,6 +25,9 @@ public sealed class IndexModel(
 {
     /// <summary>Účty krok 2: formulář nové objednávky jen pro zákazníka (admin neobjednává).</summary>
     public bool CanPlaceOrders { get; private set; }
+
+    /// <summary>Účty krok 9: zákazník, který ještě nepotvrdil e-mail – místo formuláře výzva k potvrzení.</summary>
+    public bool NeedsEmailConfirmation { get; private set; }
 
     /// <summary>Účty krok 2: vyřízení, obnova katalogu a průběh objednávek jen pro admina.</summary>
     public bool CanManageOrders { get; private set; }
@@ -183,6 +187,7 @@ public sealed class IndexModel(
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
         CanPlaceOrders = await IsAuthorizedAsync(AuthorizationPolicies.RequireCustomer);
+        NeedsEmailConfirmation = !CanPlaceOrders && User.IsInRole(AccountRoles.User);
         CanManageOrders = await IsAuthorizedAsync(AuthorizationPolicies.RequireAdmin);
 
         // Krok 12A: nová návštěva formuláře = nový proud. Po chybě odeslání zůstává původní (přišel ve formuláři).

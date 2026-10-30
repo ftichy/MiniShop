@@ -9,6 +9,6 @@ public static class AuthorizationPolicies
     /// <summary>Správa obchodu: produkty, sklad, vyřízení objednávek, průběh objednávek.</summary>
     public const string RequireAdmin = nameof(RequireAdmin);
 
-    /// <summary>Zákazník: zakládání objednávek. Admin sem nepatří (oddělení povinností).</summary>
+    /// <summary>Zákazník s potvrzeným e-mailem (účty krok 9): zakládání objednávek. Admin sem nepatří (oddělení povinností).</summary>
     public const string RequireCustomer = nameof(RequireCustomer);
 }

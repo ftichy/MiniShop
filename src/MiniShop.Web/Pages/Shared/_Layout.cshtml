@@ -34,6 +34,10 @@
         <partial name="_EmailConfirmationBanner" />
         @RenderBody()
     </main>
+    @* Účty krok 9: veřejný web – informace o osobních údajích musí být dostupná odkudkoli. *@
+    <footer class="container border-top mt-5 py-3 text-muted small">
+        MiniShop – výukový e-shop · <a asp-page="/Privacy" data-track="nav-privacy">Ochrana osobních údajů</a>
+    </footer>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

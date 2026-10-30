@@ -108,6 +108,26 @@ public sealed class OrderService(
         return order.ToDto();
     }
 
+    public async Task<int> AnonymizeCustomerAsync(string customerId, CancellationToken cancellationToken = default)
+    {
+        var customerOrders = await orders.GetAllAsync(customerId, cancellationToken);
+
+        // Všechno, nebo nic: s rozpracovanou objednávkou se nezmění žádná.
+        if (customerOrders.Any(order => order.IsActive))
+        {
+            throw new DomainException(
+                "Účet nejde smazat, dokud máte nevyřízené objednávky. Počkejte na jejich vyřízení, nebo potvrzené zrušte.");
+        }
+
+        foreach (var order in customerOrders)
+        {
+            order.Anonymize();
+        }
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return customerOrders.Count;
+    }
+
     private DateTime UtcNow => timeProvider.GetUtcNow().UtcDateTime;
 
     // Uplatní se nejvýhodnější sleva ze všech pravidel (slevy se nesčítají).

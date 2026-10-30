@@ -10,15 +10,17 @@ order: 4
 
 Modul vzniká postupně podle plánu [Uživatelské účty a role](code:docs/Ucty-roadmap.md). Hotové jsou kroky 1
 (registrace, přihlášení), 2 (role, oprávnění, první admin), 3 (vlastník objednávky – zákazník vidí jen své,
-viz [Ordering](ordering.md)), 5 ([e-maily](../emaily.md)), 6 (správa uživatelů a audit) a 8 ([zpevnění](#zpevnění)); krok 7 zabezpečil sklad ([Inventory](inventory.md)).
+viz [Ordering](ordering.md)), 5 ([e-maily](../emaily.md)), 6 (správa uživatelů a audit), 8 ([zpevnění](#zpevnění))
+a 9 ([otevřený web](#otevřený-web-a-osobní-údaje)); krok 7 zabezpečil sklad ([Inventory](inventory.md)).
 
 ## Role a oprávnění
 
 | Kde | Nepřihlášený | User (zákazník) | Admin |
 | --- | :-: | :-: | :-: |
-| Úvod, Dokumentace, Přihlášení, Registrace, `/health` | ✅ | ✅ | ✅ |
+| Úvod, Dokumentace, Přihlášení, Registrace, Ochrana osobních údajů, `/health` | ✅ | ✅ | ✅ |
 | Objednávky – seznam a detail | → přihlášení | jen své (cizí = 404) | všechny |
-| Objednávky – založit (stránka i `POST /api/orders`) | ❌ | ✅ (jméno a e-mail z účtu) | ❌ |
+| Objednávky – založit (stránka i `POST /api/orders`) | ❌ | ✅ jen s **potvrzeným e-mailem** (jméno a e-mail z účtu) | ❌ |
+| Smazat vlastní účet | ❌ | ✅ (bez nevyřízených objednávek) | ❌ (nejdřív vrátit na usera) |
 | Objednávky – zrušit | ❌ | jen svou | jakoukoli |
 | Objednávky – vyřídit, obnovit katalog | ❌ | ❌ | ✅ |
 | Produkty – přidat, naskladnit, upravit, smazat | ❌ | ❌ | ✅ |
@@ -139,6 +141,50 @@ flowchart LR
 > která po třech špatných PINech na chvíli přestane fungovat; CSP je provozní řád, podle kterého prohlížeč nespustí
 > nic, co nepřišlo z MiniShopu.
 
+## Otevřený web a osobní údaje
+
+Od účtů kroku 9 je web **veřejný** – Caddy už nechce heslo (basic auth zůstal jen před Aspire dashboardem).
+Prohlížet může každý, ale:
+
+- **Objednávat jde až s potvrzeným e-mailem.** Policy `RequireCustomer` = role User **a** claim
+  `minishop:email_confirmed`. Robot s vymyšlenou adresou nic neobjedná a e-maily o objednávkách nechodí cizím lidem.
+- **Smazání účtu** (*právo být zapomenut*, GDPR): jméno v hlavičce → *Smazat účet* → znovu heslo.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Uživatel
+    participant P as Account/Delete (Web)
+    participant O as Ordering (ordering.db)
+    participant A as AccountDeletion (users.db)
+
+    U->>P: heslo
+    P->>P: CheckPasswordSignInAsync (počítá se do zámku účtu)
+    P->>O: AnonymizeCustomerAsync(ID)
+    alt nevyřízená objednávka (Pending, Confirmed)
+        O-->>P: DomainException – nic se nezmění
+        P-->>U: „Účet nejde smazat, dokud…“
+    else
+        O->>O: objednávky: jméno → „Smazaný zákazník“, e-mail → prázdný
+        P->>A: DeleteAsync(user)
+        A->>A: audit: e-mail → „smazaný účet“, smazat účet (role, claimy cascade)
+        P->>P: odhlásit
+        P-->>U: „Účet je smazaný“
+    end
+```
+
+- **Pořadí:** nejdřív objednávky, pak účet. Když smazání účtu selže, uživatel to zkusí znovu (anonymizace podruhé
+  nic nepokazí). Obráceně by mohl zůstat smazaný účet s objednávkami, na kterých je pořád jeho e-mail.
+- **Objednávky zůstanou** (položky, ceny, stav – účetnictví a statistiky), `CustomerId` také: po smazání účtu
+  sám nikoho neidentifikuje. E-mail o objednávce se na prázdnou adresu neposílá.
+- **Admin** si účet smazat nemůže (pravidlo „vždy zůstane admin“) – jiný admin ho nejdřív vrátí na usera.
+- **Stránka [Ochrana osobních údajů](code:src/MiniShop.Web/Pages/Privacy.cshtml)** (odkaz v patičce a u registrace):
+  co MiniShop ukládá, proč, jak dlouho (zálohy 7 dní), kdo zpracovává (Oracle Cloud, Gmail), jen nezbytné cookies.
+
+Kód: [Delete.cshtml.cs](code:src/MiniShop.Web/Pages/Account/Delete.cshtml.cs),
+[AccountDeletion.cs](code:src/MiniShop.Infrastructure/Accounts/AccountDeletion.cs), `Order.Anonymize`
+v [Order.cs](code:src/MiniShop.Domain/Orders/Order.cs).
+
 ## Databáze a migrace
 
 `users.db` se na rozdíl od ostatních databází **nesmí mazat** (jsou v ní účty), proto ji od účtů kroku 6 spravují
@@ -223,6 +269,7 @@ sequenceDiagram
 | **AccountsDatabaseInitializer** | Migrace `users.db` (i staré databáze bez historie migrací) a seed. | [AccountsDatabaseInitializer.cs](code:src/MiniShop.Infrastructure/Accounts/AccountsDatabaseInitializer.cs) |
 | **AccountAdministration** | Správa uživatelů adminem: role, blokace, pravidla (poslední admin, sám sebe), security stamp, audit. | [AccountAdministration.cs](code:src/MiniShop.Infrastructure/Accounts/AccountAdministration.cs) |
 | **AccountAuditEntry** | Auditní záznam: kdo, komu, co, kdy (tabulka `AccountAuditEntries`). | [AccountAuditEntry.cs](code:src/MiniShop.Infrastructure/Accounts/AccountAuditEntry.cs) |
+| **AccountDeletion** | Smazání vlastního účtu (účty krok 9): admin ne, e-mail z auditu pryč, účet i role a claimy smazané. | [AccountDeletion.cs](code:src/MiniShop.Infrastructure/Accounts/AccountDeletion.cs) |
 | **CzechIdentityErrorDescriber** | České chybové hlášky Identity. | [CzechIdentityErrorDescriber.cs](code:src/MiniShop.Infrastructure/Accounts/CzechIdentityErrorDescriber.cs) |
 | **AccountClaimsPrincipalFactory** | Co se uloží do cookie – navíc zobrazované jméno (role a claimy uživatele přidá Identity). | [AccountClaimsPrincipalFactory.cs](code:src/MiniShop.Infrastructure/Accounts/AccountClaimsPrincipalFactory.cs) |
 | **AddAccounts** | Ve Webu: `SignInManager`, cookie, policies, fallback policy; `/api/*` dostane 401/403 místo přesměrování. | [AccountsServiceCollectionExtensions.cs](code:src/MiniShop.Web/Extensions/AccountsServiceCollectionExtensions.cs) |

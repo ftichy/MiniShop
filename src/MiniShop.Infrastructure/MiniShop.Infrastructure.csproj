@@ -11,17 +11,17 @@
     <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
     <!-- Účty krok 1: ASP.NET Core Identity – uživatelé a role v users.db (modul Accounts). -->
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.13" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.13" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.14" />
     <!-- Účty krok 6: nástroj dotnet ef (migrace users.db) – jen při vývoji, do aplikace se nedostane. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.13">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <!-- Krok 10B: workery (BackgroundService) a AddMessaging sdílí obě služby (Web i Inventory.Api). -->
-    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.13" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.13" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.14" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.14" />
     <!-- Krok 11: health check outboxu (OutboxHealthCheck). Trasy a metriky stačí z .NET (System.Diagnostics). -->
-    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="10.0.13" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="10.0.14" />
     <PackageReference Include="RabbitMQ.Client" Version="7.2.2" />
   </ItemGroup>
 </Project>

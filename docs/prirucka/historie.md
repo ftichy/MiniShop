@@ -61,6 +61,7 @@ Plán (role User a Admin, best practice): [docs/Ucty-roadmap.md](code:docs/Ucty-
 | 3 | Vlastník objednávky – zákazník vidí a ruší jen své, cizí = 404, jméno a e-mail z účtu | [ucty-03](code:docs/kroky-ucty/krok-03-vlastnik-objednavky.md) |
 | 4 | Zrušení objednávky ve stavu Pending – **odloženo** | — |
 | 5 | Skutečné e-maily – potvrzení e-mailu, nové heslo, stav objednávky (Gmail, lokálně Mailpit) | [ucty-05](code:docs/kroky-ucty/krok-05-emaily.md) |
+| 6 | Správa uživatelů – povýšení, blokace, poslední admin, audit; EF Core migrace `users.db` | [ucty-06](code:docs/kroky-ucty/krok-06-sprava-uzivatelu.md) |
 
 ## Proč po krocích
 

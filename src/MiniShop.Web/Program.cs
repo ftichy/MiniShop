@@ -87,7 +87,9 @@ try
     builder.Services.AddDocumentation(builder.Configuration, builder.Environment);
 
     builder.Services.AddControllers();
-    builder.Services.AddRazorPages();
+    // Účty krok 6: celá složka /Admin jen pro admina – pojistka navíc k [Authorize] na stránkách.
+    builder.Services.AddRazorPages(options =>
+        options.Conventions.AuthorizeFolder("/Admin", AuthorizationPolicies.RequireAdmin));
     builder.Services.AddOpenApi();
     builder.Services.AddProblemDetails();
     builder.Services.AddExceptionHandler<GlobalExceptionHandler>();

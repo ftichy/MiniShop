@@ -24,6 +24,10 @@ public static class AccountsServiceCollectionExtensions
         services.Configure<DataProtectionTokenProviderOptions>(options => options.TokenLifespan = TimeSpan.FromHours(2));
         services.AddScoped<AccountEmails>();
 
+        // Krok 6: každou minutu ověřit cookie proti databázi (security stamp). Zablokovaný uživatel nebo admin, kterému
+        // byla odebrána role, tak přijde o přihlášení do minuty – ne až za 14 dní, kdy cookie vyprší.
+        services.Configure<SecurityStampValidatorOptions>(options => options.ValidationInterval = TimeSpan.FromMinutes(1));
+
         services.AddAuthentication(IdentityConstants.ApplicationScheme)
             .AddIdentityCookies();
 

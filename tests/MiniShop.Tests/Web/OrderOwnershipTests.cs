@@ -81,7 +81,7 @@ public sealed class OrderOwnershipTests(MiniShopWebFactory web) : IAsyncLifetime
         var page = WebUtility.HtmlDecode(await admin.GetStringAsync("/Orders"));
 
         Assert.Contains(_janOrder, orders!.Select(o => o.Id));
-        Assert.Contains(_petraOrder, orders.Select(o => o.Id));
+        Assert.Contains(_petraOrder, orders!.Select(o => o.Id));
         Assert.Contains("Všechny objednávky", page);
     }
 }

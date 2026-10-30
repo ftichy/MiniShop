@@ -1,0 +1,67 @@
+@page
+@model MiniShop.Web.Pages.Admin.Users.IndexModel
+@{
+    ViewData["Title"] = "Uživatelé";
+}
+<h1>Uživatelé</h1>
+<p class="text-muted">
+    Nový admin se nejdřív zaregistruje sám (heslo zná jen on), pak ho tady povýšíte.
+    Útrata = potvrzené a vyřízené objednávky.
+</p>
+
+<table class="table table-striped align-middle">
+    <thead>
+        <tr>
+            <th>Jméno</th>
+            <th>E-mail</th>
+            <th>Role</th>
+            <th>Stav</th>
+            <th class="num">Objednávky</th>
+            <th class="num">Útrata</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var row in Model.Users)
+        {
+            var account = row.Account;
+            <tr>
+                <td><a asp-page="/Admin/Users/Detail" asp-route-id="@account.Id">@account.DisplayName</a></td>
+                <td>
+                    @account.Email
+                    @if (!account.EmailConfirmed)
+                    {
+                        <span class="badge bg-light text-dark border ms-1" title="E-mail není potvrzený">nepotvrzený</span>
+                    }
+                </td>
+                <td><partial name="_RoleBadge" model="account.IsAdmin" /></td>
+                <td><partial name="_LockBadge" model="account.IsLocked" /></td>
+                <td class="num">@row.OrderCount</td>
+                <td class="num">@row.TotalSpent.ToString("N2") Kč</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<h2 class="h4 mt-4">Poslední změny</h2>
+@if (Model.RecentAudit.Count == 0)
+{
+    <p class="text-muted">Zatím žádné.</p>
+}
+else
+{
+    <table class="table table-sm">
+        <tbody>
+            @foreach (var entry in Model.RecentAudit)
+            {
+                <tr>
+                    <td class="text-nowrap">@entry.OccurredAtUtc.ToLocalTime().ToString("g")</td>
+                    <td>
+                        <a asp-page="/Admin/Users/Detail" asp-route-id="@entry.TargetUserId">@entry.TargetEmail</a>
+                        @IndexModel.ActionText(entry.Action)
+                    </td>
+                    <td class="text-muted">provedl @entry.ActorEmail</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}

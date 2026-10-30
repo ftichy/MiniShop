@@ -39,6 +39,9 @@ public sealed class OrderService(
         return products.Select(p => new CatalogItemDto(p.Id, p.Name, p.Price)).ToList();
     }
 
+    public Task<IReadOnlyList<CustomerOrderSummaryDto>> GetCustomerSummariesAsync(CancellationToken cancellationToken = default) =>
+        orders.GetCustomerSummariesAsync(cancellationToken);
+
     public async Task<OrderDto> GetByIdAsync(int id, OrderAccess access, CancellationToken cancellationToken = default)
     {
         var order = await GetOrderAsync(id, access, cancellationToken);

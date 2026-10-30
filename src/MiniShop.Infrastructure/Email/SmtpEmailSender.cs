@@ -24,7 +24,8 @@ public sealed class SmtpEmailSender(IOptions<EmailSettings> options, ILogger<Smt
         mime.Body = new BodyBuilder { TextBody = message.TextBody, HtmlBody = message.HtmlBody }.ToMessageBody();
 
         using var client = new SmtpClient();
-        await client.ConnectAsync(settings.Host, settings.Port,
+        // Host je vyplněný – bez něj AddEmail SmtpEmailSender vůbec nezaregistruje.
+        await client.ConnectAsync(settings.Host!, settings.Port,
             settings.UseTls ? SecureSocketOptions.StartTls : SecureSocketOptions.None, cancellationToken);
         if (!string.IsNullOrEmpty(settings.UserName))
         {

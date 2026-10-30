@@ -1,6 +1,6 @@
 ---
 title: Modul Accounts
-summary: Uživatelské účty a role – registrace, přihlášení, role User/Admin, kdo smí co, první admin. Data v users.db.
+summary: Uživatelské účty a role – registrace, přihlášení, role User/Admin, kdo smí co, první admin, správa uživatelů a audit. Data v users.db (migrace).
 order: 4
 ---
 
@@ -9,8 +9,8 @@ order: 4
 > Běží ve službě **Web**, data má v `users.db`.
 
 Modul vzniká postupně podle plánu [Uživatelské účty a role](code:docs/Ucty-roadmap.md). Hotové jsou kroky 1
-(registrace, přihlášení), 2 (role, oprávnění, první admin) a 3 (vlastník objednávky – zákazník vidí jen své,
-viz [Ordering](ordering.md)).
+(registrace, přihlášení), 2 (role, oprávnění, první admin), 3 (vlastník objednávky – zákazník vidí jen své,
+viz [Ordering](ordering.md)), 5 ([e-maily](../emaily.md)) a 6 (správa uživatelů a audit).
 
 ## Role a oprávnění
 
@@ -24,6 +24,7 @@ viz [Ordering](ordering.md)).
 | Produkty – přidat, naskladnit, upravit, smazat | ❌ | ❌ | ✅ |
 | Průběh a přehrání objednávky (stránky i `GET /api/journeys/…`) | ❌ | ❌ | ✅ |
 | Změna hesla | ❌ | ✅ | ✅ |
+| Uživatelé – přehled, detail, povýšit / vrátit na usera, zablokovat / odblokovat (`/Admin/…`) | ❌ | ❌ | ✅ (ne sám sobě) |
 
 Pravidla jsou pojmenovaná na jednom místě – **policies** `RequireAdmin` a `RequireCustomer`
 v [AuthorizationPolicies.cs](code:src/MiniShop.Web/Accounts/AuthorizationPolicies.cs), registrované v
@@ -71,6 +72,60 @@ Admina jmenuje admin – kdo ale jmenuje prvního? (Problém slepice a vejce.)
 - **Existující účet se adminem nikdy nestane.** Bez potvrzení e-mailu by si kdokoli mohl adminův e-mail zaregistrovat
   dřív a seed by mu práva admina dal.
 - Účty z kroku 1 (bez role) dostanou při startu roli User. Kód: [AccountsSeeder.cs](code:src/MiniShop.Infrastructure/Accounts/AccountsSeeder.cs).
+- **Další admini** vznikají povýšením v aplikaci (níže). Nový admin se nejdřív sám zaregistruje – heslo tak zná jen on.
+
+## Správa uživatelů
+
+Menu **Uživatelé** (jen admin): přehled všech účtů s rolí, stavem, počtem objednávek a útratou, detail s objednávkami
+a historií změn. Na detailu jsou tlačítka **Povýšit na admina / Vrátit na usera** a **Zablokovat / Odblokovat**.
+
+```mermaid
+flowchart TD
+    act(["Admin klikne na akci"]) --> tx["transakce v users.db"]
+    tx --> actor{"je volající pořád<br/>aktivní admin? (databáze)"}
+    actor -->|ne| fail(["chyba – nic se nezmění"])
+    actor -->|ano| last{"zůstane aspoň jeden<br/>jiný aktivní admin?"}
+    last -->|"ne (vrátit / zablokovat posledního)"| fail
+    last -->|ano| self{"jde o vlastní účet?"}
+    self -->|"ano (vrátit / zablokovat)"| fail
+    self -->|ne| change["změna role User ↔ Admin<br/>nebo zámek účtu"]
+    change --> stamp["nový security stamp"]
+    stamp --> audit["záznam do AccountAuditEntries<br/>kdo, komu, co, kdy"]
+    audit --> commit(["commit"])
+```
+
+- **Rozhoduje databáze, ne cookie.** Admin, kterému jiný admin právě roli odebral, má možná ještě starou cookie –
+  akce mu přesto neprojde.
+- **Vždy zůstane aktivní admin** a nikdo si nemůže sám odebrat roli ani se zablokovat. Kontrola i změna jsou v jedné
+  transakci: když dva admini ve stejnou chvíli odebírají jeden druhého, SQLite druhou změnu nepustí.
+- **Zablokování** = zámek účtu Identity „navždy“ (do odblokování). Přihlášení skončí stejnou hláškou jako špatné
+  heslo – jiná by prozradila, že účet existuje.
+- **Odhlášení do minuty:** každá změna vymění **security stamp** (otisk „verze“ účtu). Web cookie každou minutu
+  porovná s databází (`SecurityStampValidator`, interval v
+  [AccountsServiceCollectionExtensions.cs](code:src/MiniShop.Web/Extensions/AccountsServiceCollectionExtensions.cs));
+  nesedí-li, cookie zahodí. Přirovnání: přenastavený zámek – staré klíče přestanou fungovat.
+- **Audit** jen přibývá (žádná úprava ani mazání), e-maily v něm jsou kopie z doby akce.
+- **Objednávky** dodá Ordering (`IOrderService.GetCustomerSummariesAsync`, detail přes `OrderAccess.Customer(id)`) –
+  moduly se neznají, spojí je až stránka ve Webu přes ID uživatele.
+
+Kód: [AccountAdministration.cs](code:src/MiniShop.Infrastructure/Accounts/AccountAdministration.cs),
+stránky [Admin/Users](code:src/MiniShop.Web/Pages/Admin/Users/Index.cshtml.cs) a
+[Detail](code:src/MiniShop.Web/Pages/Admin/Users/Detail.cshtml.cs). Celá složka `/Admin` je navíc zamčená
+konvencí `AuthorizeFolder` v `Program.cs`.
+
+## Databáze a migrace
+
+`users.db` se na rozdíl od ostatních databází **nesmí mazat** (jsou v ní účty), proto ji od účtů kroku 6 spravují
+**EF Core migrace** ([Accounts/Migrations](code:src/MiniShop.Infrastructure/Accounts/Migrations/AccountsDbContextModelSnapshot.cs)).
+Při startu Webu (i příkazu `create-admin`) [AccountsDatabaseInitializer](code:src/MiniShop.Infrastructure/Accounts/AccountsDatabaseInitializer.cs)
+spustí `Migrate` – ten doplní jen chybějící migrace a zapamatuje si je v tabulce `__EFMigrationsHistory`.
+
+- Databáze z kroků 1–5 (vytvořená přes `EnsureCreated`) historii nemá – initializer do ní zapíše první migraci
+  `InitialAccounts` jako provedenou (schéma odpovídá) a pak se doplní jen novější.
+- Nová migrace (z kořene repozitáře, nástroj `dotnet-ef` z `dotnet-tools.json` – poprvé `dotnet tool restore`):
+  ```text
+  dotnet ef migrations add <Nazev> --project src/MiniShop.Infrastructure --context AccountsDbContext --output-dir Accounts/Migrations
+  ```
 
 ## Komponentní diagram
 
@@ -86,7 +141,10 @@ flowchart LR
         users["UserManager<br/>pravidla hesla, hash, role"]
         factory["AccountClaimsPrincipalFactory<br/>ID, e-mail, jméno, role do cookie"]
         seeder["AccountsSeeder<br/>role, první admin"]
-        db[("users.db<br/>AspNetUsers, AspNetRoles,<br/>AspNetUserRoles, AspNetUserClaims")]
+        adminPages["Admin/Users, Detail"]
+        administration["AccountAdministration<br/>role, blokace, audit"]
+        stamp["SecurityStampValidator<br/>cookie ↔ databáze každou minutu"]
+        db[("users.db<br/>AspNetUsers, AspNetRoles,<br/>AspNetUserRoles, AspNetUserClaims,<br/>AccountAuditEntries")]
     end
 
     browser -->|"POST formulář"| pages
@@ -95,6 +153,11 @@ flowchart LR
     signin --> factory
     users --> db
     seeder --> db
+    adminPages --> administration
+    administration --> users
+    administration --> db
+    cookie --> stamp
+    stamp --> db
     browser -->|"každý požadavek s cookie"| cookie
     cookie --> authz
 ```
@@ -131,6 +194,9 @@ sequenceDiagram
 | **AccountsDbContext** | Tabulky Identity v `users.db`. | [AccountsDbContext.cs](code:src/MiniShop.Infrastructure/Accounts/AccountsDbContext.cs) |
 | **AccountsInfrastructure** | Jádro Identity a pravidla: heslo ≥ 10 znaků bez povinných speciálních znaků (NIST), unikátní e-mail. | [AccountsInfrastructure.cs](code:src/MiniShop.Infrastructure/Accounts/AccountsInfrastructure.cs) |
 | **AccountsSeeder** | Při startu: role, role User pro účty bez role, první admin z konfigurace; totéž pro příkaz `create-admin`. | [AccountsSeeder.cs](code:src/MiniShop.Infrastructure/Accounts/AccountsSeeder.cs) |
+| **AccountsDatabaseInitializer** | Migrace `users.db` (i staré databáze bez historie migrací) a seed. | [AccountsDatabaseInitializer.cs](code:src/MiniShop.Infrastructure/Accounts/AccountsDatabaseInitializer.cs) |
+| **AccountAdministration** | Správa uživatelů adminem: role, blokace, pravidla (poslední admin, sám sebe), security stamp, audit. | [AccountAdministration.cs](code:src/MiniShop.Infrastructure/Accounts/AccountAdministration.cs) |
+| **AccountAuditEntry** | Auditní záznam: kdo, komu, co, kdy (tabulka `AccountAuditEntries`). | [AccountAuditEntry.cs](code:src/MiniShop.Infrastructure/Accounts/AccountAuditEntry.cs) |
 | **CzechIdentityErrorDescriber** | České chybové hlášky Identity. | [CzechIdentityErrorDescriber.cs](code:src/MiniShop.Infrastructure/Accounts/CzechIdentityErrorDescriber.cs) |
 | **AccountClaimsPrincipalFactory** | Co se uloží do cookie – navíc zobrazované jméno (role a claimy uživatele přidá Identity). | [AccountClaimsPrincipalFactory.cs](code:src/MiniShop.Infrastructure/Accounts/AccountClaimsPrincipalFactory.cs) |
 | **AddAccounts** | Ve Webu: `SignInManager`, cookie, policies, fallback policy; `/api/*` dostane 401/403 místo přesměrování. | [AccountsServiceCollectionExtensions.cs](code:src/MiniShop.Web/Extensions/AccountsServiceCollectionExtensions.cs) |
@@ -142,12 +208,14 @@ sequenceDiagram
   a přihlášení přes Google dodává ASP.NET Core Identity.
 - **Cookie** je `HttpOnly` (JavaScript ji nepřečte), `Secure` (jen HTTPS) a `SameSite=Lax` (cizí web s ní nepošle
   formulář). Šifruje se klíči Data Protection – v cloudu leží na volume, takže přihlášení přežije nasazení.
-- **Role jsou v cookie.** Změna role se projeví po novém přihlášení nebo nejpozději za 30 minut (kontrola security stampu).
+- **Role jsou v cookie.** Proto každá změna role nebo blokace vymění security stamp a Web cookie každou minutu porovná
+  s databází – dotyčný je do minuty odhlášený a novou roli dostane při dalším přihlášení.
 - **Příznak „musí změnit heslo“ je claim uživatele** (tabulka `AspNetUserClaims`) – žádný nový sloupec, `users.db` se nemaže.
 - **Stejná hláška pro neznámý e-mail i špatné heslo**, návrat po přihlášení jen na adresu v MiniShopu
   (`Url.IsLocalUrl` – ochrana proti „open redirect“), do logu jen ID uživatele.
 - **Ostatní moduly o Accounts nevědí.** Ordering bude znát jen ID uživatele (hlídá test hranic modulů).
 - Accounts zatím neposílá zprávy, proto `AccountsDbContext` (jako Journeys) nedědí ze společného `ModuleDbContext`.
+- **Migrace jen u `users.db`.** Ostatní databáze jde při změně schématu smazat (data jsou cvičná nebo se obnoví), účty ne.
 
 ## Dál
 

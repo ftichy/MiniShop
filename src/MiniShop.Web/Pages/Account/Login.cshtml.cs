@@ -40,7 +40,16 @@ public sealed class LoginModel(
         }
 
         // Stejná hláška pro neznámý e-mail i špatné heslo – nikdo tak nezjistí, kdo v MiniShopu má účet.
-        logger.LogWarning("Neúspěšné přihlášení");
+        // Účty krok 6: i pro zablokovaný účet (Identity zámek kontroluje ještě před heslem – jiná hláška by
+        // komukoli prozradila, že účet existuje a je zablokovaný). Admin to vidí v přehledu uživatelů.
+        if (result.IsLockedOut)
+        {
+            logger.LogWarning("Pokus o přihlášení k zablokovanému účtu");
+        }
+        else
+        {
+            logger.LogWarning("Neúspěšné přihlášení");
+        }
         ModelState.AddModelError(string.Empty, "Neplatný e-mail nebo heslo.");
         return Page();
     }

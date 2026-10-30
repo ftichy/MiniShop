@@ -21,6 +21,7 @@
                 @if ((await AuthorizationService.AuthorizeAsync(User, AuthorizationPolicies.RequireAdmin)).Succeeded)
                 {
                     <li class="nav-item"><a class="nav-link" asp-page="/Products/Index" data-track="nav-products">Produkty</a></li>
+                    <li class="nav-item"><a class="nav-link" asp-page="/Admin/Users/Index" data-track="nav-users">Uživatelé</a></li>
                 }
                 <li class="nav-item"><a class="nav-link" asp-page="/Orders/Index" data-track="nav-orders">Objednávky</a></li>
                 <li class="nav-item"><a class="nav-link" href="/Docs" data-track="nav-docs">Dokumentace</a></li>

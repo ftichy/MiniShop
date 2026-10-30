@@ -35,8 +35,9 @@ public static class CreateAdminCommand
 
         await using var scope = services.CreateAsyncScope();
 
-        // users.db musí existovat i tehdy, když Web ještě nikdy neběžel. Role si připraví CreateFirstAdminAsync.
-        await scope.ServiceProvider.GetRequiredService<AccountsDbContext>().Database.EnsureCreatedAsync();
+        // users.db musí existovat (a mít aktuální schéma) i tehdy, když Web ještě nikdy neběžel.
+        // Role si připraví CreateFirstAdminAsync.
+        await AccountsDatabaseInitializer.MigrateAsync(scope.ServiceProvider.GetRequiredService<AccountsDbContext>());
 
         var seeder = scope.ServiceProvider.GetRequiredService<AccountsSeeder>();
         var result = await seeder.CreateFirstAdminAsync(email, displayName, password, mustChangePassword: false);

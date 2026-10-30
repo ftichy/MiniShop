@@ -10,8 +10,9 @@ namespace MiniShop.Domain.Inventory;
 /// </summary>
 /// <remarks>
 /// Od kroku 10 patří modulu Inventory (vlastní databáze inventory.db). Ordering ho nevidí – drží si vlastní kopii
-/// názvu a ceny (CatalogProduct), kterou plní události <see cref="ProductChanged"/> / <see cref="ProductRemoved"/>.
-/// Změna zásoby (rezervace) událost nevyvolá – ordering o skladu nic vědět nepotřebuje.
+/// (CatalogProduct), kterou plní události <see cref="ProductChanged"/> / <see cref="ProductRemoved"/>.
+/// E-shop krok 2: změna zásoby vyvolá <see cref="StockAvailabilityChanged"/>, ale jen když se změní pásmo dostupnosti
+/// (Skladem / Poslední kusy / Vyprodáno) – přesný počet kusů Ordering nepotřebuje.
 /// </remarks>
 public class Product : Entity
 {
@@ -20,15 +21,17 @@ public class Product : Entity
     {
     }
 
-    public Product(string name, string? description, decimal price, int stockQuantity, DateTime createdAtUtc)
+    public Product(string name, string? description, decimal price, Category category, int stockQuantity, DateTime createdAtUtc)
     {
         if (stockQuantity < 0)
         {
             throw new DomainException("Skladová zásoba nemůže být záporná.");
         }
 
-        Update(name, description, price, createdAtUtc);
+        // Zásoba dřív než Update – ProductChanged (zpráva s dostupností) se sestaví až při uložení, ale ať je stav úplný.
         StockQuantity = stockQuantity;
+        AvailabilityChangedAtUtc = createdAtUtc;
+        Update(name, description, price, category, createdAtUtc);
     }
 
     public int Id { get; private set; }
@@ -37,13 +40,24 @@ public class Product : Entity
     public decimal Price { get; private set; }
     public int StockQuantity { get; private set; }
 
+    /// <summary>E-shop krok 2: každý produkt patří do jedné kategorie.</summary>
+    public int CategoryId { get; private set; }
+
+    public Category Category { get; private set; } = null!;
+
     /// <summary>
-    /// Kdy se naposledy změnil název nebo cena. Při obnově katalogu (<c>SyncCatalogV1</c>) jde ve zprávě jako čas změny –
-    /// znovu poslaný stav tak nepřebije novější změnu, která je k příjemci zrovna na cestě.
+    /// Kdy se naposledy změnil název, popis, cena nebo kategorie. Při obnově katalogu (<c>SyncCatalogV1</c>) jde ve zprávě
+    /// jako čas změny – znovu poslaný stav tak nepřebije novější změnu, která je k příjemci zrovna na cestě.
     /// </summary>
     public DateTime ChangedAtUtc { get; private set; }
 
-    public void Update(string name, string? description, decimal price, DateTime updatedAtUtc)
+    /// <summary>E-shop krok 2: pásmo dostupnosti – počítá se ze zásoby, neukládá se.</summary>
+    public StockAvailability Availability => StockAvailabilityBands.From(StockQuantity);
+
+    /// <summary>Kdy se naposledy změnilo pásmo dostupnosti (stejný účel jako <see cref="ChangedAtUtc"/>, jen pro dostupnost).</summary>
+    public DateTime AvailabilityChangedAtUtc { get; private set; }
+
+    public void Update(string name, string? description, decimal price, Category category, DateTime updatedAtUtc)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -58,32 +72,36 @@ public class Product : Entity
         Name = name.Trim();
         Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
         Price = price;
-        ChangedAtUtc = updatedAtUtc;
-
-        // Nový i změněný produkt: Ordering si podle toho aktualizuje svou kopii katalogu (krok 10).
-        // Při opakovaném Update před uložením stačí poslední stav – starší událost zahodíme.
-        RemoveDomainEvents<ProductChanged>();
-        Raise(new ProductChanged(this, updatedAtUtc));
+        Category = category ?? throw new DomainException("Produkt musí patřit do kategorie.");
+        CategoryId = category.Id;
+        MarkChanged(updatedAtUtc);
     }
+
+    /// <summary>
+    /// E-shop krok 2: kategorie produktu se přejmenovala. Jméno kategorie jde ve zprávě o produktu (ProductUpdatedV2),
+    /// takže z pohledu výlohy se změnil produkt – kopie katalogu v Orderingu dostane nové jméno.
+    /// </summary>
+    public void CategoryRenamed(DateTime renamedAtUtc) => MarkChanged(renamedAtUtc);
 
     /// <summary>Produkt se maže z nabídky – před odebráním z repozitáře, aby se dala vyvolat událost.</summary>
     public void MarkRemoved(DateTime removedAtUtc)
     {
         RemoveDomainEvents<ProductChanged>();
+        RemoveDomainEvents<StockAvailabilityChanged>();
         Raise(new ProductRemoved(Id, removedAtUtc));
     }
 
-    public void AddStock(int quantity)
+    public void AddStock(int quantity, DateTime changedAtUtc)
     {
         if (quantity <= 0)
         {
             throw new DomainException("Množství pro naskladnění musí být větší než nula.");
         }
 
-        StockQuantity += quantity;
+        ChangeStock(StockQuantity + quantity, changedAtUtc);
     }
 
-    public void RemoveStock(int quantity)
+    public void RemoveStock(int quantity, DateTime changedAtUtc)
     {
         if (quantity <= 0)
         {
@@ -95,6 +113,30 @@ public class Product : Entity
             throw new InsufficientStockException(Name, quantity, StockQuantity);
         }
 
-        StockQuantity -= quantity;
+        ChangeStock(StockQuantity - quantity, changedAtUtc);
+    }
+
+    private void MarkChanged(DateTime changedAtUtc)
+    {
+        ChangedAtUtc = changedAtUtc;
+
+        // Nový i změněný produkt: Ordering si podle toho aktualizuje svou kopii katalogu (krok 10).
+        // Při opakované změně před uložením stačí poslední stav – starší událost zahodíme.
+        RemoveDomainEvents<ProductChanged>();
+        Raise(new ProductChanged(this, changedAtUtc));
+    }
+
+    private void ChangeStock(int newQuantity, DateTime changedAtUtc)
+    {
+        var before = Availability;
+        StockQuantity = newQuantity;
+        if (Availability == before)
+        {
+            return;   // pořád stejné pásmo – výlohu to nezajímá, žádná zpráva
+        }
+
+        AvailabilityChangedAtUtc = changedAtUtc;
+        RemoveDomainEvents<StockAvailabilityChanged>();
+        Raise(new StockAvailabilityChanged(this, Availability, changedAtUtc));
     }
 }

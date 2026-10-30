@@ -29,7 +29,7 @@ public sealed class ReleaseStockHandler(
         {
             if (productsById.TryGetValue(reservation.ProductId, out var product))
             {
-                product.AddStock(reservation.Quantity);
+                product.AddStock(reservation.Quantity, now);
             }
 
             reservation.Release(now);

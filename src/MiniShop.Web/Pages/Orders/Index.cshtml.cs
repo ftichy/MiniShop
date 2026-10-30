@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using MiniShop.Application.Inventory;
 using MiniShop.Application.Journeys;
 using MiniShop.Application.Ordering;
 using MiniShop.Application.Ordering.Catalog;
@@ -11,13 +10,12 @@ using MiniShop.Application.Exceptions;
 using MiniShop.Domain.Exceptions;
 using MiniShop.Infrastructure.Accounts;
 using MiniShop.Web.Accounts;
-using MiniShop.Web.Inventory;
+using MiniShop.Web.Catalog;
 
 namespace MiniShop.Web.Pages.Orders;
 
 public sealed class IndexModel(
     IOrderService orderService,
-    IProductService productService,
     CatalogSyncService catalogSync,
     IJourneyService journeyService,
     IAuthorizationService authorization,
@@ -57,7 +55,12 @@ public sealed class IndexModel(
     [TempData]
     public string? StatusMessage { get; set; }
 
-    public Task OnGetAsync(CancellationToken cancellationToken) => LoadAsync(cancellationToken);
+    /// <param name="productId">E-shop krok 2: tlačítko „Objednat“ ve výloze předvybere produkt.</param>
+    public Task OnGetAsync(int? productId, CancellationToken cancellationToken)
+    {
+        Input.ProductId = productId ?? 0;
+        return LoadAsync(cancellationToken);
+    }
 
     public async Task<IActionResult> OnPostCreateAsync(CancellationToken cancellationToken)
     {
@@ -201,19 +204,11 @@ public sealed class IndexModel(
         var catalog = await orderService.GetCatalogAsync(cancellationToken);
         CatalogEmpty = catalog.Count == 0;
 
-        IReadOnlyDictionary<int, int>? stock = null;
-        try
-        {
-            stock = (await productService.GetAllAsync(cancellationToken)).ToDictionary(p => p.Id, p => p.StockQuantity);
-        }
-        catch (InventoryUnavailableException)
-        {
-            InventoryUnavailable = true;
-        }
-
+        // E-shop krok 2: dostupnost z kopie katalogu (StockAvailabilityChangedV1) – stránka se na sklad vůbec neptá,
+        // takže funguje i při jeho výpadku. Rozhoduje až rezervace v sáze.
         ProductOptions = catalog
             .Select(p => new SelectListItem(
-                $"{p.Name} – {p.Price:N2} Kč ({StockText(stock, p.ProductId)})", p.ProductId.ToString()))
+                $"{p.Name} – {p.Price:N2} Kč ({AvailabilityLabels.Text(p.Availability).ToLowerInvariant()})", p.ProductId.ToString()))
             .ToList();
     }
 
@@ -224,16 +219,8 @@ public sealed class IndexModel(
     private async Task<bool> IsAuthorizedAsync(string policy) =>
         (await authorization.AuthorizeAsync(User, policy)).Succeeded;
 
-    private static string StockText(IReadOnlyDictionary<int, int>? stock, int productId) =>
-        stock is null ? "zásoba nedostupná"
-        : stock.TryGetValue(productId, out var quantity) ? $"skladem {quantity}"
-        : "zásoba neznámá";
-
     /// <summary>Kopie katalogu je prázdná – produkty ze skladu ještě nedorazily (stránka se sama obnovuje).</summary>
     public bool CatalogEmpty { get; private set; }
-
-    /// <summary>Krok 10B: služba skladu neodpověděla – stránka to ukáže, objednávat jde dál.</summary>
-    public bool InventoryUnavailable { get; private set; }
 
     /// <summary>Krok 9: dokud nějaká objednávka čeká na sklad, stránka se sama obnovuje (jednoduchý polling).</summary>
     public bool HasPendingOrders => Orders.Any(o => o.Status == "Pending");

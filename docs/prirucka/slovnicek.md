@@ -21,6 +21,7 @@ order: 80
 | **Doménová událost** | fakt v minulém čase uvnitř modulu (`OrderConfirmed`) | [Doménové události](eda/domenove-udalosti.md) |
 | **Dual write** | zápis do dvou systémů (DB + broker), který může skončit napůl | [Outbox](eda/outbox.md) |
 | **Eventual consistency** | data se sjednotí se zpožděním (sekundy), ne okamžitě | [EDA](eda/index.md) |
+| **Expand → contract** | změna kontraktu ve dvou fázích: nejdřív posílat starou i novou verzi, až ji nikdo nečte, starou odebrat (`ProductUpdatedV1` → `V2`) | [Integrační zprávy](eda/integracni-zpravy.md) |
 | **Event sourcing** | ukládá se seznam událostí, stav se z nich počítá | [Proud událostí](eda/proud-udalosti.md) |
 | **Exchange** | „třídírna“ v RabbitMQ – rozesílá zprávy do navázaných front | [Broker](eda/broker.md) |
 | **Fanout** | typ exchange, který pošle kopii zprávy do každé navázané fronty | [Broker](eda/broker.md) |
@@ -40,6 +41,7 @@ order: 80
 | **SOLID** | pět principů objektového návrhu | [SOLID](architektura/solid.md) |
 | **Span / trasa (trace)** | jeden krok práce / strom kroků jednoho požadavku přes služby | [Observabilita](eda/observabilita.md) |
 | **traceparent** | standardní hlavička W3C nesoucí ID trasy mezi procesy | [Observabilita](eda/observabilita.md) |
+| **Výloha (/Shop)** | veřejná nabídka s hledáním a filtry nad kopií katalogu – read model tvarovaný pro čtení (CQRS) | [Kopie katalogu](eda/kopie-katalogu.md) |
 | **Wire tap** | „odposlech“ – fronta, která dostává kopii všech zpráv (audit) | [Broker](eda/broker.md) |
 
 ## Účty a zabezpečení

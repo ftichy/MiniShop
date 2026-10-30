@@ -13,6 +13,7 @@
         <tr>
             <th>ID</th>
             <th>Název</th>
+            <th>Kategorie</th>
             <th>Popis</th>
             <th class="num">Cena</th>
             <th class="num">Skladem</th>
@@ -26,6 +27,7 @@
             <tr>
                 <td>@p.Id</td>
                 <td>@p.Name</td>
+                <td>@p.CategoryName</td>
                 <td class="text-muted">@p.Description</td>
                 <td class="num">@p.Price.ToString("N2") Kč</td>
                 <td class="num">@p.StockQuantity ks</td>
@@ -35,8 +37,9 @@
                         <button type="submit" class="btn btn-sm btn-outline-primary">+</button>
                     </form>
                 </td>
-                <td>
-                    <form method="post" asp-page-handler="Delete" asp-route-id="@p.Id">
+                <td class="text-nowrap">
+                    <a asp-page="/Products/Edit" asp-route-id="@p.Id" class="btn btn-sm btn-outline-secondary">Upravit</a>
+                    <form method="post" asp-page-handler="Delete" asp-route-id="@p.Id" class="d-inline">
                         <button type="submit" class="btn btn-sm btn-outline-danger">Smazat</button>
                     </form>
                 </td>
@@ -52,11 +55,18 @@
         <input asp-for="NewProduct.Name" class="form-control" />
         <span asp-validation-for="NewProduct.Name" class="text-danger small"></span>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-2">
+        <label asp-for="NewProduct.CategoryId" class="form-label"></label>
+        <select asp-for="NewProduct.CategoryId" asp-items="Model.CategoryOptions" class="form-select">
+            <option value="0">-- vyberte --</option>
+        </select>
+        <span asp-validation-for="NewProduct.CategoryId" class="text-danger small"></span>
+    </div>
+    <div class="col-md-3">
         <label asp-for="NewProduct.Description" class="form-label"></label>
         <input asp-for="NewProduct.Description" class="form-control" />
     </div>
-    <div class="col-md-2">
+    <div class="col-md-1">
         <label asp-for="NewProduct.Price" class="form-label"></label>
         <input asp-for="NewProduct.Price" class="form-control" />
         <span asp-validation-for="NewProduct.Price" class="text-danger small"></span>
@@ -69,4 +79,46 @@
     <div class="col-md-1 d-flex align-items-end">
         <button type="submit" class="btn btn-primary w-100">Přidat</button>
     </div>
+</form>
+
+@* E-shop krok 2: kategorie patří skladu; Ordering zná jejich jméno ze zpráv o produktech (ProductUpdatedV2). *@
+<h2 class="h4 mt-5">Kategorie</h2>
+<p class="text-muted small">
+    Přejmenování se do výlohy promítne za pár sekund (sklad znovu pošle zprávu o každém produktu kategorie).
+    Smazat jde jen prázdnou kategorii.
+</p>
+<table class="table table-sm align-middle" style="max-width: 44rem">
+    <thead>
+        <tr>
+            <th>Název</th>
+            <th class="num">Produktů</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var c in Model.Categories)
+        {
+            <tr>
+                <td>
+                    <form method="post" asp-page-handler="RenameCategory" asp-route-id="@c.Id" class="d-flex gap-1">
+                        <input name="category.Name" value="@c.Name" maxlength="50" class="form-control form-control-sm" aria-label="Název kategorie" />
+                        <button type="submit" class="btn btn-sm btn-outline-primary">Přejmenovat</button>
+                    </form>
+                </td>
+                <td class="num">@c.ProductCount</td>
+                <td>
+                    @if (c.ProductCount == 0)
+                    {
+                        <form method="post" asp-page-handler="DeleteCategory" asp-route-id="@c.Id">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">Smazat</button>
+                        </form>
+                    }
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+<form method="post" asp-page-handler="CreateCategory" class="d-flex gap-2" style="max-width: 30rem">
+    <input name="category.Name" maxlength="50" placeholder="Nová kategorie" class="form-control" aria-label="Nová kategorie" />
+    <button type="submit" class="btn btn-primary">Přidat kategorii</button>
 </form>

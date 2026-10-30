@@ -51,4 +51,64 @@ public class CatalogProductTests
 
         Assert.Throws<DomainException>(() => order.AddItem(product, 1, 0m));
     }
+
+    // ---------- E-shop krok 2: V2 (popis, kategorie), dostupnost, text pro hledání ----------
+
+    [Fact]
+    public void ApplyDetails_DoplniPopisKategoriiATextProHledani()
+    {
+        var product = new CatalogProduct(1, "Myš", 500m, Now);
+
+        Assert.True(product.ApplyDetails("Bezdrátová myš", "2,4 GHz", 890m, 2, "Periferie", null, Now.AddMinutes(1)));
+
+        Assert.Equal(("2,4 GHz", 2, "Periferie"), (product.Description, product.CategoryId, product.CategoryName));
+        Assert.Equal("bezdratova mys 2,4 ghz periferie", product.SearchText);
+    }
+
+    /// <summary>Sklad posílá stejnou změnu jako V1 i V2 se stejným časem – pořadí doručení nesmí nic ztratit.</summary>
+    [Fact]
+    public void V1PoV2SeStejnymCasem_PopisZustane()
+    {
+        var product = new CatalogProduct(1, "Myš", 500m, Now);
+        product.ApplyDetails("Myš", "Bezdrátová", 500m, 2, "Periferie", null, Now.AddMinutes(1));
+
+        Assert.True(product.Apply("Myš", 500m, Now.AddMinutes(1)));
+
+        Assert.Equal("Bezdrátová", product.Description);
+        Assert.Contains("bezdratova", product.SearchText);
+    }
+
+    [Fact]
+    public void ApplyDetails_StarsiZmena_SeIgnoruje()
+    {
+        var product = new CatalogProduct(1, "Myš", 500m, Now.AddMinutes(2));
+
+        Assert.False(product.ApplyDetails("Myš", "Stará", 400m, 2, "Periferie", null, Now.AddMinutes(1)));
+
+        Assert.Null(product.Description);
+    }
+
+    [Fact]
+    public void ApplyAvailability_StarsiZmena_SeIgnoruje()
+    {
+        var product = new CatalogProduct(1, "Myš", 500m, Now);
+        Assert.Equal(CatalogAvailability.Unknown, product.Availability);
+
+        Assert.True(product.ApplyAvailability(CatalogAvailability.OutOfStock, Now.AddMinutes(2)));
+        Assert.False(product.ApplyAvailability(CatalogAvailability.InStock, Now.AddMinutes(1)));   // pozdní zpráva
+
+        Assert.Equal(CatalogAvailability.OutOfStock, product.Availability);
+        Assert.False(product.IsOrderable);
+    }
+
+    [Theory]
+    [InlineData("Myš", "mys")]
+    [InlineData("  MYŠ  Pro ", "mys pro")]
+    [InlineData("Sluchátka s mikrofonem", "sluchatka s mikrofonem")]
+    [InlineData("Žluťoučký kůň", "zlutoucky kun")]
+    [InlineData(null, "")]
+    public void TextProHledani_MalaPismenaBezDiakritiky(string? text, string expected)
+    {
+        Assert.Equal(expected, CatalogSearchText.Normalize(text));
+    }
 }

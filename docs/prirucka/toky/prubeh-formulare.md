@@ -1,7 +1,7 @@
 ---
 title: Průběh formuláře a přehrání
 summary: Jak se zaznamenává vyplňování formuláře objednávky a jak se pak zobrazí jako časová osa nebo „video“.
-order: 8
+order: 9
 ---
 
 > **Shrnutí:** Skript v prohlížeči sbírá akce ve formuláři a každé 2 s je pošle dávkou na server. Server

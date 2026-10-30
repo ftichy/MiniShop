@@ -74,6 +74,8 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
 
             services.RemoveAll<IProductService>();
             services.AddSingleton<IProductService, StubProductService>();
+            services.RemoveAll<ICategoryService>();
+            services.AddSingleton<ICategoryService, StubCategoryService>();
 
             // Účty krok 5: e-maily do „schránky“ testů – odkazy z nich testy otevírají.
             services.RemoveAll<IEmailSender>();
@@ -183,7 +185,7 @@ public sealed class WebCollection : ICollectionFixture<MiniShopWebFactory>
 /// <summary>Sklad v testech Webu – Inventory.Api neběží, stránka Produkty dostane jeden produkt.</summary>
 public sealed class StubProductService : IProductService
 {
-    private static readonly ProductDto Product = new(1, "Testovací produkt", null, 100m, 10);
+    private static readonly ProductDto Product = new(1, "Testovací produkt", null, 100m, 10, 1, "Nezařazeno");
 
     public Task<IReadOnlyList<ProductDto>> GetAllAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<ProductDto>>([Product]);
@@ -198,6 +200,23 @@ public sealed class StubProductService : IProductService
 
     public Task<ProductDto> AddStockAsync(int id, int quantity, CancellationToken cancellationToken = default) =>
         Task.FromResult(Product);
+
+    public Task DeleteAsync(int id, CancellationToken cancellationToken = default) => Task.CompletedTask;
+}
+
+/// <summary>E-shop krok 2: kategorie v testech Webu – Inventory.Api neběží, stránka Produkty dostane jednu kategorii.</summary>
+public sealed class StubCategoryService : ICategoryService
+{
+    private static readonly CategoryDto Category = new(1, "Nezařazeno", 1);
+
+    public Task<IReadOnlyList<CategoryDto>> GetAllAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<CategoryDto>>([Category]);
+
+    public Task<CategoryDto> CreateAsync(CategoryRequest request, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Category);
+
+    public Task<CategoryDto> RenameAsync(int id, CategoryRequest request, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Category);
 
     public Task DeleteAsync(int id, CancellationToken cancellationToken = default) => Task.CompletedTask;
 }

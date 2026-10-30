@@ -20,8 +20,18 @@ public sealed record OrderDto(
     IReadOnlyList<OrderItemDto> Items,
     string? RejectionReason);
 
-/// <summary>Produkt v nabídce objednávek – z kopie katalogu (krok 10), bez zásoby (ta patří skladu).</summary>
-public sealed record CatalogItemDto(int ProductId, string Name, decimal Price);
+/// <summary>
+/// Produkt v nabídce – z kopie katalogu (krok 10), bez přesné zásoby (ta patří skladu).
+/// E-shop krok 2: i popis, kategorie a dostupnost (<c>Unknown</c>, <c>InStock</c>, <c>LowStock</c>, <c>OutOfStock</c>).
+/// </summary>
+public sealed record CatalogItemDto(
+    int ProductId,
+    string Name,
+    string? Description,
+    decimal Price,
+    int? CategoryId,
+    string? CategoryName,
+    string Availability);
 
 /// <summary>
 /// Nová objednávka. Účty krok 3: bez jména a e-mailu – zákazník je přihlášený uživatel (<see cref="OrderCustomer"/>).

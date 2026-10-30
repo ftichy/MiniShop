@@ -27,7 +27,7 @@ flowchart LR
 
     o2 -->|"ReserveStockV1, ReleaseStockV1"| i2
     i2 -->|"StockReservedV1, StockReservationFailedV1, StockReleasedV1"| o2
-    i1 -->|"ProductUpdatedV1, ProductRemovedV1"| o3
+    i1 -->|"ProductUpdatedV1 + V2, StockAvailabilityChangedV1, ProductRemovedV1"| o3
     o3 -->|SyncCatalogV1| i1
     subgraph acc["Accounts (služba Web)"]
         a1[Uživatelské účty, přihlášení]

@@ -71,12 +71,18 @@ public static class ApplicationServiceCollectionExtensions
         services.AddIntegrationMessageHandler<StockReservationFailedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<StockReleasedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
 
-        // Kopie katalogu (krok 10): název a cena produktů ze skladu, bez přístupu do jeho databáze.
+        // Kopie katalogu (krok 10): produkty ze skladu, bez přístupu do jeho databáze. E-shop krok 2: V2 (popis, kategorie,
+        // dostupnost) a změny dostupnosti; V1 zatím zůstává (expand → contract).
         services.AddIntegrationMessageHandler<ProductUpdatedV1, CatalogProjectionHandler>(IntegrationModules.Ordering);
+        services.AddIntegrationMessageHandler<ProductUpdatedV2, CatalogProjectionHandler>(IntegrationModules.Ordering);
+        services.AddIntegrationMessageHandler<StockAvailabilityChangedV1, CatalogProjectionHandler>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<ProductRemovedV1, CatalogProjectionHandler>(IntegrationModules.Ordering);
 
-        // Obnova kopie katalogu (příkaz SyncCatalogV1 pro sklad): po startu, když je prázdná, nebo tlačítkem v UI.
+        // Obnova kopie katalogu (příkaz SyncCatalogV1 pro sklad): po startu, když je prázdná/neúplná, nebo tlačítkem v UI.
         services.AddScoped<CatalogSyncService>();
+
+        // E-shop krok 2: výloha – hledání nad kopií katalogu.
+        services.AddScoped<ICatalogQueryService, CatalogQueryService>();
 
         return services;
     }
@@ -91,9 +97,13 @@ public static class ApplicationServiceCollectionExtensions
     {
         var apiKey = ServiceApiKey.Read(key => configuration[key]);
 
-        services.AddHttpClient<IProductService, InventoryApiClient>(http =>
+        services.AddHttpClient<InventoryApiClient>(http =>
                 http.BaseAddress = new Uri("https+http://inventory-api"))
             .AddHttpMessageHandler(() => new InventoryApiKeyHandler(apiKey));
+
+        // Jeden klient pro produkty i kategorie (e-shop krok 2) – stránky dostávají jen rozhraní, které potřebují (ISP).
+        services.AddTransient<IProductService>(sp => sp.GetRequiredService<InventoryApiClient>());
+        services.AddTransient<ICategoryService>(sp => sp.GetRequiredService<InventoryApiClient>());
 
         return services;
     }

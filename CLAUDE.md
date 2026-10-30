@@ -183,7 +183,7 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   (**před** sloučením, pokud na změně závisí její vlastní nasazení). Změněný `Caddyfile` `deploy.sh` načte přes `caddy reload`.
   Port 22 je z internetu zavřený – SSH jen přes Tailscale. Nouzově: pravidlo 22 v security listu vrátit.
   Secrets/proměnné jen v environmentu `production`: `TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`, `DEPLOY_SSH_KEY`,
-  `RABBITMQ_PASSWORD`, `BASIC_AUTH_HASH` (krok 10), `DEPLOY_HOST`, `DEPLOY_KNOWN_HOSTS`.
+  `RABBITMQ_PASSWORD`, `BASIC_AUTH_HASH` (krok 10), `SMTP_PASSWORD` (účty krok 5), `DEPLOY_HOST`, `DEPLOY_KNOWN_HOSTS`.
 - HTTPS (krok 5): `https://minishop-tichy.duckdns.org` (reserved IP `141.144.255.238`), Caddy z `deploy/compose.cloud.yaml`
   + `deploy/Caddyfile`, na VM zapnuté přes `COMPOSE_FILE=compose.yaml:compose.cloud.yaml` v `.env`. Web není publikovaný ven.
   Basic auth (uživatel `minishop`, heslo zná jen uživatel – změna = secret `BASIC_AUTH_HASH`, viz `docs/secrets.md` R2),
@@ -247,6 +247,10 @@ Modul Accounts (ASP.NET Core Identity, `users.db`). Souhrny kroků do `docs/krok
 - Vlastník objednávky (krok 3): `IOrderService` dostává `OrderAccess` (čtení, zrušení) a `OrderCustomer` (založení)
   parametrem – skládá je Web z cookie (`User.ToOrderAccess()/ToOrderCustomer()` ve `Web/Accounts`). Cizí objednávka
   = `NotFoundException` (404). Jméno a e-mail objednávky jen z účtu, ne z formuláře/JSON.
+- E-maily (krok 5): `IEmailSender` (`Application/Abstractions`) → `Infrastructure/Email` (MailKit; bez `Email:Host`
+  jen log). Lokálně Mailpit v AppHostu, produkce Gmail `ftichy.gemini@gmail.com` (`EMAIL_*` v `production.env`,
+  secret `SMTP_PASSWORD`, volitelný). E-maily účtu hned (`Web/Accounts/AccountEmails`), objednávek za outboxem
+  (`EmailOrderNotifier`). Testy Webu: `MiniShopWebFactory.Emails` (`RecordingEmailSender`). Do logu jen předmět e-mailu.
 - První admin: produkce `docker compose exec web dotnet MiniShop.Web.dll create-admin --email …` (jen bez admina),
   vývoj `AdminBootstrap` v `appsettings.Development.json` (`admin@minishop.local` / `admin-heslo-pro-vyvoj`, vynucená změna hesla).
 
@@ -255,8 +259,8 @@ Modul Accounts (ASP.NET Core Identity, `users.db`). Souhrny kroků do `docs/krok
 | 1. Účty, registrace, přihlášení (modul Accounts, Identity, `users.db`) | hotovo | `docs/kroky-ucty/krok-01-ucty.md` |
 | 2. Role a první admin (policies, fallback policy, `create-admin` / `AdminBootstrap` ve vývoji, matice oprávnění) | hotovo | `docs/kroky-ucty/krok-02-role.md` |
 | 3. Vlastník objednávky (`CustomerId`, `OrderAccess`/`OrderCustomer`, filtr v SQL, cizí = 404, jméno a e-mail z účtu) | hotovo | `docs/kroky-ucty/krok-03-vlastnik-objednavky.md` |
-| 4. Zrušení objednávky i ve stavu Pending (nový přechod ságy, kompenzace) | plán | — |
-| 5. Skutečné e-maily (MailKit, Mailpit lokálně, Gmail SMTP v cloudu, potvrzení e-mailu, reset hesla) | plán | — |
+| 4. Zrušení objednávky i ve stavu Pending (nový přechod ságy, kompenzace) | odloženo (analýza souběhu: dohnat zrušení v orchestrátoru, `Status` jako concurrency token) | — |
+| 5. Skutečné e-maily (MailKit, Mailpit lokálně, Gmail SMTP v cloudu, potvrzení e-mailu, reset hesla) | hotovo | `docs/kroky-ucty/krok-05-emaily.md` |
 | 6. Administrace uživatelů (přehled, povýšení, blokace, poslední admin, audit) | plán | — |
 | 7. Zabezpečení skladu (servisní klíč pro zápis do Inventory.Api) | plán | — |
 | 8. Zpevnění (lockout, rate limiting, bezpečnostní hlavičky) | plán | — |

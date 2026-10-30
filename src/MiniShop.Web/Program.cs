@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Localization;
 using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Accounts;
+using MiniShop.Infrastructure.Email;
 using MiniShop.Infrastructure.Hosting;
 using MiniShop.Infrastructure.Journeys;
 using MiniShop.Infrastructure.Ordering;
@@ -57,6 +58,10 @@ try
     builder.Services.AddOrderingInfrastructure(orderingConnectionString);
     builder.Services.AddJourneysInfrastructure(journeysConnectionString);
     builder.Services.AddAccounts(accountsConnectionString);
+
+    // Účty krok 5: e-maily přes SMTP (sekce "Email"). Bez Email:Host jen do logu.
+    // Lokálně server dodá Aspire (Mailpit), v produkci Gmail (production.env + secret SMTP_PASSWORD).
+    builder.Services.AddEmail(builder.Configuration);
 
     // Krok 9: hlídání termínů ságy (sklad neodpověděl včas → zamítnout).
     builder.Services.AddHostedService<OrderSagaTimeoutWorker>();

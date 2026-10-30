@@ -15,6 +15,11 @@ public static class AccountClaimTypes
     /// v tabulce AspNetUserClaims – Identity ho sama přidá do cookie, schéma users.db se nemění.
     /// </summary>
     public const string MustChangePassword = "minishop:must_change_password";
+
+    /// <summary>
+    /// Účty krok 5: uživatel potvrdil e-mail (klikl na odkaz). Bez tohoto claimu ukazuje stránka upozornění.
+    /// </summary>
+    public const string EmailConfirmed = "minishop:email_confirmed";
 }
 
 /// <summary>
@@ -31,6 +36,11 @@ public sealed class AccountClaimsPrincipalFactory(
     {
         var identity = await base.GenerateClaimsAsync(user);
         identity.AddClaim(new Claim(AccountClaimTypes.DisplayName, user.DisplayName));
+        if (user.EmailConfirmed)
+        {
+            identity.AddClaim(new Claim(AccountClaimTypes.EmailConfirmed, "true"));
+        }
+
         return identity;
     }
 }

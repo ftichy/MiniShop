@@ -36,7 +36,7 @@ flowchart TB
 
     subgraph infra["Infrastructure/Ordering"]
         db[("OrderingDbContext<br/>ordering.db + outbox + inbox")]
-        notifier["LoggingOrderNotifier"]
+        notifier["EmailOrderNotifier<br/>(IEmailSender)"]
     end
 
     ui --> svc
@@ -81,7 +81,7 @@ později, v jiném scope, případně i opakovaně.
 | **OrderSaga** | Stavový automat ságy – jen rozhoduje, co dál, nic neprovádí. | [OrderSaga.cs](code:src/MiniShop.Domain/Orders/Saga/OrderSaga.cs) |
 | **PublishOrderIntegrationEventsHandler** | Překladač: z interních událostí vyrobí veřejné `OrderPlacedV1`, `OrderCompletedV1`, `OrderCancelledV1`. | [PublishOrderIntegrationEventsHandler.cs](code:src/MiniShop.Application/Ordering/IntegrationEvents/PublishOrderIntegrationEventsHandler.cs) |
 | **Send…Handler** | Čtyři malé handlery: potvrzení, omluva při zamítnutí, vyřízení, zrušení. Volají `IOrderNotifier`. | [EventHandlers/](code:src/MiniShop.Application/Ordering/EventHandlers/) |
-| **LoggingOrderNotifier** | „E-mail“, který jen píše do logu. Skutečný e-mail by se doplnil bez zásahu do aplikační vrstvy. | [LoggingOrderNotifier.cs](code:src/MiniShop.Infrastructure/Ordering/LoggingOrderNotifier.cs) |
+| **EmailOrderNotifier** | E-mail zákazníkovi při potvrzení, zamítnutí, vyřízení a zrušení (účty krok 5). Odesílá se z handlerů za outboxem – když SMTP nejde, opakuje se. Viz [E-maily](../emaily.md). | [EmailOrderNotifier.cs](code:src/MiniShop.Infrastructure/Ordering/EmailOrderNotifier.cs) |
 | **CatalogProjectionHandler** | Udržuje kopii katalogu z `ProductUpdatedV1` / `ProductRemovedV1`. | [CatalogProjectionHandler.cs](code:src/MiniShop.Application/Ordering/Catalog/CatalogProjectionHandler.cs) |
 | **CatalogSyncService** | Požádá sklad o celý katalog (`SyncCatalogV1`) – po startu s prázdnou DB nebo tlačítkem. | [CatalogSyncService.cs](code:src/MiniShop.Application/Ordering/Catalog/CatalogSyncService.cs) |
 | **QuantityDiscountPolicy** | Množstevní sleva (od 10 ks 10 %). Další pravidlo = nová třída, `OrderService` se nemění. | [QuantityDiscountPolicy.cs](code:src/MiniShop.Application/Ordering/Pricing/QuantityDiscountPolicy.cs) |

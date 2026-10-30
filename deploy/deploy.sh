@@ -11,6 +11,7 @@
 #   RABBITMQ_PASSWORD=…
 #   BASIC_AUTH_HASH=$2a$14$…
 #   HEALTHCHECKS_BACKUP_URL=https://hc-ping.com/…   (krok 12, volitelný)
+#   SMTP_PASSWORD=abcdefghijklmnop                   (účty krok 5, volitelný – heslo aplikace Gmailu)
 # Co na vstupu chybí (ruční spuštění z terminálu), vezme se z dosavadního .env. Netajná konfigurace je v gitu
 # (deploy/production.env). Soubor .env na VM skript pokaždé sestaví znovu – ruční změny v něm nepřežijí.
 # Změněné heslo RabbitMQ nejdřív vymění v běžícím RabbitMQ (RABBITMQ_DEFAULT_PASS platí jen při prvním startu).
@@ -38,6 +39,7 @@ tag="sha-${sha:0:7}"
 rabbitmq_password=""
 basic_auth_hash=""
 healthchecks_backup_url=""
+smtp_password=""
 if [ ! -t 0 ]; then
     while IFS= read -r line || [ -n "$line" ]; do
         [ -z "$line" ] && continue
@@ -55,6 +57,10 @@ if [ ! -t 0 ]; then
                 # Krok 12: adresa, kam backup.sh hlásí průběh zálohy (prázdná = nehlásit).
                 [[ -z "$value" || "$value" =~ ^https://hc-ping\.com/[A-Za-z0-9-]{8,64}$ ]] || { echo "Chybný HEALTHCHECKS_BACKUP_URL (čekám https://hc-ping.com/<uuid>)." >&2; exit 2; }
                 healthchecks_backup_url="$value" ;;
+            SMTP_PASSWORD)
+                # Účty krok 5: heslo aplikace Gmailu = 16 malých písmen (bez mezer). Prázdné = e-maily jen do logu.
+                [[ -z "$value" || "$value" =~ ^[a-z]{16}$ ]] || { echo "Chybný SMTP_PASSWORD (čekám 16 malých písmen bez mezer)." >&2; exit 2; }
+                smtp_password="$value" ;;
             *)
                 echo "Neznámý klíč na vstupu: $key" >&2
                 exit 2 ;;
@@ -76,6 +82,7 @@ previous_rabbitmq_password=$(current RABBITMQ_PASSWORD)
 rabbitmq_password="${rabbitmq_password:-$previous_rabbitmq_password}"
 basic_auth_hash="${basic_auth_hash:-$(current BASIC_AUTH_HASH)}"
 healthchecks_backup_url="${healthchecks_backup_url:-$(current HEALTHCHECKS_BACKUP_URL)}"
+smtp_password="${smtp_password:-$(current SMTP_PASSWORD)}"
 [ -n "$rabbitmq_password" ] || { echo "Chybí RABBITMQ_PASSWORD (na vstupu ani v .env)." >&2; exit 2; }
 [ -n "$basic_auth_hash" ] || { echo "Chybí BASIC_AUTH_HASH (na vstupu ani v .env)." >&2; exit 2; }
 
@@ -104,6 +111,7 @@ chmod 755 "$work"/*.sh 2>/dev/null || true
         # Otisk obsahuje znaky $ – v jednoduchých uvozovkách, jinak by je Compose bral jako proměnné.
         echo "BASIC_AUTH_HASH='$basic_auth_hash'"
         [ -n "$healthchecks_backup_url" ] && echo "HEALTHCHECKS_BACKUP_URL=$healthchecks_backup_url"
+        [ -n "$smtp_password" ] && echo "SMTP_PASSWORD=$smtp_password"
         true
     } > "$work/.env"
 )

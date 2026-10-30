@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using MiniShop.Application.Abstractions;
 using MiniShop.Application.Inventory;
 using MiniShop.Domain.Orders;
 using MiniShop.Infrastructure.Accounts;
@@ -30,6 +31,9 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
     public const string AdminPassword = "admin-heslo-pro-test";
     public const string UserEmail = "jan@test.local";
     public const string UserPassword = "jan-heslo-pro-test";
+
+    /// <summary>Účty krok 5: všechny e-maily, které Web „odeslal“.</summary>
+    public RecordingEmailSender Emails { get; } = new();
 
     private readonly InMemoryDatabase _ordering = new();
     private readonly InMemoryDatabase _journeys = new();
@@ -62,6 +66,10 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
 
             services.RemoveAll<IProductService>();
             services.AddSingleton<IProductService, StubProductService>();
+
+            // Účty krok 5: e-maily do „schránky“ testů – odkazy z nich testy otevírají.
+            services.RemoveAll<IEmailSender>();
+            services.AddSingleton<IEmailSender>(Emails);
         });
     }
 

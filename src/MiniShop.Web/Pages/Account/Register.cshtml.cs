@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using MiniShop.Infrastructure.Accounts;
+using MiniShop.Web.Accounts;
 
 namespace MiniShop.Web.Pages.Account;
 
@@ -12,6 +13,7 @@ namespace MiniShop.Web.Pages.Account;
 public sealed class RegisterModel(
     UserManager<ApplicationUser> userManager,
     SignInManager<ApplicationUser> signInManager,
+    AccountEmails accountEmails,
     ILogger<RegisterModel> logger) : PageModel
 {
     [BindProperty]
@@ -57,6 +59,17 @@ public sealed class RegisterModel(
 
         // Do logu jen ID – e-mail je osobní údaj.
         logger.LogInformation("Zaregistrován nový uživatel {UserId}", user.Id);
+
+        // Účty krok 5: odkaz pro potvrzení e-mailu. Když se nepovede odeslat, účet platí dál – upozornění na stránce
+        // nabídne „Poslat znovu“.
+        try
+        {
+            await accountEmails.SendConfirmationAsync(user, HttpContext, HttpContext.RequestAborted);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Potvrzovací e-mail pro nového uživatele {UserId} se nepodařilo odeslat", user.Id);
+        }
 
         await signInManager.SignInAsync(user, isPersistent: false);
         return LocalRedirect(SafeReturnUrl());

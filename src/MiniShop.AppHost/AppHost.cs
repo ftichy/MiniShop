@@ -14,11 +14,22 @@ var inventoryApi = builder.AddProject<Projects.MiniShop_Inventory_Api>("inventor
     .WaitFor(messaging)
     .WithHttpHealthCheck("/health");
 
+// Účty krok 5: "cvičná pošta" Mailpit – zachytí každý e-mail z Webu, nikam ven nic neodejde.
+// Pošta je vidět na webovém rozhraní (odkaz u prostředku "mailpit" v dashboardu).
+var mailpit = builder.AddContainer("mailpit", "axllent/mailpit", "v1.31.4")
+    .WithHttpEndpoint(targetPort: 8025, name: "http")
+    .WithEndpoint(targetPort: 1025, name: "smtp");
+var mailpitSmtp = mailpit.GetEndpoint("smtp");
+
 // Web = služba Ordering + UI. WithReference(inventoryApi) → Web najde sklad pod jménem "inventory-api".
 builder.AddProject<Projects.MiniShop_Web>("web")
     .WithReference(messaging)
     .WithReference(inventoryApi)
+    .WithEnvironment("Email__Host", mailpitSmtp.Property(EndpointProperty.Host))
+    .WithEnvironment("Email__Port", mailpitSmtp.Property(EndpointProperty.Port))
+    .WithEnvironment("Email__UseTls", "false")
     .WaitFor(messaging)
+    .WaitFor(mailpit)
     .WithHttpHealthCheck("/health")
     .WithExternalHttpEndpoints();
 

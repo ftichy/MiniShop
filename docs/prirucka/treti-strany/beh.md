@@ -17,6 +17,7 @@ order: 2
 | **RabbitMQ** (`rabbitmq:4-management`) | message broker – exchange, fronty, webová správa | zralý, rozšířený, přehledný pro výuku ([proč](../eda/broker.md)) | [rabbitmq.com](https://www.rabbitmq.com/) |
 | **Caddy** (`caddy:2`) | reverse proxy, automatické HTTPS, basic auth | certifikát Let's Encrypt bez konfigurace ([proč](../nasazeni/https-a-pristup.md)) | [caddyserver.com](https://caddyserver.com/) |
 | **Aspire dashboard** (`mcr.microsoft.com/dotnet/aspire-dashboard`) | trasy, logy, metriky v cloudu | stejný nástroj jako lokálně, jeden kontejner ([proč](../nasazeni/monitoring.md)) | [docs](https://learn.microsoft.com/dotnet/aspire/fundamentals/dashboard/standalone) |
+| **Mailpit** (`axllent/mailpit`, jen lokálně v Aspire) | „cvičná pošta“ – zachytí každý e-mail z Webu a ukáže ho ve webovém rozhraní; nic neodejde ven | vývoj e-mailů bez rizika, že něco dorazí skutečnému člověku ([proč](../architektura/emaily.md)) | [mailpit.axllent.org](https://mailpit.axllent.org/) |
 | **OCI CLI** (`ghcr.io/oracle/oci-cli`) | nástroj pro práci s Oracle Cloud; v noční záloze nahrává do bucketu | z image – bez instalace Pythonu na PC ani na VM | [docs](https://docs.oracle.com/en-us/iaas/Content/API/Concepts/cliconcepts.htm) |
 
 ## Operační systém a správa serveru

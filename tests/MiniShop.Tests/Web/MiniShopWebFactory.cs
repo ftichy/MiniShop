@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using MiniShop.Application.Abstractions;
 using MiniShop.Application.Inventory;
 using MiniShop.Domain.Orders;
@@ -35,6 +36,9 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
     /// <summary>Účty krok 5: všechny e-maily, které Web „odeslal“.</summary>
     public RecordingEmailSender Emails { get; } = new();
 
+    /// <summary>Účty krok 8: všechno, co Web zapsal do logu.</summary>
+    public RecordingLoggerProvider Logs { get; } = new();
+
     private readonly InMemoryDatabase _ordering = new();
     private readonly InMemoryDatabase _journeys = new();
     private readonly InMemoryDatabase _accounts = new();
@@ -47,6 +51,8 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
         builder.UseSetting("ConnectionStrings:Accounts", _accounts.ConnectionString);
         // Účty krok 7: servisní klíč skladu (sklad tu nahrazuje StubProductService, ale bez klíče by se Web nespustil).
         builder.UseSetting("InventoryApi:ApiKey", new string('k', 64));
+        // Účty krok 8: limit formulářů účtu vysoko – testy se přihlašují stokrát z jedné „IP“. Limit zkouší vlastní test.
+        builder.UseSetting("RateLimiting:AccountForms:PermitLimit", "100000");
 
         // První admin z konfigurace (seed) – stejně jako ve vývoji, jen bez vynucené změny hesla.
         builder.UseSetting("AdminBootstrap:Email", AdminEmail);
@@ -72,6 +78,9 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
             // Účty krok 5: e-maily do „schránky“ testů – odkazy z nich testy otevírají.
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender>(Emails);
+
+            // Účty krok 8: log do paměti testu.
+            services.AddSingleton<ILoggerProvider>(Logs);
         });
     }
 

@@ -13,6 +13,7 @@ using MiniShop.Web.BackgroundServices;
 using MiniShop.Web.Documentation;
 using MiniShop.Web.ErrorHandling;
 using MiniShop.Web.Extensions;
+using MiniShop.Web.Security;
 using Serilog;
 
 // Dočasný logger pro start aplikace: zachytí i chyby dřív, než se načte konfigurace.
@@ -58,6 +59,11 @@ try
     builder.Services.AddOrderingInfrastructure(orderingConnectionString);
     builder.Services.AddJourneysInfrastructure(journeysConnectionString);
     builder.Services.AddAccounts(accountsConnectionString);
+
+    // Účty krok 8: zpevnění – limit odeslání formulářů účtu z jedné IP a HSTS (prohlížeč pak chodí jen přes HTTPS).
+    builder.Services.AddAccountRateLimiting(builder.Configuration);
+    // Bez preload a bez subdomén: doména duckdns.org není naše, preload by šel špatně vrátit.
+    builder.Services.AddHsts(options => options.MaxAge = TimeSpan.FromDays(365));
 
     // Účty krok 5: e-maily přes SMTP (sekce "Email"). Bez Email:Host jen do logu.
     // Lokálně server dodá Aspire (Mailpit), v produkci Gmail (production.env + secret SMTP_PASSWORD).
@@ -117,7 +123,14 @@ try
         app.MapOpenApi();
     }
 
+    // Účty krok 8: HSTS mimo vývoj (lokální localhost ho stejně ignoruje), bezpečnostní hlavičky pro každou odpověď.
+    if (!app.Environment.IsDevelopment())
+    {
+        app.UseHsts();
+    }
+
     app.UseHttpsRedirection();
+    app.UseSecurityHeaders(app.Environment);
 
     // České formátování čísel a dat v UI (desetinná čárka, "Kč").
     var czech = new CultureInfo("cs-CZ");
@@ -141,8 +154,10 @@ try
 
     // Účty krok 1: z cookie přečte přihlášeného uživatele (User), autorizace pak rozhodne, kam smí.
     app.UseAuthentication();
+    app.UseEndUserTracing();       // krok 8: do trasy jen ID uživatele
     app.UseMustChangePassword();   // krok 2: první admin se známým heslem si ho musí nejdřív změnit
     app.UseAuthorization();
+    app.UseRateLimiter();          // krok 8: až po routingu – limit patří ke konkrétní stránce ([EnableRateLimiting])
 
     app.MapControllers();
     app.MapRazorPages();

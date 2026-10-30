@@ -5,19 +5,6 @@
 }
 <h1>Objednávky</h1>
 
-<script>
-    // Automatické obnovení stránky (čekající objednávky, načítání katalogu). Krok 12A: jakmile uživatel začal
-    // formulář vyplňovat, stránka se neobnoví – jinak by smazala rozepsaný text a rozdělila proud událostí na kusy.
-    function reloadWhenIdle() {
-        setTimeout(function check() {
-            if (window.orderJourney && window.orderJourney.touched) {
-                setTimeout(check, 2000);
-            } else {
-                location.reload();
-            }
-        }, 2000);
-    }
-</script>
 
 <partial name="_StatusMessage" model="Model.StatusMessage" />
 <div asp-validation-summary="ModelOnly" class="text-danger"></div>
@@ -63,11 +50,10 @@
 @if (Model.CatalogEmpty)
 {
     @* Kopie katalogu se plní zprávami ze skladu – po startu s prázdnou ordering.db o ně Web požádá sám (SyncCatalogV1). *@
-    <div class="alert alert-info">
+    <div class="alert alert-info" data-reload-when-idle>
         Katalog produktů se načítá ze skladu… Stránka se sama obnoví. Pokud produkty nepřibývají, zkontrolujte,
         že běží služba skladu a RabbitMQ.
     </div>
-    <script>reloadWhenIdle();</script>
 }
 
 @if (Model.CanManageOrders)
@@ -89,8 +75,7 @@
 @if (Model.HasPendingOrders)
 {
     @* Krok 9: sklad objednávku ověřuje na pozadí (sága) – za 2 s se podíváme znovu. *@
-    <p class="text-muted small">Některé objednávky čekají na ověření skladu, stránka se sama obnoví…</p>
-    <script>reloadWhenIdle();</script>
+    <p class="text-muted small" data-reload-when-idle>Některé objednávky čekají na ověření skladu, stránka se sama obnoví…</p>
 }
 
 @* Krok 12A: vstupem je číslo objednávky – zobrazí, jak uživatel formulář vyplňoval. Účty krok 2: jen admin. *@
@@ -174,6 +159,8 @@
 }
 
 @section Scripts {
+    @* Účty krok 8: obnovení stránky ze souboru (CSP nepustí inline skript). *@
+    <script src="~/js/orders-reload.js" asp-append-version="true"></script>
     @if (Model.CanPlaceOrders)
     {
         <script src="~/js/order-form-tracker.js" asp-append-version="true"></script>

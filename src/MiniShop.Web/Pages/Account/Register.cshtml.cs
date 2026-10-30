@@ -3,13 +3,16 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.RateLimiting;
 using MiniShop.Infrastructure.Accounts;
 using MiniShop.Web.Accounts;
+using MiniShop.Web.Security;
 
 namespace MiniShop.Web.Pages.Account;
 
 /// <summary>Účty krok 1: registrace nového uživatele. Po úspěchu je rovnou přihlášený.</summary>
 [AllowAnonymous]
+[EnableRateLimiting(AccountRateLimiting.PolicyName)]   // účty krok 8: max. 10 odeslání za minutu z jedné IP
 public sealed class RegisterModel(
     UserManager<ApplicationUser> userManager,
     SignInManager<ApplicationUser> signInManager,

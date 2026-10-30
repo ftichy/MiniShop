@@ -2,7 +2,9 @@ using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.RateLimiting;
 using MiniShop.Infrastructure.Accounts;
+using MiniShop.Web.Security;
 
 namespace MiniShop.Web.Pages.Account;
 
@@ -10,6 +12,7 @@ namespace MiniShop.Web.Pages.Account;
 /// Účty krok 2: změna hesla přihlášeného uživatele. Povinná pro admina s dočasným heslem
 /// (příznak MustChangePassword – ten ho sem přesměrovává z každé stránky).
 /// </summary>
+[EnableRateLimiting(AccountRateLimiting.PolicyName)]   // účty krok 8: max. 10 odeslání za minutu z jedné IP
 public sealed class ChangePasswordModel(
     UserManager<ApplicationUser> userManager,
     SignInManager<ApplicationUser> signInManager,

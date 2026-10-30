@@ -16,6 +16,8 @@ namespace MiniShop.Infrastructure.Accounts;
 public static class AccountsInfrastructure
 {
     public const int PasswordMinLength = 10;
+    public const int MaxFailedAccessAttempts = 5;
+    public static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
 
     public static IdentityBuilder AddAccountsInfrastructure(this IServiceCollection services, string connectionString)
     {
@@ -44,7 +46,13 @@ public static class AccountsInfrastructure
         // Přihlašovací jméno je e-mail – a jeden e-mail = jeden účet.
         options.User.RequireUniqueEmail = true;
 
-        // Potvrzení e-mailu přijde s odesíláním e-mailů (účty krok 5), zámek účtu se zpevněním (krok 8).
+        // Potvrzení e-mailu zatím nepovinné (povinné před objednávkou až v účtech kroku 9).
         options.SignIn.RequireConfirmedAccount = false;
+
+        // Účty krok 8: dočasný zámek proti hádání hesla – 5 špatných pokusů za sebou → 15 minut.
+        // Krátký, protože zámek jde zneužít (útočník zamkne cizí účet); proti hromadnému zkoušení je rate limiting.
+        options.Lockout.MaxFailedAccessAttempts = MaxFailedAccessAttempts;
+        options.Lockout.DefaultLockoutTimeSpan = LockoutDuration;
+        options.Lockout.AllowedForNewUsers = true;
     }
 }

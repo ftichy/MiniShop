@@ -10,7 +10,7 @@ order: 4
 
 Modul vzniká postupně podle plánu [Uživatelské účty a role](code:docs/Ucty-roadmap.md). Hotové jsou kroky 1
 (registrace, přihlášení), 2 (role, oprávnění, první admin), 3 (vlastník objednávky – zákazník vidí jen své,
-viz [Ordering](ordering.md)), 5 ([e-maily](../emaily.md)) a 6 (správa uživatelů a audit).
+viz [Ordering](ordering.md)), 5 ([e-maily](../emaily.md)), 6 (správa uživatelů a audit) a 8 ([zpevnění](#zpevnění)); krok 7 zabezpečil sklad ([Inventory](inventory.md)).
 
 ## Role a oprávnění
 
@@ -112,6 +112,32 @@ Kód: [AccountAdministration.cs](code:src/MiniShop.Infrastructure/Accounts/Accou
 stránky [Admin/Users](code:src/MiniShop.Web/Pages/Admin/Users/Index.cshtml.cs) a
 [Detail](code:src/MiniShop.Web/Pages/Admin/Users/Detail.cshtml.cs). Celá složka `/Admin` je navíc zamčená
 konvencí `AuthorizeFolder` v `Program.cs`.
+
+## Zpevnění
+
+Účty krok 8 přidaly několik vrstev obrany (*defense in depth*) – každá chytí něco, co ostatní propustí.
+
+```mermaid
+flowchart LR
+    att(["Útočník zkouší hesla"]) --> rl{"Rate limiting<br/>max. 10 odeslání formuláře<br/>za minutu z jedné IP"}
+    rl -->|"víc"| r429(["429 – Příliš mnoho pokusů"])
+    rl -->|"projde"| lock{"Zámek účtu<br/>5 špatných hesel za sebou"}
+    lock -->|"5×"| locked(["účet zamčený 15 minut<br/>(stejná hláška jako špatné heslo)"])
+    lock -->|"méně"| pwd{"heslo"}
+    pwd -->|"špatné"| audit["log: ID účtu, kolikátý pokus<br/>(nikdy e-mail ani heslo)"]
+    pwd -->|"správné"| ok(["přihlášen, počítadlo = 0"])
+```
+
+| Vrstva | Co dělá | Kód |
+| --- | --- | --- |
+| **Zámek účtu** | 5 špatných hesel za sebou → 15 minut. Admin zámek vidí v přehledu („zamčený do 15:42“) a může ho zrušit. Dočasný zámek adminovi práva nebere – útočník by jinak zkoušením hesel „odstavil“ všechny adminy. | [AccountsInfrastructure.cs](code:src/MiniShop.Infrastructure/Accounts/AccountsInfrastructure.cs), [Login.cshtml.cs](code:src/MiniShop.Web/Pages/Account/Login.cshtml.cs) |
+| **Rate limiting** | Formuláře přihlášení, registrace, zapomenutého a nového hesla, *Poslat znovu* a změny hesla: z jedné IP nejvýš 10 odeslání za minutu, pak **429**. Brzdí hádání hesel, zkoušení uniklých hesel z jiných webů (*credential stuffing*) i zahlcení Gmailu. IP za Caddy z `X-Forwarded-For`. | [AccountRateLimiting.cs](code:src/MiniShop.Web/Security/AccountRateLimiting.cs) |
+| **Bezpečnostní hlavičky** | CSP (skripty jen ze souborů MiniShopu – žádné inline `<script>`, Bootstrap lokálně), HSTS (jen HTTPS, 1 rok, bez preload), `X-Frame-Options: DENY` + `frame-ancestors 'none'` (proti *clickjackingu*), `nosniff`, `Referrer-Policy` (odkaz s tokenem neodejde jinému webu) | [SecurityHeaders.cs](code:src/MiniShop.Web/Security/SecurityHeaders.cs) |
+| **Logy a trasy** | Do trasy jen `enduser.id` (ID účtu); v logu nikdy e-mail ani heslo (hlídá test). Serilog loguje cestu bez query stringu, OpenTelemetry query string maskuje. | [SecurityHeaders.cs](code:src/MiniShop.Web/Security/SecurityHeaders.cs) (`UseEndUserTracing`) |
+
+> **Přirovnání:** rate limiting je vrátný, který ke dveřím pustí jen pár lidí za minutu; zámek účtu je platební karta,
+> která po třech špatných PINech na chvíli přestane fungovat; CSP je provozní řád, podle kterého prohlížeč nespustí
+> nic, co nepřišlo z MiniShopu.
 
 ## Databáze a migrace
 

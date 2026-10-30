@@ -28,8 +28,7 @@ public sealed class JourneyServiceTests : IDisposable
         services.AddScoped<IJourneyService, JourneyService>();
         _services = services.BuildServiceProvider();
 
-        using var scope = _services.CreateScope();
-        scope.ServiceProvider.GetRequiredService<JourneysDbContext>().Database.EnsureCreated();
+        JourneysDatabaseInitializer.InitializeAsync(_services).GetAwaiter().GetResult();
     }
 
     [Fact]

@@ -187,13 +187,14 @@ v [Order.cs](code:src/MiniShop.Domain/Orders/Order.cs).
 
 ## Databáze a migrace
 
-`users.db` se na rozdíl od ostatních databází **nesmí mazat** (jsou v ní účty), proto ji od účtů kroku 6 spravují
-**EF Core migrace** ([Accounts/Migrations](code:src/MiniShop.Infrastructure/Accounts/Migrations/AccountsDbContextModelSnapshot.cs)).
+`users.db` jako první databáze přešla na **EF Core migrace** (účty krok 6 – jsou v ní účty, nesmí se mazat;
+ostatní databáze ji následovaly v e-shop kroku 1) ([Accounts/Migrations](code:src/MiniShop.Infrastructure/Accounts/Migrations/AccountsDbContextModelSnapshot.cs)).
 Při startu Webu (i příkazu `create-admin`) [AccountsDatabaseInitializer](code:src/MiniShop.Infrastructure/Accounts/AccountsDatabaseInitializer.cs)
-spustí `Migrate` – ten doplní jen chybějící migrace a zapamatuje si je v tabulce `__EFMigrationsHistory`.
+spustí migrace přes sdílený [DatabaseMigrator](../sdilene-jadro.md) – ten doplní jen chybějící migrace
+a zapamatuje si je v tabulce `__EFMigrationsHistory`.
 
-- Databáze z kroků 1–5 (vytvořená přes `EnsureCreated`) historii nemá – initializer do ní zapíše první migraci
-  `InitialAccounts` jako provedenou (schéma odpovídá) a pak se doplní jen novější.
+- Databáze z kroků 1–5 (vytvořená přes `EnsureCreated`) historii nemá – migrátor ji pozná podle tabulky `AspNetUsers`,
+  zapíše do ní první migraci `InitialAccounts` jako provedenou (schéma odpovídá) a pak se doplní jen novější.
 - Nová migrace (z kořene repozitáře, nástroj `dotnet-ef` z `dotnet-tools.json` – poprvé `dotnet tool restore`):
   ```text
   dotnet ef migrations add <Nazev> --project src/MiniShop.Infrastructure --context AccountsDbContext --output-dir Accounts/Migrations

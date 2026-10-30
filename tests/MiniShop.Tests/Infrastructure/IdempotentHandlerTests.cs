@@ -67,7 +67,7 @@ public sealed class IdempotentHandlerTests : IDisposable
         services.AddSingleton(_switch);
 
         _services = services.BuildServiceProvider();
-        Db(db => db.Database.EnsureCreatedAsync()).GetAwaiter().GetResult();
+        OrderingDatabaseInitializer.InitializeAsync(_services).GetAwaiter().GetResult();
     }
 
     [Fact]

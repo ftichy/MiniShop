@@ -60,6 +60,10 @@ sudo -u deploy /opt/minishop/restore.sh latest   # nejnovější záloha
 Skript zastaví `web` a `inventory-api` (nikdo nezapisuje), stáhne zálohu, zkontroluje ji (`integrity_check`),
 vymění soubory ve volumes (původní nechá jako `*.before-restore-…`) a služby znovu spustí.
 
+Po startu služby doplní obnoveným databázím chybějící **migrace** schématu
+([Sdílené jádro – migrace databází](../architektura/sdilene-jadro.md)) – i záloze z doby před migracemi
+(baseline). Obnovit jde tedy i starší zálohu; opačně ne – kód starší než schéma zálohy novější sloupce jen ignoruje.
+
 Před rizikovou akcí ruční záloha: `sudo systemctl start minishop-backup`.
 
 **Nová databáze nebo soubor s daty = přidat do `DATABASES` v `backup.py`.**

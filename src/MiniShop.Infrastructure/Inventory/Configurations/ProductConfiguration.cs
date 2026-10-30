@@ -12,6 +12,7 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.HasKey(p => p.Id);
         builder.Property(p => p.Name).IsRequired().HasMaxLength(100);
         builder.Property(p => p.Description).HasMaxLength(500);
+        builder.Property(p => p.ImageFileName).HasMaxLength(100);   // e-shop krok 2B: jen jméno souboru, ne obrázek
         builder.Property(p => p.Price).HasPrecision(18, 2);
 
         // E-shop krok 2: kategorie – smazat jde jen prázdnou (Restrict, hlídá i CategoryService).

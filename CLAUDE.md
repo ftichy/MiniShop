@@ -77,7 +77,15 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   modulech vlastní čas (`AvailabilityChangedAtUtc`). Kategorie (`Category`, `CategoryService`, `/api/categories`) patří skladu,
   Ordering zná jen jméno ze zprávy o produktu (přejmenování → `product.CategoryRenamed` → V2 pro každý produkt);
   názvy kategorií porovnávat/řadit česky v paměti. Formulář objednávky bere dostupnost z kopie (`?productId=` předvybere produkt),
-  na sklad se Web ptá jen v administraci (`InventoryApiClient` = `IProductService` + `ICategoryService`).
+  na sklad se Web ptá jen v administraci (`InventoryApiClient` = `IProductService` + `ICategoryService` + `IProductImageService`).
+- **Obrázky produktů (e-shop krok 2B):** soubor patří skladu (`IProductImageStore` → `FileSystemProductImageStore`, `ProductImages:Path`,
+  kontejner `/data/images`, lokálně `src/MiniShop.Inventory.Api/images/`), do zpráv jen jméno (`ProductUpdatedV2.ImageFileName`).
+  Pravidla v `ProductImageFormat` (typ podle bajtů JPEG/PNG/WebP, žádné SVG, 1 MB, jméno `ID-otisk.přípona`, čte se jen jméno
+  podle vzoru). Veřejně jen přes Web `/media/products/{soubor}` (`ProductImageEndpoint`, `Cache-Control: immutable`).
+  Pořadí: soubor → DB → smazat starý soubor. Testy: `InMemoryProductImageStore`, ve Webu `StubProductImageService`.
+- **Stránka s `[BindProperty]` a dalším formulářem:** když formulář pole vlastnosti neposílá, binder ji naváže BEZ prefixu
+  (klíče `Name`, `Price`…) – chyby nejdou odfiltrovat podle prefixu. V takovém handleru `ModelState.Clear()` a ověřit jen
+  to, co formulář posílá (`TryValidateModel(x, "x")`). Test formuláře = poslat skutečná pole jako prohlížeč.
 - `MiniShop.Application` **nemá žádné NuGet balíčky** (ani DI ani Logging) – předchází se tím konfliktu verzí
   (NU1605). Registrace aplikačních služeb a handlerů proto žije ve
   `src/MiniShop.Web/Extensions/ApplicationServiceCollectionExtensions.cs`, infrastruktury v
@@ -227,13 +235,13 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   `<<: *otel-env` + `OTEL_SERVICE_NAME` v compose. Alarmy VM (CPU, paměť, chybějící metriky) + e-mail v `infra/monitoring.tf`
   (OCI Monitoring + Notifications, `alert_email` v `terraform.tfvars`).
 - Zálohy (krok 12): `minishop-backup.timer` (02:30 UTC, uživatel `deploy`) → `/opt/minishop/backup.sh` → `backup.py`
-  v kontejneru `ghcr.io/oracle/oci-cli:20261007` (online backup SQLite `ordering/journeys/inventory.db` + `/data/keys`
+  v kontejneru `ghcr.io/oracle/oci-cli:20261007` (online backup SQLite `ordering/journeys/inventory.db` + `/data/keys` + obrázky skladu
   → `minishop-RRRRMMDDTHHMMSSZ.tar.gz` → bucket `minishop-backups`, lifecycle 7 dní). VM se přihlašuje jako instance principal
   (dynamická skupina `minishop-vm`, politika v `infra/backup.tf`: číst + vytvářet, ne mazat). Obnova:
   `sudo -u deploy /opt/minishop/restore.sh latest|<jméno>|list` (zastaví web + inventory-api, původní soubory nechá jako
   `*.before-restore-…`). Skripty záloh přináší `deploy.sh` z gitu (volitelné soubory – starší commity je nemají),
   jednotky systemd cloud-init. Hlídač zálohy: healthchecks.io (`HEALTHCHECKS_BACKUP_URL`, volitelný secret).
-  Nová DB/soubor s daty = přidat do `DATABASES` v `backup.py`. Před rizikovou akcí ruční záloha `sudo systemctl start minishop-backup`.
+  Nová DB = `DATABASES`, nová složka s daty = `DIRECTORIES` v `backup.py` (od e-shop kroku 2B i `/inventory/images`). Před rizikovou akcí ruční záloha `sudo systemctl start minishop-backup`.
 - CI (krok 6): workflow „CI“, job „Build a testy“ (= povinný status check v rulesetu). Repozitář `ftichy/MiniShop` je veřejný –
   nic tajného do gitu. `main` jen přes PR se zeleným CI (bez přímého push). SDK určuje `global.json` (10.0.200, `latestFeature`).
   Nový projekt/závislost = ověřit, že CI na Linuxu projde.
@@ -312,7 +320,7 @@ nové moduly Notifications (odběratel událostí) a Payments (účastník ságy
 | --- | --- | --- |
 | 1. Migrace databází (`ordering/inventory/journeys.db`, sdílený `DatabaseMigrator`, baseline produkční DB) | hotovo (nasazeno 30. 10. 2026, produkční DB prošly baseline, data zůstala) | `docs/kroky-eshop/krok-01-migrace.md` |
 | 2A. Výloha (`/Shop`, kategorie, hledání `SearchText`, `ProductUpdatedV2` expand → contract, `StockAvailabilityChangedV1` při změně pásma) | hotovo (nasazeno 30. 10. 2026, produkční kopie katalogu se po startu sama doplnila) | `docs/kroky-eshop/krok-02a-vyloha.md` |
-| 2B. Obrázky produktů (upload do skladu, `/media/products/…` přes Web, `backup.py`) | plán | — |
+| 2B. Obrázky produktů (upload do skladu, typ podle bajtů, `/media/products/…` přes Web s immutable cache, `backup.py` `DIRECTORIES`) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-02b-obrazky.md` |
 | 3. Košík (`Cart` v Orderingu, `/Cart`) | plán | — |
 | 4. Pokladna a objednávka s více položkami (`CheckoutId`, adresa, doprava, změna ceny) | plán | — |
 | 5. Detail objednávky a historie stavů (`/Orders/{id}`) | plán | — |

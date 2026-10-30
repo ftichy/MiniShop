@@ -162,7 +162,7 @@ a testovací migrace (např. nový sloupec) projde lokálně i v cloudu bez maz�
 ## Krok 2: Výloha
 
 *Rozděleno na 2A (výloha, kategorie, hledání – hotovo 30. 10. 2026, souhrn v `docs/kroky-eshop/krok-02a-vyloha.md`)
-a 2B (obrázky). Detail produktu `/Shop/{id}` se ukázal jako zbytečný – karta ukazuje vše podstatné.*
+a 2B (obrázky – hotovo 30. 10. 2026, souhrn v `docs/kroky-eshop/krok-02b-obrazky.md`). Detail produktu `/Shop/{id}` se ukázal jako zbytečný – karta ukazuje vše podstatné.*
 
 **Teorie.** Kopie katalogu v Orderingu je **read model** – data připravená pro čtení, plněná událostmi ze skladu.
 Výloha potřebuje víc než název a cenu: popis a dostupnost. Kontrakt `ProductUpdatedV1` měnit nesmíme

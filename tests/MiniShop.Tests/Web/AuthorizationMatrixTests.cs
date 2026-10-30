@@ -42,6 +42,7 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Anonymous, "/Shop?q=mys&category=1&instock=true&sort=PriceDescending&p=2", Expect.Allowed },
         { Who.User, "/Shop", Expect.Allowed },
         { Who.Admin, "/Shop", Expect.Allowed },
+        { Who.Anonymous, "/media/products/1-0123456789ab.png", Expect.Allowed },   // e-shop krok 2B: obrázky výlohy
 
         // Účty krok 9: smazání účtu – jen přihlášený (admin stránku uvidí, ale smazat nemůže)
         { Who.Anonymous, "/Account/Delete", Expect.Login },
@@ -117,6 +118,12 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Admin, "/Products?handler=RenameCategory&id=1", Expect.Allowed },
         { Who.User, "/Products?handler=DeleteCategory&id=1", Expect.Denied },
         { Who.Admin, "/Products?handler=DeleteCategory&id=1", Expect.Allowed },
+
+        // E-shop krok 2B: obrázek produktu – jen admin (bez souboru: projde autorizací, hláška na stránce)
+        { Who.User, "/Products/Edit/1?handler=Image", Expect.Denied },
+        { Who.Admin, "/Products/Edit/1?handler=Image", Expect.Allowed },
+        { Who.User, "/Products/Edit/1?handler=RemoveImage", Expect.Denied },
+        { Who.Admin, "/Products/Edit/1?handler=RemoveImage", Expect.Allowed },
 
         // Účty krok 6: akce na detailu uživatele – jen admin (neexistující ID: projde autorizací, nic nezmění)
         { Who.Anonymous, "/Admin/Users/Detail/neexistuje?handler=Promote", Expect.Login },

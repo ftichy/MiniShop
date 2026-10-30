@@ -27,6 +27,7 @@ order: 80
 | **Fanout** | typ exchange, který pošle kopii zprávy do každé navázané fronty | [Broker](eda/broker.md) |
 | **Fold** | postupné „složení“ stavu z událostí – start s prázdným stavem a `Apply` pro každou | [Proud událostí](eda/proud-udalosti.md) |
 | **Handler** | třída, která reaguje na jednu událost nebo zprávu | [Doménové události](eda/domenove-udalosti.md) |
+| **Immutable cache** | soubor se pod jednou adresou nikdy nemění (nový obsah = nové jméno), proto si ho prohlížeč smí uložit natrvalo | [Kopie katalogu](eda/kopie-katalogu.md) |
 | **Idempotence** | provést operaci jednou nebo víckrát má stejný výsledek | [Inbox](eda/inbox.md) |
 | **Inbox** | tabulka zpracovaných zpráv – ochrana před dvojím zpracováním | [Inbox](eda/inbox.md) |
 | **Integrační zpráva / kontrakt** | veřejná, verzovaná zpráva mezi službami (`ReserveStockV1`) | [Integrační zprávy](eda/integracni-zpravy.md) |
@@ -41,6 +42,7 @@ order: 80
 | **SOLID** | pět principů objektového návrhu | [SOLID](architektura/solid.md) |
 | **Span / trasa (trace)** | jeden krok práce / strom kroků jednoho požadavku přes služby | [Observabilita](eda/observabilita.md) |
 | **traceparent** | standardní hlavička W3C nesoucí ID trasy mezi procesy | [Observabilita](eda/observabilita.md) |
+| **Path traversal** | útok podvrženou cestou k souboru (`../../appsettings.json`) – brání se mu jen jména podle přesného vzoru | [Inventory](architektura/moduly/inventory.md) |
 | **Výloha (/Shop)** | veřejná nabídka s hledáním a filtry nad kopií katalogu – read model tvarovaný pro čtení (CQRS) | [Kopie katalogu](eda/kopie-katalogu.md) |
 | **Wire tap** | „odposlech“ – fronta, která dostává kopii všech zpráv (audit) | [Broker](eda/broker.md) |
 

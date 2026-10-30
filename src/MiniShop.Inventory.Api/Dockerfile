@@ -29,7 +29,8 @@ USER $APP_UID
 # Sklad nemá formuláře, takže Data Protection klíče nepotřebuje.
 ENV ASPNETCORE_HTTP_PORTS=8080 \
     ConnectionStrings__Inventory="Data Source=/data/inventory.db" \
-    Serilog__WriteTo__1__Args__path=/data/logs/inventory-.log
+    Serilog__WriteTo__1__Args__path=/data/logs/inventory-.log \
+    ProductImages__Path=/data/images
 EXPOSE 8080
 
 COPY --from=build /app/publish .

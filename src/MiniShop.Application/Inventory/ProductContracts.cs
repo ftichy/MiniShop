@@ -9,7 +9,8 @@ public sealed record ProductDto(
     decimal Price,
     int StockQuantity,
     int CategoryId,
-    string CategoryName);
+    string CategoryName,
+    string? ImageFileName = null);
 
 public sealed class CreateProductRequest
 {

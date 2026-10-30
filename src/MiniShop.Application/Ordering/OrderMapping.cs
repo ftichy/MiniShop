@@ -23,5 +23,5 @@ public static class OrderMapping
     /// <summary>E-shop krok 2: produkt z kopie katalogu pro výlohu i formulář objednávky.</summary>
     public static CatalogItemDto ToCatalogItemDto(this CatalogProduct product) =>
         new(product.Id, product.Name, product.Description, product.Price, product.CategoryId, product.CategoryName,
-            product.Availability.ToString());
+            product.Availability.ToString(), product.ImageFileName);
 }

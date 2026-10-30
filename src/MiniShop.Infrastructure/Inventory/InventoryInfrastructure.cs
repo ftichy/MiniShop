@@ -30,4 +30,15 @@ public static class InventoryInfrastructure
 
         return services;
     }
+
+    /// <summary>
+    /// E-shop krok 2B: obrázky produktů ve složce <paramref name="rootPath"/> (konfigurace <c>ProductImages:Path</c>).
+    /// Zvlášť od <see cref="AddInventoryInfrastructure"/> – testy tak dají vlastní úložiště v paměti a nepíšou na disk.
+    /// </summary>
+    public static IServiceCollection AddFileSystemProductImages(this IServiceCollection services, string rootPath)
+    {
+        services.AddSingleton<IProductImageStore>(new FileSystemProductImageStore(Path.GetFullPath(rootPath)));
+        services.AddScoped<IProductImageService, ProductImageService>();
+        return services;
+    }
 }

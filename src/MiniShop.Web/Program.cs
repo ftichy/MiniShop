@@ -10,6 +10,7 @@ using MiniShop.Infrastructure.Ordering;
 using MiniShop.ServiceDefaults;
 using MiniShop.Web.Accounts;
 using MiniShop.Web.BackgroundServices;
+using MiniShop.Web.Catalog;
 using MiniShop.Web.Documentation;
 using MiniShop.Web.ErrorHandling;
 using MiniShop.Web.Extensions;
@@ -164,6 +165,7 @@ try
 
     app.MapControllers();
     app.MapRazorPages();
+    app.MapProductImages();   // e-shop krok 2B: /media/products/{soubor} – obrázky ze skladu, veřejně a s cache
     app.MapDefaultEndpoints();
 
     await app.RunAsync();

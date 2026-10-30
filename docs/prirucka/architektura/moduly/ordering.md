@@ -103,7 +103,8 @@ později, v jiném scope, případně i opakovaně.
 
 ## Rozhraní navenek
 
-- UI: **výloha** (`/Shop`, veřejná – e-shop krok 2; tlačítko Objednat vede na `/Orders?productId=…`),
+- UI: **výloha** (`/Shop`, veřejná – e-shop krok 2; tlačítko Objednat vede na `/Orders?productId=…`; obrázky
+  ze skladu přes `/media/products/{soubor}` – krok 2B),
   stránka **Objednávky** (`/Orders`), detail průběhu (`/Orders/Journey/{id}`), přehrání (`/Orders/Replay/{id}`).
 - REST: `GET/POST /api/orders`, `POST /api/orders/{id}/complete`, `POST /api/orders/{id}/cancel`.
   `POST` vrací **202 Accepted** – objednávka je přijatá, ale o potvrzení teprve rozhodne sága.

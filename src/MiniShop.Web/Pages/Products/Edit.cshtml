@@ -1,35 +1,65 @@
 @page "{id:int}"
 @model MiniShop.Web.Pages.Products.EditModel
+@using MiniShop.Web.Catalog
 @{
     ViewData["Title"] = "Úprava produktu";
 }
 <h1>Úprava produktu</h1>
 
+<partial name="_StatusMessage" model="Model.StatusMessage" />
 <div asp-validation-summary="ModelOnly" class="text-danger"></div>
 
-<form method="post" style="max-width: 40rem">
-    <div class="mb-3">
-        <label asp-for="Product.Name" class="form-label"></label>
-        <input asp-for="Product.Name" class="form-control" />
-        <span asp-validation-for="Product.Name" class="text-danger small"></span>
+<div class="row g-4">
+    <div class="col-lg-7">
+        <form method="post">
+            <div class="mb-3">
+                <label asp-for="Product.Name" class="form-label"></label>
+                <input asp-for="Product.Name" class="form-control" />
+                <span asp-validation-for="Product.Name" class="text-danger small"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="Product.CategoryId" class="form-label"></label>
+                <select asp-for="Product.CategoryId" asp-items="Model.CategoryOptions" class="form-select">
+                    <option value="0">-- vyberte --</option>
+                </select>
+                <span asp-validation-for="Product.CategoryId" class="text-danger small"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="Product.Description" class="form-label"></label>
+                <textarea asp-for="Product.Description" rows="3" class="form-control"></textarea>
+                <span asp-validation-for="Product.Description" class="text-danger small"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="Product.Price" class="form-label"></label>
+                <input asp-for="Product.Price" class="form-control" style="max-width: 12rem" />
+                <span asp-validation-for="Product.Price" class="text-danger small"></span>
+            </div>
+            <button type="submit" class="btn btn-primary">Uložit</button>
+            <a asp-page="/Products/Index" class="btn btn-link">Zpět na produkty</a>
+        </form>
     </div>
-    <div class="mb-3">
-        <label asp-for="Product.CategoryId" class="form-label"></label>
-        <select asp-for="Product.CategoryId" asp-items="Model.CategoryOptions" class="form-select">
-            <option value="0">-- vyberte --</option>
-        </select>
-        <span asp-validation-for="Product.CategoryId" class="text-danger small"></span>
+
+    @* E-shop krok 2B: obrázek leží ve skladu, výloha ho ukazuje přes /media/products/{soubor}. *@
+    <div class="col-lg-5">
+        <h2 class="h5">Obrázek</h2>
+        @if (Model.ImageFileName is not null)
+        {
+            <img src="@(ProductImageEndpoint.PathPrefix + Model.ImageFileName)" alt="Obrázek produktu"
+                 class="img-thumbnail product-img mb-2" />
+            <form method="post" asp-page-handler="RemoveImage" class="mb-3">
+                <button type="submit" class="btn btn-sm btn-outline-danger">Odebrat obrázek</button>
+            </form>
+        }
+        else
+        {
+            <div class="product-img-placeholder rounded mb-3">bez obrázku</div>
+        }
+
+        <form method="post" asp-page-handler="Image" enctype="multipart/form-data">
+            <label for="image" class="form-label">Nový obrázek</label>
+            <input id="image" name="image" type="file" accept="image/jpeg,image/png,image/webp" class="form-control mb-2" />
+            <div class="form-text mb-2">JPEG, PNG nebo WebP, nejvýš 1 MB. Ideálně na šířku (4 : 3).</div>
+            <button type="submit" class="btn btn-outline-primary">Nahrát</button>
+        </form>
     </div>
-    <div class="mb-3">
-        <label asp-for="Product.Description" class="form-label"></label>
-        <textarea asp-for="Product.Description" rows="3" class="form-control"></textarea>
-        <span asp-validation-for="Product.Description" class="text-danger small"></span>
-    </div>
-    <div class="mb-3">
-        <label asp-for="Product.Price" class="form-label"></label>
-        <input asp-for="Product.Price" class="form-control" style="max-width: 12rem" />
-        <span asp-validation-for="Product.Price" class="text-danger small"></span>
-    </div>
-    <button type="submit" class="btn btn-primary">Uložit</button>
-    <a asp-page="/Products/Index" class="btn btn-link">Zpět na produkty</a>
-</form>
+</div>

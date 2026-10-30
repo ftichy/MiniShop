@@ -78,6 +78,35 @@ public class Product : Entity
     }
 
     /// <summary>
+    /// E-shop krok 2B: jméno souboru obrázku v úložišti skladu (null = bez obrázku). Soubor sám v doméně není –
+    /// jméno generuje aplikační vrstva z otisku obsahu, takže nový obrázek = nové jméno.
+    /// </summary>
+    public string? ImageFileName { get; private set; }
+
+    /// <summary>Nový obrázek – pro výlohu je to změna produktu (ProductUpdatedV2 ponese nové jméno souboru).</summary>
+    public void SetImage(string fileName, DateTime changedAtUtc)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            throw new DomainException("Jméno souboru obrázku je povinné.");
+        }
+
+        ImageFileName = fileName;
+        MarkChanged(changedAtUtc);
+    }
+
+    public void RemoveImage(DateTime changedAtUtc)
+    {
+        if (ImageFileName is null)
+        {
+            return;   // není co odebírat – žádná zpráva
+        }
+
+        ImageFileName = null;
+        MarkChanged(changedAtUtc);
+    }
+
+    /// <summary>
     /// E-shop krok 2: kategorie produktu se přejmenovala. Jméno kategorie jde ve zprávě o produktu (ProductUpdatedV2),
     /// takže z pohledu výlohy se změnil produkt – kopie katalogu v Orderingu dostane nové jméno.
     /// </summary>

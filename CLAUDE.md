@@ -12,10 +12,10 @@ Cíl: postupně ho převést na EDA podle plánu v `docs/EDA-roadmap.md`.
 
 ```
 src/MiniShop.Contracts       integrační zprávy – události (OrderPlacedV1, StockReservedV1, …) a příkazy (ReserveStockV1, …), žádné závislosti
-src/MiniShop.Domain          Common/ (Entity, IDomainEvent), Orders/ (Order, CatalogProduct, Saga/OrderSaga), Inventory/ (Product, StockReservation),
+src/MiniShop.Domain          Common/ (Entity, IDomainEvent), Orders/ (Order, CatalogProduct, CatalogSearchText, Saga/OrderSaga), Inventory/ (Product, Category, StockAvailability, StockReservation),
                              Journeys/ (JourneyEvent, JourneyEventType)
 src/MiniShop.Application     Abstractions/ (sdílené: IUnitOfWork, IDomainEvent*, IIntegrationMessage*, TraceTags),
-                             Ordering/ (OrderService, DTO, Saga, Catalog projekce, EventHandlers, Pricing), Inventory/ (ProductService, Reserve/ReleaseStock),
+                             Ordering/ (OrderService, DTO, Saga, Catalog projekce + CatalogQueryService, EventHandlers, Pricing), Inventory/ (ProductService, CategoryService, Reserve/ReleaseStock),
                              Journeys/ (JourneyService, OrderJourneyProjection, JourneyReplayProjection, DTO)
 src/MiniShop.Infrastructure  sdílené: Persistence/ModuleDbContext, Outbox, Inbox (InboxGuard), Integration (bus, routing, dispatcher, RabbitMq/), Events,
                              Observability/ (MessagingTelemetry – ActivitySource + Meter, OutboxHealthCheck),
@@ -25,7 +25,7 @@ src/MiniShop.Infrastructure  sdílené: Persistence/ModuleDbContext, Outbox, Inb
 src/MiniShop.Web             služba Ordering (7180): API objednávek, Razor Pages (celé UI), Inventory/InventoryApiClient (HTTP na sklad),
                              OrderSagaTimeoutWorker, Program.cs (composition root); krok 12: JourneysController, Pages/Orders/Journey + Replay,
                              wwwroot/js/order-form-tracker.js + journey-player.js
-src/MiniShop.Inventory.Api   služba skladu (7181): ProductsController, jen modul Inventory, inventory.db, fronta minishop.inventory
+src/MiniShop.Inventory.Api   služba skladu (7181): ProductsController, CategoriesController, jen modul Inventory, inventory.db, fronta minishop.inventory
 src/MiniShop.ServiceDefaults AddServiceDefaults (service discovery, HTTP resilience, health checky /health, /alive, OpenTelemetry → OTLP)
 src/MiniShop.AppHost         .NET Aspire: RabbitMQ (persistentní kontejner) + inventory-api + web, dashboard
 tests/MiniShop.Tests         testy domény, OrderService + ságy + katalogu (2× SQLite in-memory, oba moduly v procesu), dispatcheru,
@@ -59,14 +59,25 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   Web volá sklad přes HTTP jen kvůli UI (`InventoryApiClient` : `IProductService`, `https+http://inventory-api`,
   bez Aspire adresa v `Services:inventory-api` v `appsettings.Development.json` Webu – jinde ji dává Aspire/Compose,
   `https` adresa má přednost a v kontejneru by přebila `http`); business tok jde jen přes zprávy.
-  Formulář objednávky bere nabídku z kopie katalogu (`IOrderService.GetCatalogAsync`), zásobu ze skladu jen volitelně.
+  Formulář objednávky i výloha berou nabídku a dostupnost z kopie katalogu (`IOrderService.GetCatalogAsync`, `ICatalogQueryService`).
   Web nesmí referencovat `Domain/Infrastructure.Inventory`, Inventory.Api nic z Orderingu (testy architektury).
   Auditní frontu poslouchá jen Web (`AuditQueue` prázdná v Inventory.Api). RabbitMQ adresu dává Aspire v `ConnectionStrings:messaging`.
-- Ordering zná produkty jen z kopie katalogu `CatalogProduct` (plní `CatalogProjectionHandler` z `ProductUpdatedV1`/`ProductRemovedV1`).
-  Obnova kopie: příkaz `SyncCatalogV1` (`CatalogSyncService`) – automaticky po startu Webu, když je kopie prázdná
-  (`CatalogSyncOnStartupWorker`), nebo tlačítkem na stránce Objednávky; sklad (`SyncCatalogHandler`) pošle `ProductUpdatedV1`
-  pro každý produkt s novým `EventId`, ale s časem `Product.ChangedAtUtc` (ne „teď“ – nesmí přebít novější změnu).
-  Inventory převádí doménové události produktu na integrační rovnou v `InventoryDbContext.ToOutboxMessage` (Ordering přes handler).
+- Ordering zná produkty jen z kopie katalogu `CatalogProduct` (plní `CatalogProjectionHandler` z `ProductUpdatedV1`/`V2`,
+  `StockAvailabilityChangedV1`, `ProductRemovedV1`). Obnova kopie: příkaz `SyncCatalogV1` (`CatalogSyncService`) – automaticky
+  po startu Webu, když je kopie prázdná nebo neúplná (produkt s dostupností `Unknown`; `CatalogSyncOnStartupWorker`), nebo
+  tlačítkem na stránce Objednávky; sklad (`SyncCatalogHandler`) pošle `ProductUpdatedV1` + `V2` pro každý produkt s novým
+  `EventId`, ale s časem `Product.ChangedAtUtc` (ne „teď“ – nesmí přebít novější změnu).
+  Inventory převádí doménové události produktu na integrační rovnou v `InventoryDbContext.ToOutboxMessages` (Ordering přes handler);
+  jedna událost může dát víc zpráv – druhá má ID odvozené `MessageIds.Derive` (inbox by stejné ID zahodil jako duplicitu).
+- **Výloha (e-shop krok 2A):** veřejná `/Shop` čte jen kopii katalogu přes `ICatalogQueryService` (filtr v SQL, řazení a
+  stránkování v paměti – SQLite neřadí decimal; hledání přes `CatalogProduct.SearchText` = `CatalogSearchText.Normalize`).
+  `ProductUpdatedV2` = celý stav produktu (popis, kategorie, `ImageFileName`, dostupnost jako snímek); sklad posílá zatím
+  V1 i V2 (expand → contract), změna produktu/kategorie produktu = obě. `StockAvailabilityChangedV1` jen při změně pásma
+  (`StockAvailabilityBands`, víc než 5 / 1–5 / 0) – `Product.AddStock/RemoveStock(quantity, čas)`. Dostupnost má v obou
+  modulech vlastní čas (`AvailabilityChangedAtUtc`). Kategorie (`Category`, `CategoryService`, `/api/categories`) patří skladu,
+  Ordering zná jen jméno ze zprávy o produktu (přejmenování → `product.CategoryRenamed` → V2 pro každý produkt);
+  názvy kategorií porovnávat/řadit česky v paměti. Formulář objednávky bere dostupnost z kopie (`?productId=` předvybere produkt),
+  na sklad se Web ptá jen v administraci (`InventoryApiClient` = `IProductService` + `ICategoryService`).
 - `MiniShop.Application` **nemá žádné NuGet balíčky** (ani DI ani Logging) – předchází se tím konfliktu verzí
   (NU1605). Registrace aplikačních služeb a handlerů proto žije ve
   `src/MiniShop.Web/Extensions/ApplicationServiceCollectionExtensions.cs`, infrastruktury v
@@ -299,8 +310,9 @@ nové moduly Notifications (odběratel událostí) a Payments (účastník ságy
 
 | Krok | Stav | Souhrn |
 | --- | --- | --- |
-| 1. Migrace databází (`ordering/inventory/journeys.db`, sdílený `DatabaseMigrator`, baseline produkční DB) | kód hotový, produkční schéma ověřeno (shoda s migrací) – čeká na nasazení | `docs/kroky-eshop/krok-01-migrace.md` |
-| 2. Výloha (`/Shop`, `ProductUpdatedV2`, `StockAvailabilityChangedV1`) | plán | — |
+| 1. Migrace databází (`ordering/inventory/journeys.db`, sdílený `DatabaseMigrator`, baseline produkční DB) | hotovo (nasazeno 30. 10. 2026, produkční DB prošly baseline, data zůstala) | `docs/kroky-eshop/krok-01-migrace.md` |
+| 2A. Výloha (`/Shop`, kategorie, hledání `SearchText`, `ProductUpdatedV2` expand → contract, `StockAvailabilityChangedV1` při změně pásma) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-02a-vyloha.md` |
+| 2B. Obrázky produktů (upload do skladu, `/media/products/…` přes Web, `backup.py`) | plán | — |
 | 3. Košík (`Cart` v Orderingu, `/Cart`) | plán | — |
 | 4. Pokladna a objednávka s více položkami (`CheckoutId`, adresa, doprava, změna ceny) | plán | — |
 | 5. Detail objednávky a historie stavů (`/Orders/{id}`) | plán | — |

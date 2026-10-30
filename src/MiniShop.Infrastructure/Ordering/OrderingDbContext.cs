@@ -23,8 +23,8 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
     public DbSet<OrderSaga> OrderSagas => Set<OrderSaga>();
     public DbSet<CatalogProduct> CatalogProducts => Set<CatalogProduct>();
 
-    protected override OutboxMessage ToOutboxMessage(IDomainEvent domainEvent) =>
-        OrderingDomainEvents.ToOutboxMessage(domainEvent);
+    protected override IEnumerable<OutboxMessage> ToOutboxMessages(IDomainEvent domainEvent) =>
+        [OrderingDomainEvents.ToOutboxMessage(domainEvent)];
 
     protected override void ConfigureModule(ModelBuilder modelBuilder) =>
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(OrderingDbContext).Assembly,

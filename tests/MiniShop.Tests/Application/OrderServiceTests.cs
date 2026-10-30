@@ -39,6 +39,10 @@ namespace MiniShop.Tests.Application;
 public sealed class OrderServiceTests : IDisposable
 {
     private static readonly DateTimeOffset Now = new(2026, 1, 15, 10, 0, 0, TimeSpan.Zero);
+
+    /// <summary>E-shop krok 2: kategorie „Nezařazeno“ – zakládá ji migrace inventory.db (pevné ID 1).</summary>
+    private const int UncategorizedId = 1;
+
     private static readonly TimeSpan ReservationTimeout = TimeSpan.FromSeconds(30);
 
     private readonly InMemoryDatabase _orderingDatabase = new();
@@ -76,8 +80,12 @@ public sealed class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<StockReservationFailedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<StockReleasedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<ProductUpdatedV1, CatalogProjectionHandler>(IntegrationModules.Ordering);
+        services.AddIntegrationMessageHandler<ProductUpdatedV2, CatalogProjectionHandler>(IntegrationModules.Ordering);
+        services.AddIntegrationMessageHandler<StockAvailabilityChangedV1, CatalogProjectionHandler>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<ProductRemovedV1, CatalogProjectionHandler>(IntegrationModules.Ordering);
         services.AddScoped<IProductService, ProductService>();
+        services.AddScoped<ICategoryService, CategoryService>();
+        services.AddScoped<ICatalogQueryService, CatalogQueryService>();
         services.AddIntegrationMessageHandler<ReserveStockV1, ReserveStockHandler>(IntegrationModules.Inventory);
         services.AddIntegrationMessageHandler<ReleaseStockV1, ReleaseStockHandler>(IntegrationModules.Inventory);
         services.AddIntegrationMessageHandler<SyncCatalogV1, SyncCatalogHandler>(IntegrationModules.Inventory);
@@ -482,7 +490,8 @@ public sealed class OrderServiceTests : IDisposable
 
         var inventory = await InventoryDb(db => db.OutboxMessages.ToListAsync());
         Assert.All(inventory, m => Assert.Equal(Now.UtcDateTime, m.ProcessedAtUtc));
-        Assert.Equal(new[] { "ProductUpdatedV1", "StockReleasedV1", "StockReservedV1" }, inventory.Select(m => m.Type).Order());
+        Assert.Equal(new[] { "ProductUpdatedV1", "ProductUpdatedV2", "StockReleasedV1", "StockReservedV1" },
+            inventory.Select(m => m.Type).Order());
     }
 
     // ---------- Krok 10: kopie katalogu v Orderingu ----------
@@ -490,7 +499,7 @@ public sealed class OrderServiceTests : IDisposable
     [Fact]
     public async Task NovyProdukt_JdeObjednatAzPoPromitnutiDoKatalogu()
     {
-        var product = await Products(s => s.CreateAsync(new CreateProductRequest { Name = "Novinka", Price = 250m, StockQuantity = 5 }));
+        var product = await Products(s => s.CreateAsync(new CreateProductRequest { Name = "Novinka", Price = 250m, StockQuantity = 5, CategoryId = UncategorizedId }));
 
         // ProductUpdatedV1 ještě čeká v outboxu skladu → Ordering o produktu neví (eventual consistency).
         await Assert.ThrowsAsync<NotFoundException>(() => Orders(s => PlaceAsJan(s, CreateRequest((product.Id, 1)))));
@@ -508,7 +517,7 @@ public sealed class OrderServiceTests : IDisposable
         var product = await AddProductAsync(price: 100m, stock: 50);
         var before = await PlaceConfirmedOrderAsync(product.Id, quantity: 1);
 
-        await Products(s => s.UpdateAsync(product.Id, new UpdateProductRequest { Name = "Testovací produkt", Price = 150m }));
+        await Products(s => s.UpdateAsync(product.Id, new UpdateProductRequest { Name = "Testovací produkt", Price = 150m, CategoryId = UncategorizedId }));
         await ProcessOutboxAsync();
         var after = await Orders(s => PlaceAsJan(s, CreateRequest((product.Id, 1))));
 
@@ -529,6 +538,136 @@ public sealed class OrderServiceTests : IDisposable
         Assert.True((await OrderingDb(db => db.CatalogProducts.SingleAsync())).IsRemoved);
     }
 
+    // ---------- E-shop krok 2: výloha (ProductUpdatedV2, dostupnost, kategorie, hledání) ----------
+
+    [Fact]
+    public async Task NovyProdukt_SkladPosleV1IV2_KopieMaPopisKategoriiADostupnost()
+    {
+        var product = await Products(s => s.CreateAsync(new CreateProductRequest
+        {
+            Name = "Myš", Description = "Bezdrátová", Price = 890m, StockQuantity = 40, CategoryId = UncategorizedId
+        }));
+        await ProcessOutboxAsync();
+
+        // Expand → contract: stejná změna ve dvou verzích, každá s vlastním ID (inbox by jinak V2 zahodil jako duplicitu).
+        var v1 = Assert.Single(_bus.Published.OfType<ProductUpdatedV1>());
+        var v2 = Assert.Single(_bus.Published.OfType<ProductUpdatedV2>());
+        Assert.NotEqual(v1.EventId, v2.EventId);
+
+        var item = Assert.Single(await Orders(s => s.GetCatalogAsync()));
+        Assert.Equal(new CatalogItemDto(product.Id, "Myš", "Bezdrátová", 890m, UncategorizedId, "Nezařazeno", "InStock"), item);
+    }
+
+    [Fact]
+    public async Task Rezervace_ZmeniPasmoDostupnosti_KopieKataloguToVi()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);   // 5 ks = poslední kusy
+        Assert.Equal("LowStock", (await Orders(s => s.GetCatalogAsync())).Single().Availability);
+
+        var order = await PlaceConfirmedOrderAsync(product.Id, quantity: 5);   // rezervace → 0 ks
+
+        Assert.Single(_bus.Published.OfType<StockAvailabilityChangedV1>());
+        Assert.Equal("OutOfStock", (await Orders(s => s.GetCatalogAsync())).Single().Availability);
+
+        await Orders(s => s.CancelAsync(order.Id, OrderAccess.AllOrders));
+        await ProcessOutboxAsync();   // kompenzace vrátí zboží → zpět poslední kusy
+
+        Assert.Equal("LowStock", (await Orders(s => s.GetCatalogAsync())).Single().Availability);
+    }
+
+    [Fact]
+    public async Task ZmenaZasobyVeStejnemPasmu_ZadnaZprava()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 50);
+
+        await PlaceConfirmedOrderAsync(product.Id, quantity: 3);   // 47 ks – pořád skladem
+
+        Assert.Empty(_bus.Published.OfType<StockAvailabilityChangedV1>());
+    }
+
+    [Fact]
+    public async Task PrejmenovaniKategorie_VylohaMaNoveJmeno()
+    {
+        var category = await Categories(s => s.CreateAsync(new CategoryRequest { Name = "Periferie" }));
+        var product = await Products(s => s.CreateAsync(new CreateProductRequest
+        {
+            Name = "Myš", Price = 890m, StockQuantity = 40, CategoryId = category.Id
+        }));
+        await ProcessOutboxAsync();
+        _time.Advance(TimeSpan.FromMinutes(1));
+
+        await Categories(s => s.RenameAsync(category.Id, new CategoryRequest { Name = "Příslušenství" }));
+        await ProcessOutboxAsync();
+
+        var item = Assert.Single(await Orders(s => s.GetCatalogAsync()));
+        Assert.Equal(product.Id, item.ProductId);
+        Assert.Equal("Příslušenství", item.CategoryName);
+    }
+
+    [Fact]
+    public async Task Kategorie_SProduktyNejdeSmazat_NazevJeUnikatni()
+    {
+        await AddProductAsync(price: 100m, stock: 5);   // v kategorii „Nezařazeno“
+
+        await Assert.ThrowsAsync<DomainException>(() => Categories(async s => { await s.DeleteAsync(UncategorizedId); return true; }));
+        await Assert.ThrowsAsync<DomainException>(() => Categories(s => s.CreateAsync(new CategoryRequest { Name = "nezařazeno" })));
+    }
+
+    /// <summary>Po nasazení kroku 2: kopie má produkty bez dostupnosti (migrace „Unknown“) → obnova je doplní.</summary>
+    [Fact]
+    public async Task NeuplnaKopieKatalogu_PoStartuSeDoplniZeSkladu()
+    {
+        await AddProductAsync(price: 120m, stock: 50);
+        await OrderingDb(db => db.Database.ExecuteSqlRawAsync(
+            "UPDATE CatalogProducts SET Availability = 'Unknown', CategoryId = NULL, CategoryName = NULL"));
+
+        Assert.True(await CatalogSync(s => s.RequestIfEmptyOrIncompleteAsync()));
+        await ProcessOutboxAsync();
+
+        var item = Assert.Single(await Orders(s => s.GetCatalogAsync()));
+        Assert.Equal("InStock", item.Availability);
+        Assert.Equal("Nezařazeno", item.CategoryName);
+        Assert.False(await CatalogSync(s => s.RequestIfEmptyOrIncompleteAsync()));
+    }
+
+    [Fact]
+    public async Task Vyloha_HledaBezDiakritikyAVelikostiPismen_FiltrujeARadi()
+    {
+        var audio = await Categories(s => s.CreateAsync(new CategoryRequest { Name = "Audio" }));
+        await AddProductAsync("Bezdrátová myš", 890m, stock: 40, UncategorizedId);
+        await AddProductAsync("Sluchátka", 1590m, stock: 0, audio.Id);
+        await AddProductAsync("Myš pro hráče", 1290m, stock: 3, UncategorizedId);
+
+        var mys = await Shop(new CatalogSearchRequest(Query: "MYS"));
+        Assert.Equal(["Bezdrátová myš", "Myš pro hráče"], mys.Items.Select(i => i.Name));
+
+        var byCategory = await Shop(new CatalogSearchRequest(Query: "audio"));   // hledá i v názvu kategorie
+        Assert.Equal("Sluchátka", Assert.Single(byCategory.Items).Name);
+
+        var inStock = await Shop(new CatalogSearchRequest(InStockOnly: true, Sort: CatalogSort.PriceDescending));
+        Assert.Equal(["Myš pro hráče", "Bezdrátová myš"], inStock.Items.Select(i => i.Name));   // vyprodaná sluchátka ne
+
+        var audioOnly = await Shop(new CatalogSearchRequest(CategoryId: audio.Id));
+        Assert.Equal("Sluchátka", Assert.Single(audioOnly.Items).Name);
+        Assert.Equal([("Audio", 1), ("Nezařazeno", 2)], audioOnly.Categories.Select(c => (c.Name, c.ProductCount)));
+    }
+
+    [Fact]
+    public async Task Vyloha_Strankuje()
+    {
+        for (var i = 1; i <= CatalogQueryService.PageSize + 2; i++)
+        {
+            await AddProductAsync($"Produkt {i:00}", 100m, stock: 10, UncategorizedId);
+        }
+
+        var second = await Shop(new CatalogSearchRequest(Page: 2));
+
+        Assert.Equal(CatalogQueryService.PageSize + 2, second.TotalCount);
+        Assert.Equal(2, second.PageCount);
+        Assert.Equal(["Produkt 13", "Produkt 14"], second.Items.Select(i => i.Name));
+        Assert.Equal(2, (await Shop(new CatalogSearchRequest(Page: 99))).Page);   // mimo rozsah = poslední stránka
+    }
+
     // ---------- Obnova kopie katalogu (SyncCatalogV1) ----------
 
     [Fact]
@@ -540,11 +679,12 @@ public sealed class OrderServiceTests : IDisposable
         await OrderingDb(db => db.CatalogProducts.ExecuteDeleteAsync());
         await Assert.ThrowsAsync<NotFoundException>(() => Orders(s => PlaceAsJan(s, CreateRequest((product.Id, 1)))));
 
-        Assert.True(await CatalogSync(s => s.RequestIfEmptyAsync()));
-        await ProcessOutboxAsync();   // SyncCatalogV1 → sklad → ProductUpdatedV1 → projekce
+        Assert.True(await CatalogSync(s => s.RequestIfEmptyOrIncompleteAsync()));
+        await ProcessOutboxAsync();   // SyncCatalogV1 → sklad → ProductUpdatedV1 + V2 → projekce
 
         var catalog = await Orders(s => s.GetCatalogAsync());
-        Assert.Equal(new CatalogItemDto(product.Id, "Testovací produkt", 120m), Assert.Single(catalog));
+        Assert.Equal(new CatalogItemDto(product.Id, "Testovací produkt", null, 120m, UncategorizedId, "Nezařazeno", "LowStock"),
+            Assert.Single(catalog));
         Assert.Equal(120m, (await Orders(s => PlaceAsJan(s, CreateRequest((product.Id, 1))))).TotalPrice);
     }
 
@@ -554,7 +694,7 @@ public sealed class OrderServiceTests : IDisposable
         await AddProductAsync(price: 120m, stock: 5);
         _bus.Published.Clear();
 
-        Assert.False(await CatalogSync(s => s.RequestIfEmptyAsync()));
+        Assert.False(await CatalogSync(s => s.RequestIfEmptyOrIncompleteAsync()));
         await ProcessOutboxAsync();
 
         Assert.Empty(_bus.Published);
@@ -762,13 +902,42 @@ public sealed class OrderServiceTests : IDisposable
     /// Založí produkt ve skladu a nechá ho promítnout do kopie katalogu v Orderingu (krok 10) –
     /// teprve pak jde objednat. Zprávy z přípravy dat se z "brokeru" smažou, ať nepletou testy.
     /// </summary>
+    private async Task<ProductDto> AddProductAsync(string name, decimal price, int stock, int categoryId)
+    {
+        var product = await Products(s => s.CreateAsync(new CreateProductRequest
+        {
+            Name = name,
+            Price = price,
+            StockQuantity = stock,
+            CategoryId = categoryId
+        }));
+        await ProcessOutboxAsync();
+        _bus.Published.Clear();
+        return product;
+    }
+
+    /// <summary>E-shop krok 2: správa kategorií (modul Inventory) ve vlastním scope.</summary>
+    private async Task<T> Categories<T>(Func<ICategoryService, Task<T>> action)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await action(scope.ServiceProvider.GetRequiredService<ICategoryService>());
+    }
+
+    /// <summary>E-shop krok 2: výloha (čtení kopie katalogu) ve vlastním scope.</summary>
+    private async Task<CatalogSearchResult> Shop(CatalogSearchRequest request)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<ICatalogQueryService>().SearchAsync(request);
+    }
+
     private async Task<ProductDto> AddProductAsync(decimal price, int stock)
     {
         var product = await Products(s => s.CreateAsync(new CreateProductRequest
         {
             Name = "Testovací produkt",
             Price = price,
-            StockQuantity = stock
+            StockQuantity = stock,
+            CategoryId = UncategorizedId
         }));
         await ProcessOutboxAsync();
         _bus.Published.Clear();

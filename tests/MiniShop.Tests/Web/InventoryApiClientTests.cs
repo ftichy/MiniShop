@@ -19,11 +19,11 @@ public sealed class InventoryApiClientTests
     public async Task Uspech_VratiProdukty()
     {
         var client = Client(_ => Json(HttpStatusCode.OK,
-            """[{"id":1,"name":"Myš","description":null,"price":890.0,"stockQuantity":40}]"""));
+            """[{"id":1,"name":"Myš","description":null,"price":890.0,"stockQuantity":40,"categoryId":2,"categoryName":"Periferie"}]"""));
 
         var products = await client.GetAllAsync();
 
-        Assert.Equal(new ProductDto(1, "Myš", null, 890m, 40), Assert.Single(products));
+        Assert.Equal(new ProductDto(1, "Myš", null, 890m, 40, 2, "Periferie"), Assert.Single(products));
     }
 
     [Fact]

@@ -9,14 +9,6 @@
 <partial name="_StatusMessage" model="Model.StatusMessage" />
 <div asp-validation-summary="ModelOnly" class="text-danger"></div>
 
-@if (Model.InventoryUnavailable)
-{
-    <div class="alert alert-warning">
-        Služba skladu teď neodpovídá – zásoby nevidíme. Objednávat můžete dál: objednávka počká ve stavu
-        „Ověřujeme sklad…“ a sága ji dokončí, až se sklad vrátí (nebo ji po timeoutu zamítne).
-    </div>
-}
-
 @* Účty krok 2: formulář vidí jen zákazník (role User) – admin neobjednává. Server to hlídá i v OnPostCreate. *@
 @if (Model.CanPlaceOrders)
 {

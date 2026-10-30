@@ -17,6 +17,7 @@ public static class InventoryInfrastructure
         services.AddScoped<IInventoryMessagePublisher, InventoryMessagePublisher>();
 
         services.AddScoped<IProductRepository, ProductRepository>();
+        services.AddScoped<ICategoryRepository, CategoryRepository>();
         services.AddScoped<IStockReservationRepository, StockReservationRepository>();
 
         // Vlastní outbox = vlastní pošťák.

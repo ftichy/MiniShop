@@ -1,7 +1,7 @@
 ---
 title: Cesta jedné zprávy
 summary: Detail doručení jedné integrační zprávy – outbox, RabbitMQ, consumer, inbox – včetně toho, co se děje při chybách.
-order: 7
+order: 8
 ---
 
 > **Shrnutí:** Zpráva má dvě „pojistky“: **outbox** u odesílatele (neztratí se) a **inbox** u příjemce

@@ -8,6 +8,7 @@
 @* Účty krok 9: zpráva po smazání účtu (TempData z Account/Delete). *@
 <partial name="_StatusMessage" model="@(TempData["StatusMessage"] as string)" />
 <p class="lead">Jednoduchý e-shop pro výuku: ASP.NET Core, EF Core + SQLite, vrstvená architektura a SOLID.</p>
+<p><a asp-page="/Shop/Index" class="btn btn-primary btn-lg">Prohlédnout nabídku</a></p>
 
 <div class="row g-3">
     <div class="col-md-6">
@@ -15,8 +16,9 @@
             <div class="card-body">
                 <h5 class="card-title">Webové rozhraní</h5>
                 <ul>
-                    <li><a asp-page="/Products/Index">Produkty</a> – katalog, přidání, naskladnění</li>
+                    <li><a asp-page="/Shop/Index">Obchod</a> – nabídka, hledání, kategorie</li>
                     <li><a asp-page="/Orders/Index">Objednávky</a> – vytvoření, vyřízení, zrušení</li>
+                    <li><a asp-page="/Products/Index">Produkty</a> – správa katalogu a kategorií (admin)</li>
                 </ul>
             </div>
         </div>

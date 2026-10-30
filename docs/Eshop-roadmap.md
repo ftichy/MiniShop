@@ -117,7 +117,8 @@ co se děje – nikdo mu nic přímo neříká.
 | Krok | Fáze | Co přinese | Nový nástroj / vzor | Cena |
 | --- | --- | --- | --- | --- |
 | 1. Migrace databází | A – příprava | Změny schématu bez mazání `ordering.db`/`inventory.db`/`journeys.db` | EF Core migrace | 0 |
-| 2. Výloha | B – nakupování | Stránka s nabídkou, popis, dostupnost „Skladem“ | verzování kontraktu (`V2`), read model | 0 |
+| 2A. Výloha | B – nakupování | Stránka s nabídkou, popis, dostupnost „Skladem“, kategorie, hledání | verzování kontraktu (`V2`), read model, CQRS | 0 |
+| 2B. Obrázky produktů | B | Obrázky ve výloze, upload v administraci | bezpečný upload, soubory na volume, cache | 0 |
 | 3. Košík | B | Přidat, změnit množství, odebrat, košík přežije odhlášení | agregát, invarianty | 0 |
 | 4. Pokladna a objednávka s více položkami | B | Checkout z košíku, adresa, doprava, změna ceny, žádné dvojí objednání | idempotentní příkaz, strategie | 0 |
 | 5. Detail objednávky a historie stavů | C – vyřizování | Stránka objednávky s časovou osou pro zákazníka i admina | projekce | 0 |
@@ -160,6 +161,9 @@ a testovací migrace (např. nový sloupec) projde lokálně i v cloudu bez maz�
 
 ## Krok 2: Výloha
 
+*Rozděleno na 2A (výloha, kategorie, hledání – hotovo 30. 10. 2026, souhrn v `docs/kroky-eshop/krok-02a-vyloha.md`)
+a 2B (obrázky). Detail produktu `/Shop/{id}` se ukázal jako zbytečný – karta ukazuje vše podstatné.*
+
 **Teorie.** Kopie katalogu v Orderingu je **read model** – data připravená pro čtení, plněná událostmi ze skladu.
 Výloha potřebuje víc než název a cenu: popis a dostupnost. Kontrakt `ProductUpdatedV1` měnit nesmíme
 (někdo ho možná čte) → **nová verze `ProductUpdatedV2`**, sklad nějakou dobu posílá obě.
@@ -172,9 +176,15 @@ věci. Proto samostatná událost **`StockAvailabilityChangedV1`** a v kopii jen
 - `ProductUpdatedV2` (+ `Description`), `StockAvailabilityChangedV1` (posílá sklad, jen když se **změní pásmo**
   dostupnosti – ne při každém kusu). `CatalogProduct` s popisem a dostupností, `CatalogProjectionHandler` zpracuje V2.
 - `SyncCatalogV1` posílá nově V2 + dostupnost. `V1` sklad posílá dál (odstranění = samostatné rozhodnutí později).
-- Nová veřejná stránka `/Shop` (`[AllowAnonymous]`, řádek v `AuthorizationMatrixTests`) – karty produktů,
-  detail `/Shop/{id}`. Dnešní dotaz Webu na sklad kvůli zásobě (`InventoryApiClient` ve formuláři) odpadne.
-- Volitelně: obrázky produktů (soubor na volume, cesta v produktu) – větší téma, spíš „kam dál“.
+- Nová veřejná stránka `/Shop` (`[AllowAnonymous]`, řádek v `AuthorizationMatrixTests`) – karty produktů.
+  Dnešní dotaz Webu na sklad kvůli zásobě (`InventoryApiClient` ve formuláři) odpadne.
+- **2A – kategorie a hledání:** entita `Category` ve skladu (jméno jde ve `ProductUpdatedV2`, přejmenování znovu
+  oznámí produkty), úprava produktu v administraci; v kopii katalogu `SearchText` bez diakritiky, filtry v URL
+  (text, kategorie, jen skladem), řazení, stránkování.
+- **2B – obrázky:** upload v administraci → `PUT /api/products/{id}/image` → volume skladu `/data/images`
+  (jen JPEG/PNG/WebP podle prvních bajtů, max. 1 MB, bez SVG, jméno souboru generuje server s otiskem obsahu);
+  Web je zpřístupní přes `GET /media/products/{soubor}` (stáhne ze skladu se servisním klíčem, `Cache-Control:
+  immutable`), ve zprávě jen `ImageFileName` (V2 ho už má). Složka obrázků do `backup.py`. Bez zmenšování obrázků.
 
 **Hotovo, když:** nepřihlášený návštěvník vidí nabídku s popisem a dostupností, vyprodání produktu se ve výloze
 projeví do pár sekund a výloha funguje i při výpadku skladu.

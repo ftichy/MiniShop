@@ -45,7 +45,8 @@ sequenceDiagram
 
 {{auto:domain-events}}
 
-Události Orderingu jdou přes outbox k handlerům. Události Inventory (`ProductChanged`, `ProductRemoved`) se při uložení rovnou převedou na
+Události Orderingu jdou přes outbox k handlerům. Události Inventory (`ProductChanged`, `ProductRemoved` a od e-shop kroku 2
+`StockAvailabilityChanged` – jen při změně pásma dostupnosti) se při uložení rovnou převedou na
 [integrační zprávy](integracni-zpravy.md) (sklad nemá vlastní doménové handlery).
 
 ## Doménová vs. integrační událost

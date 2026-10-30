@@ -38,6 +38,10 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Anonymous, "/Account/ResetPassword", Expect.Allowed },
         { Who.Anonymous, "/Account/ConfirmEmail", Expect.Allowed },
         { Who.Anonymous, "/Privacy", Expect.Allowed },                   // účty krok 9
+        { Who.Anonymous, "/Shop", Expect.Allowed },                      // e-shop krok 2: výloha
+        { Who.Anonymous, "/Shop?q=mys&category=1&instock=true&sort=PriceDescending&p=2", Expect.Allowed },
+        { Who.User, "/Shop", Expect.Allowed },
+        { Who.Admin, "/Shop", Expect.Allowed },
 
         // Účty krok 9: smazání účtu – jen přihlášený (admin stránku uvidí, ale smazat nemůže)
         { Who.Anonymous, "/Account/Delete", Expect.Login },
@@ -56,6 +60,9 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Anonymous, "/Products", Expect.Login },
         { Who.User, "/Products", Expect.Denied },
         { Who.Admin, "/Products", Expect.Allowed },
+        { Who.Anonymous, "/Products/Edit/1", Expect.Login },              // e-shop krok 2: úprava produktu
+        { Who.User, "/Products/Edit/1", Expect.Denied },
+        { Who.Admin, "/Products/Edit/1", Expect.Allowed },
         { Who.User, "/Orders/Journey/1", Expect.Denied },
         { Who.Admin, "/Orders/Journey/1", Expect.Allowed },
         { Who.User, "/Orders/Replay/1", Expect.Denied },
@@ -100,6 +107,16 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Admin, "/Products?handler=AddStock&id=1&quantity=5", Expect.Allowed },
         { Who.User, "/Products?handler=Delete&id=1", Expect.Denied },
         { Who.Admin, "/Products?handler=Delete&id=1", Expect.Allowed },
+
+        // E-shop krok 2: úprava produktu a kategorie – jen admin
+        { Who.User, "/Products/Edit/1", Expect.Denied },
+        { Who.Admin, "/Products/Edit/1", Expect.Allowed },
+        { Who.User, "/Products?handler=CreateCategory", Expect.Denied },
+        { Who.Admin, "/Products?handler=CreateCategory", Expect.Allowed },
+        { Who.User, "/Products?handler=RenameCategory&id=1", Expect.Denied },
+        { Who.Admin, "/Products?handler=RenameCategory&id=1", Expect.Allowed },
+        { Who.User, "/Products?handler=DeleteCategory&id=1", Expect.Denied },
+        { Who.Admin, "/Products?handler=DeleteCategory&id=1", Expect.Allowed },
 
         // Účty krok 6: akce na detailu uživatele – jen admin (neexistující ID: projde autorizací, nic nezmění)
         { Who.Anonymous, "/Admin/Users/Detail/neexistuje?handler=Promote", Expect.Login },

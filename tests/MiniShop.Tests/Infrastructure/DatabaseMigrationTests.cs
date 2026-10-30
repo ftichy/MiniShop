@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using MiniShop.Domain.Inventory;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using MiniShop.Domain.Journeys;
 using MiniShop.Domain.Orders;
 using MiniShop.Infrastructure.Accounts;
@@ -55,15 +56,19 @@ public sealed class DatabaseMigrationTests
         Assert.Equal(Schema(created), Schema(migrated));
     }
 
+    // Stará databáze = schéma PRVNÍ migrace bez historie migrací – tak vypadala produkce před e-shop krokem 1.
+    // Baseline zapíše první migraci jako provedenou a novější (e-shop krok 2) se pak opravdu spustí – i s ručními úpravami.
+
     [Fact]
-    public async Task Ordering_DatabazeZEnsureCreated_ProjdeMigraci_DataZustanou()
+    public async Task Ordering_StaraDatabaze_ProjdeMigraci_DataZustanou()
     {
         using var database = new InMemoryDatabase();
         await using (var db = CreateDbContext<OrderingDbContext>(database))
         {
-            await db.Database.EnsureCreatedAsync();
-            db.CatalogProducts.Add(new CatalogProduct(1, "Klávesnice", 2490m, Now));
-            await db.SaveChangesAsync();
+            await CreateOldDatabaseAsync(db);
+            await db.Database.ExecuteSqlRawAsync(
+                "INSERT INTO CatalogProducts (Id, Name, Price, IsRemoved, ChangedAtUtc) " +
+                "VALUES (7, 'Klávesnice', '2490.0', 0, '2026-10-30 12:00:00')");
         }
 
         await using (var db = CreateDbContext<OrderingDbContext>(database))
@@ -71,19 +76,24 @@ public sealed class DatabaseMigrationTests
             await OrderingDatabaseInitializer.MigrateAsync(db);
 
             Assert.Empty(await db.Database.GetPendingMigrationsAsync());
-            Assert.Equal("Klávesnice", (await db.CatalogProducts.SingleAsync()).Name);
+            var product = await db.CatalogProducts.SingleAsync();
+            Assert.Equal("Klávesnice", product.Name);
+            // E-shop krok 2: dostupnost neznámá (doplní ji obnova katalogu), hledat jde aspoň podle názvu.
+            Assert.Equal(CatalogAvailability.Unknown, product.Availability);
+            Assert.Equal("klávesnice", product.SearchText);
         }
     }
 
     [Fact]
-    public async Task Inventory_DatabazeZEnsureCreated_ProjdeMigraci_DataZustanou()
+    public async Task Inventory_StaraDatabaze_ProjdeMigraci_DataZustanou()
     {
         using var database = new InMemoryDatabase();
         await using (var db = CreateDbContext<InventoryDbContext>(database))
         {
-            await db.Database.EnsureCreatedAsync();
-            db.Products.Add(new Product("Myš", null, 890m, 40, Now));
-            await db.SaveChangesAsync();
+            await CreateOldDatabaseAsync(db);
+            await db.Database.ExecuteSqlRawAsync(
+                "INSERT INTO Products (Name, Description, Price, StockQuantity, ChangedAtUtc) " +
+                "VALUES ('Myš', NULL, '890.0', 40, '2026-10-30 12:00:00')");
         }
 
         await using (var db = CreateDbContext<InventoryDbContext>(database))
@@ -91,17 +101,21 @@ public sealed class DatabaseMigrationTests
             await InventoryDatabaseInitializer.MigrateAsync(db);
 
             Assert.Empty(await db.Database.GetPendingMigrationsAsync());
-            Assert.Equal(40, (await db.Products.SingleAsync()).StockQuantity);
+            var product = await db.Products.Include(p => p.Category).SingleAsync();
+            Assert.Equal(40, product.StockQuantity);
+            // E-shop krok 2: dosavadní produkty spadnou do kategorie „Nezařazeno“, čas dostupnosti = čas poslední změny.
+            Assert.Equal("Nezařazeno", product.Category.Name);
+            Assert.Equal(product.ChangedAtUtc, product.AvailabilityChangedAtUtc);
         }
     }
 
     [Fact]
-    public async Task Journeys_DatabazeZEnsureCreated_ProjdeMigraci_DataZustanou()
+    public async Task Journeys_StaraDatabaze_ProjdeMigraci_DataZustanou()
     {
         using var database = new InMemoryDatabase();
         await using (var db = CreateDbContext<JourneysDbContext>(database))
         {
-            await db.Database.EnsureCreatedAsync();
+            await CreateOldDatabaseAsync(db);
             db.JourneyEvents.Add(JourneyEvent.OrderSubmitted(Guid.NewGuid(), 1500, 42, Now));
             await db.SaveChangesAsync();
         }
@@ -114,7 +128,6 @@ public sealed class DatabaseMigrationTests
             Assert.Equal(42, (await db.JourneyEvents.SingleAsync()).OrderId);
         }
     }
-
     [Theory]
     [MemberData(nameof(Modules))]
     public async Task Migrace_OpakovaneSpusteni_NicNezmeni(string module)
@@ -147,6 +160,13 @@ public sealed class DatabaseMigrationTests
         _ => throw new ArgumentOutOfRangeException(nameof(module))
     };
 
+    /// <summary>Databáze ve tvaru první migrace a bez historie migrací (jako z EnsureCreated v době první migrace).</summary>
+    private static async Task CreateOldDatabaseAsync(DbContext db)
+    {
+        await db.GetService<IMigrator>().MigrateAsync(db.Database.GetMigrations().First());
+        await db.Database.ExecuteSqlRawAsync("DROP TABLE __EFMigrationsHistory");
+    }
+
     private static TContext CreateDbContext<TContext>(InMemoryDatabase database) where TContext : DbContext =>
         (TContext)Activator.CreateInstance(typeof(TContext),
             new DbContextOptionsBuilder<TContext>().UseSqlite(new SqliteConnection(database.ConnectionString)).Options)!;
@@ -159,9 +179,11 @@ public sealed class DatabaseMigrationTests
         using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT m.type || ' ' || m.name || ': ' || COALESCE(
-                (SELECT group_concat(c.name || ' ' || c.type || CASE c."notnull" WHEN 1 THEN ' NOT NULL' ELSE '' END
-                        || CASE c.pk WHEN 0 THEN '' ELSE ' PK' END, ', ')
-                 FROM pragma_table_info(m.name) c WHERE m.type = 'table'),
+                -- sloupce podle abecedy: migrace přidává nové sloupce na konec tabulky, na pořadí nezáleží
+                (SELECT group_concat(col, ', ') FROM (
+                    SELECT c.name || ' ' || c.type || CASE c."notnull" WHEN 1 THEN ' NOT NULL' ELSE '' END
+                           || CASE c.pk WHEN 0 THEN '' ELSE ' PK' END AS col
+                    FROM pragma_table_info(m.name) c WHERE m.type = 'table' ORDER BY c.name)),
                 m.sql,   -- index: CREATE [UNIQUE] INDEX … ON tabulka (sloupce)
                 '')
             FROM sqlite_master m

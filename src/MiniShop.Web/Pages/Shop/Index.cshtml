@@ -1,0 +1,115 @@
+@page
+@using MiniShop.Application.Ordering.Catalog
+@using MiniShop.Web.Catalog
+@model MiniShop.Web.Pages.Shop.IndexModel
+@{
+    ViewData["Title"] = "Obchod";
+}
+<h1>Obchod</h1>
+
+@* E-shop krok 2: formulář GET – filtry jsou v adrese (/Shop?q=mys&category=2), výsledek jde sdílet odkazem. *@
+<form method="get" class="row g-2 align-items-end mb-4" role="search">
+    <div class="col-md-4">
+        <label for="q" class="form-label">Hledat</label>
+        <input id="q" name="q" value="@Model.Query" type="search" maxlength="100" placeholder="např. myš, kabel…"
+               class="form-control" data-track="shop-search" />
+    </div>
+    <div class="col-md-3">
+        <label for="category" class="form-label">Kategorie</label>
+        <select id="category" name="category" class="form-select" data-track="shop-category">
+            <option value="">Všechny kategorie</option>
+            @foreach (var c in Model.Result.Categories)
+            {
+                <option value="@c.Id" selected="@(c.Id == Model.CategoryId)">@c.Name (@c.ProductCount)</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label for="sort" class="form-label">Řadit</label>
+        <select id="sort" name="sort" class="form-select" data-track="shop-sort">
+            <option value="@CatalogSort.Name" selected="@(Model.Sort == CatalogSort.Name)">podle názvu</option>
+            <option value="@CatalogSort.PriceAscending" selected="@(Model.Sort == CatalogSort.PriceAscending)">od nejlevnějšího</option>
+            <option value="@CatalogSort.PriceDescending" selected="@(Model.Sort == CatalogSort.PriceDescending)">od nejdražšího</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <div class="form-check mb-2">
+            <input id="instock" name="instock" value="true" type="checkbox" class="form-check-input" checked="@Model.InStockOnly" />
+            <label for="instock" class="form-check-label">Jen skladem</label>
+        </div>
+    </div>
+    <div class="col-md-1">
+        <button type="submit" class="btn btn-primary w-100" data-track="shop-submit">Hledat</button>
+    </div>
+</form>
+
+<p class="text-muted small">
+    @Model.Result.TotalCount @(Model.Result.TotalCount switch { 1 => "produkt", >= 2 and <= 4 => "produkty", _ => "produktů" })
+    @if (Model.HasFilter)
+    {
+        <text>· <a asp-page="/Shop/Index">zrušit filtry</a></text>
+    }
+</p>
+
+@if (Model.Result.Items.Count == 0)
+{
+    <div class="alert alert-info">
+        @(Model.HasFilter ? "Nic jsme nenašli. Zkuste jiné slovo nebo zrušte filtry." : "Nabídka se načítá ze skladu… Zkuste to za chvíli.")
+    </div>
+}
+
+<div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
+    @foreach (var p in Model.Result.Items)
+    {
+        <div class="col">
+            <div class="card h-100">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-start mb-1">
+                        <span class="text-muted small">@p.CategoryName</span>
+                        <span class="badge @AvailabilityLabels.Badge(p.Availability)">@AvailabilityLabels.Text(p.Availability)</span>
+                    </div>
+                    <h2 class="h5 card-title">@p.Name</h2>
+                    <p class="card-text text-muted flex-grow-1">@p.Description</p>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <strong class="fs-5">@p.Price.ToString("N2") Kč</strong>
+                        @if (Model.CanOrder)
+                        {
+                            @if (p.Availability == "OutOfStock")
+                            {
+                                <button type="button" class="btn btn-outline-secondary" disabled>Vyprodáno</button>
+                            }
+                            else
+                            {
+                                <a asp-page="/Orders/Index" asp-route-productId="@p.ProductId" class="btn btn-primary"
+                                   data-track="shop-order">Objednat</a>
+                            }
+                        }
+                        else if (Model.IsAnonymous)
+                        {
+                            <a asp-page="/Account/Login" asp-route-returnUrl="@($"/Orders?productId={p.ProductId}")"
+                               class="btn btn-outline-primary">Přihlásit a objednat</a>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@if (Model.Result.PageCount > 1)
+{
+    <nav aria-label="Stránky výsledků" class="mt-4">
+        <ul class="pagination">
+            @for (var i = 1; i <= Model.Result.PageCount; i++)
+            {
+                <li class="page-item @(i == Model.Result.Page ? "active" : "")">
+                    <a class="page-link" asp-page="/Shop/Index" asp-all-route-data="Model.RouteFor(i)">@i</a>
+                </li>
+            }
+        </ul>
+    </nav>
+}
+
+<p class="text-muted small mt-4">
+    Dostupnost se může o pár sekund opozdit – o objednávce rozhoduje až rezervace na skladě.
+</p>

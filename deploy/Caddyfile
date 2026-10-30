@@ -23,7 +23,18 @@
 (auth-off) {
 }
 
+# Účty krok 9: neprozrazovat, co běží za Caddy – "Server: Kestrel" (pokud by ho aplikace poslala) a "Via: Caddy".
+# Mazání (-) Caddy provede až na hotové odpovědi, takže platí i pro hlavičky z reverse_proxy.
+(hide-server) {
+	header {
+		-Server
+		-Via
+	}
+}
+
 {$DOMAIN} {
+	import hide-server
+
 	# Krok 11: zdraví služeb pro externího hlídače (UptimeRobot) BEZ hesla – jen tyto dvě přesné adresy.
 	# Odpověď je jen Healthy / Degraded / Unhealthy, žádná data.
 	handle /health {
@@ -47,6 +58,7 @@
 # Vždy se zámkem (i při BASIC_AUTH=off) – logy obsahují údaje z objednávek.
 dashboard.{$DOMAIN} {
 	import auth-on
+	import hide-server
 
 	reverse_proxy aspire-dashboard:18888
 }

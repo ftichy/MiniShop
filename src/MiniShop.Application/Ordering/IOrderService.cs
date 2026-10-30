@@ -17,4 +17,11 @@ public interface IOrderService
     Task<OrderDto> PlaceOrderAsync(CreateOrderRequest request, OrderCustomer customer, CancellationToken cancellationToken = default);
     Task<OrderDto> CompleteAsync(int id, CancellationToken cancellationToken = default);
     Task<OrderDto> CancelAsync(int id, OrderAccess access, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Účty krok 9: zákazník maže účet – jeho objednávky přijdou o jméno a e-mail (zůstanou položky a ceny).
+    /// S nevyřízenou objednávkou (Pending, Confirmed) DomainException a nic se nezmění. Vrací počet objednávek.
+    /// Volá jen Web před smazáním účtu (opakovat jde bezpečně).
+    /// </summary>
+    Task<int> AnonymizeCustomerAsync(string customerId, CancellationToken cancellationToken = default);
 }

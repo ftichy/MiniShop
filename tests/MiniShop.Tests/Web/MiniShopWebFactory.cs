@@ -90,12 +90,15 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
         await CreateUserAsync(UserEmail, UserPassword);
     }
 
-    /// <summary>Zákazník (role User), volitelně s příznakem „musí změnit heslo“.</summary>
-    public async Task CreateUserAsync(string email, string password, bool mustChangePassword = false)
+    /// <summary>
+    /// Zákazník (role User), volitelně s příznakem „musí změnit heslo“. Účty krok 9: e-mail je standardně potvrzený
+    /// (bez potvrzení nejde objednávat).
+    /// </summary>
+    public async Task CreateUserAsync(string email, string password, bool mustChangePassword = false, bool emailConfirmed = true)
     {
         await using var scope = Services.CreateAsyncScope();
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        var user = new ApplicationUser { UserName = email, Email = email, DisplayName = "Test" };
+        var user = new ApplicationUser { UserName = email, Email = email, DisplayName = "Test", EmailConfirmed = emailConfirmed };
         Assert.True((await users.CreateAsync(user, password)).Succeeded);
         await users.AddToRoleAsync(user, AccountRoles.User);
         if (mustChangePassword)
@@ -107,13 +110,20 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
     /// <summary>
     /// Účty krok 3: objednávka zákazníka rovnou v ordering.db (bez katalogu a ságy – testy Webu je nepotřebují).
     /// </summary>
-    public async Task<int> CreateOrderForAsync(string email)
+    /// <param name="cancelled">Účty krok 9: rovnou potvrzená a zrušená (vyřízená – nebrání smazání účtu).</param>
+    public async Task<int> CreateOrderForAsync(string email, bool cancelled = false)
     {
         await using var scope = Services.CreateAsyncScope();
         var user = await scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().FindByEmailAsync(email)
             ?? throw new InvalidOperationException($"Uživatel {email} neexistuje.");
         var db = scope.ServiceProvider.GetRequiredService<OrderingDbContext>();
         var order = new Order(user.Id, user.DisplayName, email, DateTime.UtcNow);
+        if (cancelled)
+        {
+            order.Confirm(DateTime.UtcNow);
+            order.Cancel(DateTime.UtcNow);
+        }
+
         db.Orders.Add(order);
         await db.SaveChangesAsync();
         return order.Id;

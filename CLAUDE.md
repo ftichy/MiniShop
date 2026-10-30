@@ -188,8 +188,9 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   `RABBITMQ_PASSWORD`, `BASIC_AUTH_HASH` (krok 10), `SMTP_PASSWORD` (účty krok 5), `INVENTORY_API_KEY` (účty krok 7), `DEPLOY_HOST`, `DEPLOY_KNOWN_HOSTS`.
 - HTTPS (krok 5): `https://minishop-tichy.duckdns.org` (reserved IP `141.144.255.238`), Caddy z `deploy/compose.cloud.yaml`
   + `deploy/Caddyfile`, na VM zapnuté přes `COMPOSE_FILE=compose.yaml:compose.cloud.yaml` v `.env`. Web není publikovaný ven.
-  Basic auth (uživatel `minishop`, heslo zná jen uživatel – změna = secret `BASIC_AUTH_HASH`, viz `docs/secrets.md` R2),
-  vypíná `BASIC_AUTH=off` v `deploy/production.env`. Security list: 80/443 z celého internetu (22 od kroku 8 zavřený). Volume `caddy-data` (certifikáty) nemazat.
+  Basic auth (uživatel `minishop`, heslo zná jen uživatel – změna = secret `BASIC_AUTH_HASH`, viz `docs/secrets.md` R2):
+  od účtů kroku 9 `BASIC_AUTH=off` v `deploy/production.env` → web veřejný, zámek jen před dashboardem.
+  Caddy maže hlavičky `Server` a `Via` (snippet `hide-server`). Security list: 80/443 z celého internetu (22 od kroku 8 zavřený). Volume `caddy-data` (certifikáty) nemazat.
 - IaC (krok 9): `infra/` (OpenTofu, provider `oracle/oci`), spouští uživatel na PC: `tofu init "-backend-config=backend.hcl"` (v PowerShellu v uvozovkách – jinak rozdělí argument s tečkou),
   `tofu plan`, `tofu apply` (přihlášení `~/.oci/config` = `minishop-automation`). State v bucketu `minishop-tfstate` (S3 API,
   klíč `~/.oci/s3-credentials`); `backend.hcl`, `terraform.tfvars` a state nejsou v gitu. VM připraví cloud-init
@@ -241,7 +242,7 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
 ## Stav uživatelských účtů (viz `docs/Ucty-roadmap.md`)
 Role User (objednává, vidí a ruší jen své) a Admin (sklad, produkty, vyřízení, všechny objednávky a uživatelé, neobjednává).
 Modul Accounts (ASP.NET Core Identity, `users.db`). Souhrny kroků do `docs/kroky-ucty/`. Každý krok se nasadí do cloudu
-(DB na volume, `backup.py`, secrets) – basic auth v Caddy zůstává do kroku 9.
+(DB na volume, `backup.py`, secrets). Od kroku 9 je web veřejný (basic auth jen před Aspire dashboardem).
 - Fallback policy = přihlášený: **nová veřejná stránka/endpoint potřebuje `[AllowAnonymous]`**, admin/zákaznické
   `[Authorize(Policy = AuthorizationPolicies.RequireAdmin/RequireCustomer)]` (`Web/Accounts`). Handlery stránky
   Objednávky ověřují policy v kódu (`IAuthorizationService`). **Nová stránka/akce/endpoint = řádek
@@ -271,6 +272,10 @@ Modul Accounts (ASP.NET Core Identity, `users.db`). Souhrny kroků do `docs/krok
   dočasný zámek admina práva nebere. **Nový formulář účtu = `[EnableRateLimiting(AccountRateLimiting.PolicyName)]`**
   (limit jen POST, podle IP, `RateLimiting:AccountForms`; testy ho mají vysoko). Do logu nikdy e-mail ani heslo, jen ID účtu
   (`HardeningTests` to hlídá přes `MiniShopWebFactory.Logs`). Serilog = statický logger – test logů potřebuje vlastní instanci Webu.
+- Otevřený web (krok 9): `RequireCustomer` = role User **+ claim `minishop:email_confirmed`** (testovací uživatelé mají
+  `CreateUserAsync(emailConfirmed: true)`). Smazání účtu `/Account/Delete`: heslo → `IOrderService.AnonymizeCustomerAsync`
+  (Ordering, nevyřízená objednávka = DomainException) → `AccountDeletion.DeleteAsync` (Accounts; admin ne, audit
+  `ForgetUser`) → odhlásit. **Nový osobní údaj = doplnit anonymizaci a stránku `/Privacy`.** Kestrel bez hlavičky `Server`.
 
 | Krok | Stav | Souhrn |
 | --- | --- | --- |
@@ -282,7 +287,7 @@ Modul Accounts (ASP.NET Core Identity, `users.db`). Souhrny kroků do `docs/krok
 | 6. Administrace uživatelů (přehled, povýšení, blokace, poslední admin, audit, EF migrace `users.db`) | hotovo | `docs/kroky-ucty/krok-06-sprava-uzivatelu.md` |
 | 7. Zabezpečení skladu (servisní klíč `X-Api-Key` pro celé `/api` Inventory.Api, secret `INVENTORY_API_KEY`, fail fast; JWT odloženo) | hotovo | `docs/kroky-ucty/krok-07-zabezpeceni-skladu.md` |
 | 8. Zpevnění (zámek 5 pokusů / 15 min, rate limiting formulářů účtu 10/min/IP → 429, CSP a bezpečnostní hlavičky, Bootstrap lokálně, `enduser.id`, logy bez e-mailů) | hotovo | `docs/kroky-ucty/krok-08-zpevneni.md` |
-| 9. Otevření webu (vypnutý basic auth, ochrana registrace, smazání účtu) | plán | — |
+| 9. Otevření webu (`BASIC_AUTH=off`, objednávka jen s potvrzeným e-mailem, smazání účtu + anonymizace objednávek, `/Privacy`, bez hlaviček `Server`/`Via`; CAPTCHA odložena) | hotovo | `docs/kroky-ucty/krok-09-otevreni-webu.md` |
 | 10. Přihlášení přes Google | plán | — |
 
 ## Postup práce na dalším kroku EDA

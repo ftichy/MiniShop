@@ -5,6 +5,8 @@
     ViewData["Title"] = "Úvod";
 }
 <h1>MiniShop</h1>
+@* Účty krok 9: zpráva po smazání účtu (TempData z Account/Delete). *@
+<partial name="_StatusMessage" model="@(TempData["StatusMessage"] as string)" />
 <p class="lead">Jednoduchý e-shop pro výuku: ASP.NET Core, EF Core + SQLite, vrstvená architektura a SOLID.</p>
 
 <div class="row g-3">

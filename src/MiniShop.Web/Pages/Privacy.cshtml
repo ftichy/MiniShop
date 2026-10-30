@@ -1,0 +1,60 @@
+@page
+@* Účty krok 9: GDPR minimum – co MiniShop o lidech ukládá, proč a jak dlouho. Veřejná stránka. *@
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@{
+    ViewData["Title"] = "Ochrana osobních údajů";
+}
+<h1>Ochrana osobních údajů</h1>
+<p class="lead">MiniShop je výukový projekt. Ukládá jen to, co potřebuje, aby šlo nakupovat.</p>
+
+<h2 class="h4 mt-4">Co ukládáme</h2>
+<table class="table">
+    <thead>
+        <tr><th>Údaj</th><th>Proč</th><th>Jak dlouho</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Účet: jméno, e-mail, otisk hesla (ne heslo samotné), role, počet neúspěšných přihlášení</td>
+            <td>přihlášení a e-maily o objednávkách</td>
+            <td>do smazání účtu</td>
+        </tr>
+        <tr>
+            <td>Objednávky: jméno a e-mail (kopie z účtu), položky, ceny, stav</td>
+            <td>vyřízení objednávky</td>
+            <td>jméno a e-mail do smazání účtu, zbytek trvale (bez osobních údajů)</td>
+        </tr>
+        <tr>
+            <td>Průběh vyplňování formuláře objednávky (co a kdy se do formuláře zadalo – jen položky a množství)</td>
+            <td>zlepšování formuláře</td>
+            <td>trvale – osobní údaje neobsahuje</td>
+        </tr>
+        <tr>
+            <td>Technické záznamy (logy, telemetrie) – jen ID účtu, nikdy e-mail ani heslo</td>
+            <td>provoz a řešení chyb</td>
+            <td>logy 7 dní, telemetrie jen do restartu</td>
+        </tr>
+        <tr>
+            <td>Zálohy všeho výše</td>
+            <td>obnova po havárii</td>
+            <td>7 dní</td>
+        </tr>
+    </tbody>
+</table>
+
+<h2 class="h4 mt-4">Cookies</h2>
+<p>
+    Jen nezbytné: přihlášení (<code>.MiniShop.Auth</code>), ochrana formulářů a jednorázové zprávy na stránce.
+    Žádné reklamní ani analytické cookies, žádné sledování třetími stranami.
+</p>
+
+<h2 class="h4 mt-4">Kdo údaje zpracovává</h2>
+<ul>
+    <li><strong>Oracle Cloud</strong> (server ve Frankfurtu, EU) – kde MiniShop běží a kde jsou zálohy.</li>
+    <li><strong>Google (Gmail)</strong> – odesílá e-maily MiniShopu (potvrzení e-mailu, nové heslo, stav objednávky).</li>
+</ul>
+
+<h2 class="h4 mt-4">Vaše práva</h2>
+<ul>
+    <li><strong>Smazání účtu</strong> zvládnete sami: po přihlášení klikněte na své jméno → <em>Smazat účet</em>.</li>
+    <li>Cokoli dalšího (výpis údajů, oprava): napište na <a href="mailto:ftichy.gemini@gmail.com">ftichy.gemini@gmail.com</a>.</li>
+</ul>

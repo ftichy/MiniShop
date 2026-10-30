@@ -46,6 +46,14 @@
     </div>
 </form>
 }
+else if (Model.NeedsEmailConfirmation)
+{
+    @* Účty krok 9: zákazník bez potvrzeného e-mailu formulář nevidí (server to hlídá i v OnPostCreate a v API). *@
+    <div class="alert alert-info">
+        Objednávat můžete, až potvrdíte svůj e-mail – odkaz jsme poslali po registraci,
+        nový pošle tlačítko <strong>Poslat znovu</strong> v upozornění nahoře.
+    </div>
+}
 
 @if (Model.CatalogEmpty)
 {

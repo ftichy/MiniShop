@@ -105,6 +105,9 @@ později, v jiném scope, případně i opakovaně.
   (`WHERE CustomerId = …`), cizí objednávka vrací **404** stejně jako neexistující (ochrana proti IDOR – zkoušení
   cizích čísel v adrese). Správce vidí všechny. Jméno a e-mail se nepíšou do formuláře, bere je server z účtu.
   Modul Accounts Ordering nezná – jen ID zákazníka (hlídá test hranic modulů). Viz [Accounts](accounts.md).
+- **Smazaný zákazník (účty krok 9):** `AnonymizeCustomerAsync` – objednávky smazaného účtu přijdou o jméno a e-mail
+  (`Order.Anonymize`, jméno „Smazaný zákazník“), položky a ceny zůstanou. S nevyřízenou objednávkou (Pending,
+  Confirmed) se nezmění nic. Volá ho jen Web před smazáním účtu; `EmailOrderNotifier` na prázdnou adresu nepíše.
 
 ## Dál
 

@@ -31,6 +31,8 @@
                 <input asp-for="Input.ConfirmPassword" class="form-control" autocomplete="new-password" />
                 <span asp-validation-for="Input.ConfirmPassword" class="text-danger small"></span>
             </div>
+            @* Účty krok 9: před registrací vědět, co se s údaji stane. *@
+            <p class="form-text">Registrací berete na vědomí <a asp-page="/Privacy">zásady ochrany osobních údajů</a>.</p>
             <button type="submit" class="btn btn-primary">Zaregistrovat</button>
         </form>
         <p class="mt-3">Už máte účet? <a asp-page="/Account/Login" asp-route-returnUrl="@Model.ReturnUrl">Přihlaste se</a>.</p>

@@ -85,12 +85,16 @@ jobs:
               "$RABBITMQ_PASSWORD" "$BASIC_AUTH_HASH" "$HEALTHCHECKS_BACKUP_URL" "$SMTP_PASSWORD" "$INVENTORY_API_KEY" \
             | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes "deploy@$DEPLOY_HOST" "$SHA"
 
-      # Zvenku přes internet: platný certifikát (curl bez -k) a Caddy odpovídá. 401 = zámek funguje.
+      # Zvenku přes internet: platný certifikát (curl bez -k) a Caddy odpovídá.
+      # Účty krok 9: web je veřejný (úvod = 200), Aspire dashboard musí zůstat zamčený (401).
       - name: Smoke test zvenku
         run: |
           code=$(curl -s -o /dev/null -w '%{http_code}' --retry 5 --retry-all-errors --retry-delay 5 https://minishop-tichy.duckdns.org/)
           echo "HTTPS → $code"
-          [[ "$code" == "401" || "$code" == "200" ]] || { echo "::error::Neočekávaná odpověď $code"; exit 1; }
+          [[ "$code" == "200" ]] || { echo "::error::Úvodní stránka vrací $code (čekám 200)"; exit 1; }
+          code=$(curl -s -o /dev/null -w '%{http_code}' --retry 5 --retry-all-errors --retry-delay 5 https://dashboard.minishop-tichy.duckdns.org/)
+          echo "Dashboard → $code"
+          [[ "$code" == "401" ]] || { echo "::error::Aspire dashboard vrací $code – musí být zamčený (401)"; exit 1; }
           # Krok 11: zdraví obou služeb je zvenku bez hesla (pro UptimeRobot) – musí být přesně "Healthy".
           for path in /health /health/inventory; do
             body=$(curl -s --retry 5 --retry-all-errors --retry-delay 5 "https://minishop-tichy.duckdns.org$path")

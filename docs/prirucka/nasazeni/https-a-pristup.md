@@ -25,10 +25,11 @@ sequenceDiagram
     C->>C: TLS certifikát Let's Encrypt
     alt /health nebo /health/inventory
         C->>W: bez hesla (jen Healthy / Degraded / Unhealthy)
-    else cokoli jiného
-        C-->>U: 401 – zadejte heslo (basic auth)
-        U->>C: znovu s heslem
+    else dashboard.…
+        C-->>U: 401 – zadejte heslo (basic auth, vždy)
+    else cokoli jiného (účty krok 9: bez hesla)
         C->>W: reverse proxy + X-Forwarded-*
+        W-->>U: stránka; přihlášení a role řeší aplikace (Accounts)
     end
 ```
 
@@ -38,9 +39,9 @@ sequenceDiagram
 | --- | --- | --- |
 | **DuckDNS** | zdarma doména třetího řádu `minishop-tichy.duckdns.org` (i `*.minishop-tichy…`) | 0 Kč, hotové za minutu. Vlastní doména jde doplnit později (DNS záznam + `DOMAIN`). |
 | **Reserved IP** | pevná veřejná adresa | DNS na ni ukazuje; nová VM ji převezme |
-| **Caddy** | reverse proxy: HTTPS, obnova certifikátu, přesměrování http → https, basic auth, komprese | certifikát bez jediného řádku konfigurace navíc (oproti Nginx + certbot) |
+| **Caddy** | reverse proxy: HTTPS, obnova certifikátu, přesměrování http → https, basic auth (dashboard), komprese, skrytí hlaviček `Server` a `Via` | certifikát bez jediného řádku konfigurace navíc (oproti Nginx + certbot) |
 | **Let's Encrypt** | bezplatné certifikáty, ověření přes port 80 (HTTP-01) | standard; Caddy se o obnovu stará sám |
-| **Basic auth** | jedno heslo před celou aplikací (uživatel `minishop`) | aplikace zatím nemá vlastní přihlášení; vypíná se `BASIC_AUTH=off` v `production.env` |
+| **Basic auth** | jedno heslo (uživatel `minishop`) – od účtů kroku 9 jen před Aspire dashboardem | web má vlastní přihlášení a role ([Accounts](../architektura/moduly/accounts.md)), proto `BASIC_AUTH=off` v `production.env`; `on` web znovu zamkne |
 | **Tailscale** | soukromá síť (WireGuard) mezi PC správce, VM a runnerem GitHub Actions | SSH (22) nemusí být otevřené do internetu |
 
 Kód: [Caddyfile](code:deploy/Caddyfile), [compose.cloud.yaml](code:deploy/compose.cloud.yaml).
@@ -60,7 +61,8 @@ Kód: [Caddyfile](code:deploy/Caddyfile), [compose.cloud.yaml](code:deploy/compo
 
 ## Známá omezení
 
-- Basic auth je jedno sdílené heslo – žádné role ani odhlášení. Pro jednoho uživatele dostačující.
+- Basic auth je jedno sdílené heslo – žádné role ani odhlášení. Proto chrání jen dashboard; web je od účtů kroku 9
+  veřejný a spoléhá na vlastní přihlášení, zámek účtu, rate limiting a bezpečnostní hlavičky (účty krok 8).
 - `/health` je veřejné – vrací jen stav (`Healthy`…), žádná data.
 
 ## Na internetu

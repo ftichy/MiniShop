@@ -33,7 +33,11 @@ public static class AccountsServiceCollectionExtensions
 
         services.AddAuthorizationBuilder()
             .AddPolicy(AuthorizationPolicies.RequireAdmin, policy => policy.RequireRole(AccountRoles.Admin))
-            .AddPolicy(AuthorizationPolicies.RequireCustomer, policy => policy.RequireRole(AccountRoles.User))
+            // Účty krok 9: objednávat jde až s potvrzeným e-mailem – robot s vymyšlenou adresou nic neobjedná
+            // a e-maily o objednávkách nechodí cizím lidem. Claim dává AccountClaimsPrincipalFactory.
+            .AddPolicy(AuthorizationPolicies.RequireCustomer, policy => policy
+                .RequireRole(AccountRoles.User)
+                .RequireClaim(AccountClaimTypes.EmailConfirmed, "true"))
             // Secure by default: co není výslovně [AllowAnonymous], to vyžaduje přihlášení.
             // Na novou stránku se tak nedá „zapomenout“ – bez zámku by ji viděl každý.
             .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());

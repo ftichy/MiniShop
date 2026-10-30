@@ -30,7 +30,7 @@ flowchart LR
 | Secret | K čemu | Kde |
 | --- | --- | --- |
 | `RABBITMQ_PASSWORD` | heslo účtu `minishop` v RabbitMQ | GitHub `production` → `.env` na VM |
-| `BASIC_AUTH_HASH` | bcrypt otisk hesla pro zámek v Caddy | GitHub `production` → `.env` na VM |
+| `BASIC_AUTH_HASH` | bcrypt otisk hesla pro zámek v Caddy – od účtů kroku 9 jen před Aspire dashboardem | GitHub `production` → `.env` na VM |
 | `HEALTHCHECKS_BACKUP_URL` | kam noční záloha hlásí průběh (volitelný) | GitHub `production` → `.env` na VM |
 | `SMTP_PASSWORD` | heslo aplikace Gmailu pro odesílání e-mailů ([E-maily](../architektura/emaily.md)); volitelný | GitHub `production` → `.env` na VM |
 | `INVENTORY_API_KEY` | servisní klíč – Web ho posílá skladu, sklad bez něj vrátí 401 ([Inventory](../architektura/moduly/inventory.md)); povinný | GitHub `production` → `.env` na VM → oba kontejnery |

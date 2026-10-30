@@ -25,6 +25,9 @@ try
 {
     var builder = WebApplication.CreateBuilder(args);
 
+    // Účty krok 9: neprozrazovat technologii serveru (hlavička "Server: Kestrel") – útočníkovi by ušetřila práci.
+    builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
+
     // Krok 11: výchozí providery (Console, Debug…) pryč – logy píše Serilog a OpenTelemetry (ServiceDefaults).
     // Jinak by je Serilog s writeToProviders přeposlal i výchozí konzoli a každý řádek by byl vidět dvakrát.
     builder.Logging.ClearProviders();

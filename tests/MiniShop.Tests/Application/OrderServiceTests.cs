@@ -94,8 +94,8 @@ public sealed class OrderServiceTests : IDisposable
 
         _services = services.BuildServiceProvider();
         _bus = (RecordingIntegrationBus)_services.GetRequiredService<IIntegrationBus>();
-        OrderingDb(db => db.Database.EnsureCreatedAsync()).GetAwaiter().GetResult();
-        InventoryDb(db => db.Database.EnsureCreatedAsync()).GetAwaiter().GetResult();
+        OrderingDatabaseInitializer.InitializeAsync(_services).GetAwaiter().GetResult();
+        InventoryDb(async db => { await InventoryDatabaseInitializer.MigrateAsync(db); return true; }).GetAwaiter().GetResult();
     }
 
     // ---------- Vytvoření objednávky ----------

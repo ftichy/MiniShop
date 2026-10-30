@@ -1,14 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MiniShop.Domain.Inventory;
+using MiniShop.Infrastructure.Persistence;
 
 namespace MiniShop.Infrastructure.Inventory;
 
 public static class InventoryDatabaseInitializer
 {
     /// <summary>
-    /// Vytvoří databázi skladu (pokud neexistuje) a naplní ji ukázkovými produkty.
-    /// Pro jednoduchost EnsureCreated; později lze přejít na EF migrace.
+    /// Vytvoří nebo aktualizuje databázi skladu (e-shop krok 1: EF migrace) a prázdnou naplní ukázkovými produkty.
     /// </summary>
     /// <remarks>
     /// Do kopie katalogu v Orderingu se produkty dostanou stejně jako každý jiný nový produkt –
@@ -20,7 +20,7 @@ public static class InventoryDatabaseInitializer
         await using var scope = services.CreateAsyncScope();
 
         var inventory = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
-        await inventory.Database.EnsureCreatedAsync(cancellationToken);
+        await MigrateAsync(inventory, cancellationToken);
 
         if (await inventory.Products.AnyAsync(cancellationToken))
         {
@@ -37,4 +37,8 @@ public static class InventoryDatabaseInitializer
 
         await inventory.SaveChangesAsync(cancellationToken);   // → 5× ProductUpdatedV1 do outboxu skladu
     }
+
+    /// <summary>Databázi z doby před migracemi pozná <see cref="DatabaseMigrator"/> podle tabulky Products.</summary>
+    public static Task MigrateAsync(InventoryDbContext dbContext, CancellationToken cancellationToken = default) =>
+        DatabaseMigrator.MigrateAsync(dbContext, "Products", cancellationToken);
 }

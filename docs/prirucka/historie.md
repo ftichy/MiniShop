@@ -66,6 +66,14 @@ Plán (role User a Admin, best practice): [docs/Ucty-roadmap.md](code:docs/Ucty-
 | 8 | Zpevnění – zámek účtu, rate limiting, CSP a bezpečnostní hlavičky, logy bez osobních údajů | [ucty-08](code:docs/kroky-ucty/krok-08-zpevneni.md) |
 | 9 | Otevření webu – bez basic auth, objednávka jen s potvrzeným e-mailem, smazání účtu, ochrana osobních údajů | [ucty-09](code:docs/kroky-ucty/krok-09-otevreni-webu.md) |
 
+## Dokončení e-shopu
+
+Plán (výloha, košík, pokladna, expedice, platba, notifikace): [docs/Eshop-roadmap.md](code:docs/Eshop-roadmap.md)
+
+| Krok | Co přinesl | Souhrn |
+| --- | --- | --- |
+| 1 | Migrace všech databází (EF Core, sdílený `DatabaseMigrator`, baseline produkčních DB) – schéma se mění bez mazání dat | [eshop-01](code:docs/kroky-eshop/krok-01-migrace.md) |
+
 ## Proč po krocích
 
 Každý krok řeší **jeden** problém, který předchozí krok odhalil, a po každém aplikace funguje. Tak je u každé

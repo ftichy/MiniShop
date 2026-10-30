@@ -77,10 +77,13 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   (7 dní, v `.gitignore`). Úrovně a cíle v sekci `Serilog` v appsettings, ne v `Logging`. Ostatní vrstvy
   logují přes `ILogger<T>` a o Serilogu nevědí. `UseSerilogRequestLogging` musí být v pipeline **před** `UseExceptionHandler`
   (jinak loguje ošetřené 404/400 jako 500).
-- Databáze vznikají přes `EnsureCreated` (bez migrací) v `DatabaseInitializer`. **Při změně schématu** (nová tabulka/sloupec)
-  je potřeba smazat `src/MiniShop.Web/ordering.db`, `src/MiniShop.Web/journeys.db` a/nebo `src/MiniShop.Inventory.Api/inventory.db` – upozorni na to uživatele.
-  **Výjimka: `users.db` (Accounts) má od účtů kroku 6 EF Core migrace** – nikdy nemazat; změna schématu = nová migrace
-  (`dotnet tool restore`, pak `dotnet ef migrations add <Nazev> --project src/MiniShop.Infrastructure --context AccountsDbContext --output-dir Accounts/Migrations`).
+- **Všechny databáze mají EF Core migrace** (`users.db` od účtů kroku 6, `ordering/inventory/journeys.db` od e-shop kroku 1) –
+  **žádnou DB nemazat**, změna schématu = nová migrace: `dotnet tool restore`, pak
+  `dotnet ef migrations add <Nazev> --project src/MiniShop.Infrastructure --context <Ordering|Inventory|Journeys|Accounts>DbContext --output-dir <Modul>/Migrations`.
+  Při startu je spustí `…DatabaseInitializer.MigrateAsync` → sdílený `Persistence/DatabaseMigrator` (baseline: DB z `EnsureCreated`
+  bez `__EFMigrationsHistory` pozná podle značkové tabulky a první migraci zapíše jako provedenou). `DatabaseMigrationTests` hlídají
+  zapomenutou migraci (`HasPendingModelChanges`) a shodu schématu migrace s `EnsureCreated`. Testy zakládají DB přes migrace.
+  Migrace nesmí ztratit data (pozor na přejmenování – EF z něj udělá DROP + ADD; zkontrolovat vygenerovaný kód).
 - Testy OrderService používají skutečný dispatcher a skutečné handlery (testují celou cestu).
   Služby skládají přes `AddInfrastructure` nad dvěma SQLite v paměti (`InMemoryDatabase` pro každý modul), každá akce
   běží ve vlastním scope a outboxy všech modulů se zpracují ručně přes `ProcessOutboxAsync()` – žádné čekání na workera.
@@ -289,6 +292,23 @@ Modul Accounts (ASP.NET Core Identity, `users.db`). Souhrny kroků do `docs/krok
 | 8. Zpevnění (zámek 5 pokusů / 15 min, rate limiting formulářů účtu 10/min/IP → 429, CSP a bezpečnostní hlavičky, Bootstrap lokálně, `enduser.id`, logy bez e-mailů) | hotovo | `docs/kroky-ucty/krok-08-zpevneni.md` |
 | 9. Otevření webu (`BASIC_AUTH=off`, objednávka jen s potvrzeným e-mailem, smazání účtu + anonymizace objednávek, `/Privacy`, bez hlaviček `Server`/`Via`; CAPTCHA odložena) | hotovo | `docs/kroky-ucty/krok-09-otevreni-webu.md` |
 | 10. Přihlášení přes Google | plán | — |
+
+## Stav e-shopu (viz `docs/Eshop-roadmap.md`)
+Výloha → košík → pokladna → platba → expedice → doručení. Košík je agregát v modulu Ordering (checkout = jedna transakce),
+nové moduly Notifications (odběratel událostí) a Payments (účastník ságy). Souhrny kroků do `docs/kroky-eshop/`.
+
+| Krok | Stav | Souhrn |
+| --- | --- | --- |
+| 1. Migrace databází (`ordering/inventory/journeys.db`, sdílený `DatabaseMigrator`, baseline produkční DB) | kód hotový, produkční schéma ověřeno (shoda s migrací) – čeká na nasazení | `docs/kroky-eshop/krok-01-migrace.md` |
+| 2. Výloha (`/Shop`, `ProductUpdatedV2`, `StockAvailabilityChangedV1`) | plán | — |
+| 3. Košík (`Cart` v Orderingu, `/Cart`) | plán | — |
+| 4. Pokladna a objednávka s více položkami (`CheckoutId`, adresa, doprava, změna ceny) | plán | — |
+| 5. Detail objednávky a historie stavů (`/Orders/{id}`) | plán | — |
+| 6. Expedice (Packing → Shipped → Completed, `OrderShippedV1`, odepsání rezervace, `Order.Version`) | plán | — |
+| 7. Notifikace jako samostatný odběratel (modul Notifications, šablony, `CustomerAnonymizedV1`) | plán | — |
+| 8. Platba – simulovaná brána (modul Payments, webhook s HMAC, timeout platby, dobírka) | plán | — |
+| 9. Zrušení kdykoli před odesláním (navazuje na účty krok 4) | plán | — |
+| 10. Opuštěný košík (volitelně) | plán | — |
 
 ## Postup práce na dalším kroku EDA
 1. Nejdřív **shrň**, co se bude přidávat/měnit a **proč** (teorie + konkrétní případ v MiniShopu),

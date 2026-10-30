@@ -79,6 +79,8 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   (jinak loguje ošetřené 404/400 jako 500).
 - Databáze vznikají přes `EnsureCreated` (bez migrací) v `DatabaseInitializer`. **Při změně schématu** (nová tabulka/sloupec)
   je potřeba smazat `src/MiniShop.Web/ordering.db`, `src/MiniShop.Web/journeys.db` a/nebo `src/MiniShop.Inventory.Api/inventory.db` – upozorni na to uživatele.
+  **Výjimka: `users.db` (Accounts) má od účtů kroku 6 EF Core migrace** – nikdy nemazat; změna schématu = nová migrace
+  (`dotnet tool restore`, pak `dotnet ef migrations add <Nazev> --project src/MiniShop.Infrastructure --context AccountsDbContext --output-dir Accounts/Migrations`).
 - Testy OrderService používají skutečný dispatcher a skutečné handlery (testují celou cestu).
   Služby skládají přes `AddInfrastructure` nad dvěma SQLite v paměti (`InMemoryDatabase` pro každý modul), každá akce
   běží ve vlastním scope a outboxy všech modulů se zpracují ručně přes `ProcessOutboxAsync()` – žádné čekání na workera.
@@ -253,6 +255,10 @@ Modul Accounts (ASP.NET Core Identity, `users.db`). Souhrny kroků do `docs/krok
   (`EmailOrderNotifier`). Testy Webu: `MiniShopWebFactory.Emails` (`RecordingEmailSender`). Do logu jen předmět e-mailu.
 - První admin: produkce `docker compose exec web dotnet MiniShop.Web.dll create-admin --email …` (jen bez admina),
   vývoj `AdminBootstrap` v `appsettings.Development.json` (`admin@minishop.local` / `admin-heslo-pro-vyvoj`, vynucená změna hesla).
+- Správa uživatelů (krok 6): `AccountAdministration` (Infrastructure/Accounts) – role výhradní User ↔ Admin, blokace = lockout
+  do `DateTimeOffset.MaxValue`, vždy zůstane aktivní admin, ne sám sobě, rozhoduje DB (ne cookie), vše v transakci,
+  každá změna = nový security stamp + `AccountAuditEntries`. `SecurityStampValidator` 1 minuta. Stránky `/Admin/Users`
+  (složka `/Admin` zamčená i konvencí `AuthorizeFolder`). Útrata z Orderingu `GetCustomerSummariesAsync` (Web spojí přes ID).
 
 | Krok | Stav | Souhrn |
 | --- | --- | --- |
@@ -261,7 +267,7 @@ Modul Accounts (ASP.NET Core Identity, `users.db`). Souhrny kroků do `docs/krok
 | 3. Vlastník objednávky (`CustomerId`, `OrderAccess`/`OrderCustomer`, filtr v SQL, cizí = 404, jméno a e-mail z účtu) | hotovo | `docs/kroky-ucty/krok-03-vlastnik-objednavky.md` |
 | 4. Zrušení objednávky i ve stavu Pending (nový přechod ságy, kompenzace) | odloženo (analýza souběhu: dohnat zrušení v orchestrátoru, `Status` jako concurrency token) | — |
 | 5. Skutečné e-maily (MailKit, Mailpit lokálně, Gmail SMTP v cloudu, potvrzení e-mailu, reset hesla) | hotovo | `docs/kroky-ucty/krok-05-emaily.md` |
-| 6. Administrace uživatelů (přehled, povýšení, blokace, poslední admin, audit) | plán | — |
+| 6. Administrace uživatelů (přehled, povýšení, blokace, poslední admin, audit, EF migrace `users.db`) | hotovo | `docs/kroky-ucty/krok-06-sprava-uzivatelu.md` |
 | 7. Zabezpečení skladu (servisní klíč pro zápis do Inventory.Api) | plán | — |
 | 8. Zpevnění (lockout, rate limiting, bezpečnostní hlavičky) | plán | — |
 | 9. Otevření webu (vypnutý basic auth, ochrana registrace, smazání účtu) | plán | — |

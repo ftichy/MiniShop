@@ -29,7 +29,7 @@ v tabulce nejsou – jsou popsané níže.
 
 | Co | K čemu | Proč | Odkazy |
 | --- | --- | --- | --- |
-| **Entity Framework Core** + **Microsoft.EntityFrameworkCore.Sqlite** | ORM – entity ↔ tabulky, transakce, change tracker (outbox v `SaveChanges`) | standard v .NET; transakce přes data i outbox v jednom `DbContext` | [docs](https://learn.microsoft.com/ef/core/) |
+| **Entity Framework Core** + **Microsoft.EntityFrameworkCore.Sqlite** | ORM – entity ↔ tabulky, transakce, change tracker (outbox v `SaveChanges`); **Microsoft.EntityFrameworkCore.Design** + nástroj `dotnet-ef` (`dotnet-tools.json`) jen pro migrace `users.db` | standard v .NET; transakce přes data i outbox v jednom `DbContext`; migrace jen u účtů – `users.db` se nesmí mazat ([Accounts](../architektura/moduly/accounts.md)) | [docs](https://learn.microsoft.com/ef/core/) |
 | **SQLite** | databáze v jednom souboru na modul | žádný databázový server – ideální pro výuku a malou VM; online backup API | [sqlite.org](https://www.sqlite.org/) |
 | **RabbitMQ.Client** | připojení k RabbitMQ: exchange, fronty, publisher confirms, consumery | oficiální klient; vlastní tenká vrstva ukazuje, co dělají knihovny jako MassTransit | [docs](https://www.rabbitmq.com/client-libraries/dotnet) |
 

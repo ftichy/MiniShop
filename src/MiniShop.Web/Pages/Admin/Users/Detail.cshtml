@@ -1,0 +1,108 @@
+@page "{id}"
+@model MiniShop.Web.Pages.Admin.Users.DetailModel
+@{
+    ViewData["Title"] = Model.Account.DisplayName;
+    var account = Model.Account;
+}
+<p><a asp-page="/Admin/Users/Index">← Uživatelé</a></p>
+<h1>@account.DisplayName</h1>
+
+<partial name="_StatusMessage" model="Model.StatusMessage" />
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger">@Model.ErrorMessage</div>
+}
+
+<dl class="row">
+    <dt class="col-sm-3">E-mail</dt>
+    <dd class="col-sm-9">@account.Email @(account.EmailConfirmed ? "(potvrzený)" : "(nepotvrzený)")</dd>
+    <dt class="col-sm-3">Role</dt>
+    <dd class="col-sm-9"><partial name="_RoleBadge" model="account.IsAdmin" /></dd>
+    <dt class="col-sm-3">Stav</dt>
+    <dd class="col-sm-9"><partial name="_LockBadge" model="account.IsLocked" /></dd>
+</dl>
+
+@if (Model.IsCurrentUser)
+{
+    <p class="text-muted">To jste vy – roli ani blokaci si sami měnit nemůžete.</p>
+}
+else
+{
+    <div class="d-flex gap-2 mb-4">
+        @if (account.IsAdmin)
+        {
+            <form method="post" asp-page-handler="Demote" asp-route-id="@account.Id">
+                <button type="submit" class="btn btn-outline-secondary">Vrátit na usera</button>
+            </form>
+        }
+        else
+        {
+            <form method="post" asp-page-handler="Promote" asp-route-id="@account.Id">
+                <button type="submit" class="btn btn-outline-dark">Povýšit na admina</button>
+            </form>
+        }
+        @if (account.IsLocked)
+        {
+            <form method="post" asp-page-handler="Unlock" asp-route-id="@account.Id">
+                <button type="submit" class="btn btn-outline-success">Odblokovat</button>
+            </form>
+        }
+        else
+        {
+            <form method="post" asp-page-handler="Lock" asp-route-id="@account.Id">
+                <button type="submit" class="btn btn-outline-danger">Zablokovat</button>
+            </form>
+        }
+    </div>
+}
+
+<h2 class="h4">Objednávky</h2>
+@if (Model.Orders.Count == 0)
+{
+    <p class="text-muted">Žádné objednávky.</p>
+}
+else
+{
+    <table class="table table-sm">
+        <thead>
+            <tr>
+                <th>Číslo</th>
+                <th>Vytvořena</th>
+                <th>Stav</th>
+                <th class="num">Celkem</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var order in Model.Orders)
+            {
+                <tr>
+                    <td>@order.Id</td>
+                    <td>@order.CreatedAtUtc.ToLocalTime().ToString("g")</td>
+                    <td><span class="badge @MiniShop.Web.Pages.Orders.IndexModel.StatusBadge(order.Status)">@MiniShop.Web.Pages.Orders.IndexModel.StatusText(order.Status)</span></td>
+                    <td class="num">@order.TotalPrice.ToString("N2") Kč</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<h2 class="h4 mt-4">Historie změn</h2>
+@if (Model.Audit.Count == 0)
+{
+    <p class="text-muted">Zatím žádné.</p>
+}
+else
+{
+    <table class="table table-sm">
+        <tbody>
+            @foreach (var entry in Model.Audit)
+            {
+                <tr>
+                    <td class="text-nowrap">@entry.OccurredAtUtc.ToLocalTime().ToString("g")</td>
+                    <td>@IndexModel.ActionText(entry.Action)</td>
+                    <td class="text-muted">provedl @entry.ActorEmail</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}

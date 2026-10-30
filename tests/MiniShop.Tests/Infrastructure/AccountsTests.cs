@@ -25,7 +25,8 @@ public sealed class AccountsTests : IDisposable
         _services = services.BuildServiceProvider();
 
         using var scope = _services.CreateScope();
-        scope.ServiceProvider.GetRequiredService<AccountsDbContext>().Database.EnsureCreated();
+        AccountsDatabaseInitializer.MigrateAsync(scope.ServiceProvider.GetRequiredService<AccountsDbContext>())
+            .GetAwaiter().GetResult();
     }
 
     [Fact]

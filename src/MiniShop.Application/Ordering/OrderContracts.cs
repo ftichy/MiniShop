@@ -40,3 +40,9 @@ public sealed class CreateOrderItemRequest
     [Range(1, 1_000)]
     public int Quantity { get; set; }
 }
+
+/// <summary>
+/// Účty krok 6: objednávky jednoho zákazníka v přehledu uživatelů pro admina. <paramref name="TotalSpent"/> = součet
+/// potvrzených a vyřízených objednávek (zamítnuté, zrušené a čekající se nepočítají).
+/// </summary>
+public sealed record CustomerOrderSummaryDto(string CustomerId, int OrderCount, decimal TotalSpent);

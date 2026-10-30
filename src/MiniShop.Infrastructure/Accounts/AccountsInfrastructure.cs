@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace MiniShop.Infrastructure.Accounts;
 
@@ -20,6 +21,8 @@ public static class AccountsInfrastructure
     {
         services.AddDbContext<AccountsDbContext>(options => options.UseSqlite(connectionString));
         services.AddScoped<AccountsSeeder>();
+        services.AddScoped<AccountAdministration>();   // účty krok 6: správa uživatelů adminem
+        services.TryAddSingleton(TimeProvider.System);
 
         return services.AddIdentityCore<ApplicationUser>(ConfigureIdentity)
             .AddRoles<IdentityRole>()

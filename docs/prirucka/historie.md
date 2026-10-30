@@ -59,6 +59,8 @@ Plán (role User a Admin, best practice): [docs/Ucty-roadmap.md](code:docs/Ucty-
 | 1 | Účty, registrace, přihlášení (ASP.NET Core Identity, `users.db`) | [ucty-01](code:docs/kroky-ucty/krok-01-ucty.md) |
 | 2 | Role User/Admin, policies, fallback policy, první admin příkazem `create-admin` | [ucty-02](code:docs/kroky-ucty/krok-02-role.md) |
 | 3 | Vlastník objednávky – zákazník vidí a ruší jen své, cizí = 404, jméno a e-mail z účtu | [ucty-03](code:docs/kroky-ucty/krok-03-vlastnik-objednavky.md) |
+| 4 | Zrušení objednávky ve stavu Pending – **odloženo** | — |
+| 5 | Skutečné e-maily – potvrzení e-mailu, nové heslo, stav objednávky (Gmail, lokálně Mailpit) | [ucty-05](code:docs/kroky-ucty/krok-05-emaily.md) |
 
 ## Proč po krocích
 

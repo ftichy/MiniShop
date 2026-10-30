@@ -15,6 +15,7 @@ Pravidla:
 | `RABBITMQ_PASSWORD` | heslo účtu `minishop` v RabbitMQ (Web a sklad se jím přihlašují) | `.env` na VM (600, vlastník `deploy`) – sestaví ho `deploy.sh` | [R1](#r1-heslo-rabbitmq) | při podezření na únik, jinak 1× ročně |
 | `BASIC_AUTH_HASH` | bcrypt otisk hesla pro zámek v Caddy (heslo zná jen uživatel) | `.env` na VM | [R2](#r2-heslo-do-webu-basic-auth) | při podezření, při odchodu člověka, který heslo zná |
 | `HEALTHCHECKS_BACKUP_URL` | adresa, kam noční záloha hlásí průběh (healthchecks.io, krok 12) – kdo ji zná, může hlídači „nalhat“ zálohu | `.env` na VM | healthchecks.io → kontrola → *Ping URL* → *Regenerate* → secret → Deploy | při podezření |
+| `SMTP_PASSWORD` | heslo aplikace Gmailu účtu `ftichy.gemini@gmail.com` – Web jím posílá e-maily (účty krok 5). Dává přístup k **celé schránce** toho účtu. Volitelný: prázdný = e-maily jen do logu | `.env` na VM | [R8](#r8-heslo-aplikace-gmailu) | při podezření, jinak 1× ročně |
 
 ## Secrets nasazení (GitHub → Environments → `production`)
 
@@ -104,6 +105,17 @@ DuckDNS token se nikde neukládá (reserved IP se nemění).
 Nový klíč (`ssh-keygen`), veřejnou část přidat na VM do `/home/ubuntu/.ssh/authorized_keys` (přes starý klíč),
 `~/.ssh/config` → nový `IdentityFile`; starý řádek z `authorized_keys` smazat. Pro příští VM z OpenTofu:
 `ssh_public_key_path` v `terraform.tfvars`.
+
+### R8. Heslo aplikace Gmailu
+
+1. Přihlásit se jako `ftichy.gemini@gmail.com` → https://myaccount.google.com/apppasswords
+   (vyžaduje zapnuté dvoufázové ověření) → nové heslo aplikace „MiniShop“.
+2. Google ukáže 16 písmen ve skupinách po čtyřech – do secretu **bez mezer**, malými písmeny
+   (`deploy.sh` jiný tvar odmítne).
+3. GitHub → *Environments* → `production` → `SMTP_PASSWORD` → nová hodnota → *Actions → Deploy → Run workflow*
+   (SHA viz níže).
+4. Ověření: na webu *Zapomenuté heslo* pro svůj účet → e-mail dorazí.
+5. Staré heslo aplikace v Google účtu smazat (do té doby platí obě).
 
 ### Které SHA nasadit
 

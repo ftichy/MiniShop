@@ -16,7 +16,13 @@ public static class AccountsServiceCollectionExtensions
     public static IServiceCollection AddAccounts(this IServiceCollection services, string connectionString)
     {
         services.AddAccountsInfrastructure(connectionString)
-            .AddSignInManager();
+            .AddSignInManager()
+            .AddDefaultTokenProviders();   // krok 5: tokeny do odkazů v e-mailu (potvrzení, reset hesla)
+
+        // Krok 5: odkaz z e-mailu platí 2 hodiny. Token je podepsaný klíči Data Protection a obsahuje security stamp –
+        // po změně hesla přestane platit (reset jde použít jen jednou).
+        services.Configure<DataProtectionTokenProviderOptions>(options => options.TokenLifespan = TimeSpan.FromHours(2));
+        services.AddScoped<AccountEmails>();
 
         services.AddAuthentication(IdentityConstants.ApplicationScheme)
             .AddIdentityCookies();

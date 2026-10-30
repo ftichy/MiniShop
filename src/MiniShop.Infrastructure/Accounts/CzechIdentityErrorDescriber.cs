@@ -34,6 +34,9 @@ public sealed class CzechIdentityErrorDescriber : IdentityErrorDescriber
     public override IdentityError PasswordMismatch() =>
         new() { Code = nameof(PasswordMismatch), Description = "Současné heslo není správné." };
 
+    public override IdentityError InvalidToken() =>
+        new() { Code = nameof(InvalidToken), Description = "Odkaz je neplatný, už byl použitý nebo vypršel. Požádejte o nový." };
+
     public override IdentityError DefaultError() =>
         new() { Code = nameof(DefaultError), Description = "Něco se nepovedlo, zkuste to prosím znovu." };
 }

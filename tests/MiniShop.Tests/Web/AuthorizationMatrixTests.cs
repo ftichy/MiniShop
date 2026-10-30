@@ -34,6 +34,9 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Anonymous, "/Account/Login", Expect.Allowed },
         { Who.Anonymous, "/Account/Register", Expect.Allowed },
         { Who.Anonymous, "/health", Expect.Allowed },
+        { Who.Anonymous, "/Account/ForgotPassword", Expect.Allowed },     // účty krok 5
+        { Who.Anonymous, "/Account/ResetPassword", Expect.Allowed },
+        { Who.Anonymous, "/Account/ConfirmEmail", Expect.Allowed },
 
         // Objednávky: jen přihlášení
         { Who.Anonymous, "/Orders", Expect.Login },
@@ -70,6 +73,10 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Anonymous, "/Orders?handler=Cancel&id=999", Expect.Login },
         { Who.User, "/Orders?handler=Cancel&id=999", Expect.Allowed },
         { Who.Admin, "/Orders?handler=Cancel&id=999", Expect.Allowed },
+
+        // Účty krok 5: znovu poslat potvrzení e-mailu – jen přihlášený
+        { Who.Anonymous, "/Account/ResendConfirmation", Expect.Login },
+        { Who.User, "/Account/ResendConfirmation", Expect.Allowed },
 
         // Produkty a sklad: jen admin
         { Who.User, "/Products?handler=AddStock&id=1&quantity=5", Expect.Denied },

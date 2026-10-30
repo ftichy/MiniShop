@@ -44,8 +44,9 @@ důvody ke změně. Od kroku 3 jen změní objednávku a uloží ji; vrácení z
 - [RabbitMqIntegrationBus](code:src/MiniShop.Infrastructure/Integration/RabbitMq/RabbitMqIntegrationBus.cs) a
   [InProcessIntegrationBus](code:src/MiniShop.Infrastructure/Integration/InProcessIntegrationBus.cs) jsou
   zaměnitelné. Testy běží celou ságu v procesu, produkce přes RabbitMQ – handlery nepoznají rozdíl.
-- [LoggingOrderNotifier](code:src/MiniShop.Infrastructure/Ordering/LoggingOrderNotifier.cs) jde nahradit
-  e-mailovou implementací a nikdo kolem se nemusí měnit.
+- Oznámení zákazníkovi: původní `LoggingOrderNotifier` (jen log) nahradil v účtech kroku 5
+  [EmailOrderNotifier](code:src/MiniShop.Infrastructure/Ordering/EmailOrderNotifier.cs) – handlery ani `OrderService`
+  se nezměnily ani o řádek. Stejně tak `IEmailSender`: SMTP, nebo jen log, když server není nastavený.
 
 ## I – Interface Segregation
 

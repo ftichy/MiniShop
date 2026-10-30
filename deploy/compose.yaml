@@ -111,6 +111,13 @@ services:
       ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
       # Příručka (/Docs) odkazuje do kódu na GitHubu na commit, ze kterého je image ("sha-…"); jinak na main.
       Documentation__Commit: ${IMAGE_TAG:-}
+      # Účty krok 5: e-maily přes SMTP. Bez EMAIL_HOST (lokální Compose) se jen zapisují do logu.
+      # Produkce: netajné hodnoty v production.env, heslo aplikace Gmailu je secret SMTP_PASSWORD.
+      Email__Host: ${EMAIL_HOST:-}
+      Email__Port: ${EMAIL_PORT:-587}
+      Email__UserName: ${EMAIL_USERNAME:-}
+      Email__Password: ${SMTP_PASSWORD:-}
+      Email__FromAddress: ${EMAIL_FROM_ADDRESS:-minishop@localhost}
     volumes:
       - web-data:/data
     ports:

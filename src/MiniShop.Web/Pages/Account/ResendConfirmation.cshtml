@@ -1,0 +1,9 @@
+@page
+@model MiniShop.Web.Pages.Account.ResendConfirmationModel
+@{
+    ViewData["Title"] = "Potvrzení e-mailu";
+}
+<h1>Potvrzení e-mailu</h1>
+
+<div class="alert @(Model.Failed ? "alert-danger" : "alert-success")">@Model.Message</div>
+<p><a asp-page="/Index">Zpět na úvod</a></p>

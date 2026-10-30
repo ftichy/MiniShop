@@ -12,6 +12,7 @@
 #   BASIC_AUTH_HASH=$2a$14$…
 #   HEALTHCHECKS_BACKUP_URL=https://hc-ping.com/…   (krok 12, volitelný)
 #   SMTP_PASSWORD=abcdefghijklmnop                   (účty krok 5, volitelný – heslo aplikace Gmailu)
+#   INVENTORY_API_KEY=<64 hex znaků>                  (účty krok 7, povinný – servisní klíč skladu)
 # Co na vstupu chybí (ruční spuštění z terminálu), vezme se z dosavadního .env. Netajná konfigurace je v gitu
 # (deploy/production.env). Soubor .env na VM skript pokaždé sestaví znovu – ruční změny v něm nepřežijí.
 # Změněné heslo RabbitMQ nejdřív vymění v běžícím RabbitMQ (RABBITMQ_DEFAULT_PASS platí jen při prvním startu).
@@ -40,6 +41,7 @@ rabbitmq_password=""
 basic_auth_hash=""
 healthchecks_backup_url=""
 smtp_password=""
+inventory_api_key=""
 if [ ! -t 0 ]; then
     while IFS= read -r line || [ -n "$line" ]; do
         [ -z "$line" ] && continue
@@ -61,6 +63,10 @@ if [ ! -t 0 ]; then
                 # Účty krok 5: heslo aplikace Gmailu = 16 malých písmen (bez mezer). Prázdné = e-maily jen do logu.
                 [[ -z "$value" || "$value" =~ ^[a-z]{16}$ ]] || { echo "Chybný SMTP_PASSWORD (čekám 16 malých písmen bez mezer)." >&2; exit 2; }
                 smtp_password="$value" ;;
+            INVENTORY_API_KEY)
+                # Účty krok 7: servisní klíč mezi Webem a skladem = 64 hex znaků (openssl rand -hex 32).
+                [[ "$value" =~ ^[0-9a-f]{64}$ ]] || { echo "Chybný INVENTORY_API_KEY (čekám 64 malých hex znaků)." >&2; exit 2; }
+                inventory_api_key="$value" ;;
             *)
                 echo "Neznámý klíč na vstupu: $key" >&2
                 exit 2 ;;
@@ -83,8 +89,10 @@ rabbitmq_password="${rabbitmq_password:-$previous_rabbitmq_password}"
 basic_auth_hash="${basic_auth_hash:-$(current BASIC_AUTH_HASH)}"
 healthchecks_backup_url="${healthchecks_backup_url:-$(current HEALTHCHECKS_BACKUP_URL)}"
 smtp_password="${smtp_password:-$(current SMTP_PASSWORD)}"
+inventory_api_key="${inventory_api_key:-$(current INVENTORY_API_KEY)}"
 [ -n "$rabbitmq_password" ] || { echo "Chybí RABBITMQ_PASSWORD (na vstupu ani v .env)." >&2; exit 2; }
 [ -n "$basic_auth_hash" ] || { echo "Chybí BASIC_AUTH_HASH (na vstupu ani v .env)." >&2; exit 2; }
+[ -n "$inventory_api_key" ] || { echo "Chybí INVENTORY_API_KEY (na vstupu ani v .env)." >&2; exit 2; }
 
 log "Nasazuji $tag (commit $sha), předchozí ${previous_tag:-žádná}"
 
@@ -112,6 +120,7 @@ chmod 755 "$work"/*.sh 2>/dev/null || true
         echo "BASIC_AUTH_HASH='$basic_auth_hash'"
         [ -n "$healthchecks_backup_url" ] && echo "HEALTHCHECKS_BACKUP_URL=$healthchecks_backup_url"
         [ -n "$smtp_password" ] && echo "SMTP_PASSWORD=$smtp_password"
+        echo "INVENTORY_API_KEY=$inventory_api_key"
         true
     } > "$work/.env"
 )

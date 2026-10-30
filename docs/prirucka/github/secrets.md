@@ -13,7 +13,7 @@ order: 4
 flowchart LR
     pe["deploy/production.env<br/>(git, netajné)"] --> sh["deploy.sh na VM"]
     tag["IMAGE_TAG = sha-…<br/>(nasazovaný commit)"] --> sh
-    sec["GitHub environment production<br/>RABBITMQ_PASSWORD, BASIC_AUTH_HASH,<br/>HEALTHCHECKS_BACKUP_URL, SMTP_PASSWORD"] -->|"stdin přes SSH"| sh
+    sec["GitHub environment production<br/>RABBITMQ_PASSWORD, BASIC_AUTH_HASH,<br/>HEALTHCHECKS_BACKUP_URL, SMTP_PASSWORD,<br/>INVENTORY_API_KEY"] -->|"stdin přes SSH"| sh
     sh --> env[".env na VM<br/>práva 600, vlastník deploy"]
     env --> compose["docker compose"]
     compose --> cont["proměnné prostředí kontejnerů"]
@@ -33,6 +33,7 @@ flowchart LR
 | `BASIC_AUTH_HASH` | bcrypt otisk hesla pro zámek v Caddy | GitHub `production` → `.env` na VM |
 | `HEALTHCHECKS_BACKUP_URL` | kam noční záloha hlásí průběh (volitelný) | GitHub `production` → `.env` na VM |
 | `SMTP_PASSWORD` | heslo aplikace Gmailu pro odesílání e-mailů ([E-maily](../architektura/emaily.md)); volitelný | GitHub `production` → `.env` na VM |
+| `INVENTORY_API_KEY` | servisní klíč – Web ho posílá skladu, sklad bez něj vrátí 401 ([Inventory](../architektura/moduly/inventory.md)); povinný | GitHub `production` → `.env` na VM → oba kontejnery |
 | `DEPLOY_SSH_KEY` | soukromý klíč pro spuštění `minishop-deploy` | GitHub `production` |
 | `TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET` | připojení runneru do Tailscale | GitHub `production` |
 | `GITHUB_TOKEN` | push image do GHCR | vytváří ho GitHub pro každý běh |

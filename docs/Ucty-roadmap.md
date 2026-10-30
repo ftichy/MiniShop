@@ -226,7 +226,7 @@ a nechat sklad ověřit roli sám.
 - Zapisovací endpointy skladu vyžadují hlavičku se servisním klíčem; `InventoryApiClient` ho posílá.
   Kdo smí co, rozhoduje Web (krok 2). Čtení zůstává bez klíče.
 - Secret `INVENTORY_API_KEY` (oba kontejnery), lokálně ho předá Aspire.
-- Volitelně: JWT od Webu, sklad ověří roli Admin.
+- Volitelně: JWT od Webu, sklad ověří roli Admin. **Odloženo** (krok 7 zavedl jen servisní klíč, i pro čtení).
 
 **Hotovo, když:** zápis bez klíče vrátí 401, aplikace funguje dál.
 

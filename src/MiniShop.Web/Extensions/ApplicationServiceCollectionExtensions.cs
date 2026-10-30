@@ -11,6 +11,7 @@ using MiniShop.Contracts.Inventory;
 using MiniShop.Domain.Orders.Events;
 using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Ordering;
+using MiniShop.ServiceDefaults;
 using MiniShop.Web.Inventory;
 
 namespace MiniShop.Web.Extensions;
@@ -27,7 +28,7 @@ public static class ApplicationServiceCollectionExtensions
 
         services.AddOrderingModule(configuration);
         services.AddJourneysModule();
-        services.AddInventoryApiClient();
+        services.AddInventoryApiClient(configuration);
 
         return services;
     }
@@ -83,11 +84,16 @@ public static class ApplicationServiceCollectionExtensions
     /// <summary>
     /// Krok 10B: stránky Produkty a Objednávky čtou sklad přes jeho HTTP API. "inventory-api" je jméno služby
     /// v AppHostu Aspire; skutečnou adresu doplní service discovery (bez Aspire ze sekce "Services" v appsettings.json).
+    /// Účty krok 7: každý požadavek nese servisní klíč skladu (<see cref="InventoryApiKeyHandler"/>); bez klíče
+    /// v konfiguraci se Web nespustí.
     /// </summary>
-    public static IServiceCollection AddInventoryApiClient(this IServiceCollection services)
+    public static IServiceCollection AddInventoryApiClient(this IServiceCollection services, IConfiguration configuration)
     {
+        var apiKey = ServiceApiKey.Read(key => configuration[key]);
+
         services.AddHttpClient<IProductService, InventoryApiClient>(http =>
-            http.BaseAddress = new Uri("https+http://inventory-api"));
+                http.BaseAddress = new Uri("https+http://inventory-api"))
+            .AddHttpMessageHandler(() => new InventoryApiKeyHandler(apiKey));
 
         return services;
     }

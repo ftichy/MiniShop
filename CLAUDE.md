@@ -185,7 +185,7 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   (**před** sloučením, pokud na změně závisí její vlastní nasazení). Změněný `Caddyfile` `deploy.sh` načte přes `caddy reload`.
   Port 22 je z internetu zavřený – SSH jen přes Tailscale. Nouzově: pravidlo 22 v security listu vrátit.
   Secrets/proměnné jen v environmentu `production`: `TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`, `DEPLOY_SSH_KEY`,
-  `RABBITMQ_PASSWORD`, `BASIC_AUTH_HASH` (krok 10), `SMTP_PASSWORD` (účty krok 5), `DEPLOY_HOST`, `DEPLOY_KNOWN_HOSTS`.
+  `RABBITMQ_PASSWORD`, `BASIC_AUTH_HASH` (krok 10), `SMTP_PASSWORD` (účty krok 5), `INVENTORY_API_KEY` (účty krok 7), `DEPLOY_HOST`, `DEPLOY_KNOWN_HOSTS`.
 - HTTPS (krok 5): `https://minishop-tichy.duckdns.org` (reserved IP `141.144.255.238`), Caddy z `deploy/compose.cloud.yaml`
   + `deploy/Caddyfile`, na VM zapnuté přes `COMPOSE_FILE=compose.yaml:compose.cloud.yaml` v `.env`. Web není publikovaný ven.
   Basic auth (uživatel `minishop`, heslo zná jen uživatel – změna = secret `BASIC_AUTH_HASH`, viz `docs/secrets.md` R2),
@@ -259,6 +259,11 @@ Modul Accounts (ASP.NET Core Identity, `users.db`). Souhrny kroků do `docs/krok
   do `DateTimeOffset.MaxValue`, vždy zůstane aktivní admin, ne sám sobě, rozhoduje DB (ne cookie), vše v transakci,
   každá změna = nový security stamp + `AccountAuditEntries`. `SecurityStampValidator` 1 minuta. Stránky `/Admin/Users`
   (složka `/Admin` zamčená i konvencí `AuthorizeFolder`). Útrata z Orderingu `GetCustomerSummariesAsync` (Web spojí přes ID).
+- Sklad (krok 7): Inventory.Api pouští celé `/api` jen s hlavičkou `X-Api-Key` (`ApiKeyAuthenticationHandler` + fallback policy;
+  `/health`, `/alive` otevřené). Klíč `InventoryApi:ApiKey` (`ServiceApiKey` v ServiceDefaults, min. 32 znaků, jinak se služba
+  **nespustí**): Aspire ho generuje (parametr `inventory-api-key`), bez Aspire `appsettings.Development.json` obou služeb,
+  Compose `INVENTORY_API_KEY` (povinný – lokální `deploy/.env` ho musí mít), produkce secret. Web ho přidává v `InventoryApiKeyHandler`.
+  Testy Webu: klíč v `MiniShopWebFactory`; sklad v paměti `InventoryApiFactory` (stejná kolekce kvůli Serilogu).
 
 | Krok | Stav | Souhrn |
 | --- | --- | --- |
@@ -268,7 +273,7 @@ Modul Accounts (ASP.NET Core Identity, `users.db`). Souhrny kroků do `docs/krok
 | 4. Zrušení objednávky i ve stavu Pending (nový přechod ságy, kompenzace) | odloženo (analýza souběhu: dohnat zrušení v orchestrátoru, `Status` jako concurrency token) | — |
 | 5. Skutečné e-maily (MailKit, Mailpit lokálně, Gmail SMTP v cloudu, potvrzení e-mailu, reset hesla) | hotovo | `docs/kroky-ucty/krok-05-emaily.md` |
 | 6. Administrace uživatelů (přehled, povýšení, blokace, poslední admin, audit, EF migrace `users.db`) | hotovo | `docs/kroky-ucty/krok-06-sprava-uzivatelu.md` |
-| 7. Zabezpečení skladu (servisní klíč pro zápis do Inventory.Api) | plán | — |
+| 7. Zabezpečení skladu (servisní klíč `X-Api-Key` pro celé `/api` Inventory.Api, secret `INVENTORY_API_KEY`, fail fast; JWT odloženo) | hotovo | `docs/kroky-ucty/krok-07-zabezpeceni-skladu.md` |
 | 8. Zpevnění (lockout, rate limiting, bezpečnostní hlavičky) | plán | — |
 | 9. Otevření webu (vypnutý basic auth, ochrana registrace, smazání účtu) | plán | — |
 | 10. Přihlášení přes Google | plán | — |

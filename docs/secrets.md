@@ -16,6 +16,7 @@ Pravidla:
 | `BASIC_AUTH_HASH` | bcrypt otisk hesla pro zámek v Caddy (heslo zná jen uživatel) | `.env` na VM | [R2](#r2-heslo-do-webu-basic-auth) | při podezření, při odchodu člověka, který heslo zná |
 | `HEALTHCHECKS_BACKUP_URL` | adresa, kam noční záloha hlásí průběh (healthchecks.io, krok 12) – kdo ji zná, může hlídači „nalhat“ zálohu | `.env` na VM | healthchecks.io → kontrola → *Ping URL* → *Regenerate* → secret → Deploy | při podezření |
 | `SMTP_PASSWORD` | heslo aplikace Gmailu účtu `ftichy.gemini@gmail.com` – Web jím posílá e-maily (účty krok 5). Dává přístup k **celé schránce** toho účtu. Volitelný: prázdný = e-maily jen do logu | `.env` na VM | [R8](#r8-heslo-aplikace-gmailu) | při podezření, jinak 1× ročně |
+| `INVENTORY_API_KEY` | servisní klíč mezi Webem a skladem (účty krok 7) – kdo ho zná a dostane se do sítě Dockeru, může měnit produkty a zásoby. 64 hex znaků, povinný | `.env` na VM → proměnná `InventoryApi__ApiKey` v kontejnerech `web` a `inventory-api` | [R9](#r9-servisní-klíč-skladu) | při podezření, jinak 1× ročně |
 
 ## Secrets nasazení (GitHub → Environments → `production`)
 
@@ -116,6 +117,15 @@ Nový klíč (`ssh-keygen`), veřejnou část přidat na VM do `/home/ubuntu/.ss
    (SHA viz níže).
 4. Ověření: na webu *Zapomenuté heslo* pro svůj účet → e-mail dorazí.
 5. Staré heslo aplikace v Google účtu smazat (do té doby platí obě).
+
+### R9. Servisní klíč skladu
+
+1. Nový klíč – 64 malých hex znaků (náhodných, ne vymyšlených), např. na VM `openssl rand -hex 32`
+   nebo v PowerShellu
+   `$b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); -join ($b | ForEach-Object { $_.ToString('x2') })`.
+2. GitHub → *Environments* → `production` → `INVENTORY_API_KEY` → nová hodnota → *Actions → Deploy → Run workflow*
+   (SHA viz níže). Compose znovu vytvoří oba kontejnery – po pár sekund může stránka Produkty hlásit „sklad nedostupný“.
+3. Ověření: stránka Produkty se načte; v logu skladu není „Požadavek na sklad se špatným servisním klíčem“.
 
 ### Které SHA nasadit
 

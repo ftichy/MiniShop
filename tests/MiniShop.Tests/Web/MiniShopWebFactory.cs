@@ -76,6 +76,8 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
             services.AddSingleton<IProductService, StubProductService>();
             services.RemoveAll<ICategoryService>();
             services.AddSingleton<ICategoryService, StubCategoryService>();
+            services.RemoveAll<IProductImageService>();
+            services.AddSingleton<IProductImageService, StubProductImageService>();
 
             // Účty krok 5: e-maily do „schránky“ testů – odkazy z nich testy otevírají.
             services.RemoveAll<IEmailSender>();
@@ -185,7 +187,8 @@ public sealed class WebCollection : ICollectionFixture<MiniShopWebFactory>
 /// <summary>Sklad v testech Webu – Inventory.Api neběží, stránka Produkty dostane jeden produkt.</summary>
 public sealed class StubProductService : IProductService
 {
-    private static readonly ProductDto Product = new(1, "Testovací produkt", null, 100m, 10, 1, "Nezařazeno");
+    private static readonly ProductDto Product =
+        new(1, "Testovací produkt", null, 100m, 10, 1, "Nezařazeno", StubProductImageService.KnownFileName);
 
     public Task<IReadOnlyList<ProductDto>> GetAllAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<ProductDto>>([Product]);
@@ -228,4 +231,30 @@ public sealed class StubCategoryService : ICategoryService
     }
 
     public Task DeleteAsync(int id, CancellationToken cancellationToken = default) => Task.CompletedTask;
+}
+
+/// <summary>
+/// E-shop krok 2B: obrázky v testech Webu – „sklad“ zná jeden obrázek (<see cref="KnownFileName"/>)
+/// a pamatuje si, co mu stránka poslala.
+/// </summary>
+public sealed class StubProductImageService : IProductImageService
+{
+    public const string KnownFileName = "1-0123456789ab.png";
+    public static readonly byte[] KnownContent = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3];
+
+    private static readonly ProductDto Product = new(1, "Testovací produkt", null, 100m, 10, 1, "Nezařazeno", KnownFileName);
+
+    public List<byte[]> Uploaded { get; } = [];
+
+    public Task<ProductDto> SetImageAsync(int productId, byte[] content, CancellationToken cancellationToken = default)
+    {
+        Uploaded.Add(content);
+        return Task.FromResult(Product);
+    }
+
+    public Task<ProductDto> RemoveImageAsync(int productId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Product);
+
+    public Task<ProductImage?> GetImageAsync(string fileName, CancellationToken cancellationToken = default) =>
+        Task.FromResult(fileName == KnownFileName ? new ProductImage(KnownContent, "image/png") : null);
 }

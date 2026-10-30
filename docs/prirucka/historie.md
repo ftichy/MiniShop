@@ -74,6 +74,7 @@ Plán (výloha, košík, pokladna, expedice, platba, notifikace): [docs/Eshop-ro
 | --- | --- | --- |
 | 1 | Migrace všech databází (EF Core, sdílený `DatabaseMigrator`, baseline produkčních DB) – schéma se mění bez mazání dat | [eshop-01](code:docs/kroky-eshop/krok-01-migrace.md) |
 | 2A | Výloha `/Shop` – kategorie, hledání bez diakritiky, filtry, řazení; `ProductUpdatedV2` (expand → contract), `StockAvailabilityChangedV1` jen při změně pásma | [eshop-02a](code:docs/kroky-eshop/krok-02a-vyloha.md) |
+| 2B | Obrázky produktů – bezpečný upload do skladu (typ podle bajtů, bez SVG, 1 MB), ve zprávě jen jméno souboru, `/media/products` s cache na rok, zálohy | [eshop-02b](code:docs/kroky-eshop/krok-02b-obrazky.md) |
 
 ## Proč po krocích
 

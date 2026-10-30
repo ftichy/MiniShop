@@ -104,6 +104,7 @@ public static class ApplicationServiceCollectionExtensions
         // Jeden klient pro produkty i kategorie (e-shop krok 2) – stránky dostávají jen rozhraní, které potřebují (ISP).
         services.AddTransient<IProductService>(sp => sp.GetRequiredService<InventoryApiClient>());
         services.AddTransient<ICategoryService>(sp => sp.GetRequiredService<InventoryApiClient>());
+        services.AddTransient<IProductImageService>(sp => sp.GetRequiredService<InventoryApiClient>());   // e-shop krok 2B
 
         return services;
     }

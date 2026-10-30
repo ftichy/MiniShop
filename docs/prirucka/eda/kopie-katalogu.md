@@ -82,6 +82,17 @@ vlastní čas (`AvailabilityChangedAtUtc`) – změna ceny a vyprodání jsou ne
 Dostupnost ve výloze může být o pár sekund pozadu. O objednávce rozhoduje až rezervace v [sáze](saga.md) –
 výloha to zákazníkovi říká.
 
+### Obrázky (e-shop krok 2B)
+
+Obrázek je soubor ve skladu – do zprávy jde jen jeho **jméno** (`ProductUpdatedV2.ImageFileName`), kopie katalogu ho
+uloží jako každé jiné pole. Výloha pak obrázek načte z adresy Webu
+[`/media/products/{soubor}`](code:src/MiniShop.Web/Catalog/ProductImageEndpoint.cs), který ho stáhne ze skladu.
+Jméno obsahuje otisk obsahu, takže nový obrázek = nové jméno = nová zpráva – a prohlížeč si každý obrázek smí
+uložit natrvalo. Podrobnosti v [modulu Inventory](../architektura/moduly/inventory.md).
+
+> **Přirovnání:** V katalogu zásilkové služby je u zboží jen číslo fotky. Fotky leží v archivu a tiskárna si je
+> vyzvedne, až je potřebuje – nikdo je nerozesílá s každou změnou ceny.
+
 ## Hledání: read model tvarovaný pro čtení (CQRS)
 
 Výloha hledá jen v kopii katalogu ([CatalogQueryService](code:src/MiniShop.Application/Ordering/Catalog/CatalogQueryService.cs)) –

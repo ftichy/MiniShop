@@ -6,6 +6,8 @@ obj/
 *.db-shm
 *.db-wal
 logs/
+# E-shop krok 2B: obrázky produktů ze skladu (lokální data jako *.db)
+src/MiniShop.Inventory.Api/images/
 
 # Cloud krok 2: tajné hodnoty pro docker compose (vzor je deploy/.env.example)
 .env

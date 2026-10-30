@@ -22,7 +22,8 @@ public sealed record OrderDto(
 
 /// <summary>
 /// Produkt v nabídce – z kopie katalogu (krok 10), bez přesné zásoby (ta patří skladu).
-/// E-shop krok 2: i popis, kategorie a dostupnost (<c>Unknown</c>, <c>InStock</c>, <c>LowStock</c>, <c>OutOfStock</c>).
+/// E-shop krok 2: i popis, kategorie a dostupnost (<c>Unknown</c>, <c>InStock</c>, <c>LowStock</c>, <c>OutOfStock</c>),
+/// krok 2B jméno souboru obrázku (Web ho ukazuje přes /media/products/{soubor}).
 /// </summary>
 public sealed record CatalogItemDto(
     int ProductId,
@@ -31,7 +32,8 @@ public sealed record CatalogItemDto(
     decimal Price,
     int? CategoryId,
     string? CategoryName,
-    string Availability);
+    string Availability,
+    string? ImageFileName = null);
 
 /// <summary>
 /// Nová objednávka. Účty krok 3: bez jména a e-mailu – zákazník je přihlášený uživatel (<see cref="OrderCustomer"/>).

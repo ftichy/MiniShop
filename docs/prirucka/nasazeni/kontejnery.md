@@ -49,7 +49,7 @@ flowchart TB
         dash["aspire-dashboard<br/>OTLP :18889"]
     end
     wv[("web-data<br/>ordering.db, journeys.db,<br/>users.db, klíče, logy")]
-    iv[("inventory-data<br/>inventory.db")]
+    iv[("inventory-data<br/>inventory.db, images/")]
     rv[("rabbitmq-data<br/>fronty")]
     web --- wv
     inv --- iv

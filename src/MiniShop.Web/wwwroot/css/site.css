@@ -14,3 +14,19 @@ body { padding-bottom: 3rem; }
     100% { box-shadow: 0 0 0 16px rgba(255, 193, 7, 0); }
 }
 .replay-steps { max-height: 28rem; overflow-y: auto; }
+
+/* E-shop krok 2B: obrázky produktů – jednotný poměr stran, obrázek se vejde celý (nic se neořízne). */
+.product-img,
+.product-img-placeholder {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: contain;
+    background-color: var(--bs-tertiary-bg);
+}
+.product-img-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--bs-secondary-color);
+    font-size: 0.875rem;
+}

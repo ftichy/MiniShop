@@ -22,7 +22,7 @@ sequenceDiagram
     T->>S: spustit (uživatel deploy)
     S->>HC: /start
     S->>P: docker run … backup
-    P->>V: online backup SQLite (ordering, journeys, users, inventory) + /data/keys
+    P->>V: online backup SQLite (ordering, journeys, users, inventory) + /data/keys + obrázky produktů
     P->>P: integrity_check, tar.gz minishop-RRRRMMDDTHHMMSSZ
     P->>B: upload (přihlášení instance principal – bez klíče)
     S->>HC: ping OK (jinak /fail)
@@ -46,6 +46,7 @@ sequenceDiagram
 | VM smí zapisovat a číst, **ne mazat ani přepsat** | napadená VM zálohy nezničí; staré maže lifecycle pravidlo služby Object Storage |
 | **Bucket mimo VM**, `prevent_destroy` | záloha musí přežít smazání VM i omyl v OpenTofu |
 | Zálohuje se i `/data/keys` | bez Data Protection klíčů by po obnově neplatily otevřené formuláře |
+| Zálohují se i obrázky produktů (`/data/images` skladu, e-shop krok 2B) | jména souborů jsou v `inventory.db` – bez souborů by výloha ukazovala chybějící obrázky. Složky se zálohují jako celek (`DIRECTORIES` v `backup.py`); starší záloha bez nich obnovu nezastaví |
 | RabbitMQ se nezálohuje | zprávy jsou dočasné; pravda je v outboxech obnovených databází |
 | **healthchecks.io** (dead man's switch) | ozve se, když záloha **neproběhne** – to zevnitř VM nikdo nepozná |
 | Image `oci-cli` připnutý na verzi | záloha se nesmí rozbít tím, že se změní nástroj |
@@ -66,7 +67,7 @@ Po startu služby doplní obnoveným databázím chybějící **migrace** schém
 
 Před rizikovou akcí ruční záloha: `sudo systemctl start minishop-backup`.
 
-**Nová databáze nebo soubor s daty = přidat do `DATABASES` v `backup.py`.**
+**Nová databáze = přidat do `DATABASES`, nová složka s daty (jako obrázky) do `DIRECTORIES` v `backup.py`.**
 
 ## Cvičná havárie
 

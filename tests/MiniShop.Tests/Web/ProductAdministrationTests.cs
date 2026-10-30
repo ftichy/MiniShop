@@ -38,7 +38,37 @@ public sealed class ProductAdministrationTests(MiniShopWebFactory web)
         Assert.Contains("Název kategorie je povinný.", WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync()));
     }
 
+    /// <summary>E-shop krok 2B: formulář obrázku neposílá pole produktu – nesmí kvůli nim „neprojít validací“.</summary>
+    [Fact]
+    public async Task NahraniObrazku_DojdeDoSkladuAPresmeruje()
+    {
+        var client = await web.LoginAsync(MiniShopWebFactory.AdminEmail, MiniShopWebFactory.AdminPassword);
+        var form = new MultipartFormDataContent
+        {
+            { new StringContent(await MiniShopWebFactory.GetAntiforgeryTokenAsync(client, "/Products/Edit/1")), "__RequestVerificationToken" },
+            { new ByteArrayContent(StubProductImageService.KnownContent), "image", "mys.png" }
+        };
+
+        var response = await client.PostAsync("/Products/Edit/1?handler=Image", form);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains(ImageStub.Uploaded, content => content.SequenceEqual(StubProductImageService.KnownContent));
+    }
+
+    [Fact]
+    public async Task UpravaProduktu_UkazeNahledObrazku()
+    {
+        var client = await web.LoginAsync(MiniShopWebFactory.AdminEmail, MiniShopWebFactory.AdminPassword);
+
+        var html = await client.GetStringAsync("/Products/Edit/1");
+
+        Assert.Contains("/media/products/" + StubProductImageService.KnownFileName, html);
+    }
+
     private StubCategoryService Stub => (StubCategoryService)web.Services.GetRequiredService<ICategoryService>();
+
+    private StubProductImageService ImageStub =>
+        (StubProductImageService)web.Services.GetRequiredService<IProductImageService>();
 
     private async Task<HttpResponseMessage> PostAsync(string url, params (string Name, string Value)[] fields)
     {

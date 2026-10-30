@@ -169,6 +169,32 @@ public class ProductTests
         Assert.Equal(StockAvailability.OutOfStock, changed.Availability);
     }
 
+    // ---------- E-shop krok 2B: obrázek ----------
+
+    [Fact]
+    public void SetImage_JeZmenaProduktu()
+    {
+        var product = Mouse();
+        product.ClearDomainEvents();
+
+        product.SetImage("1-0123456789ab.png", Now.AddMinutes(1));
+
+        Assert.Equal("1-0123456789ab.png", product.ImageFileName);
+        Assert.IsType<ProductChanged>(Assert.Single(product.DomainEvents));   // výloha dostane V2 s novým jménem
+        Assert.Equal(Now.AddMinutes(1), product.ChangedAtUtc);
+    }
+
+    [Fact]
+    public void RemoveImage_BezObrazku_NicSeNestane()
+    {
+        var product = Mouse();
+        product.ClearDomainEvents();
+
+        product.RemoveImage(Now);
+
+        Assert.Empty(product.DomainEvents);
+    }
+
     [Fact]
     public void MarkRemoved_ZahodiNeulozenouZmenuDostupnosti()
     {

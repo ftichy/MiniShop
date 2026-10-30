@@ -12,7 +12,7 @@ public static class InventoryContractMapping
     /// <summary>Celý stav produktu pro výlohu. Kategorie musí být načtená (repozitář ji načítá vždy).</summary>
     public static ProductUpdatedV2 ToProductUpdatedV2(this Product product, Guid eventId, DateTime occurredAtUtc) => new(
         eventId, occurredAtUtc, product.Id, product.Name, product.Description, product.Price,
-        product.CategoryId, product.Category.Name, ImageFileName: null,
+        product.CategoryId, product.Category.Name, product.ImageFileName,
         product.Availability.ToContract(), product.AvailabilityChangedAtUtc);
 
     /// <summary>Výčet domény → text kontraktu. Výslovně, ne ToString(): přejmenování v doméně nesmí změnit kontrakt.</summary>

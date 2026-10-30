@@ -47,6 +47,10 @@ try
     builder.Services.AddInfrastructureCore();
     builder.Services.AddInventoryInfrastructure(connectionString);
 
+    // E-shop krok 2B: obrázky produktů – v kontejneru /data/images (ENV v Dockerfile), lokálně složka images vedle projektu.
+    builder.Services.AddFileSystemProductImages(
+        Path.Combine(builder.Environment.ContentRootPath, builder.Configuration["ProductImages:Path"] ?? "images"));
+
     // Outbox worker + RabbitMQ (fronta minishop.inventory).
     builder.Services.AddMessaging(builder.Configuration);
 

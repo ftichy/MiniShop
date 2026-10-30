@@ -15,6 +15,7 @@ namespace MiniShop.Application.Inventory;
 public sealed class ProductService(
     IProductRepository products,
     ICategoryRepository categories,
+    IProductImageStore images,
     IInventoryUnitOfWork unitOfWork,
     TimeProvider timeProvider) : IProductService
 {
@@ -62,6 +63,18 @@ public sealed class ProductService(
         product.MarkRemoved(UtcNow);
         products.Remove(product);
         await unitOfWork.SaveChangesAsync(cancellationToken);   // → ProductRemovedV1 do outboxu
+
+        // E-shop krok 2B: obrázek smazaného produktu až po uložení. Selhání úklidu nevadí – soubor jen zůstane navíc.
+        if (product.ImageFileName is not null)
+        {
+            try
+            {
+                images.Delete(product.ImageFileName);
+            }
+            catch (IOException)
+            {
+            }
+        }
     }
 
     private DateTime UtcNow => timeProvider.GetUtcNow().UtcDateTime;

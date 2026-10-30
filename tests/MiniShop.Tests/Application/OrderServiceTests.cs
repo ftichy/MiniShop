@@ -49,6 +49,7 @@ public sealed class OrderServiceTests : IDisposable
     private readonly InMemoryDatabase _inventoryDatabase = new();
     private readonly FixedTimeProvider _time = new(Now);
     private readonly RecordingOrderNotifier _notifier = new();
+    private readonly InMemoryProductImageStore _images = new();   // e-shop krok 2B
     private readonly List<IDomainEvent> _dispatched = new();
     private readonly ServiceProvider _services;
     private readonly RecordingIntegrationBus _bus;
@@ -85,6 +86,8 @@ public sealed class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<ProductRemovedV1, CatalogProjectionHandler>(IntegrationModules.Ordering);
         services.AddScoped<IProductService, ProductService>();
         services.AddScoped<ICategoryService, CategoryService>();
+        services.AddSingleton<IProductImageStore>(_images);
+        services.AddScoped<IProductImageService, ProductImageService>();
         services.AddScoped<ICatalogQueryService, CatalogQueryService>();
         services.AddIntegrationMessageHandler<ReserveStockV1, ReserveStockHandler>(IntegrationModules.Inventory);
         services.AddIntegrationMessageHandler<ReleaseStockV1, ReleaseStockHandler>(IntegrationModules.Inventory);
@@ -668,6 +671,102 @@ public sealed class OrderServiceTests : IDisposable
         Assert.Equal(2, (await Shop(new CatalogSearchRequest(Page: 99))).Page);   // mimo rozsah = poslední stránka
     }
 
+    // ---------- E-shop krok 2B: obrázky produktů ----------
+
+    private static readonly byte[] Png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3];
+    private static readonly byte[] OtherPng = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 9, 9, 9];
+
+    [Fact]
+    public async Task Obrazek_SouborDoUloziste_JmenoPresV2DoVylohy()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 10);
+
+        var updated = await Images(s => s.SetImageAsync(product.Id, Png));
+        await ProcessOutboxAsync();
+
+        Assert.Matches($@"^{product.Id}-[0-9a-f]{{12}}\.png$", updated.ImageFileName);
+        Assert.Equal(Png, _images.Files[updated.ImageFileName!]);
+        // Ve zprávě jen jméno souboru – ne obrázek.
+        Assert.Equal(updated.ImageFileName, Assert.Single(_bus.Published.OfType<ProductUpdatedV2>()).ImageFileName);
+        Assert.Equal(updated.ImageFileName, (await Orders(s => s.GetCatalogAsync())).Single().ImageFileName);
+    }
+
+    [Fact]
+    public async Task NovyObrazek_MaNoveJmeno_StarySouborZmizi()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 10);
+        var first = (await Images(s => s.SetImageAsync(product.Id, Png))).ImageFileName!;
+
+        var second = (await Images(s => s.SetImageAsync(product.Id, OtherPng))).ImageFileName!;
+
+        Assert.NotEqual(first, second);   // neměnné jméno → prohlížeč nikdy neukáže starý obrázek z cache
+        Assert.Equal([second], _images.Files.Keys);
+    }
+
+    [Fact]
+    public async Task StejnyObrazekZnovu_NicSeNezmeni()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 10);
+        await Images(s => s.SetImageAsync(product.Id, Png));
+        await ProcessOutboxAsync();
+        _bus.Published.Clear();
+
+        await Images(s => s.SetImageAsync(product.Id, Png));
+        await ProcessOutboxAsync();
+
+        Assert.Empty(_bus.Published);
+    }
+
+    [Theory]
+    [InlineData("<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>")]   // SVG = možný skript
+    [InlineData("GIF89a")]
+    [InlineData("obyčejný text.png")]
+    public async Task NepovolenyFormat_DomainException_NicSeNeulozi(string content)
+    {
+        var product = await AddProductAsync(price: 100m, stock: 10);
+
+        await Assert.ThrowsAsync<DomainException>(() =>
+            Images(s => s.SetImageAsync(product.Id, System.Text.Encoding.UTF8.GetBytes(content))));
+
+        Assert.Empty(_images.Files);
+    }
+
+    [Fact]
+    public async Task PrilisVelkyObrazek_DomainException()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 10);
+        var huge = new byte[ProductImageFormat.MaxBytes + 1];
+        Png.CopyTo(huge, 0);
+
+        await Assert.ThrowsAsync<DomainException>(() => Images(s => s.SetImageAsync(product.Id, huge)));
+    }
+
+    [Fact]
+    public async Task OdebraniObrazku_AJehoSmazaniSProduktem_UkliziSoubory()
+    {
+        var first = await AddProductAsync(price: 100m, stock: 10);
+        var second = await AddProductAsync(price: 200m, stock: 10);
+        await Images(s => s.SetImageAsync(first.Id, Png));
+        await Images(s => s.SetImageAsync(second.Id, OtherPng));
+
+        var removed = await Images(s => s.RemoveImageAsync(first.Id));
+        await Products(async s => { await s.DeleteAsync(second.Id); return true; });
+        await ProcessOutboxAsync();
+
+        Assert.Null(removed.ImageFileName);
+        Assert.Empty(_images.Files);
+        Assert.Null((await Orders(s => s.GetCatalogAsync())).Single().ImageFileName);
+    }
+
+    [Theory]
+    [InlineData("../appsettings.json")]
+    [InlineData("1-0123456789ab.svg")]
+    [InlineData("C:\\Windows\\win.ini")]
+    public async Task CteniObrazku_NeplatneJmeno_Null(string fileName)
+    {
+        Assert.Null(await Images(s => s.GetImageAsync(fileName)));
+    }
+
     // ---------- Obnova kopie katalogu (SyncCatalogV1) ----------
 
     [Fact]
@@ -914,6 +1013,13 @@ public sealed class OrderServiceTests : IDisposable
         await ProcessOutboxAsync();
         _bus.Published.Clear();
         return product;
+    }
+
+    /// <summary>E-shop krok 2B: obrázky produktů (modul Inventory) ve vlastním scope.</summary>
+    private async Task<T> Images<T>(Func<IProductImageService, Task<T>> action)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await action(scope.ServiceProvider.GetRequiredService<IProductImageService>());
     }
 
     /// <summary>E-shop krok 2: správa kategorií (modul Inventory) ve vlastním scope.</summary>

@@ -18,7 +18,7 @@ namespace MiniShop.Web.Inventory;
 /// 400 → <see cref="DomainException"/>. Nedostupná služba → <see cref="InventoryUnavailableException"/>.
 /// Synchronní HTTP je tu v pořádku – jde o administraci a zobrazení. Business tok (rezervace) jde dál přes zprávy.
 /// </remarks>
-public sealed class InventoryApiClient(HttpClient http) : IProductService, ICategoryService
+public sealed class InventoryApiClient(HttpClient http) : IProductService, ICategoryService, IProductImageService
 {
     private const string Products = "api/products";
     private const string Categories = "api/categories";
@@ -46,6 +46,39 @@ public sealed class InventoryApiClient(HttpClient http) : IProductService, ICate
     public async Task DeleteAsync(int id, CancellationToken cancellationToken = default)
     {
         using var response = await SendRawAsync(new HttpRequestMessage(HttpMethod.Delete, $"{Products}/{id}"), cancellationToken);
+    }
+
+    // ---------- E-shop krok 2B: obrázky (IProductImageService) ----------
+
+    public Task<ProductDto> SetImageAsync(int productId, byte[] content, CancellationToken cancellationToken = default)
+    {
+        var form = new MultipartFormDataContent { { new ByteArrayContent(content), "file", "image" } };
+        return SendAsync<ProductDto>(new HttpRequestMessage(HttpMethod.Put, $"{Products}/{productId}/image") { Content = form },
+            cancellationToken);
+    }
+
+    public Task<ProductDto> RemoveImageAsync(int productId, CancellationToken cancellationToken = default) =>
+        SendAsync<ProductDto>(new HttpRequestMessage(HttpMethod.Delete, $"{Products}/{productId}/image"), cancellationToken);
+
+    /// <returns>Obrázek, nebo null, když ho sklad nemá (404). Neplatné jméno se na sklad vůbec neposílá.</returns>
+    public async Task<ProductImage?> GetImageAsync(string fileName, CancellationToken cancellationToken = default)
+    {
+        if (!ProductImageFormat.IsValidFileName(fileName))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var response = await SendRawAsync(
+                new HttpRequestMessage(HttpMethod.Get, $"{Products}/images/{fileName}"), cancellationToken);
+            return new ProductImage(await response.Content.ReadAsByteArrayAsync(cancellationToken),
+                ProductImageFormat.ContentType(fileName));
+        }
+        catch (NotFoundException)
+        {
+            return null;
+        }
     }
 
     // ---------- E-shop krok 2: kategorie (ICategoryService) ----------

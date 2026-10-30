@@ -22,6 +22,7 @@ flowchart TB
         reserve["ReserveStockHandler<br/>všechno, nebo nic"]
         release["ReleaseStockHandler<br/>vrácení zboží"]
         syncH["SyncCatalogHandler<br/>znovu pošle celý katalog"]
+        images["ProductImageService<br/>obrázky: formát, jméno, úklid"]
     end
 
     subgraph domain["Domain/Inventory"]
@@ -31,9 +32,13 @@ flowchart TB
     end
 
     db[("InventoryDbContext<br/>inventory.db + outbox + inbox")]
+    files[("FileSystemProductImageStore<br/>/data/images")]
 
     key --> rest
     rest --> svc
+    rest --> images
+    images --> product
+    images --> files
     consumer -->|ReserveStockV1| reserve
     consumer -->|ReleaseStockV1| release
     consumer -->|SyncCatalogV1| syncH
@@ -64,6 +69,8 @@ flowchart TB
 | **ProductService** | Založení, změna, smazání, naskladnění produktu. Změna produktu vyvolá událost → `ProductUpdatedV1` + `ProductUpdatedV2`. | [ProductService.cs](code:src/MiniShop.Application/Inventory/ProductService.cs) |
 | **Product** | Entita s pravidly (cena > 0, zásoba nesmí být záporná, vždy v kategorii). Pásmo dostupnosti (`StockAvailability`: víc než 5 ks / 1–5 / 0) počítá ze zásoby; při jeho změně vyvolá `StockAvailabilityChanged`. | [Product.cs](code:src/MiniShop.Domain/Inventory/Product.cs) |
 | **Category**, **CategoryService** | E-shop krok 2: kategorie produktů. Názvy unikátní (česky bez ohledu na velikost písmen), smazat jde jen prázdnou; přejmenování znovu oznámí produkty kategorie. | [Category.cs](code:src/MiniShop.Domain/Inventory/Category.cs), [CategoryService.cs](code:src/MiniShop.Application/Inventory/CategoryService.cs) |
+| **ProductImageService**, **ProductImageFormat** | E-shop krok 2B: obrázky produktů. Typ podle prvních bajtů (jen JPEG, PNG, WebP – žádné SVG), max. 1 MB, jméno souboru = ID produktu + otisk obsahu (`7-3fa9c1d2e8b4.png`). Nejdřív soubor, pak databáze (+ `ProductUpdatedV2` s novým jménem), nakonec smazat starý soubor. API: `PUT/DELETE /api/products/{id}/image`, `GET /api/products/images/{soubor}`. | [ProductImageService.cs](code:src/MiniShop.Application/Inventory/ProductImageService.cs), [ProductImageFormat.cs](code:src/MiniShop.Application/Inventory/ProductImageFormat.cs) |
+| **FileSystemProductImageStore** | Soubory obrázků ve složce `ProductImages:Path` (kontejner `/data/images` na volume skladu, lokálně `images/`). Pracuje jen se jmény podle vzoru – žádné `../` (path traversal). Zálohuje `backup.py`. | [FileSystemProductImageStore.cs](code:src/MiniShop.Infrastructure/Inventory/FileSystemProductImageStore.cs) |
 | **ReserveStockHandler** | Vyřídí `ReserveStockV1`: nejdřív zkontroluje všechny položky, pak buď zarezervuje vše, nebo nic. Odpoví `StockReservedV1` / `StockReservationFailedV1`. | [ReserveStockHandler.cs](code:src/MiniShop.Application/Inventory/ReserveStockHandler.cs) |
 | **ReleaseStockHandler** | Vyřídí `ReleaseStockV1`: vrátí zboží podle **svých** rezervací (ne podle objednávky) a odpoví `StockReleasedV1`. | [ReleaseStockHandler.cs](code:src/MiniShop.Application/Inventory/ReleaseStockHandler.cs) |
 | **SyncCatalogHandler** | Vyřídí `SyncCatalogV1`: pošle `ProductUpdatedV1` + `ProductUpdatedV2` pro každý produkt s časem jeho poslední změny. | [SyncCatalogHandler.cs](code:src/MiniShop.Application/Inventory/SyncCatalogHandler.cs) |
@@ -86,6 +93,10 @@ flowchart TB
   rozhoduje rezervace); výloze stačí „Skladem / Poslední kusy / Vyprodáno“ – `StockAvailabilityChangedV1`.
 - **Kategorie bez vlastní zprávy.** Jméno kategorie jde ve `ProductUpdatedV2`; přejmenování proto oznámí každý
   produkt kategorie. Existující produkty dala migrace do kategorie „Nezařazeno“.
+- **Obrázek je soubor, ne zpráva** (e-shop krok 2B). Megabajty do RabbitMQ ani do outboxu nepatří – zpráva nese jen
+  jméno souboru (`ProductUpdatedV2.ImageFileName`). Web obrázek veřejně vydává na `/media/products/{soubor}` (sklad
+  z internetu dostupný není) s cache na rok: nový obrázek má nové jméno, takže stará verze se nikdy neukáže.
+  Bez zmenšování – knihovny na úpravu obrázků mají licenční podmínky nebo nativní závislosti pro ARM.
 - **Překlad událostí v `SaveChanges`.** Ordering překládá doménové události na integrační v handleru, Inventory
   přímo při uložení – nemá žádné vlastní doménové handlery, tak nemusí čekat na další kolo workeru.
   Obě varianty jsou popsané v [Integračních zprávách](../../eda/integracni-zpravy.md).

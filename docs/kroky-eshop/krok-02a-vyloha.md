@@ -105,6 +105,15 @@ obnovuje kopii nejen prázdnou, ale i neúplnou – Web si po startu sám řekne
 - **Formulář objednávky bez HTTP na sklad** – dostupnost z kopie; zmizela hláška „sklad neodpovídá“.
 - **Jeden `InventoryApiClient` pro `IProductService` i `ICategoryService`** – stránky berou jen rozhraní, které potřebují (ISP).
 
+## Oprava po nasazení: nešlo přidat kategorii
+
+V produkci formulář kategorie vždy „neprošel validací“. Příčina: stránka Produkty má `[BindProperty] NewProduct` a formulář
+kategorie jeho pole neposílá. ASP.NET Core pak `NewProduct` naváže **bez prefixu** – jeho chyby mají klíče `Name`, `Price`,
+`CategoryId`, ne `NewProduct.Name`, takže je původní kód (mazal jen klíče začínající `NewProduct`) nepoznal.
+Oprava: `IsCategoryValid` smaže všechny chyby a znovu ověří jen kategorii (`TryValidateModel(category, "category")`).
+Testy oprávnění posílaly formulář prázdný, proto to nezachytily – nové `ProductAdministrationTests` posílají
+`category.Name` jako prohlížeč.
+
 ## Známá omezení
 
 - Sklad posílá každou změnu produktu dvakrát (V1 + V2), dokud se V1 neodebere.

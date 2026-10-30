@@ -209,14 +209,23 @@ public sealed class StubCategoryService : ICategoryService
 {
     private static readonly CategoryDto Category = new(1, "Nezařazeno", 1);
 
+    /// <summary>Názvy kategorií, které stránka poslala „skladu“ (založení i přejmenování) – pro testy formulářů.</summary>
+    public List<string> ReceivedNames { get; } = [];
+
     public Task<IReadOnlyList<CategoryDto>> GetAllAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<CategoryDto>>([Category]);
 
-    public Task<CategoryDto> CreateAsync(CategoryRequest request, CancellationToken cancellationToken = default) =>
-        Task.FromResult(Category);
+    public Task<CategoryDto> CreateAsync(CategoryRequest request, CancellationToken cancellationToken = default)
+    {
+        ReceivedNames.Add(request.Name);
+        return Task.FromResult(Category);
+    }
 
-    public Task<CategoryDto> RenameAsync(int id, CategoryRequest request, CancellationToken cancellationToken = default) =>
-        Task.FromResult(Category);
+    public Task<CategoryDto> RenameAsync(int id, CategoryRequest request, CancellationToken cancellationToken = default)
+    {
+        ReceivedNames.Add(request.Name);
+        return Task.FromResult(Category);
+    }
 
     public Task DeleteAsync(int id, CancellationToken cancellationToken = default) => Task.CompletedTask;
 }

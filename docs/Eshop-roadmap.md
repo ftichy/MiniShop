@@ -133,6 +133,9 @@ co se děje – nikdo mu nic přímo neříká.
 
 ## Krok 1: Migrace databází
 
+*Hotovo 30. 10. 2026 – souhrn v `docs/kroky-eshop/krok-01-migrace.md`. Produkční schéma ověřeno předem
+(export jen struktury z VM, shoda s migrací u všech tří databází).*
+
 **Teorie.** `EnsureCreated` vytvoří databázi jen jednou a o dalších změnách neví. Dokud byla data jen na zkoušku,
 stačilo DB smazat. Teď jsou v produkci skutečné objednávky zákazníků – a téměř každý další krok mění schéma
 (košík, adresa, historie stavů). **Migrace** je očíslovaný skript „z verze N na N+1“; aplikace si při startu

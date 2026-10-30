@@ -105,7 +105,7 @@ public sealed class OrderServiceTests : IDisposable
     {
         var product = await AddProductAsync(price: 100m, stock: 5);
 
-        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 3))));
+        var order = await Orders(s => PlaceAsJan(s, CreateRequest((product.Id, 3))));
 
         // Krok 9: objednávka je jen přijatá, sklad se zatím nezměnil – o rezervaci rozhodne sága.
         Assert.Equal("Pending", order.Status);
@@ -120,7 +120,7 @@ public sealed class OrderServiceTests : IDisposable
     {
         var product = await AddProductAsync(price: 100m, stock: 5);
 
-        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 3))));
+        var order = await Orders(s => PlaceAsJan(s, CreateRequest((product.Id, 3))));
         await ProcessOutboxAsync();
 
         Assert.Equal("Confirmed", await StatusAsync(order.Id));
@@ -138,7 +138,7 @@ public sealed class OrderServiceTests : IDisposable
     {
         var product = await AddProductAsync(price: 100m, stock: 5);
 
-        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 2))));
+        var order = await Orders(s => PlaceAsJan(s, CreateRequest((product.Id, 2))));
         await ProcessOutboxAsync();
 
         // Orchestrátor poslal skladu příkaz, sklad odpověděl událostí.
@@ -155,11 +155,11 @@ public sealed class OrderServiceTests : IDisposable
         var product = await AddProductAsync(price: 100m, stock: 2);
 
         // Krok 9: žádná výjimka (dřív InsufficientStockException → 400), objednávka se přijme…
-        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 3))));
+        var order = await Orders(s => PlaceAsJan(s, CreateRequest((product.Id, 3))));
         await ProcessOutboxAsync();
 
         // …a sága ji zamítne.
-        var rejected = await Orders(s => s.GetByIdAsync(order.Id));
+        var rejected = await Orders(s => s.GetByIdAsync(order.Id, OrderAccess.AllOrders));
         Assert.Equal("Rejected", rejected.Status);
         Assert.Contains("požadováno 3 ks, skladem 2 ks", rejected.RejectionReason);
         Assert.Equal(2, await StockAsync());
@@ -174,7 +174,7 @@ public sealed class OrderServiceTests : IDisposable
         var plenty = await AddProductAsync(price: 100m, stock: 50);
         var scarce = await AddProductAsync(price: 100m, stock: 1);
 
-        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((plenty.Id, 5), (scarce.Id, 2))));
+        var order = await Orders(s => PlaceAsJan(s, CreateRequest((plenty.Id, 5), (scarce.Id, 2))));
         await ProcessOutboxAsync();
 
         // Jedna položka chybí → nezarezervuje se ani ta druhá.
@@ -188,7 +188,7 @@ public sealed class OrderServiceTests : IDisposable
     {
         var product = await AddProductAsync(price: 100m, stock: 50);
 
-        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 10))));
+        var order = await Orders(s => PlaceAsJan(s, CreateRequest((product.Id, 10))));
 
         Assert.Equal(100m, order.Items.Single().Discount);
         Assert.Equal(900m, order.TotalPrice);
@@ -199,7 +199,7 @@ public sealed class OrderServiceTests : IDisposable
     {
         var product = await AddProductAsync(price: 100m, stock: 50);
 
-        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 4), (product.Id, 6))));
+        var order = await Orders(s => PlaceAsJan(s, CreateRequest((product.Id, 4), (product.Id, 6))));
 
         var item = Assert.Single(order.Items);
         Assert.Equal(10, item.Quantity);
@@ -209,7 +209,54 @@ public sealed class OrderServiceTests : IDisposable
     public async Task PlaceOrder_NeexistujiciProdukt_VyhodiNotFound()
     {
         await Assert.ThrowsAsync<NotFoundException>(
-            () => Orders(s => s.PlaceOrderAsync(CreateRequest((999, 1)))));
+            () => Orders(s => PlaceAsJan(s, CreateRequest((999, 1)))));
+    }
+
+    // ---------- Účty krok 3: vlastník objednávky ----------
+
+    [Fact]
+    public async Task PlaceOrder_ZakaznikJeZUctu_JmenoAEmailJsouKopie()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+
+        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 1)), Petra));
+
+        Assert.Equal("Petra Malá", order.CustomerName);
+        Assert.Equal("petra@example.com", order.CustomerEmail);
+        var stored = await OrderingDb(db => db.Orders.SingleAsync(o => o.Id == order.Id));
+        Assert.Equal("zakaznik-petra", stored.CustomerId);
+    }
+
+    [Fact]
+    public async Task Seznam_ZakaznikVidiJenSve_SpravceVsechny()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var jans = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 1)), Jan));
+        var petras = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 1)), Petra));
+
+        var forJan = await Orders(s => s.GetAllAsync(OrderAccess.Customer(Jan.CustomerId)));
+        var forAdmin = await Orders(s => s.GetAllAsync(OrderAccess.AllOrders));
+
+        Assert.Equal([jans.Id], forJan.Select(o => o.Id));
+        Assert.Equal([petras.Id, jans.Id], forAdmin.Select(o => o.Id));
+    }
+
+    [Fact]
+    public async Task CiziObjednavka_DetailIZruseni_SeTvariJakoNeexistujici()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var petras = await PlaceConfirmedOrderAsync(product.Id, quantity: 1, customer: Petra);
+        var asJan = OrderAccess.Customer(Jan.CustomerId);
+
+        // Stejná výjimka i hláška jako u neexistující objednávky → 404, Jan nepozná, že objednávka existuje.
+        var detail = await Assert.ThrowsAsync<NotFoundException>(() => Orders(s => s.GetByIdAsync(petras.Id, asJan)));
+        var missing = await Assert.ThrowsAsync<NotFoundException>(() => Orders(s => s.GetByIdAsync(999, asJan)));
+        Assert.Equal(missing.Message.Replace("999", petras.Id.ToString()), detail.Message);
+        await Assert.ThrowsAsync<NotFoundException>(() => Orders(s => s.CancelAsync(petras.Id, asJan)));
+
+        Assert.Equal("Confirmed", await StatusAsync(petras.Id));   // nic se nezměnilo
+        var own = await Orders(s => s.CancelAsync(petras.Id, OrderAccess.Customer(Petra.CustomerId)));
+        Assert.Equal("Cancelled", own.Status);
     }
 
     // ---------- Zrušení a vyřízení ----------
@@ -221,7 +268,7 @@ public sealed class OrderServiceTests : IDisposable
         var order = await PlaceConfirmedOrderAsync(product.Id, quantity: 5);
         Assert.Equal(0, await StockAsync());
 
-        var cancelled = await Orders(s => s.CancelAsync(order.Id));
+        var cancelled = await Orders(s => s.CancelAsync(order.Id, OrderAccess.AllOrders));
         Assert.Equal("Cancelled", cancelled.Status);
         Assert.Equal(0, await StockAsync());   // eventual consistency: zboží se ještě nevrátilo
 
@@ -239,9 +286,9 @@ public sealed class OrderServiceTests : IDisposable
     public async Task Cancel_CekajiciObjednavku_VyhodiDomainException()
     {
         var product = await AddProductAsync(price: 100m, stock: 5);
-        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 1))));
+        var order = await Orders(s => PlaceAsJan(s, CreateRequest((product.Id, 1))));
 
-        await Assert.ThrowsAsync<DomainException>(() => Orders(s => s.CancelAsync(order.Id)));
+        await Assert.ThrowsAsync<DomainException>(() => Orders(s => s.CancelAsync(order.Id, OrderAccess.AllOrders)));
     }
 
     [Fact]
@@ -251,7 +298,7 @@ public sealed class OrderServiceTests : IDisposable
         var order = await PlaceConfirmedOrderAsync(product.Id, quantity: 1);
         await Orders(s => s.CompleteAsync(order.Id));
 
-        await Assert.ThrowsAsync<DomainException>(() => Orders(s => s.CancelAsync(order.Id)));
+        await Assert.ThrowsAsync<DomainException>(() => Orders(s => s.CancelAsync(order.Id, OrderAccess.AllOrders)));
     }
 
     [Fact]
@@ -275,7 +322,7 @@ public sealed class OrderServiceTests : IDisposable
         var order = await PlaceConfirmedOrderAsync(product.Id, quantity: 2);
         _notifier.CancellationFailuresLeft = 1;
 
-        await Orders(s => s.CancelAsync(order.Id));
+        await Orders(s => s.CancelAsync(order.Id, OrderAccess.AllOrders));
 
         // 1. kolo workera: orchestrátor pošle ReleaseStock, notifikace selže → OrderCancelled zůstane nezpracovaná.
         await ProcessOneRoundAsync();
@@ -298,7 +345,7 @@ public sealed class OrderServiceTests : IDisposable
     public async Task Timeout_SkladNeodpovedel_ObjednavkaZamitnutaAPozdniRezervaceSeUvolni()
     {
         var product = await AddProductAsync(price: 100m, stock: 5);
-        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 2))));
+        var order = await Orders(s => PlaceAsJan(s, CreateRequest((product.Id, 2))));
 
         // 1. kolo: sága založena, ReserveStockV1 čeká v outboxu – "sklad neběží".
         await ProcessOneRoundAsync();
@@ -309,7 +356,7 @@ public sealed class OrderServiceTests : IDisposable
         var expired = Assert.Single(await ExpiredSagasAsync());
         Assert.True(await Saga(o => o.TimeOutAsync(expired, CancellationToken.None)));
 
-        var rejected = await Orders(s => s.GetByIdAsync(order.Id));
+        var rejected = await Orders(s => s.GetByIdAsync(order.Id, OrderAccess.AllOrders));
         Assert.Equal("Rejected", rejected.Status);
         Assert.Equal(OrderSaga.TimeoutReason, rejected.RejectionReason);
 
@@ -359,7 +406,7 @@ public sealed class OrderServiceTests : IDisposable
     {
         var product = await AddProductAsync(price: 100m, stock: 5);
 
-        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 3))));
+        var order = await Orders(s => PlaceAsJan(s, CreateRequest((product.Id, 3))));
         await ProcessOutboxAsync();
 
         var placed = Assert.Single(_bus.Published.OfType<OrderPlacedV1>());
@@ -374,7 +421,7 @@ public sealed class OrderServiceTests : IDisposable
     public async Task PlaceOrder_IntegracniZpravyJsouVOutboxuJakoSamostatneZpravy()
     {
         var product = await AddProductAsync(price: 100m, stock: 5);
-        await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 1))));
+        await Orders(s => PlaceAsJan(s, CreateRequest((product.Id, 1))));
 
         // 1. kolo: handlery OrderPlaced zapíšou do outboxu integrační událost i příkaz pro sklad – ven ještě neodešly.
         await ProcessOneRoundAsync();
@@ -398,7 +445,7 @@ public sealed class OrderServiceTests : IDisposable
         var cancelledOrder = await PlaceConfirmedOrderAsync(product.Id, quantity: 2);
         var completedOrder = await PlaceConfirmedOrderAsync(product.Id, quantity: 1);
 
-        await Orders(s => s.CancelAsync(cancelledOrder.Id));
+        await Orders(s => s.CancelAsync(cancelledOrder.Id, OrderAccess.AllOrders));
         await Orders(s => s.CompleteAsync(completedOrder.Id));
         await ProcessOutboxAsync();
 
@@ -418,7 +465,7 @@ public sealed class OrderServiceTests : IDisposable
     {
         var product = await AddProductAsync(price: 100m, stock: 5);
         var order = await PlaceConfirmedOrderAsync(product.Id, quantity: 2);
-        await Orders(s => s.CancelAsync(order.Id));
+        await Orders(s => s.CancelAsync(order.Id, OrderAccess.AllOrders));
 
         await ProcessOutboxAsync();
 
@@ -446,11 +493,11 @@ public sealed class OrderServiceTests : IDisposable
         var product = await Products(s => s.CreateAsync(new CreateProductRequest { Name = "Novinka", Price = 250m, StockQuantity = 5 }));
 
         // ProductUpdatedV1 ještě čeká v outboxu skladu → Ordering o produktu neví (eventual consistency).
-        await Assert.ThrowsAsync<NotFoundException>(() => Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 1)))));
+        await Assert.ThrowsAsync<NotFoundException>(() => Orders(s => PlaceAsJan(s, CreateRequest((product.Id, 1)))));
 
         await ProcessOutboxAsync();
 
-        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 1))));
+        var order = await Orders(s => PlaceAsJan(s, CreateRequest((product.Id, 1))));
         Assert.Equal("Novinka", order.Items.Single().ProductName);
         Assert.Equal(250m, order.TotalPrice);
     }
@@ -463,10 +510,10 @@ public sealed class OrderServiceTests : IDisposable
 
         await Products(s => s.UpdateAsync(product.Id, new UpdateProductRequest { Name = "Testovací produkt", Price = 150m }));
         await ProcessOutboxAsync();
-        var after = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 1))));
+        var after = await Orders(s => PlaceAsJan(s, CreateRequest((product.Id, 1))));
 
         Assert.Equal(150m, after.TotalPrice);
-        Assert.Equal(100m, (await Orders(s => s.GetByIdAsync(before.Id))).TotalPrice);   // snímek ceny v položce
+        Assert.Equal(100m, (await Orders(s => s.GetByIdAsync(before.Id, OrderAccess.AllOrders))).TotalPrice);   // snímek ceny v položce
         Assert.Equal(150m, (await OrderingDb(db => db.CatalogProducts.SingleAsync())).Price);
     }
 
@@ -478,7 +525,7 @@ public sealed class OrderServiceTests : IDisposable
         await Products(async s => { await s.DeleteAsync(product.Id); return true; });
         await ProcessOutboxAsync();
 
-        await Assert.ThrowsAsync<NotFoundException>(() => Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 1)))));
+        await Assert.ThrowsAsync<NotFoundException>(() => Orders(s => PlaceAsJan(s, CreateRequest((product.Id, 1)))));
         Assert.True((await OrderingDb(db => db.CatalogProducts.SingleAsync())).IsRemoved);
     }
 
@@ -491,14 +538,14 @@ public sealed class OrderServiceTests : IDisposable
 
         // Simulace smazané ordering.db: sklad produkt má, kopie katalogu je prázdná a sama se nedoplní.
         await OrderingDb(db => db.CatalogProducts.ExecuteDeleteAsync());
-        await Assert.ThrowsAsync<NotFoundException>(() => Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 1)))));
+        await Assert.ThrowsAsync<NotFoundException>(() => Orders(s => PlaceAsJan(s, CreateRequest((product.Id, 1)))));
 
         Assert.True(await CatalogSync(s => s.RequestIfEmptyAsync()));
         await ProcessOutboxAsync();   // SyncCatalogV1 → sklad → ProductUpdatedV1 → projekce
 
         var catalog = await Orders(s => s.GetCatalogAsync());
         Assert.Equal(new CatalogItemDto(product.Id, "Testovací produkt", 120m), Assert.Single(catalog));
-        Assert.Equal(120m, (await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 1))))).TotalPrice);
+        Assert.Equal(120m, (await Orders(s => PlaceAsJan(s, CreateRequest((product.Id, 1))))).TotalPrice);
     }
 
     [Fact]
@@ -557,7 +604,7 @@ public sealed class OrderServiceTests : IDisposable
 
         // Simulace HTTP požadavku "POST /api/orders" – v aplikaci tuhle aktivitu založí ASP.NET Core.
         var request = new Activity("POST /api/orders").Start();
-        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 2))));
+        var order = await Orders(s => PlaceAsJan(s, CreateRequest((product.Id, 2))));
         request.Stop();
 
         // Worker běží mimo požadavek (bez Activity.Current) – trasu musí navázat podle TraceParent v outboxu.
@@ -605,7 +652,7 @@ public sealed class OrderServiceTests : IDisposable
     {
         var product = await AddProductAsync(price: 100m, stock: 5);
 
-        await Orders(s => s.PlaceOrderAsync(CreateRequest((product.Id, 1))));
+        await Orders(s => PlaceAsJan(s, CreateRequest((product.Id, 1))));
 
         var placed = await OrderingDb(db => db.OutboxMessages.SingleAsync(m => m.Type == nameof(OrderPlaced)));
         Assert.Null(placed.TraceParent);
@@ -645,9 +692,9 @@ public sealed class OrderServiceTests : IDisposable
     private async Task<int> OutboxCountAsync() =>
         await OrderingDb(db => db.OutboxMessages.CountAsync()) + await InventoryDb(db => db.OutboxMessages.CountAsync());
 
-    private async Task<OrderDto> PlaceConfirmedOrderAsync(int productId, int quantity)
+    private async Task<OrderDto> PlaceConfirmedOrderAsync(int productId, int quantity, OrderCustomer? customer = null)
     {
-        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((productId, quantity))));
+        var order = await Orders(s => s.PlaceOrderAsync(CreateRequest((productId, quantity)), customer ?? Jan));
         await ProcessOutboxAsync();
         Assert.Equal("Confirmed", await StatusAsync(order.Id));
         return order;
@@ -702,7 +749,7 @@ public sealed class OrderServiceTests : IDisposable
             .GetExpiredOrderIdsAsync(_time.GetUtcNow().UtcDateTime);
     }
 
-    private async Task<string> StatusAsync(int orderId) => (await Orders(s => s.GetByIdAsync(orderId))).Status;
+    private async Task<string> StatusAsync(int orderId) => (await Orders(s => s.GetByIdAsync(orderId, OrderAccess.AllOrders))).Status;
 
     private Task<OrderSaga> SagaAsync(int orderId) => OrderingDb(db => db.OrderSagas.SingleAsync(s => s.OrderId == orderId));
 
@@ -730,10 +777,15 @@ public sealed class OrderServiceTests : IDisposable
 
     private static CreateOrderRequest CreateRequest(params (int ProductId, int Quantity)[] items) => new()
     {
-        CustomerName = "Jan Novák",
-        CustomerEmail = "jan@example.com",
         Items = items.Select(i => new CreateOrderItemRequest { ProductId = i.ProductId, Quantity = i.Quantity }).ToList()
     };
+
+    // Účty krok 3: kdo objednává – přihlášený zákazník (Web ho bere z cookie).
+    private static readonly OrderCustomer Jan = new("zakaznik-jan", "Jan Novák", "jan@example.com");
+    private static readonly OrderCustomer Petra = new("zakaznik-petra", "Petra Malá", "petra@example.com");
+
+    private static Task<OrderDto> PlaceAsJan(IOrderService service, CreateOrderRequest request) =>
+        service.PlaceOrderAsync(request, Jan);
 
     public void Dispose()
     {

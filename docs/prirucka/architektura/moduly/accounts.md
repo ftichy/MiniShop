@@ -9,16 +9,17 @@ order: 4
 > Běží ve službě **Web**, data má v `users.db`.
 
 Modul vzniká postupně podle plánu [Uživatelské účty a role](code:docs/Ucty-roadmap.md). Hotové jsou kroky 1
-(registrace, přihlášení) a 2 (role, oprávnění, první admin). Vlastník objednávky (User vidí jen své) přijde v kroku 3.
+(registrace, přihlášení), 2 (role, oprávnění, první admin) a 3 (vlastník objednávky – zákazník vidí jen své,
+viz [Ordering](ordering.md)).
 
 ## Role a oprávnění
 
 | Kde | Nepřihlášený | User (zákazník) | Admin |
 | --- | :-: | :-: | :-: |
 | Úvod, Dokumentace, Přihlášení, Registrace, `/health` | ✅ | ✅ | ✅ |
-| Objednávky – seznam | → přihlášení | ✅ (zatím všechny) | ✅ |
-| Objednávky – založit (stránka i `POST /api/orders`) | ❌ | ✅ | ❌ |
-| Objednávky – zrušit | ❌ | ✅ | ✅ |
+| Objednávky – seznam a detail | → přihlášení | jen své (cizí = 404) | všechny |
+| Objednávky – založit (stránka i `POST /api/orders`) | ❌ | ✅ (jméno a e-mail z účtu) | ❌ |
+| Objednávky – zrušit | ❌ | jen svou | jakoukoli |
 | Objednávky – vyřídit, obnovit katalog | ❌ | ❌ | ✅ |
 | Produkty – přidat, naskladnit, upravit, smazat | ❌ | ❌ | ✅ |
 | Průběh a přehrání objednávky (stránky i `GET /api/journeys/…`) | ❌ | ❌ | ✅ |

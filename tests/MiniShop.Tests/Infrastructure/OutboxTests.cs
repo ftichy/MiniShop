@@ -334,7 +334,7 @@ public sealed class OutboxTests : IDisposable
 
         return await Db(async db =>
         {
-            var order = new Order("Jan Novák", "jan@example.com", Now.UtcDateTime);
+            var order = new Order("zakaznik-1", "Jan Novák", "jan@example.com", Now.UtcDateTime);
             order.AddItem(product, quantity, discount: 0m);
             db.Orders.Add(order);
             await db.SaveChangesAsync();

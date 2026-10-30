@@ -49,7 +49,7 @@ public class DomainEventDispatcherTests
         return (new DomainEventDispatcher(provider, NullLogger<DomainEventDispatcher>.Instance), provider.GetRequiredService<Recorder>());
     }
 
-    private static Order NewOrder() => new("Jan Novák", "jan@example.com", Now);
+    private static Order NewOrder() => new("zakaznik-1", "Jan Novák", "jan@example.com", Now);
 
     [Fact]
     public async Task Dispatch_ZavolaVsechnyHandleryDaneUdalosti()

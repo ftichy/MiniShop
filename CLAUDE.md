@@ -244,6 +244,9 @@ Modul Accounts (ASP.NET Core Identity, `users.db`). Souhrny kroků do `docs/krok
   `[Authorize(Policy = AuthorizationPolicies.RequireAdmin/RequireCustomer)]` (`Web/Accounts`). Handlery stránky
   Objednávky ověřují policy v kódu (`IAuthorizationService`). **Nová stránka/akce/endpoint = řádek
   v `AuthorizationMatrixTests`** (Web v paměti přes `MiniShopWebFactory`, typ `InventoryApiClient` – `Program` je dvojznačný).
+- Vlastník objednávky (krok 3): `IOrderService` dostává `OrderAccess` (čtení, zrušení) a `OrderCustomer` (založení)
+  parametrem – skládá je Web z cookie (`User.ToOrderAccess()/ToOrderCustomer()` ve `Web/Accounts`). Cizí objednávka
+  = `NotFoundException` (404). Jméno a e-mail objednávky jen z účtu, ne z formuláře/JSON.
 - První admin: produkce `docker compose exec web dotnet MiniShop.Web.dll create-admin --email …` (jen bez admina),
   vývoj `AdminBootstrap` v `appsettings.Development.json` (`admin@minishop.local` / `admin-heslo-pro-vyvoj`, vynucená změna hesla).
 
@@ -251,7 +254,7 @@ Modul Accounts (ASP.NET Core Identity, `users.db`). Souhrny kroků do `docs/krok
 | --- | --- | --- |
 | 1. Účty, registrace, přihlášení (modul Accounts, Identity, `users.db`) | hotovo | `docs/kroky-ucty/krok-01-ucty.md` |
 | 2. Role a první admin (policies, fallback policy, `create-admin` / `AdminBootstrap` ve vývoji, matice oprávnění) | hotovo | `docs/kroky-ucty/krok-02-role.md` |
-| 3. Vlastník objednávky (`CustomerId`, cizí = 404, admin neobjednává) | plán | — |
+| 3. Vlastník objednávky (`CustomerId`, `OrderAccess`/`OrderCustomer`, filtr v SQL, cizí = 404, jméno a e-mail z účtu) | hotovo | `docs/kroky-ucty/krok-03-vlastnik-objednavky.md` |
 | 4. Zrušení objednávky i ve stavu Pending (nový přechod ságy, kompenzace) | plán | — |
 | 5. Skutečné e-maily (MailKit, Mailpit lokálně, Gmail SMTP v cloudu, potvrzení e-mailu, reset hesla) | plán | — |
 | 6. Administrace uživatelů (přehled, povýšení, blokace, poslední admin, audit) | plán | — |

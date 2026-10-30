@@ -47,7 +47,7 @@ public class CatalogProductTests
     {
         var product = new CatalogProduct(1, "Myš", 500m, Now);
         product.MarkRemoved(Now);
-        var order = new Order("Jan Novák", "jan@example.com", Now);
+        var order = new Order("zakaznik-1", "Jan Novák", "jan@example.com", Now);
 
         Assert.Throws<DomainException>(() => order.AddItem(product, 1, 0m));
     }

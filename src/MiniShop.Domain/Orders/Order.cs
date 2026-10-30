@@ -23,8 +23,17 @@ public class Order : Entity
     {
     }
 
-    public Order(string customerName, string customerEmail, DateTime createdAtUtc)
+    /// <param name="customerId">
+    /// Účty krok 3: kdo objednává – ID uživatelského účtu. Pro Ordering je to jen neprůhledný řetězec
+    /// (o modulu účtů nic neví). Jméno a e-mail jsou kopie z doby objednání – pozdější změna účtu je nepřepíše.
+    /// </param>
+    public Order(string customerId, string customerName, string customerEmail, DateTime createdAtUtc)
     {
+        if (string.IsNullOrWhiteSpace(customerId))
+        {
+            throw new DomainException("Objednávka musí patřit zákazníkovi.");
+        }
+
         if (string.IsNullOrWhiteSpace(customerName))
         {
             throw new DomainException("Jméno zákazníka je povinné.");
@@ -35,6 +44,7 @@ public class Order : Entity
             throw new DomainException("E-mail zákazníka je povinný.");
         }
 
+        CustomerId = customerId;
         CustomerName = customerName.Trim();
         CustomerEmail = customerEmail.Trim();
         CreatedAtUtc = createdAtUtc;
@@ -46,6 +56,13 @@ public class Order : Entity
     }
 
     public int Id { get; private set; }
+
+    /// <summary>Účty krok 3: vlastník objednávky (ID uživatelského účtu).</summary>
+    public string CustomerId { get; private set; } = string.Empty;
+
+    /// <summary>Patří objednávka tomuto zákazníkovi?</summary>
+    public bool BelongsTo(string customerId) => CustomerId == customerId;
+
     public string CustomerName { get; private set; } = string.Empty;
     public string CustomerEmail { get; private set; } = string.Empty;
     public DateTime CreatedAtUtc { get; private set; }

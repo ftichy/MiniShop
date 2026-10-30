@@ -15,11 +15,11 @@ public sealed class OrdersController(IOrderService orderService) : ControllerBas
 {
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<OrderDto>>> GetAll(CancellationToken cancellationToken) =>
-        Ok(await orderService.GetAllAsync(cancellationToken));
+        Ok(await orderService.GetAllAsync(User.ToOrderAccess(), cancellationToken));
 
     [HttpGet("{id:int}")]
     public async Task<ActionResult<OrderDto>> GetById(int id, CancellationToken cancellationToken) =>
-        Ok(await orderService.GetByIdAsync(id, cancellationToken));
+        Ok(await orderService.GetByIdAsync(id, User.ToOrderAccess(), cancellationToken));
 
     /// <summary>
     /// Krok 9: objednávka je přijata, ale ještě není hotová – sklad ji teprve ověří (sága).
@@ -30,7 +30,7 @@ public sealed class OrdersController(IOrderService orderService) : ControllerBas
     [Authorize(Policy = AuthorizationPolicies.RequireCustomer)]   // účty krok 2: admin neobjednává
     public async Task<ActionResult<OrderDto>> Create(CreateOrderRequest request, CancellationToken cancellationToken)
     {
-        var order = await orderService.PlaceOrderAsync(request, cancellationToken);
+        var order = await orderService.PlaceOrderAsync(request, User.ToOrderCustomer(), cancellationToken);
         return AcceptedAtAction(nameof(GetById), new { id = order.Id }, order);
     }
 
@@ -41,5 +41,5 @@ public sealed class OrdersController(IOrderService orderService) : ControllerBas
 
     [HttpPost("{id:int}/cancel")]
     public async Task<ActionResult<OrderDto>> Cancel(int id, CancellationToken cancellationToken) =>
-        Ok(await orderService.CancelAsync(id, cancellationToken));
+        Ok(await orderService.CancelAsync(id, User.ToOrderAccess(), cancellationToken));
 }

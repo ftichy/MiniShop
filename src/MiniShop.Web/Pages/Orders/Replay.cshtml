@@ -60,15 +60,9 @@
                 </div>
                 <div class="card-body">
                     <div id="replay-alert" class="alert py-2 small" hidden></div>
+                    @* Účty krok 3: jméno a e-mail už formulář nemá (bere je server z účtu). Starší záznamy, kde se
+                       psaly, se přehrají bez nich – přehrávač události k chybějícím polím přeskočí. *@
                     <div class="row g-2">
-                        <div class="col-md-6">
-                            <label class="form-label">Jméno zákazníka</label>
-                            <input class="form-control" data-replay-target="Input.CustomerName" value="" readonly tabindex="-1" />
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">E-mail</label>
-                            <input class="form-control" data-replay-target="Input.CustomerEmail" value="" readonly tabindex="-1" />
-                        </div>
                         <div class="col-md-6">
                             <label class="form-label">Produkt</label>
                             @* Možnosti doplní přehrávač podle toho, co uživatel vybíral (ValueText) – nezávisí na dnešním katalogu. *@

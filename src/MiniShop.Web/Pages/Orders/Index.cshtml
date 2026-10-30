@@ -34,23 +34,15 @@
 @if (Model.CanPlaceOrders)
 {
 <h2 class="h4">Nová objednávka</h2>
+@* Účty krok 3: jméno a e-mail se nepíšou – bere je server z přihlášeného účtu (nejdou podvrhnout). *@
+<p class="mb-1">Objednává: <strong>@Model.CustomerName</strong> <span class="text-muted">(@Model.CustomerEmail)</span></p>
 <p class="text-muted small">Od 10 ks jednoho produktu se uplatní množstevní sleva 10 %.</p>
 @* Krok 12A: order-form-tracker.js zapisuje, co uživatel ve formuláři dělá (proud JourneyId). *@
 <form id="order-form" method="post" asp-page-handler="Create" class="row g-2 mb-4"
       data-journey-id="@Model.JourneyId" data-journey-offset="@Model.JourneyOffsetMs">
     <input type="hidden" name="JourneyId" value="@Model.JourneyId" />
     <input type="hidden" name="JourneyOffsetMs" value="@Model.JourneyOffsetMs" />
-    <div class="col-md-3">
-        <label asp-for="Input.CustomerName" class="form-label"></label>
-        <input asp-for="Input.CustomerName" class="form-control" />
-        <span asp-validation-for="Input.CustomerName" class="text-danger small"></span>
-    </div>
-    <div class="col-md-3">
-        <label asp-for="Input.CustomerEmail" class="form-label"></label>
-        <input asp-for="Input.CustomerEmail" class="form-control" />
-        <span asp-validation-for="Input.CustomerEmail" class="text-danger small"></span>
-    </div>
-    <div class="col-md-3">
+    <div class="col-md-6">
         <label asp-for="Input.ProductId" class="form-label"></label>
         <select asp-for="Input.ProductId" asp-items="Model.ProductOptions" class="form-select">
             <option value="0">-- vyberte --</option>
@@ -85,6 +77,9 @@
         <span class="text-muted small">– když v nabídce chybí produkt, který sklad má</span>
     </form>
 }
+
+@* Účty krok 3: zákazník vidí jen své objednávky, admin všechny. *@
+<h2 class="h4">@(Model.CanManageOrders ? "Všechny objednávky" : "Moje objednávky")</h2>
 
 @if (Model.Orders.Count == 0)
 {

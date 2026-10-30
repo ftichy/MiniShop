@@ -155,7 +155,7 @@ public sealed class IdempotentHandlerTests : IDisposable
     private Task<OrderCancelled> CreateCancelledEventAsync() => Db(async db =>
     {
         db.CatalogProducts.Add(new CatalogProduct(1, "Testovací produkt", 100m, Now.UtcDateTime));
-        var order = new Order("Jan Novák", "jan@example.com", Now.UtcDateTime);
+        var order = new Order("zakaznik-1", "Jan Novák", "jan@example.com", Now.UtcDateTime);
         db.Orders.Add(order);
         await db.SaveChangesAsync();
         return new OrderCancelled(order, Now.UtcDateTime);

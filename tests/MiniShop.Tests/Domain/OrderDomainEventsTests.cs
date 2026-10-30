@@ -12,7 +12,7 @@ public class OrderDomainEventsTests
     private static readonly DateTime CreatedAt = new(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc);
     private static readonly DateTime Later = CreatedAt.AddHours(2);
 
-    private static Order CreateOrder() => new("Jan Novák", "jan@example.com", CreatedAt);
+    private static Order CreateOrder() => new("zakaznik-1", "Jan Novák", "jan@example.com", CreatedAt);
 
     private static Order CreateConfirmedOrder()
     {

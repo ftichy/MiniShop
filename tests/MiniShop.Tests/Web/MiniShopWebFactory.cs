@@ -7,7 +7,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using MiniShop.Application.Inventory;
+using MiniShop.Domain.Orders;
 using MiniShop.Infrastructure.Accounts;
+using MiniShop.Infrastructure.Ordering;
 using MiniShop.Tests.TestDoubles;
 
 namespace MiniShop.Tests.Web;
@@ -81,6 +83,21 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
         {
             await users.AddClaimAsync(user, new(AccountClaimTypes.MustChangePassword, "true"));
         }
+    }
+
+    /// <summary>
+    /// Účty krok 3: objednávka zákazníka rovnou v ordering.db (bez katalogu a ságy – testy Webu je nepotřebují).
+    /// </summary>
+    public async Task<int> CreateOrderForAsync(string email)
+    {
+        await using var scope = Services.CreateAsyncScope();
+        var user = await scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().FindByEmailAsync(email)
+            ?? throw new InvalidOperationException($"Uživatel {email} neexistuje.");
+        var db = scope.ServiceProvider.GetRequiredService<OrderingDbContext>();
+        var order = new Order(user.Id, user.DisplayName, email, DateTime.UtcNow);
+        db.Orders.Add(order);
+        await db.SaveChangesAsync();
+        return order.Id;
     }
 
     /// <summary>Klient jako prohlížeč: HTTPS (kvůli Secure cookie), cookies, bez automatického přesměrování.</summary>

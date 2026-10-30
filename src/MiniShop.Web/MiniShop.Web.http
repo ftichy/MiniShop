@@ -51,13 +51,12 @@ GET {{host}}/api/orders
 Cookie: {{auth}}
 
 ### Nová objednávka (10 ks kabelů => množstevní sleva 10 %)
+# Účty krok 3: jméno a e-mail se neposílají – objednává přihlášený zákazník (z cookie).
 POST {{host}}/api/orders
 Content-Type: application/json
 Cookie: {{auth}}
 
 {
-  "customerName": "Jan Novák",
-  "customerEmail": "jan.novak@example.com",
   "items": [
     { "productId": 1, "quantity": 1 },
     { "productId": 4, "quantity": 10 }
@@ -70,8 +69,6 @@ Content-Type: application/json
 Cookie: {{auth}}
 
 {
-  "customerName": "Petra Malá",
-  "customerEmail": "petra@example.com",
   "items": [ { "productId": 3, "quantity": 999 } ]
 }
 

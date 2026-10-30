@@ -53,10 +53,10 @@ sequenceDiagram
 
     rect rgb(245,245,245)
     Note over Z,ODB: Fáze 1 – HTTP požadavek (synchronně)
-    Z->>P: POST formulář
-    P->>S: PlaceOrderAsync(request)
+    Z->>P: POST formulář (produkt, množství) + cookie
+    P->>S: PlaceOrderAsync(request, zákazník z cookie: ID, jméno, e-mail)
     S->>ODB: načíst produkty z kopie katalogu
-    S->>S: new Order(...) → OrderPlaced, AddItem (+ sleva)
+    S->>S: new Order(CustomerId, …) → OrderPlaced, AddItem (+ sleva)
     S->>ODB: COMMIT: Orders + Outbox[OrderPlaced]
     P->>P: Journeys: OrderSubmitted
     P-->>Z: přesměrování, objednávka Pending

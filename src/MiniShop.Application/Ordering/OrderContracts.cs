@@ -23,14 +23,11 @@ public sealed record OrderDto(
 /// <summary>Produkt v nabídce objednávek – z kopie katalogu (krok 10), bez zásoby (ta patří skladu).</summary>
 public sealed record CatalogItemDto(int ProductId, string Name, decimal Price);
 
+/// <summary>
+/// Nová objednávka. Účty krok 3: bez jména a e-mailu – zákazník je přihlášený uživatel (<see cref="OrderCustomer"/>).
+/// </summary>
 public sealed class CreateOrderRequest
 {
-    [Required, StringLength(100)]
-    public string CustomerName { get; set; } = string.Empty;
-
-    [Required, EmailAddress, StringLength(200)]
-    public string CustomerEmail { get; set; } = string.Empty;
-
     [MinLength(1, ErrorMessage = "Objednávka musí obsahovat alespoň jednu položku.")]
     public List<CreateOrderItemRequest> Items { get; set; } = new();
 }

@@ -28,6 +28,11 @@ public sealed class IndexModel(
     /// <summary>Účty krok 2: vyřízení, obnova katalogu a průběh objednávek jen pro admina.</summary>
     public bool CanManageOrders { get; private set; }
 
+    /// <summary>Účty krok 3: kdo objednává – z účtu, jen pro zobrazení nad formulářem.</summary>
+    public string CustomerName => User.ToOrderCustomer().Name;
+
+    public string CustomerEmail => User.ToOrderCustomer().Email;
+
     public IReadOnlyList<OrderDto> Orders { get; private set; } = [];
     public IReadOnlyList<SelectListItem> ProductOptions { get; private set; } = [];
 
@@ -69,14 +74,12 @@ public sealed class IndexModel(
 
         var request = new CreateOrderRequest
         {
-            CustomerName = Input.CustomerName,
-            CustomerEmail = Input.CustomerEmail,
             Items = [new CreateOrderItemRequest { ProductId = Input.ProductId, Quantity = Input.Quantity }]
         };
 
         var result = await ExecuteAsync(async () =>
         {
-            var order = await orderService.PlaceOrderAsync(request, cancellationToken);
+            var order = await orderService.PlaceOrderAsync(request, User.ToOrderCustomer(), cancellationToken);
             StatusMessage = $"Objednávka č. {order.Id} přijata (celkem {order.TotalPrice:N2} Kč), ověřujeme sklad…";
             await TrackAsync(() => journeyService.RecordOrderSubmittedAsync(JourneyId, serverOffsetMs, order.Id, cancellationToken));
         }, cancellationToken);
@@ -153,7 +156,7 @@ public sealed class IndexModel(
         ModelState.Clear();
         return ExecuteAsync(async () =>
         {
-            await orderService.CancelAsync(id, cancellationToken);
+            await orderService.CancelAsync(id, User.ToOrderAccess(), cancellationToken);
             StatusMessage = $"Objednávka č. {id} byla zrušena, zboží se za chvilku vrátí na sklad.";
         }, cancellationToken);
     }
@@ -189,7 +192,7 @@ public sealed class IndexModel(
             JourneyOffsetMs = 0;
         }
 
-        Orders = await orderService.GetAllAsync(cancellationToken);
+        Orders = await orderService.GetAllAsync(User.ToOrderAccess(), cancellationToken);
         var catalog = await orderService.GetCatalogAsync(cancellationToken);
         CatalogEmpty = catalog.Count == 0;
 
@@ -249,16 +252,9 @@ public sealed class IndexModel(
         _ => status
     };
 
+    /// <summary>Účty krok 3: bez jména a e-mailu – objednává přihlášený zákazník (údaje z účtu).</summary>
     public sealed class NewOrderInput
     {
-        [Required(ErrorMessage = "Jméno je povinné."), StringLength(100)]
-        [Display(Name = "Jméno zákazníka")]
-        public string CustomerName { get; set; } = string.Empty;
-
-        [Required(ErrorMessage = "E-mail je povinný."), EmailAddress(ErrorMessage = "Neplatný e-mail.")]
-        [Display(Name = "E-mail")]
-        public string CustomerEmail { get; set; } = string.Empty;
-
         [Range(1, int.MaxValue, ErrorMessage = "Vyberte produkt.")]
         [Display(Name = "Produkt")]
         public int ProductId { get; set; }

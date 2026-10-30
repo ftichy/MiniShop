@@ -7,7 +7,7 @@ public class OrderTests
 {
     private static readonly DateTime Now = new(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc);
 
-    private static Order CreateOrder() => new("Jan Novák", "jan@example.com", Now);
+    private static Order CreateOrder() => new("zakaznik-1", "Jan Novák", "jan@example.com", Now);
 
     private static Order CreateConfirmedOrder()
     {

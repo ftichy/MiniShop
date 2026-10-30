@@ -6,9 +6,10 @@ namespace MiniShop.Infrastructure.Ordering;
 
 public sealed class OrderRepository(OrderingDbContext db) : IOrderRepository
 {
-    public async Task<IReadOnlyList<Order>> GetAllAsync(CancellationToken cancellationToken = default) =>
+    public async Task<IReadOnlyList<Order>> GetAllAsync(string? customerId, CancellationToken cancellationToken = default) =>
         await db.Orders
             .Include(o => o.Items)
+            .Where(o => customerId == null || o.CustomerId == customerId)   // účty krok 3: WHERE CustomerId = …
             .OrderByDescending(o => o.Id)
             .ToListAsync(cancellationToken);
 

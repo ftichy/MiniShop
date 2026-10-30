@@ -70,7 +70,7 @@ public sealed class IndexModel(IProductService productService, ICategoryService 
 
     public async Task<IActionResult> OnPostCreateCategoryAsync(CategoryRequest category, CancellationToken cancellationToken)
     {
-        if (!IsCategoryValid())
+        if (!IsCategoryValid(category))
         {
             return await ReloadAsync(cancellationToken);
         }
@@ -84,7 +84,7 @@ public sealed class IndexModel(IProductService productService, ICategoryService 
 
     public async Task<IActionResult> OnPostRenameCategoryAsync(int id, CategoryRequest category, CancellationToken cancellationToken)
     {
-        if (!IsCategoryValid())
+        if (!IsCategoryValid(category))
         {
             return await ReloadAsync(cancellationToken);
         }
@@ -106,15 +106,23 @@ public sealed class IndexModel(IProductService productService, ICategoryService 
         }, cancellationToken);
     }
 
-    /// <summary>Formulář nového produktu se u kategorií neodesílá – jeho (prázdná) pole nejsou chyba.</summary>
-    private bool IsCategoryValid()
+    /// <summary>
+    /// Formulář nového produktu se u kategorií neodesílá – jeho (prázdná) pole nejsou chyba. Pozor: když ve formuláři
+    /// žádné pole <c>NewProduct.*</c> není, binder naváže [BindProperty] BEZ prefixu (klíče „Name“, „Price“…), takže jeho
+    /// chyby nejdou poznat podle klíče. Proto vše smazat a znovu ověřit jen kategorii; chyby nahoru do souhrnu.
+    /// </summary>
+    private bool IsCategoryValid(CategoryRequest category)
     {
-        foreach (var key in ModelState.Keys.Where(k => k.StartsWith(nameof(NewProduct), StringComparison.Ordinal)).ToList())
+        ModelState.Clear();
+        if (TryValidateModel(category, nameof(category)))
         {
-            ModelState.Remove(key);
+            return true;
         }
 
-        return ModelState.IsValid;
+        var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+        ModelState.Clear();
+        errors.ForEach(error => ModelState.AddModelError(string.Empty, error));
+        return false;
     }
 
     private async Task<IActionResult> ExecuteAsync(Func<Task> action, CancellationToken cancellationToken)

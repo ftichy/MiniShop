@@ -311,7 +311,7 @@ nové moduly Notifications (odběratel událostí) a Payments (účastník ságy
 | Krok | Stav | Souhrn |
 | --- | --- | --- |
 | 1. Migrace databází (`ordering/inventory/journeys.db`, sdílený `DatabaseMigrator`, baseline produkční DB) | hotovo (nasazeno 30. 10. 2026, produkční DB prošly baseline, data zůstala) | `docs/kroky-eshop/krok-01-migrace.md` |
-| 2A. Výloha (`/Shop`, kategorie, hledání `SearchText`, `ProductUpdatedV2` expand → contract, `StockAvailabilityChangedV1` při změně pásma) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-02a-vyloha.md` |
+| 2A. Výloha (`/Shop`, kategorie, hledání `SearchText`, `ProductUpdatedV2` expand → contract, `StockAvailabilityChangedV1` při změně pásma) | hotovo (nasazeno 30. 10. 2026, produkční kopie katalogu se po startu sama doplnila) | `docs/kroky-eshop/krok-02a-vyloha.md` |
 | 2B. Obrázky produktů (upload do skladu, `/media/products/…` přes Web, `backup.py`) | plán | — |
 | 3. Košík (`Cart` v Orderingu, `/Cart`) | plán | — |
 | 4. Pokladna a objednávka s více položkami (`CheckoutId`, adresa, doprava, změna ceny) | plán | — |

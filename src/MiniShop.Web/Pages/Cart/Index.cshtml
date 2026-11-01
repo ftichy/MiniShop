@@ -37,7 +37,9 @@ else
                     <td>
                         @if (line.ImageFileName is not null)
                         {
-                            <img src="@(ProductImageEndpoint.PathPrefix + line.ImageFileName)" alt="" class="cart-thumb" />
+                            @* width/height i v HTML – náhled zůstane malý, i kdyby se CSS nenačetlo. *@
+                            <img src="@(ProductImageEndpoint.PathPrefix + line.ImageFileName)" alt="" class="cart-thumb"
+                                 width="64" height="48" loading="lazy" />
                         }
                     </td>
                     <td>

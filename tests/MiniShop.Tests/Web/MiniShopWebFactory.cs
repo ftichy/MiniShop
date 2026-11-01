@@ -134,7 +134,7 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
     }
 
     /// <summary>E-shop krok 3: produkt rovnou v kopii katalogu (bez skladu a zpráv), skladem. Podruhé se nic nestane.</summary>
-    public async Task EnsureCatalogProductAsync(int id, string name, decimal price)
+    public async Task EnsureCatalogProductAsync(int id, string name, decimal price, string? imageFileName = null)
     {
         await using var scope = Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<OrderingDbContext>();
@@ -144,6 +144,11 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
         }
 
         var product = new CatalogProduct(id, name, price, DateTime.UtcNow);
+        if (imageFileName is not null)
+        {
+            product.ApplyDetails(name, null, price, 1, "Nezařazeno", imageFileName, DateTime.UtcNow);
+        }
+
         product.ApplyAvailability(CatalogAvailability.InStock, DateTime.UtcNow);
         db.CatalogProducts.Add(product);
         await db.SaveChangesAsync();

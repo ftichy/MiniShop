@@ -116,6 +116,18 @@ dotnet run --project src/MiniShop.AppHost
 2. Sloučit PR → CD nasadí (migrace přidá dvě tabulky, `backup.py` se nemění – `ordering.db` už zálohuje).
 3. https://minishop-tichy.duckdns.org/Shop – přidat do košíku, zkontrolovat `/Cart`.
 
+## Oprava po nasazení
+
+V produkci košík ukázal obrázky produktů v plné velikosti. Kód byl v pořádku, server `site.css` s novou třídou
+`.cart-thumb` měl. Prohlížeč ale použil **starý `site.css` ze své cache**: adresa `/css/site.css` se mezi verzemi
+nemění a server neposílá `Cache-Control`, takže si prohlížeč sám odhadne, jak dlouho soubor platí (heuristická cache).
+
+- `_Layout.cshtml`: `asp-append-version="true"` u `site.css` a Bootstrapu (u Mermaidu na stránce Dokumentace taky).
+  Adresa pak nese otisk obsahu (`/css/site.css?v=…`): nová verze souboru = nová adresa = prohlížeč ji stáhne.
+  Je to stejný princip jako neměnná jména obrázků z kroku 2B.
+- `Cart/Index.cshtml`: náhled má `width="64" height="48"` i přímo v HTML, takže zůstane malý i bez CSS.
+- Test `CartPageTests.NahledVKosiku_MalyIBezNovehoCss`.
+
 ## Vyzkoušejte sami
 
 - Zkus v `CartService` místo `cart.AddItem(...)` přidat řádek „bokem“ – proč to nejde zkompilovat?

@@ -2,6 +2,7 @@ using MiniShop.Application;
 using MiniShop.Application.Inventory;
 using MiniShop.Application.Journeys;
 using MiniShop.Application.Ordering;
+using MiniShop.Application.Ordering.Carts;
 using MiniShop.Application.Ordering.Catalog;
 using MiniShop.Application.Ordering.EventHandlers;
 using MiniShop.Application.Ordering.IntegrationEvents;
@@ -83,6 +84,9 @@ public static class ApplicationServiceCollectionExtensions
 
         // E-shop krok 2: výloha – hledání nad kopií katalogu.
         services.AddScoped<ICatalogQueryService, CatalogQueryService>();
+
+        // E-shop krok 3: košík (agregát Cart v ordering.db, ceny z kopie katalogu).
+        services.AddScoped<ICartService, CartService>();
 
         return services;
     }

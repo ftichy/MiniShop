@@ -7,6 +7,16 @@
 }
 <h1>Obchod</h1>
 
+@* E-shop krok 3: hláška po přidání do košíku (nastavuje stránka Košík, sem se vrací přes returnUrl). *@
+@if (Model.StatusMessage is not null)
+{
+    <div class="alert alert-success">@Model.StatusMessage <a asp-page="/Cart/Index" class="alert-link">Zobrazit košík</a></div>
+}
+@if (Model.ErrorMessage is not null)
+{
+    <div class="alert alert-danger">@Model.ErrorMessage</div>
+}
+
 @* E-shop krok 2: formulář GET – filtry jsou v adrese (/Shop?q=mys&category=2), výsledek jde sdílet odkazem. *@
 <form method="get" class="row g-2 align-items-end mb-4" role="search">
     <div class="col-md-4">
@@ -90,14 +100,23 @@
                             }
                             else
                             {
-                                <a asp-page="/Orders/Index" asp-route-productId="@p.ProductId" class="btn btn-primary"
-                                   data-track="shop-order">Objednat</a>
+                                @* E-shop krok 3: do košíku (POST na stránku Košík, pak zpět sem i s filtry). „Objednat“
+                                   (jeden produkt) zůstává, dokud ho v kroku 4 nenahradí pokladna. *@
+                                <div class="d-flex gap-1">
+                                    <a asp-page="/Orders/Index" asp-route-productId="@p.ProductId" class="btn btn-outline-secondary"
+                                       data-track="shop-order">Objednat</a>
+                                    <form method="post" asp-page="/Cart/Index" asp-page-handler="Add">
+                                        <input type="hidden" name="productId" value="@p.ProductId" />
+                                        <input type="hidden" name="returnUrl" value="@Model.CurrentUrl" />
+                                        <button type="submit" class="btn btn-primary" data-track="shop-add-to-cart">Do košíku</button>
+                                    </form>
+                                </div>
                             }
                         }
                         else if (Model.IsAnonymous)
                         {
-                            <a asp-page="/Account/Login" asp-route-returnUrl="@($"/Orders?productId={p.ProductId}")"
-                               class="btn btn-outline-primary">Přihlásit a objednat</a>
+                            <a asp-page="/Account/Login" asp-route-returnUrl="@Model.CurrentUrl"
+                               class="btn btn-outline-primary">Přihlásit a nakoupit</a>
                         }
                     </div>
                 </div>

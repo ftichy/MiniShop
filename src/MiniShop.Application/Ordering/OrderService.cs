@@ -1,5 +1,6 @@
 using MiniShop.Application.Abstractions;
 using MiniShop.Application.Exceptions;
+using MiniShop.Application.Ordering.Carts;
 using MiniShop.Application.Ordering.Pricing;
 using MiniShop.Domain.Exceptions;
 using MiniShop.Domain.Orders;
@@ -22,6 +23,7 @@ namespace MiniShop.Application.Ordering;
 public sealed class OrderService(
     IOrderRepository orders,
     ICatalogProductRepository catalog,
+    ICartRepository carts,
     IOrderingUnitOfWork unitOfWork,
     IEnumerable<IDiscountPolicy> discountPolicies,
     TimeProvider timeProvider) : IOrderService
@@ -122,6 +124,13 @@ public sealed class OrderService(
         foreach (var order in customerOrders)
         {
             order.Anonymize();
+        }
+
+        // E-shop krok 3: košík je osobní údaj (co si kdo vybral) a bez účtu nemá smysl – pryč celý.
+        var cart = await carts.GetByCustomerIdAsync(customerId, cancellationToken);
+        if (cart is not null)
+        {
+            carts.Remove(cart);
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

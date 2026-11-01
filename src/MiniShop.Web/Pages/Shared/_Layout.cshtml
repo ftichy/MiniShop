@@ -19,6 +19,7 @@
             <a class="navbar-brand" asp-page="/Index" data-track="nav-home">MiniShop</a>
             <ul class="navbar-nav">
                 <li class="nav-item"><a class="nav-link" asp-page="/Shop/Index" data-track="nav-shop">Obchod</a></li>
+                @await Component.InvokeAsync("CartBadge")
                 @* Účty krok 2: menu podle role – zamčené je to stejně na serveru, tady jde jen o to neukazovat slepé odkazy. *@
                 @if ((await AuthorizationService.AuthorizeAsync(User, AuthorizationPolicies.RequireAdmin)).Succeeded)
                 {

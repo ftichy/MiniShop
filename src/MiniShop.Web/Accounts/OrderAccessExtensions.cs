@@ -20,6 +20,9 @@ public static class OrderAccessExtensions
             user.FindFirstValue(AccountClaimTypes.DisplayName) ?? user.Identity?.Name ?? string.Empty,
             user.FindFirstValue(ClaimTypes.Email) ?? user.Identity?.Name ?? string.Empty);
 
+    /// <summary>E-shop krok 3: čí je košík – ID účtu (jako vlastník objednávky).</summary>
+    public static string ToCustomerId(this ClaimsPrincipal user) => user.GetUserId();
+
     private static string GetUserId(this ClaimsPrincipal user) =>
         user.FindFirstValue(ClaimTypes.NameIdentifier)
         ?? throw new InvalidOperationException("Přihlášený uživatel nemá ID – volá se mimo [Authorize]?");

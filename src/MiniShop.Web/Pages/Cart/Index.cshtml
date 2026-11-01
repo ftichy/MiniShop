@@ -1,0 +1,115 @@
+@page
+@using MiniShop.Web.Catalog
+@model MiniShop.Web.Pages.Cart.IndexModel
+@{
+    ViewData["Title"] = "Košík";
+}
+<h1>Košík</h1>
+
+<partial name="_StatusMessage" model="Model.StatusMessage" />
+@if (Model.ErrorMessage is not null)
+{
+    <div class="alert alert-danger">@Model.ErrorMessage</div>
+}
+
+@if (Model.Cart.IsEmpty)
+{
+    <div class="alert alert-info">
+        Košík je prázdný. Vyberte si v <a asp-page="/Shop/Index" data-track="cart-to-shop">obchodě</a>.
+    </div>
+}
+else
+{
+    <table class="table align-middle">
+        <thead>
+            <tr>
+                <th colspan="2">Produkt</th>
+                <th class="text-end">Cena za kus</th>
+                <th>Množství</th>
+                <th class="text-end">Celkem</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var line in Model.Cart.Lines)
+            {
+                <tr class="@(line.IsOrderable ? null : "text-muted")">
+                    <td>
+                        @if (line.ImageFileName is not null)
+                        {
+                            <img src="@(ProductImageEndpoint.PathPrefix + line.ImageFileName)" alt="" class="cart-thumb" />
+                        }
+                    </td>
+                    <td>
+                        <div>@line.Name</div>
+                        @if (!line.IsInOffer)
+                        {
+                            <span class="badge bg-secondary">Už není v nabídce</span>
+                        }
+                        else
+                        {
+                            <span class="badge @AvailabilityLabels.Badge(line.Availability)">@AvailabilityLabels.Text(line.Availability)</span>
+                        }
+                    </td>
+                    <td class="text-end">
+                        @if (line.IsInOffer)
+                        {
+                            @line.UnitPrice.ToString("N2")<text> Kč</text>
+                            @if (line.PriceChanged)
+                            {
+                                <div class="small text-warning-emphasis">
+                                    Cena se změnila (při přidání @line.PriceWhenAdded.ToString("N2") Kč)
+                                </div>
+                            }
+                        }
+                    </td>
+                    <td>
+                        @if (line.IsInOffer)
+                        {
+                            <form method="post" asp-page-handler="ChangeQuantity" class="d-flex gap-1">
+                                <input type="hidden" name="productId" value="@line.ProductId" />
+                                <input type="number" name="quantity" value="@line.Quantity" min="1" max="100" required
+                                       class="form-control form-control-sm cart-quantity" aria-label="Množství"
+                                       data-track="cart-quantity" />
+                                <button type="submit" class="btn btn-sm btn-outline-secondary" data-track="cart-change">Změnit</button>
+                            </form>
+                        }
+                        else
+                        {
+                            @line.Quantity
+                        }
+                    </td>
+                    <td class="text-end">
+                        @if (line.IsOrderable)
+                        {
+                            @line.LineTotal.ToString("N2")<text> Kč</text>
+                        }
+                    </td>
+                    <td class="text-end">
+                        <form method="post" asp-page-handler="Remove">
+                            <input type="hidden" name="productId" value="@line.ProductId" />
+                            <button type="submit" class="btn btn-sm btn-outline-danger" data-track="cart-remove">Odebrat</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+        </tbody>
+        <tfoot>
+            <tr>
+                <th colspan="4" class="text-end">Celkem (orientačně)</th>
+                <th class="text-end">@Model.Cart.Total.ToString("N2") Kč</th>
+                <th></th>
+            </tr>
+        </tfoot>
+    </table>
+
+    @* E-shop krok 3: košík zboží neblokuje – závazná cena a rezervace vzniknou až v pokladně (krok 4). *@
+    <p class="text-muted small">
+        Zboží v košíku není rezervované a ceny jsou orientační – závazné budou až při objednání.
+        Vyprodané a stažené produkty se do součtu nepočítají.
+    </p>
+    <div class="d-flex justify-content-between">
+        <a asp-page="/Shop/Index" class="btn btn-outline-primary" data-track="cart-continue">Pokračovat v nákupu</a>
+        <button type="button" class="btn btn-primary" disabled title="Pokladna přijde v dalším kroku">K pokladně (připravujeme)</button>
+    </div>
+}

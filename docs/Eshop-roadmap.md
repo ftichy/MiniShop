@@ -191,6 +191,9 @@ projeví do pár sekund a výloha funguje i při výpadku skladu.
 
 ## Krok 3: Košík
 
+*Hotovo 1. 11. 2026 – souhrn v `docs/kroky-eshop/krok-03-kosik.md`. Doménové události košíku odloženy do kroku 10
+(bez posluchače by jen plnily outbox), anonymní košík (3b) odložen.*
+
 **Teorie.** Košík je **agregát** s vlastními pravidly (invarianty): nejvýš 20 řádků, množství 1–100, stejný produkt
 jen jednou (přidání = navýšení množství). Košík **neblokuje zboží** – rezervace vzniká až u pokladny; jinak by
 deset lidí s plným košíkem vyprodalo sklad, aniž by cokoli koupili. Cena v košíku je **orientační** (vždy aktuální

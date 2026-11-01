@@ -166,6 +166,7 @@ sequenceDiagram
         P-->>U: „Účet nejde smazat, dokud…“
     else
         O->>O: objednávky: jméno → „Smazaný zákazník“, e-mail → prázdný
+    O->>O: košík zákazníka smazat (e-shop krok 3, stejná transakce)
         P->>A: DeleteAsync(user)
         A->>A: audit: e-mail → „smazaný účet“, smazat účet (role, claimy cascade)
         P->>P: odhlásit

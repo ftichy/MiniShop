@@ -38,6 +38,16 @@ public sealed class IndexModel(ICatalogQueryService catalog, IAuthorizationServi
 
     public bool IsAnonymous => User.Identity?.IsAuthenticated != true;
 
+    /// <summary>E-shop krok 3: hláška stránky Košík po přidání produktu (přesměrovala sem zpět).</summary>
+    [TempData]
+    public string? StatusMessage { get; set; }
+
+    [TempData]
+    public string? ErrorMessage { get; set; }
+
+    /// <summary>Tahle stránka i s filtry – kam se vrátit po přidání do košíku nebo po přihlášení.</summary>
+    public string CurrentUrl => Request.Path + Request.QueryString;
+
     public bool HasFilter => !string.IsNullOrWhiteSpace(Query) || CategoryId is not null || InStockOnly;
 
     public async Task OnGetAsync(CancellationToken cancellationToken)

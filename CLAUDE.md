@@ -12,10 +12,10 @@ Cíl: postupně ho převést na EDA podle plánu v `docs/EDA-roadmap.md`.
 
 ```
 src/MiniShop.Contracts       integrační zprávy – události (OrderPlacedV1, StockReservedV1, …) a příkazy (ReserveStockV1, …), žádné závislosti
-src/MiniShop.Domain          Common/ (Entity, IDomainEvent), Orders/ (Order, CatalogProduct, CatalogSearchText, Saga/OrderSaga), Inventory/ (Product, Category, StockAvailability, StockReservation),
+src/MiniShop.Domain          Common/ (Entity, IDomainEvent), Orders/ (Order, CatalogProduct, CatalogSearchText, Carts/Cart, Saga/OrderSaga), Inventory/ (Product, Category, StockAvailability, StockReservation),
                              Journeys/ (JourneyEvent, JourneyEventType)
 src/MiniShop.Application     Abstractions/ (sdílené: IUnitOfWork, IDomainEvent*, IIntegrationMessage*, TraceTags),
-                             Ordering/ (OrderService, DTO, Saga, Catalog projekce + CatalogQueryService, EventHandlers, Pricing), Inventory/ (ProductService, CategoryService, Reserve/ReleaseStock),
+                             Ordering/ (OrderService, DTO, Saga, Catalog projekce + CatalogQueryService, Carts/CartService, EventHandlers, Pricing), Inventory/ (ProductService, CategoryService, Reserve/ReleaseStock),
                              Journeys/ (JourneyService, OrderJourneyProjection, JourneyReplayProjection, DTO)
 src/MiniShop.Infrastructure  sdílené: Persistence/ModuleDbContext, Outbox, Inbox (InboxGuard), Integration (bus, routing, dispatcher, RabbitMq/), Events,
                              Observability/ (MessagingTelemetry – ActivitySource + Meter, OutboxHealthCheck),
@@ -83,6 +83,12 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   Pravidla v `ProductImageFormat` (typ podle bajtů JPEG/PNG/WebP, žádné SVG, 1 MB, jméno `ID-otisk.přípona`, čte se jen jméno
   podle vzoru). Veřejně jen přes Web `/media/products/{soubor}` (`ProductImageEndpoint`, `Cache-Control: immutable`).
   Pořadí: soubor → DB → smazat starý soubor. Testy: `InMemoryProductImageStore`, ve Webu `StubProductImageService`.
+- **Košík (e-shop krok 3):** agregát `Cart` + `CartLine` v Orderingu (`ordering.db`, unikátní `CustomerId` a `CartId+ProductId`),
+  invarianty jen v metodách `Cart` (20 řádků, 1–100 ks, ne vyprodaný/stažený). Ukládá jen ID produktu, množství
+  a `PriceWhenAdded` (upozornění na změnu); název/cenu/dostupnost bere `CartService` vždy z kopie katalogu.
+  Zboží neblokuje, žádné zprávy ani doménové události (ty až krok 10). Jen `RequireCustomer`; přidání z výlohy =
+  POST `/Cart?handler=Add` s `returnUrl` (jen lokální). Odznak v hlavičce `CartBadgeViewComponent`.
+  Smazání účtu (`AnonymizeCustomerAsync`) smaže i košík.
 - **Stránka s `[BindProperty]` a dalším formulářem:** když formulář pole vlastnosti neposílá, binder ji naváže BEZ prefixu
   (klíče `Name`, `Price`…) – chyby nejdou odfiltrovat podle prefixu. V takovém handleru `ModelState.Clear()` a ověřit jen
   to, co formulář posílá (`TryValidateModel(x, "x")`). Test formuláře = poslat skutečná pole jako prohlížeč.
@@ -320,8 +326,8 @@ nové moduly Notifications (odběratel událostí) a Payments (účastník ságy
 | --- | --- | --- |
 | 1. Migrace databází (`ordering/inventory/journeys.db`, sdílený `DatabaseMigrator`, baseline produkční DB) | hotovo (nasazeno 30. 10. 2026, produkční DB prošly baseline, data zůstala) | `docs/kroky-eshop/krok-01-migrace.md` |
 | 2A. Výloha (`/Shop`, kategorie, hledání `SearchText`, `ProductUpdatedV2` expand → contract, `StockAvailabilityChangedV1` při změně pásma) | hotovo (nasazeno 30. 10. 2026, produkční kopie katalogu se po startu sama doplnila) | `docs/kroky-eshop/krok-02a-vyloha.md` |
-| 2B. Obrázky produktů (upload do skladu, typ podle bajtů, `/media/products/…` přes Web s immutable cache, `backup.py` `DIRECTORIES`) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-02b-obrazky.md` |
-| 3. Košík (`Cart` v Orderingu, `/Cart`) | plán | — |
+| 2B. Obrázky produktů (upload do skladu, typ podle bajtů, `/media/products/…` přes Web s immutable cache, `backup.py` `DIRECTORIES`) | hotovo (nasazeno 1. 11. 2026, obrázky ve výloze, noční záloha obsahuje `images/`) | `docs/kroky-eshop/krok-02b-obrazky.md` |
+| 3. Košík (agregát `Cart` v Orderingu s invarianty, `/Cart`, odznak v hlavičce, ceny z kopie katalogu, bez zpráv) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-03-kosik.md` |
 | 4. Pokladna a objednávka s více položkami (`CheckoutId`, adresa, doprava, změna ceny) | plán | — |
 | 5. Detail objednávky a historie stavů (`/Orders/{id}`) | plán | — |
 | 6. Expedice (Packing → Shipped → Completed, `OrderShippedV1`, odepsání rezervace, `Order.Version`) | plán | — |

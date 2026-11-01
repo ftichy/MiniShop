@@ -21,7 +21,7 @@ public interface IOrderService
     /// <summary>
     /// Účty krok 9: zákazník maže účet – jeho objednávky přijdou o jméno a e-mail (zůstanou položky a ceny).
     /// S nevyřízenou objednávkou (Pending, Confirmed) DomainException a nic se nezmění. Vrací počet objednávek.
-    /// Volá jen Web před smazáním účtu (opakovat jde bezpečně).
+    /// Volá jen Web před smazáním účtu (opakovat jde bezpečně). E-shop krok 3: ve stejné transakci smaže i košík.
     /// </summary>
     Task<int> AnonymizeCustomerAsync(string customerId, CancellationToken cancellationToken = default);
 }

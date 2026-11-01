@@ -54,6 +54,11 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.User, "/Orders", Expect.Allowed },
         { Who.Admin, "/Orders", Expect.Allowed },
 
+        // E-shop krok 3: košík – jen zákazník (admin neobjednává)
+        { Who.Anonymous, "/Cart", Expect.Login },
+        { Who.User, "/Cart", Expect.Allowed },
+        { Who.Admin, "/Cart", Expect.Denied },
+
         { Who.Anonymous, "/Account/ChangePassword", Expect.Login },
         { Who.User, "/Account/ChangePassword", Expect.Allowed },
 
@@ -83,6 +88,15 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Anonymous, "/Orders?handler=Create", Expect.Login },
         { Who.User, "/Orders?handler=Create", Expect.Allowed },
         { Who.Admin, "/Orders?handler=Create", Expect.Denied },
+
+        // E-shop krok 3: košík – jen zákazník (bez produktu: projde autorizací, hláška na stránce)
+        { Who.Anonymous, "/Cart?handler=Add", Expect.Login },
+        { Who.User, "/Cart?handler=Add", Expect.Allowed },
+        { Who.Admin, "/Cart?handler=Add", Expect.Denied },
+        { Who.User, "/Cart?handler=ChangeQuantity", Expect.Allowed },
+        { Who.Admin, "/Cart?handler=ChangeQuantity", Expect.Denied },
+        { Who.User, "/Cart?handler=Remove", Expect.Allowed },
+        { Who.Admin, "/Cart?handler=Remove", Expect.Denied },
 
         // Vyřídit, obnovit katalog: jen admin
         { Who.User, "/Orders?handler=Complete&id=999", Expect.Denied },

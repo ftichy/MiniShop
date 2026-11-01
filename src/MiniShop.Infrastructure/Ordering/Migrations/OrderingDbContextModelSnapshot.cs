@@ -17,6 +17,55 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.13");
 
+            modelBuilder.Entity("MiniShop.Domain.Orders.Carts.Cart", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CustomerId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId")
+                        .IsUnique();
+
+                    b.ToTable("Carts", (string)null);
+                });
+
+            modelBuilder.Entity("MiniShop.Domain.Orders.Carts.CartLine", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("CartId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("PriceWhenAdded")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CartId", "ProductId")
+                        .IsUnique();
+
+                    b.ToTable("CartLines", (string)null);
+                });
+
             modelBuilder.Entity("MiniShop.Domain.Orders.CatalogProduct", b =>
                 {
                     b.Property<int>("Id")
@@ -242,6 +291,15 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
                     b.ToTable("OutboxMessages", (string)null);
                 });
 
+            modelBuilder.Entity("MiniShop.Domain.Orders.Carts.CartLine", b =>
+                {
+                    b.HasOne("MiniShop.Domain.Orders.Carts.Cart", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("CartId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("MiniShop.Domain.Orders.OrderItem", b =>
                 {
                     b.HasOne("MiniShop.Domain.Orders.Order", null)
@@ -249,6 +307,11 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
                         .HasForeignKey("OrderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("MiniShop.Domain.Orders.Carts.Cart", b =>
+                {
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("MiniShop.Domain.Orders.Order", b =>

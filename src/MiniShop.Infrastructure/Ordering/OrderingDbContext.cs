@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using MiniShop.Application.Ordering;
 using MiniShop.Domain.Common;
 using MiniShop.Domain.Orders;
+using MiniShop.Domain.Orders.Carts;
 using MiniShop.Domain.Orders.Saga;
 using MiniShop.Infrastructure.Ordering.Configurations;
 using MiniShop.Infrastructure.Outbox;
@@ -22,6 +23,7 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderSaga> OrderSagas => Set<OrderSaga>();
     public DbSet<CatalogProduct> CatalogProducts => Set<CatalogProduct>();
+    public DbSet<Cart> Carts => Set<Cart>();
 
     protected override IEnumerable<OutboxMessage> ToOutboxMessages(IDomainEvent domainEvent) =>
         [OrderingDomainEvents.ToOutboxMessage(domainEvent)];

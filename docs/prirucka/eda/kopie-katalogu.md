@@ -42,6 +42,7 @@ sequenceDiagram
 - [CatalogProjectionHandler](code:src/MiniShop.Application/Ordering/Catalog/CatalogProjectionHandler.cs) – projekce.
 - [CatalogSyncService](code:src/MiniShop.Application/Ordering/Catalog/CatalogSyncService.cs) – obnova celé kopie.
 - [CatalogQueryService](code:src/MiniShop.Application/Ordering/Catalog/CatalogQueryService.cs) – výloha: hledání, filtry, řazení (e-shop krok 2).
+- [CartService](code:src/MiniShop.Application/Ordering/Carts/CartService.cs) – košík (e-shop krok 3): ukládá jen ID produktu a množství, název, cenu a dostupnost bere při každém zobrazení z kopie – proto je v košíku vždy aktuální cena.
 
 ## Na co si dát pozor
 

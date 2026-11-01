@@ -30,3 +30,14 @@ body { padding-bottom: 3rem; }
     color: var(--bs-secondary-color);
     font-size: 0.875rem;
 }
+
+/* E-shop krok 3: malý náhled produktu v košíku. */
+.cart-thumb {
+    width: 64px;
+    height: 48px;
+    object-fit: contain;
+    background-color: var(--bs-tertiary-bg);
+}
+.cart-quantity {
+    width: 5.5rem;
+}

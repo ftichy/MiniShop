@@ -133,6 +133,22 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
         return order.Id;
     }
 
+    /// <summary>E-shop krok 3: produkt rovnou v kopii katalogu (bez skladu a zpráv), skladem. Podruhé se nic nestane.</summary>
+    public async Task EnsureCatalogProductAsync(int id, string name, decimal price)
+    {
+        await using var scope = Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<OrderingDbContext>();
+        if (await db.CatalogProducts.FindAsync(id) is not null)
+        {
+            return;
+        }
+
+        var product = new CatalogProduct(id, name, price, DateTime.UtcNow);
+        product.ApplyAvailability(CatalogAvailability.InStock, DateTime.UtcNow);
+        db.CatalogProducts.Add(product);
+        await db.SaveChangesAsync();
+    }
+
     /// <summary>Klient jako prohlížeč: HTTPS (kvůli Secure cookie), cookies, bez automatického přesměrování.</summary>
     public HttpClient CreateBrowser() => CreateClient(new WebApplicationFactoryClientOptions
     {

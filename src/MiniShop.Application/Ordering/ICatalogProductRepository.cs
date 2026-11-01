@@ -19,6 +19,9 @@ public interface ICatalogProductRepository
     /// <summary>Celá nabídka (bez odebraných), seřazená podle názvu.</summary>
     Task<IReadOnlyList<CatalogProduct>> GetAvailableAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>E-shop krok 3: produkty podle ID včetně odebraných (košík u nich ukáže „už není v nabídce“).</summary>
+    Task<IReadOnlyList<CatalogProduct>> GetByIdsAsync(IEnumerable<int> ids, CancellationToken cancellationToken = default);
+
     /// <summary>Produkty v nabídce (bez odebraných).</summary>
     Task<IReadOnlyList<CatalogProduct>> GetAvailableByIdsAsync(IEnumerable<int> ids, CancellationToken cancellationToken = default);
 

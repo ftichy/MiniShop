@@ -18,6 +18,12 @@ public sealed class CatalogProductRepository(OrderingDbContext db) : ICatalogPro
     public async Task<IReadOnlyList<CatalogProduct>> GetAvailableAsync(CancellationToken cancellationToken = default) =>
         await db.CatalogProducts.Where(p => !p.IsRemoved).OrderBy(p => p.Name).ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<CatalogProduct>> GetByIdsAsync(IEnumerable<int> ids, CancellationToken cancellationToken = default)
+    {
+        var idList = ids.Distinct().ToList();
+        return await db.CatalogProducts.Where(p => idList.Contains(p.Id)).ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<CatalogProduct>> GetAvailableByIdsAsync(IEnumerable<int> ids, CancellationToken cancellationToken = default)
     {
         var idList = ids.Distinct().ToList();

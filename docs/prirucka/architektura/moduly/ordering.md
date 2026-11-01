@@ -1,6 +1,6 @@
 ---
 title: Modul Ordering
-summary: Objednávky, sága, kopie katalogu s výlohou a oznámení zákazníkovi – komponenty a jejich spolupráce.
+summary: Objednávky, košík, sága, kopie katalogu s výlohou a oznámení zákazníkovi – komponenty a jejich spolupráce.
 order: 1
 ---
 
@@ -14,6 +14,7 @@ flowchart TB
     subgraph entry["Vstupy"]
         ui["Razor Page Orders/Index<br/>OrdersController (REST)"]
         shop["Razor Page Shop/Index<br/>výloha"]
+        cartUi["Razor Page Cart/Index<br/>košík + odznak v hlavičce"]
         consumer["Consumer fronty<br/>minishop.ordering"]
         timeout["OrderSagaTimeoutWorker<br/>(každých 5 s)"]
         sync["CatalogSyncOnStartupWorker"]
@@ -27,6 +28,7 @@ flowchart TB
         catalog["CatalogProjectionHandler<br/>kopie katalogu"]
         catsync["CatalogSyncService"]
         query["CatalogQueryService<br/>hledání ve výloze"]
+        cartSvc["CartService<br/>use-casy košíku"]
         pricing["IDiscountPolicy<br/>QuantityDiscountPolicy"]
     end
 
@@ -34,6 +36,7 @@ flowchart TB
         order["Order + OrderItem"]
         sagaState["OrderSaga<br/>stavový automat"]
         catProd["CatalogProduct"]
+        cart["Cart + CartLine<br/>agregát s invarianty"]
     end
 
     subgraph infra["Infrastructure/Ordering"]
@@ -49,6 +52,10 @@ flowchart TB
     consumer -->|"ProductUpdated V1/V2, StockAvailabilityChanged, ProductRemoved"| catalog
     shop --> query
     query --> catProd
+    cartUi --> cartSvc
+    cartSvc --> cart
+    cartSvc -->|"aktuální cena, dostupnost"| catProd
+    cartSvc --> db
     timeout --> saga
     sync --> catsync
     db -.->|"OutboxWorker doručí<br/>OrderPlaced, OrderConfirmed…"| saga
@@ -66,6 +73,7 @@ flowchart TB
     click translate "/Docs/eda/integracni-zpravy"
     click catalog "/Docs/eda/kopie-katalogu"
     click catsync "/Docs/toky/obnova-katalogu"
+    click cart "/Docs/architektura/vrstvy"
     click db "/Docs/eda/outbox"
     click consumer "/Docs/eda/broker"
     click timeout "/Docs/toky/timeout-a-kompenzace"
@@ -89,9 +97,11 @@ později, v jiném scope, případně i opakovaně.
 | **CatalogProjectionHandler** | Udržuje kopii katalogu z `ProductUpdatedV1`/`V2`, `StockAvailabilityChangedV1` a `ProductRemovedV1`. | [CatalogProjectionHandler.cs](code:src/MiniShop.Application/Ordering/Catalog/CatalogProjectionHandler.cs) |
 | **CatalogSyncService** | Požádá sklad o celý katalog (`SyncCatalogV1`) – po startu s prázdnou nebo neúplnou kopií, nebo tlačítkem. | [CatalogSyncService.cs](code:src/MiniShop.Application/Ordering/Catalog/CatalogSyncService.cs) |
 | **CatalogQueryService** | E-shop krok 2: výloha `/Shop` – hledání bez diakritiky (`SearchText`), filtr kategorie a „jen skladem“, řazení, stránkování. Čte jen kopii katalogu. | [CatalogQueryService.cs](code:src/MiniShop.Application/Ordering/Catalog/CatalogQueryService.cs), [Shop/Index.cshtml.cs](code:src/MiniShop.Web/Pages/Shop/Index.cshtml.cs) |
+| **Cart**, **CartLine** | E-shop krok 3: košík zákazníka – **agregát s invarianty**: nejvýš 20 řádků, množství 1–100, každý produkt jen jednou (další přidání navýší množství), nic vyprodaného ani staženého. Zboží neblokuje a nic neposílá. `PriceWhenAdded` jen pro upozornění na změnu ceny. Jeden košík na zákazníka (unikátní index), doménové události zatím žádné. | [Cart.cs](code:src/MiniShop.Domain/Orders/Carts/Cart.cs), [CartLine.cs](code:src/MiniShop.Domain/Orders/Carts/CartLine.cs) |
+| **CartService** | Přidat, změnit množství, odebrat, načíst košík s **aktuální** cenou a dostupností z kopie katalogu (vyprodaný řádek zůstane, ale nepočítá se; stažený produkt = „už není v nabídce“). Web z něj kreslí stránku `/Cart` a počet kusů v hlavičce (`CartBadgeViewComponent`). | [CartService.cs](code:src/MiniShop.Application/Ordering/Carts/CartService.cs), [Cart/Index.cshtml.cs](code:src/MiniShop.Web/Pages/Cart/Index.cshtml.cs), [CartBadgeViewComponent.cs](code:src/MiniShop.Web/Carts/CartBadgeViewComponent.cs) |
 | **QuantityDiscountPolicy** | Množstevní sleva (od 10 ks 10 %). Další pravidlo = nová třída, `OrderService` se nemění. | [QuantityDiscountPolicy.cs](code:src/MiniShop.Application/Ordering/Pricing/QuantityDiscountPolicy.cs) |
 | **OrderSagaTimeoutWorker** | Každých 5 s hledá ságy, na které sklad neodpověděl včas (výchozí 30 s). | [OrderSagaTimeoutWorker.cs](code:src/MiniShop.Web/BackgroundServices/OrderSagaTimeoutWorker.cs) |
-| **OrderingDbContext** | `ordering.db`: objednávky, ságy, kopie katalogu, outbox, inbox. | [OrderingDbContext.cs](code:src/MiniShop.Infrastructure/Ordering/OrderingDbContext.cs) |
+| **OrderingDbContext** | `ordering.db`: objednávky, košíky, ságy, kopie katalogu, outbox, inbox. | [OrderingDbContext.cs](code:src/MiniShop.Infrastructure/Ordering/OrderingDbContext.cs) |
 
 ## Jaké zprávy modul posílá a přijímá
 
@@ -104,7 +114,8 @@ později, v jiném scope, případně i opakovaně.
 ## Rozhraní navenek
 
 - UI: **výloha** (`/Shop`, veřejná – e-shop krok 2; tlačítko Objednat vede na `/Orders?productId=…`; obrázky
-  ze skladu přes `/media/products/{soubor}` – krok 2B),
+  ze skladu přes `/media/products/{soubor}` – krok 2B; tlačítko **Do košíku** – krok 3),
+  **košík** (`/Cart`, jen zákazník s potvrzeným e-mailem – admin neobjednává; pokladna přijde v kroku 4),
   stránka **Objednávky** (`/Orders`), detail průběhu (`/Orders/Journey/{id}`), přehrání (`/Orders/Replay/{id}`).
 - REST: `GET/POST /api/orders`, `POST /api/orders/{id}/complete`, `POST /api/orders/{id}/cancel`.
   `POST` vrací **202 Accepted** – objednávka je přijatá, ale o potvrzení teprve rozhodne sága.
@@ -115,6 +126,18 @@ později, v jiném scope, případně i opakovaně.
 - **Smazaný zákazník (účty krok 9):** `AnonymizeCustomerAsync` – objednávky smazaného účtu přijdou o jméno a e-mail
   (`Order.Anonymize`, jméno „Smazaný zákazník“), položky a ceny zůstanou. S nevyřízenou objednávkou (Pending,
   Confirmed) se nezmění nic. Volá ho jen Web před smazáním účtu; `EmailOrderNotifier` na prázdnou adresu nepíše.
+  E-shop krok 3: ve stejné transakci smaže i košík zákazníka.
+
+## Proč je košík v Orderingu (a ne ve vlastním modulu)
+
+Košík a objednávka mluví stejným jazykem (produkt, množství, cena) a čtou stejnou kopii katalogu. Hlavně ale
+**pokladna** (krok 4) musí najednou založit objednávku a vyprázdnit košík. Ve stejné databázi je to jedna
+obyčejná transakce. Kdyby měl košík vlastní modul a DB, potřebovali bychom na tak malou věc ságu. Platí pravidlo:
+**hranice modulu má kopírovat hranici konzistence** – co se musí měnit spolu, patří k sobě.
+
+Košík proto nepotřebuje **žádnou novou zprávu**. Neposílá nic ani na sklad, protože zboží neblokuje: rezervace
+vzniká až objednávkou. Kdyby košík blokoval zboží, deset lidí s plným košíkem by vyprodalo sklad, aniž by
+cokoli koupili.
 
 ## Dál
 

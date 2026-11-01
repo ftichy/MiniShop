@@ -11,6 +11,7 @@ order: 80
 | Pojem | Význam | Víc |
 | --- | --- | --- |
 | **Agregát / entita** | objekt domény s identitou a pravidly, stav mění jen přes své metody (`Order.Confirm`) | [Vrstvy](architektura/vrstvy.md) |
+| **Hranice konzistence** | co se musí změnit spolu v jedné transakci (košík + objednávka) – podle ní se kreslí hranice modulu | [Ordering](architektura/moduly/ordering.md) |
 | **At-least-once** | doručení „alespoň jednou“ – zpráva se neztratí, ale může přijít víckrát | [Outbox](eda/outbox.md) |
 | **Broker** | prostředník, který přijímá zprávy a doručuje je do front příjemců (RabbitMQ) | [Broker](eda/broker.md) |
 | **C4 model** | kreslení architektury v úrovních Context → Containers → Components → Code | [Architektura](architektura/index.md) |
@@ -31,6 +32,7 @@ order: 80
 | **Idempotence** | provést operaci jednou nebo víckrát má stejný výsledek | [Inbox](eda/inbox.md) |
 | **Inbox** | tabulka zpracovaných zpráv – ochrana před dvojím zpracováním | [Inbox](eda/inbox.md) |
 | **Integrační zpráva / kontrakt** | veřejná, verzovaná zpráva mezi službami (`ReserveStockV1`) | [Integrační zprávy](eda/integracni-zpravy.md) |
+| **Invariant** | pravidlo, které agregát hlídá vždy (košík: nejvýš 20 řádků, množství 1–100) – nejde obejít, protože se stav mění jen přes jeho metody | [Ordering](architektura/moduly/ordering.md) |
 | **Kompenzace** | akce, která ruší účinek dřívějšího kroku (vrácení zboží) | [Sága](eda/saga.md) |
 | **Modulární monolit** | jedna aplikace rozdělená na moduly s vlastními daty a jasnými hranicemi | [Moduly](architektura/moduly/index.md) |
 | **Orchestrace / choreografie** | proces řídí jeden „dirigent“ / každý reaguje sám na události ostatních | [Sága](eda/saga.md) |

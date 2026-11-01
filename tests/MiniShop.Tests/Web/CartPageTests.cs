@@ -29,6 +29,23 @@ public sealed class CartPageTests(MiniShopWebFactory web)
         Assert.Contains("data-track=\"nav-cart\"", cart);   // odkaz s počtem kusů v hlavičce
     }
 
+    /// <summary>
+    /// Oprava po nasazení: prohlížeč držel starý site.css v cache (bez .cart-thumb) a košík ukázal obrázky v plné
+    /// velikosti. Adresa stylu proto nese otisk obsahu a náhled má rozměr i v HTML.
+    /// </summary>
+    [Fact]
+    public async Task NahledVKosiku_MalyIBezNovehoCss()
+    {
+        await web.EnsureCatalogProductAsync(305, "Myš s obrázkem", 300m, StubProductImageService.KnownFileName);
+        var client = await CustomerAsync();
+        await PostAsync(client, "/Cart?handler=Add", ("productId", "305"));
+
+        var html = await client.GetStringAsync("/Cart");
+
+        Assert.Matches("href=\"/css/site\\.css\\?v=[^\"]+\"", html);
+        Assert.Matches("class=\"cart-thumb\"\\s+width=\"64\" height=\"48\"", html);
+    }
+
     [Fact]
     public async Task CiziAdresaNavratu_ZustaneNaKosiku()
     {

@@ -89,6 +89,8 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   Zboží neblokuje, žádné zprávy ani doménové události (ty až krok 10). Jen `RequireCustomer`; přidání z výlohy =
   POST `/Cart?handler=Add` s `returnUrl` (jen lokální). Odznak v hlavičce `CartBadgeViewComponent`.
   Smazání účtu (`AnonymizeCustomerAsync`) smaže i košík.
+- **Soubory z `wwwroot` (CSS, JS, knihovny) vždy s `asp-append-version="true"`** – jinak prohlížeč po nasazení
+  použije starou verzi z cache (e-shop krok 3: košík bez `.cart-thumb` ukázal obrázky v plné velikosti).
 - **Stránka s `[BindProperty]` a dalším formulářem:** když formulář pole vlastnosti neposílá, binder ji naváže BEZ prefixu
   (klíče `Name`, `Price`…) – chyby nejdou odfiltrovat podle prefixu. V takovém handleru `ModelState.Clear()` a ověřit jen
   to, co formulář posílá (`TryValidateModel(x, "x")`). Test formuláře = poslat skutečná pole jako prohlížeč.

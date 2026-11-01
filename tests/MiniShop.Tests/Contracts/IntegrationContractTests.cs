@@ -124,6 +124,32 @@ public sealed class IntegrationContractTests
             json);
     }
 
+    /// <summary>E-shop krok 2: nová verze vedle V1 – V1 se kvůli popisu a kategorii neměnila.</summary>
+    [Fact]
+    public void ProductUpdatedV2_TvarJsonuSeNezmenil()
+    {
+        var updated = new ProductUpdatedV2(EventId, OccurredAtUtc, 7, "Mouse", "Wireless", 890m, 2, "Periferie",
+            null, StockAvailabilityV1.LowStock, OccurredAtUtc);
+
+        var json = OutboxMessageFactory.Create(updated).Payload;
+
+        Assert.Equal(
+            """{"EventId":"11111111-2222-3333-4444-555555555555","OccurredAtUtc":"2026-01-15T10:00:00Z","ProductId":7,"Name":"Mouse","Description":"Wireless","Price":890,"CategoryId":2,"CategoryName":"Periferie","ImageFileName":null,"Availability":"LowStock","AvailabilityChangedAtUtc":"2026-01-15T10:00:00Z"}""",
+            json);
+    }
+
+    [Fact]
+    public void StockAvailabilityChangedV1_TvarJsonuSeNezmenil()
+    {
+        var changed = new StockAvailabilityChangedV1(EventId, OccurredAtUtc, 7, StockAvailabilityV1.OutOfStock);
+
+        var json = OutboxMessageFactory.Create(changed).Payload;
+
+        Assert.Equal(
+            """{"EventId":"11111111-2222-3333-4444-555555555555","OccurredAtUtc":"2026-01-15T10:00:00Z","ProductId":7,"Availability":"OutOfStock"}""",
+            json);
+    }
+
     [Fact]
     public void StockReservationFailedV1_TvarJsonuSeNezmenil()
     {

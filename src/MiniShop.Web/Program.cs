@@ -2,14 +2,19 @@ using System.Globalization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Localization;
 using MiniShop.Infrastructure;
+using MiniShop.Infrastructure.Accounts;
+using MiniShop.Infrastructure.Email;
 using MiniShop.Infrastructure.Hosting;
 using MiniShop.Infrastructure.Journeys;
 using MiniShop.Infrastructure.Ordering;
 using MiniShop.ServiceDefaults;
+using MiniShop.Web.Accounts;
 using MiniShop.Web.BackgroundServices;
+using MiniShop.Web.Catalog;
 using MiniShop.Web.Documentation;
 using MiniShop.Web.ErrorHandling;
 using MiniShop.Web.Extensions;
+using MiniShop.Web.Security;
 using Serilog;
 
 // Dočasný logger pro start aplikace: zachytí i chyby dřív, než se načte konfigurace.
@@ -20,6 +25,9 @@ Log.Logger = new LoggerConfiguration()
 try
 {
     var builder = WebApplication.CreateBuilder(args);
+
+    // Účty krok 9: neprozrazovat technologii serveru (hlavička "Server: Kestrel") – útočníkovi by ušetřila práci.
+    builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
 
     // Krok 11: výchozí providery (Console, Debug…) pryč – logy píše Serilog a OpenTelemetry (ServiceDefaults).
     // Jinak by je Serilog s writeToProviders přeposlal i výchozí konzoli a každý řádek by byl vidět dvakrát.
@@ -45,11 +53,25 @@ try
     var journeysConnectionString = builder.Configuration.GetConnectionString("Journeys")
         ?? throw new InvalidOperationException("Chybí connection string 'Journeys' v appsettings.json.");
 
+    // Účty krok 1: uživatelské účty (modul Accounts) mají vlastní databázi.
+    var accountsConnectionString = builder.Configuration.GetConnectionString("Accounts")
+        ?? throw new InvalidOperationException("Chybí connection string 'Accounts' v appsettings.json.");
+
     // Registrace vrstev (composition root).
     builder.Services.AddApplication(builder.Configuration);
     builder.Services.AddInfrastructureCore();
     builder.Services.AddOrderingInfrastructure(orderingConnectionString);
     builder.Services.AddJourneysInfrastructure(journeysConnectionString);
+    builder.Services.AddAccounts(accountsConnectionString);
+
+    // Účty krok 8: zpevnění – limit odeslání formulářů účtu z jedné IP a HSTS (prohlížeč pak chodí jen přes HTTPS).
+    builder.Services.AddAccountRateLimiting(builder.Configuration);
+    // Bez preload a bez subdomén: doména duckdns.org není naše, preload by šel špatně vrátit.
+    builder.Services.AddHsts(options => options.MaxAge = TimeSpan.FromDays(365));
+
+    // Účty krok 5: e-maily přes SMTP (sekce "Email"). Bez Email:Host jen do logu.
+    // Lokálně server dodá Aspire (Mailpit), v produkci Gmail (production.env + secret SMTP_PASSWORD).
+    builder.Services.AddEmail(builder.Configuration);
 
     // Krok 9: hlídání termínů ságy (sklad neodpověděl včas → zamítnout).
     builder.Services.AddHostedService<OrderSagaTimeoutWorker>();
@@ -75,15 +97,29 @@ try
     builder.Services.AddDocumentation(builder.Configuration, builder.Environment);
 
     builder.Services.AddControllers();
-    builder.Services.AddRazorPages();
+    // Účty krok 6: celá složka /Admin jen pro admina – pojistka navíc k [Authorize] na stránkách.
+    builder.Services.AddRazorPages(options =>
+        options.Conventions.AuthorizeFolder("/Admin", AuthorizationPolicies.RequireAdmin));
     builder.Services.AddOpenApi();
     builder.Services.AddProblemDetails();
     builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
     var app = builder.Build();
 
+    // Účty krok 2: "dotnet MiniShop.Web.dll create-admin --email …" jen založí prvního admina a skončí (web nespustí).
+    if (CreateAdminCommand.IsRequested(args))
+    {
+        Environment.ExitCode = await CreateAdminCommand.RunAsync(app.Services, args);
+        return;
+    }
+
     await OrderingDatabaseInitializer.InitializeAsync(app.Services);
     await JourneysDatabaseInitializer.InitializeAsync(app.Services);
+
+    // Účty krok 2: role + první admin. AdminBootstrap je nastavený jen ve vývoji (appsettings.Development.json),
+    // v produkci admina založí příkaz create-admin.
+    await AccountsDatabaseInitializer.InitializeAsync(app.Services,
+        builder.Configuration.GetSection("AdminBootstrap").Get<AdminBootstrapSettings>());
 
     if (app.Environment.IsDevelopment())
     {
@@ -91,7 +127,14 @@ try
         app.MapOpenApi();
     }
 
+    // Účty krok 8: HSTS mimo vývoj (lokální localhost ho stejně ignoruje), bezpečnostní hlavičky pro každou odpověď.
+    if (!app.Environment.IsDevelopment())
+    {
+        app.UseHsts();
+    }
+
     app.UseHttpsRedirection();
+    app.UseSecurityHeaders(app.Environment);
 
     // České formátování čísel a dat v UI (desetinná čárka, "Kč").
     var czech = new CultureInfo("cs-CZ");
@@ -113,8 +156,16 @@ try
 
     app.UseRouting();
 
+    // Účty krok 1: z cookie přečte přihlášeného uživatele (User), autorizace pak rozhodne, kam smí.
+    app.UseAuthentication();
+    app.UseEndUserTracing();       // krok 8: do trasy jen ID uživatele
+    app.UseMustChangePassword();   // krok 2: první admin se známým heslem si ho musí nejdřív změnit
+    app.UseAuthorization();
+    app.UseRateLimiter();          // krok 8: až po routingu – limit patří ke konkrétní stránce ([EnableRateLimiting])
+
     app.MapControllers();
     app.MapRazorPages();
+    app.MapProductImages();   // e-shop krok 2B: /media/products/{soubor} – obrázky ze skladu, veřejně a s cache
     app.MapDefaultEndpoints();
 
     await app.RunAsync();

@@ -1,24 +1,40 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using MiniShop.Application.Inventory;
 using MiniShop.Application.Journeys;
 using MiniShop.Application.Ordering;
 using MiniShop.Application.Ordering.Catalog;
 using MiniShop.Application.Exceptions;
 using MiniShop.Domain.Exceptions;
-using MiniShop.Web.Inventory;
+using MiniShop.Infrastructure.Accounts;
+using MiniShop.Web.Accounts;
+using MiniShop.Web.Catalog;
 
 namespace MiniShop.Web.Pages.Orders;
 
 public sealed class IndexModel(
     IOrderService orderService,
-    IProductService productService,
     CatalogSyncService catalogSync,
     IJourneyService journeyService,
+    IAuthorizationService authorization,
     ILogger<IndexModel> logger) : PageModel
 {
+    /// <summary>Účty krok 2: formulář nové objednávky jen pro zákazníka (admin neobjednává).</summary>
+    public bool CanPlaceOrders { get; private set; }
+
+    /// <summary>Účty krok 9: zákazník, který ještě nepotvrdil e-mail – místo formuláře výzva k potvrzení.</summary>
+    public bool NeedsEmailConfirmation { get; private set; }
+
+    /// <summary>Účty krok 2: vyřízení, obnova katalogu a průběh objednávek jen pro admina.</summary>
+    public bool CanManageOrders { get; private set; }
+
+    /// <summary>Účty krok 3: kdo objednává – z účtu, jen pro zobrazení nad formulářem.</summary>
+    public string CustomerName => User.ToOrderCustomer().Name;
+
+    public string CustomerEmail => User.ToOrderCustomer().Email;
+
     public IReadOnlyList<OrderDto> Orders { get; private set; } = [];
     public IReadOnlyList<SelectListItem> ProductOptions { get; private set; } = [];
 
@@ -39,10 +55,20 @@ public sealed class IndexModel(
     [TempData]
     public string? StatusMessage { get; set; }
 
-    public Task OnGetAsync(CancellationToken cancellationToken) => LoadAsync(cancellationToken);
+    /// <param name="productId">E-shop krok 2: tlačítko „Objednat“ ve výloze předvybere produkt.</param>
+    public Task OnGetAsync(int? productId, CancellationToken cancellationToken)
+    {
+        Input.ProductId = productId ?? 0;
+        return LoadAsync(cancellationToken);
+    }
 
     public async Task<IActionResult> OnPostCreateAsync(CancellationToken cancellationToken)
     {
+        if (!await IsAuthorizedAsync(AuthorizationPolicies.RequireCustomer))
+        {
+            return Forbid();
+        }
+
         // Události serveru se zařadí hned za odeslání formuláře (SubmitClicked má čas JourneyOffsetMs).
         var serverOffsetMs = JourneyOffsetMs + 1;
 
@@ -55,14 +81,12 @@ public sealed class IndexModel(
 
         var request = new CreateOrderRequest
         {
-            CustomerName = Input.CustomerName,
-            CustomerEmail = Input.CustomerEmail,
             Items = [new CreateOrderItemRequest { ProductId = Input.ProductId, Quantity = Input.Quantity }]
         };
 
         var result = await ExecuteAsync(async () =>
         {
-            var order = await orderService.PlaceOrderAsync(request, cancellationToken);
+            var order = await orderService.PlaceOrderAsync(request, User.ToOrderCustomer(), cancellationToken);
             StatusMessage = $"Objednávka č. {order.Id} přijata (celkem {order.TotalPrice:N2} Kč), ověřujeme sklad…";
             await TrackAsync(() => journeyService.RecordOrderSubmittedAsync(JourneyId, serverOffsetMs, order.Id, cancellationToken));
         }, cancellationToken);
@@ -108,27 +132,38 @@ public sealed class IndexModel(
     /// <summary>Ruční obnova kopie katalogu – požádá sklad o všechny produkty (SyncCatalogV1).</summary>
     public async Task<IActionResult> OnPostSyncCatalogAsync(CancellationToken cancellationToken)
     {
+        if (!await IsAuthorizedAsync(AuthorizationPolicies.RequireAdmin))
+        {
+            return Forbid();
+        }
+
         await catalogSync.RequestAsync(cancellationToken);
         StatusMessage = "Požádali jsme sklad o celý katalog, produkty se doplní během pár sekund.";
         return RedirectToPage();
     }
 
-    public Task<IActionResult> OnPostCompleteAsync(int id, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostCompleteAsync(int id, CancellationToken cancellationToken)
     {
+        if (!await IsAuthorizedAsync(AuthorizationPolicies.RequireAdmin))
+        {
+            return Forbid();
+        }
+
         ModelState.Clear();
-        return ExecuteAsync(async () =>
+        return await ExecuteAsync(async () =>
         {
             await orderService.CompleteAsync(id, cancellationToken);
             StatusMessage = $"Objednávka č. {id} byla vyřízena.";
         }, cancellationToken);
     }
 
+    /// <summary>Zrušit smí každý přihlášený – kdo smí rušit kterou objednávku, rozhodnou účty kroky 3 a 4.</summary>
     public Task<IActionResult> OnPostCancelAsync(int id, CancellationToken cancellationToken)
     {
         ModelState.Clear();
         return ExecuteAsync(async () =>
         {
-            await orderService.CancelAsync(id, cancellationToken);
+            await orderService.CancelAsync(id, User.ToOrderAccess(), cancellationToken);
             StatusMessage = $"Objednávka č. {id} byla zrušena, zboží se za chvilku vrátí na sklad.";
         }, cancellationToken);
     }
@@ -154,6 +189,10 @@ public sealed class IndexModel(
     /// </summary>
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
+        CanPlaceOrders = await IsAuthorizedAsync(AuthorizationPolicies.RequireCustomer);
+        NeedsEmailConfirmation = !CanPlaceOrders && User.IsInRole(AccountRoles.User);
+        CanManageOrders = await IsAuthorizedAsync(AuthorizationPolicies.RequireAdmin);
+
         // Krok 12A: nová návštěva formuláře = nový proud. Po chybě odeslání zůstává původní (přišel ve formuláři).
         if (JourneyId == Guid.Empty)
         {
@@ -161,36 +200,27 @@ public sealed class IndexModel(
             JourneyOffsetMs = 0;
         }
 
-        Orders = await orderService.GetAllAsync(cancellationToken);
+        Orders = await orderService.GetAllAsync(User.ToOrderAccess(), cancellationToken);
         var catalog = await orderService.GetCatalogAsync(cancellationToken);
         CatalogEmpty = catalog.Count == 0;
 
-        IReadOnlyDictionary<int, int>? stock = null;
-        try
-        {
-            stock = (await productService.GetAllAsync(cancellationToken)).ToDictionary(p => p.Id, p => p.StockQuantity);
-        }
-        catch (InventoryUnavailableException)
-        {
-            InventoryUnavailable = true;
-        }
-
+        // E-shop krok 2: dostupnost z kopie katalogu (StockAvailabilityChangedV1) – stránka se na sklad vůbec neptá,
+        // takže funguje i při jeho výpadku. Rozhoduje až rezervace v sáze.
         ProductOptions = catalog
             .Select(p => new SelectListItem(
-                $"{p.Name} – {p.Price:N2} Kč ({StockText(stock, p.ProductId)})", p.ProductId.ToString()))
+                $"{p.Name} – {p.Price:N2} Kč ({AvailabilityLabels.Text(p.Availability).ToLowerInvariant()})", p.ProductId.ToString()))
             .ToList();
     }
 
-    private static string StockText(IReadOnlyDictionary<int, int>? stock, int productId) =>
-        stock is null ? "zásoba nedostupná"
-        : stock.TryGetValue(productId, out var quantity) ? $"skladem {quantity}"
-        : "zásoba neznámá";
+    /// <summary>
+    /// Účty krok 2: Razor Pages umí [Authorize] jen na celou stránku, tady má ale každý handler jiné pravidlo.
+    /// Proto kontrola v kódu – se stejnými policies, aby pravidla zůstala na jednom místě.
+    /// </summary>
+    private async Task<bool> IsAuthorizedAsync(string policy) =>
+        (await authorization.AuthorizeAsync(User, policy)).Succeeded;
 
     /// <summary>Kopie katalogu je prázdná – produkty ze skladu ještě nedorazily (stránka se sama obnovuje).</summary>
     public bool CatalogEmpty { get; private set; }
-
-    /// <summary>Krok 10B: služba skladu neodpověděla – stránka to ukáže, objednávat jde dál.</summary>
-    public bool InventoryUnavailable { get; private set; }
 
     /// <summary>Krok 9: dokud nějaká objednávka čeká na sklad, stránka se sama obnovuje (jednoduchý polling).</summary>
     public bool HasPendingOrders => Orders.Any(o => o.Status == "Pending");
@@ -214,16 +244,9 @@ public sealed class IndexModel(
         _ => status
     };
 
+    /// <summary>Účty krok 3: bez jména a e-mailu – objednává přihlášený zákazník (údaje z účtu).</summary>
     public sealed class NewOrderInput
     {
-        [Required(ErrorMessage = "Jméno je povinné."), StringLength(100)]
-        [Display(Name = "Jméno zákazníka")]
-        public string CustomerName { get; set; } = string.Empty;
-
-        [Required(ErrorMessage = "E-mail je povinný."), EmailAddress(ErrorMessage = "Neplatný e-mail.")]
-        [Display(Name = "E-mail")]
-        public string CustomerEmail { get; set; } = string.Empty;
-
         [Range(1, int.MaxValue, ErrorMessage = "Vyberte produkt.")]
         [Display(Name = "Produkt")]
         public int ProductId { get; set; }

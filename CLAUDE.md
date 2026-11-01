@@ -12,10 +12,10 @@ Cíl: postupně ho převést na EDA podle plánu v `docs/EDA-roadmap.md`.
 
 ```
 src/MiniShop.Contracts       integrační zprávy – události (OrderPlacedV1, StockReservedV1, …) a příkazy (ReserveStockV1, …), žádné závislosti
-src/MiniShop.Domain          Common/ (Entity, IDomainEvent), Orders/ (Order, CatalogProduct, Saga/OrderSaga), Inventory/ (Product, StockReservation),
+src/MiniShop.Domain          Common/ (Entity, IDomainEvent), Orders/ (Order, CatalogProduct, CatalogSearchText, Carts/Cart, Saga/OrderSaga), Inventory/ (Product, Category, StockAvailability, StockReservation),
                              Journeys/ (JourneyEvent, JourneyEventType)
 src/MiniShop.Application     Abstractions/ (sdílené: IUnitOfWork, IDomainEvent*, IIntegrationMessage*, TraceTags),
-                             Ordering/ (OrderService, DTO, Saga, Catalog projekce, EventHandlers, Pricing), Inventory/ (ProductService, Reserve/ReleaseStock),
+                             Ordering/ (OrderService, DTO, Saga, Catalog projekce + CatalogQueryService, Carts/CartService, EventHandlers, Pricing), Inventory/ (ProductService, CategoryService, Reserve/ReleaseStock),
                              Journeys/ (JourneyService, OrderJourneyProjection, JourneyReplayProjection, DTO)
 src/MiniShop.Infrastructure  sdílené: Persistence/ModuleDbContext, Outbox, Inbox (InboxGuard), Integration (bus, routing, dispatcher, RabbitMq/), Events,
                              Observability/ (MessagingTelemetry – ActivitySource + Meter, OutboxHealthCheck),
@@ -25,7 +25,7 @@ src/MiniShop.Infrastructure  sdílené: Persistence/ModuleDbContext, Outbox, Inb
 src/MiniShop.Web             služba Ordering (7180): API objednávek, Razor Pages (celé UI), Inventory/InventoryApiClient (HTTP na sklad),
                              OrderSagaTimeoutWorker, Program.cs (composition root); krok 12: JourneysController, Pages/Orders/Journey + Replay,
                              wwwroot/js/order-form-tracker.js + journey-player.js
-src/MiniShop.Inventory.Api   služba skladu (7181): ProductsController, jen modul Inventory, inventory.db, fronta minishop.inventory
+src/MiniShop.Inventory.Api   služba skladu (7181): ProductsController, CategoriesController, jen modul Inventory, inventory.db, fronta minishop.inventory
 src/MiniShop.ServiceDefaults AddServiceDefaults (service discovery, HTTP resilience, health checky /health, /alive, OpenTelemetry → OTLP)
 src/MiniShop.AppHost         .NET Aspire: RabbitMQ (persistentní kontejner) + inventory-api + web, dashboard
 tests/MiniShop.Tests         testy domény, OrderService + ságy + katalogu (2× SQLite in-memory, oba moduly v procesu), dispatcheru,
@@ -59,14 +59,41 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   Web volá sklad přes HTTP jen kvůli UI (`InventoryApiClient` : `IProductService`, `https+http://inventory-api`,
   bez Aspire adresa v `Services:inventory-api` v `appsettings.Development.json` Webu – jinde ji dává Aspire/Compose,
   `https` adresa má přednost a v kontejneru by přebila `http`); business tok jde jen přes zprávy.
-  Formulář objednávky bere nabídku z kopie katalogu (`IOrderService.GetCatalogAsync`), zásobu ze skladu jen volitelně.
+  Formulář objednávky i výloha berou nabídku a dostupnost z kopie katalogu (`IOrderService.GetCatalogAsync`, `ICatalogQueryService`).
   Web nesmí referencovat `Domain/Infrastructure.Inventory`, Inventory.Api nic z Orderingu (testy architektury).
   Auditní frontu poslouchá jen Web (`AuditQueue` prázdná v Inventory.Api). RabbitMQ adresu dává Aspire v `ConnectionStrings:messaging`.
-- Ordering zná produkty jen z kopie katalogu `CatalogProduct` (plní `CatalogProjectionHandler` z `ProductUpdatedV1`/`ProductRemovedV1`).
-  Obnova kopie: příkaz `SyncCatalogV1` (`CatalogSyncService`) – automaticky po startu Webu, když je kopie prázdná
-  (`CatalogSyncOnStartupWorker`), nebo tlačítkem na stránce Objednávky; sklad (`SyncCatalogHandler`) pošle `ProductUpdatedV1`
-  pro každý produkt s novým `EventId`, ale s časem `Product.ChangedAtUtc` (ne „teď“ – nesmí přebít novější změnu).
-  Inventory převádí doménové události produktu na integrační rovnou v `InventoryDbContext.ToOutboxMessage` (Ordering přes handler).
+- Ordering zná produkty jen z kopie katalogu `CatalogProduct` (plní `CatalogProjectionHandler` z `ProductUpdatedV1`/`V2`,
+  `StockAvailabilityChangedV1`, `ProductRemovedV1`). Obnova kopie: příkaz `SyncCatalogV1` (`CatalogSyncService`) – automaticky
+  po startu Webu, když je kopie prázdná nebo neúplná (produkt s dostupností `Unknown`; `CatalogSyncOnStartupWorker`), nebo
+  tlačítkem na stránce Objednávky; sklad (`SyncCatalogHandler`) pošle `ProductUpdatedV1` + `V2` pro každý produkt s novým
+  `EventId`, ale s časem `Product.ChangedAtUtc` (ne „teď“ – nesmí přebít novější změnu).
+  Inventory převádí doménové události produktu na integrační rovnou v `InventoryDbContext.ToOutboxMessages` (Ordering přes handler);
+  jedna událost může dát víc zpráv – druhá má ID odvozené `MessageIds.Derive` (inbox by stejné ID zahodil jako duplicitu).
+- **Výloha (e-shop krok 2A):** veřejná `/Shop` čte jen kopii katalogu přes `ICatalogQueryService` (filtr v SQL, řazení a
+  stránkování v paměti – SQLite neřadí decimal; hledání přes `CatalogProduct.SearchText` = `CatalogSearchText.Normalize`).
+  `ProductUpdatedV2` = celý stav produktu (popis, kategorie, `ImageFileName`, dostupnost jako snímek); sklad posílá zatím
+  V1 i V2 (expand → contract), změna produktu/kategorie produktu = obě. `StockAvailabilityChangedV1` jen při změně pásma
+  (`StockAvailabilityBands`, víc než 5 / 1–5 / 0) – `Product.AddStock/RemoveStock(quantity, čas)`. Dostupnost má v obou
+  modulech vlastní čas (`AvailabilityChangedAtUtc`). Kategorie (`Category`, `CategoryService`, `/api/categories`) patří skladu,
+  Ordering zná jen jméno ze zprávy o produktu (přejmenování → `product.CategoryRenamed` → V2 pro každý produkt);
+  názvy kategorií porovnávat/řadit česky v paměti. Formulář objednávky bere dostupnost z kopie (`?productId=` předvybere produkt),
+  na sklad se Web ptá jen v administraci (`InventoryApiClient` = `IProductService` + `ICategoryService` + `IProductImageService`).
+- **Obrázky produktů (e-shop krok 2B):** soubor patří skladu (`IProductImageStore` → `FileSystemProductImageStore`, `ProductImages:Path`,
+  kontejner `/data/images`, lokálně `src/MiniShop.Inventory.Api/images/`), do zpráv jen jméno (`ProductUpdatedV2.ImageFileName`).
+  Pravidla v `ProductImageFormat` (typ podle bajtů JPEG/PNG/WebP, žádné SVG, 1 MB, jméno `ID-otisk.přípona`, čte se jen jméno
+  podle vzoru). Veřejně jen přes Web `/media/products/{soubor}` (`ProductImageEndpoint`, `Cache-Control: immutable`).
+  Pořadí: soubor → DB → smazat starý soubor. Testy: `InMemoryProductImageStore`, ve Webu `StubProductImageService`.
+- **Košík (e-shop krok 3):** agregát `Cart` + `CartLine` v Orderingu (`ordering.db`, unikátní `CustomerId` a `CartId+ProductId`),
+  invarianty jen v metodách `Cart` (20 řádků, 1–100 ks, ne vyprodaný/stažený). Ukládá jen ID produktu, množství
+  a `PriceWhenAdded` (upozornění na změnu); název/cenu/dostupnost bere `CartService` vždy z kopie katalogu.
+  Zboží neblokuje, žádné zprávy ani doménové události (ty až krok 10). Jen `RequireCustomer`; přidání z výlohy =
+  POST `/Cart?handler=Add` s `returnUrl` (jen lokální). Odznak v hlavičce `CartBadgeViewComponent`.
+  Smazání účtu (`AnonymizeCustomerAsync`) smaže i košík.
+- **Soubory z `wwwroot` (CSS, JS, knihovny) vždy s `asp-append-version="true"`** – jinak prohlížeč po nasazení
+  použije starou verzi z cache (e-shop krok 3: košík bez `.cart-thumb` ukázal obrázky v plné velikosti).
+- **Stránka s `[BindProperty]` a dalším formulářem:** když formulář pole vlastnosti neposílá, binder ji naváže BEZ prefixu
+  (klíče `Name`, `Price`…) – chyby nejdou odfiltrovat podle prefixu. V takovém handleru `ModelState.Clear()` a ověřit jen
+  to, co formulář posílá (`TryValidateModel(x, "x")`). Test formuláře = poslat skutečná pole jako prohlížeč.
 - `MiniShop.Application` **nemá žádné NuGet balíčky** (ani DI ani Logging) – předchází se tím konfliktu verzí
   (NU1605). Registrace aplikačních služeb a handlerů proto žije ve
   `src/MiniShop.Web/Extensions/ApplicationServiceCollectionExtensions.cs`, infrastruktury v
@@ -77,8 +104,13 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   (7 dní, v `.gitignore`). Úrovně a cíle v sekci `Serilog` v appsettings, ne v `Logging`. Ostatní vrstvy
   logují přes `ILogger<T>` a o Serilogu nevědí. `UseSerilogRequestLogging` musí být v pipeline **před** `UseExceptionHandler`
   (jinak loguje ošetřené 404/400 jako 500).
-- Databáze vznikají přes `EnsureCreated` (bez migrací) v `DatabaseInitializer`. **Při změně schématu** (nová tabulka/sloupec)
-  je potřeba smazat `src/MiniShop.Web/ordering.db`, `src/MiniShop.Web/journeys.db` a/nebo `src/MiniShop.Inventory.Api/inventory.db` – upozorni na to uživatele.
+- **Všechny databáze mají EF Core migrace** (`users.db` od účtů kroku 6, `ordering/inventory/journeys.db` od e-shop kroku 1) –
+  **žádnou DB nemazat**, změna schématu = nová migrace: `dotnet tool restore`, pak
+  `dotnet ef migrations add <Nazev> --project src/MiniShop.Infrastructure --context <Ordering|Inventory|Journeys|Accounts>DbContext --output-dir <Modul>/Migrations`.
+  Při startu je spustí `…DatabaseInitializer.MigrateAsync` → sdílený `Persistence/DatabaseMigrator` (baseline: DB z `EnsureCreated`
+  bez `__EFMigrationsHistory` pozná podle značkové tabulky a první migraci zapíše jako provedenou). `DatabaseMigrationTests` hlídají
+  zapomenutou migraci (`HasPendingModelChanges`) a shodu schématu migrace s `EnsureCreated`. Testy zakládají DB přes migrace.
+  Migrace nesmí ztratit data (pozor na přejmenování – EF z něj udělá DROP + ADD; zkontrolovat vygenerovaný kód).
 - Testy OrderService používají skutečný dispatcher a skutečné handlery (testují celou cestu).
   Služby skládají přes `AddInfrastructure` nad dvěma SQLite v paměti (`InMemoryDatabase` pro každý modul), každá akce
   běží ve vlastním scope a outboxy všech modulů se zpracují ručně přes `ProcessOutboxAsync()` – žádné čekání na workera.
@@ -104,7 +136,7 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   z prohlížeče, řazení podle `OffsetMs` (čas od otevření formuláře). `ValidationFailed`/`OrderSubmitted` zapisuje jen server
   (stránka `Orders/Index`), Ordering o Journeys neví (hlídá `ModuleBoundariesTests`). Průběh = projekce při čtení
   (`OrderJourneyProjection`, fold). Sledování nesmí rozbít objednávku (chyba zápisu jen do logu). Ukládá se skutečně napsaný text.
-  Automatické obnovení stránky Objednávky jen přes `reloadWhenIdle()` (nespustí se, když uživatel vyplňuje).
+  Automatické obnovení stránky Objednávky jen atributem `data-reload-when-idle` (`wwwroot/js/orders-reload.js`, nespustí se, když uživatel vyplňuje).
   Přehrání (12B) = druhá projekce `JourneyReplayProjection` (scénář počítá server, `journey-player.js` jen přehrává);
   `Replay.cshtml` má ruční kopii formuláře – **nové pole formuláře objednávky přidat i tam**. Nové typy událostí jen na konec
   `JourneyEventType` (ukládá se jako text). Prvky, které má přehrávač najít, mají `data-track`.
@@ -183,11 +215,12 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   (**před** sloučením, pokud na změně závisí její vlastní nasazení). Změněný `Caddyfile` `deploy.sh` načte přes `caddy reload`.
   Port 22 je z internetu zavřený – SSH jen přes Tailscale. Nouzově: pravidlo 22 v security listu vrátit.
   Secrets/proměnné jen v environmentu `production`: `TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`, `DEPLOY_SSH_KEY`,
-  `RABBITMQ_PASSWORD`, `BASIC_AUTH_HASH` (krok 10), `DEPLOY_HOST`, `DEPLOY_KNOWN_HOSTS`.
+  `RABBITMQ_PASSWORD`, `BASIC_AUTH_HASH` (krok 10), `SMTP_PASSWORD` (účty krok 5), `INVENTORY_API_KEY` (účty krok 7), `DEPLOY_HOST`, `DEPLOY_KNOWN_HOSTS`.
 - HTTPS (krok 5): `https://minishop-tichy.duckdns.org` (reserved IP `141.144.255.238`), Caddy z `deploy/compose.cloud.yaml`
   + `deploy/Caddyfile`, na VM zapnuté přes `COMPOSE_FILE=compose.yaml:compose.cloud.yaml` v `.env`. Web není publikovaný ven.
-  Basic auth (uživatel `minishop`, heslo zná jen uživatel – změna = secret `BASIC_AUTH_HASH`, viz `docs/secrets.md` R2),
-  vypíná `BASIC_AUTH=off` v `deploy/production.env`. Security list: 80/443 z celého internetu (22 od kroku 8 zavřený). Volume `caddy-data` (certifikáty) nemazat.
+  Basic auth (uživatel `minishop`, heslo zná jen uživatel – změna = secret `BASIC_AUTH_HASH`, viz `docs/secrets.md` R2):
+  od účtů kroku 9 `BASIC_AUTH=off` v `deploy/production.env` → web veřejný, zámek jen před dashboardem.
+  Caddy maže hlavičky `Server` a `Via` (snippet `hide-server`). Security list: 80/443 z celého internetu (22 od kroku 8 zavřený). Volume `caddy-data` (certifikáty) nemazat.
 - IaC (krok 9): `infra/` (OpenTofu, provider `oracle/oci`), spouští uživatel na PC: `tofu init "-backend-config=backend.hcl"` (v PowerShellu v uvozovkách – jinak rozdělí argument s tečkou),
   `tofu plan`, `tofu apply` (přihlášení `~/.oci/config` = `minishop-automation`). State v bucketu `minishop-tfstate` (S3 API,
   klíč `~/.oci/s3-credentials`); `backend.hcl`, `terraform.tfvars` a state nejsou v gitu. VM připraví cloud-init
@@ -210,13 +243,13 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   `<<: *otel-env` + `OTEL_SERVICE_NAME` v compose. Alarmy VM (CPU, paměť, chybějící metriky) + e-mail v `infra/monitoring.tf`
   (OCI Monitoring + Notifications, `alert_email` v `terraform.tfvars`).
 - Zálohy (krok 12): `minishop-backup.timer` (02:30 UTC, uživatel `deploy`) → `/opt/minishop/backup.sh` → `backup.py`
-  v kontejneru `ghcr.io/oracle/oci-cli:20261007` (online backup SQLite `ordering/journeys/inventory.db` + `/data/keys`
+  v kontejneru `ghcr.io/oracle/oci-cli:20261007` (online backup SQLite `ordering/journeys/inventory.db` + `/data/keys` + obrázky skladu
   → `minishop-RRRRMMDDTHHMMSSZ.tar.gz` → bucket `minishop-backups`, lifecycle 7 dní). VM se přihlašuje jako instance principal
   (dynamická skupina `minishop-vm`, politika v `infra/backup.tf`: číst + vytvářet, ne mazat). Obnova:
   `sudo -u deploy /opt/minishop/restore.sh latest|<jméno>|list` (zastaví web + inventory-api, původní soubory nechá jako
   `*.before-restore-…`). Skripty záloh přináší `deploy.sh` z gitu (volitelné soubory – starší commity je nemají),
   jednotky systemd cloud-init. Hlídač zálohy: healthchecks.io (`HEALTHCHECKS_BACKUP_URL`, volitelný secret).
-  Nová DB/soubor s daty = přidat do `DATABASES` v `backup.py`. Před rizikovou akcí ruční záloha `sudo systemctl start minishop-backup`.
+  Nová DB = `DATABASES`, nová složka s daty = `DIRECTORIES` v `backup.py` (od e-shop kroku 2B i `/inventory/images`). Před rizikovou akcí ruční záloha `sudo systemctl start minishop-backup`.
 - CI (krok 6): workflow „CI“, job „Build a testy“ (= povinný status check v rulesetu). Repozitář `ftichy/MiniShop` je veřejný –
   nic tajného do gitu. `main` jen přes PR se zeleným CI (bez přímého push). SDK určuje `global.json` (10.0.200, `latestFeature`).
   Nový projekt/závislost = ověřit, že CI na Linuxu projde.
@@ -235,6 +268,75 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
 | 10. Secrets a konfigurace (secrets jen v GitHub `production` → stdin → `deploy.sh`, `production.env`, rotace RabbitMQ, registr `docs/secrets.md`, secret scanning, Dependabot) | hotovo (heslo RabbitMQ vyměněno pipeline, ověřeno objednávkou) | `docs/kroky-cloud/krok-10-secrets.md` |
 | 11. Monitoring a logy v cloudu (Aspire dashboard v Compose, `/health` pro UptimeRobot, alarmy OCI v `infra/monitoring.tf`) | kód hotový, čeká na provedení (PR, UptimeRobot, alarmy, zkouška výpadku) | `docs/kroky-cloud/krok-11-monitoring.md` |
 | 12. Zálohy a obnova po havárii (noční online backup SQLite → OCI bucket přes instance principal, `restore.sh`, healthchecks.io, cvičná havárie) | hotovo (cvičná havárie: VM smazaná → tofu apply → Deploy → `restore.sh latest`, objednávky zpět) | `docs/kroky-cloud/krok-12-zalohy.md` |
+
+## Stav uživatelských účtů (viz `docs/Ucty-roadmap.md`)
+Role User (objednává, vidí a ruší jen své) a Admin (sklad, produkty, vyřízení, všechny objednávky a uživatelé, neobjednává).
+Modul Accounts (ASP.NET Core Identity, `users.db`). Souhrny kroků do `docs/kroky-ucty/`. Každý krok se nasadí do cloudu
+(DB na volume, `backup.py`, secrets). Od kroku 9 je web veřejný (basic auth jen před Aspire dashboardem).
+- Fallback policy = přihlášený: **nová veřejná stránka/endpoint potřebuje `[AllowAnonymous]`**, admin/zákaznické
+  `[Authorize(Policy = AuthorizationPolicies.RequireAdmin/RequireCustomer)]` (`Web/Accounts`). Handlery stránky
+  Objednávky ověřují policy v kódu (`IAuthorizationService`). **Nová stránka/akce/endpoint = řádek
+  v `AuthorizationMatrixTests`** (Web v paměti přes `MiniShopWebFactory`, typ `InventoryApiClient` – `Program` je dvojznačný).
+- Vlastník objednávky (krok 3): `IOrderService` dostává `OrderAccess` (čtení, zrušení) a `OrderCustomer` (založení)
+  parametrem – skládá je Web z cookie (`User.ToOrderAccess()/ToOrderCustomer()` ve `Web/Accounts`). Cizí objednávka
+  = `NotFoundException` (404). Jméno a e-mail objednávky jen z účtu, ne z formuláře/JSON.
+- E-maily (krok 5): `IEmailSender` (`Application/Abstractions`) → `Infrastructure/Email` (MailKit; bez `Email:Host`
+  jen log). Lokálně Mailpit v AppHostu, produkce Gmail `ftichy.gemini@gmail.com` (`EMAIL_*` v `production.env`,
+  secret `SMTP_PASSWORD`, volitelný). E-maily účtu hned (`Web/Accounts/AccountEmails`), objednávek za outboxem
+  (`EmailOrderNotifier`). Testy Webu: `MiniShopWebFactory.Emails` (`RecordingEmailSender`). Do logu jen předmět e-mailu.
+- První admin: produkce `docker compose exec web dotnet MiniShop.Web.dll create-admin --email …` (jen bez admina),
+  vývoj `AdminBootstrap` v `appsettings.Development.json` (`admin@minishop.local` / `admin-heslo-pro-vyvoj`, vynucená změna hesla).
+- Správa uživatelů (krok 6): `AccountAdministration` (Infrastructure/Accounts) – role výhradní User ↔ Admin, blokace = lockout
+  do `DateTimeOffset.MaxValue`, vždy zůstane aktivní admin, ne sám sobě, rozhoduje DB (ne cookie), vše v transakci,
+  každá změna = nový security stamp + `AccountAuditEntries`. `SecurityStampValidator` 1 minuta. Stránky `/Admin/Users`
+  (složka `/Admin` zamčená i konvencí `AuthorizeFolder`). Útrata z Orderingu `GetCustomerSummariesAsync` (Web spojí přes ID).
+- Sklad (krok 7): Inventory.Api pouští celé `/api` jen s hlavičkou `X-Api-Key` (`ApiKeyAuthenticationHandler` + fallback policy;
+  `/health`, `/alive` otevřené). Klíč `InventoryApi:ApiKey` (`ServiceApiKey` v ServiceDefaults, min. 32 znaků, jinak se služba
+  **nespustí**): Aspire ho generuje (parametr `inventory-api-key`), bez Aspire `appsettings.Development.json` obou služeb,
+  Compose `INVENTORY_API_KEY` (povinný – lokální `deploy/.env` ho musí mít), produkce secret. Web ho přidává v `InventoryApiKeyHandler`.
+  Testy Webu: klíč v `MiniShopWebFactory`; sklad v paměti `InventoryApiFactory` (stejná kolekce kvůli Serilogu).
+- Zpevnění (krok 8): **CSP `script-src 'self'` – žádné inline `<script>` ani `onclick=`**, skripty jen soubory ve `wwwroot/js`
+  (data v `<script type="application/json">` smí; hlídá `HardeningTests`). Žádné CDN – knihovny lokálně ve `wwwroot/lib`.
+  Hlavičky v `Web/Security/SecurityHeaders.cs` (+ HSTS mimo vývoj), `enduser.id` do trasy. Zámek účtu 5 / 15 min
+  (`AccountsInfrastructure`, `lockoutOnFailure: true`); zablokovaný adminem = `LockoutEnd` rok 9999 (`IsBlocked`),
+  dočasný zámek admina práva nebere. **Nový formulář účtu = `[EnableRateLimiting(AccountRateLimiting.PolicyName)]`**
+  (limit jen POST, podle IP, `RateLimiting:AccountForms`; testy ho mají vysoko). Do logu nikdy e-mail ani heslo, jen ID účtu
+  (`HardeningTests` to hlídá přes `MiniShopWebFactory.Logs`). Serilog = statický logger – test logů potřebuje vlastní instanci Webu.
+- Otevřený web (krok 9): `RequireCustomer` = role User **+ claim `minishop:email_confirmed`** (testovací uživatelé mají
+  `CreateUserAsync(emailConfirmed: true)`). Smazání účtu `/Account/Delete`: heslo → `IOrderService.AnonymizeCustomerAsync`
+  (Ordering, nevyřízená objednávka = DomainException) → `AccountDeletion.DeleteAsync` (Accounts; admin ne, audit
+  `ForgetUser`) → odhlásit. **Nový osobní údaj = doplnit anonymizaci a stránku `/Privacy`.** Kestrel bez hlavičky `Server`.
+
+| Krok | Stav | Souhrn |
+| --- | --- | --- |
+| 1. Účty, registrace, přihlášení (modul Accounts, Identity, `users.db`) | hotovo | `docs/kroky-ucty/krok-01-ucty.md` |
+| 2. Role a první admin (policies, fallback policy, `create-admin` / `AdminBootstrap` ve vývoji, matice oprávnění) | hotovo | `docs/kroky-ucty/krok-02-role.md` |
+| 3. Vlastník objednávky (`CustomerId`, `OrderAccess`/`OrderCustomer`, filtr v SQL, cizí = 404, jméno a e-mail z účtu) | hotovo | `docs/kroky-ucty/krok-03-vlastnik-objednavky.md` |
+| 4. Zrušení objednávky i ve stavu Pending (nový přechod ságy, kompenzace) | odloženo (analýza souběhu: dohnat zrušení v orchestrátoru, `Status` jako concurrency token) | — |
+| 5. Skutečné e-maily (MailKit, Mailpit lokálně, Gmail SMTP v cloudu, potvrzení e-mailu, reset hesla) | hotovo | `docs/kroky-ucty/krok-05-emaily.md` |
+| 6. Administrace uživatelů (přehled, povýšení, blokace, poslední admin, audit, EF migrace `users.db`) | hotovo | `docs/kroky-ucty/krok-06-sprava-uzivatelu.md` |
+| 7. Zabezpečení skladu (servisní klíč `X-Api-Key` pro celé `/api` Inventory.Api, secret `INVENTORY_API_KEY`, fail fast; JWT odloženo) | hotovo | `docs/kroky-ucty/krok-07-zabezpeceni-skladu.md` |
+| 8. Zpevnění (zámek 5 pokusů / 15 min, rate limiting formulářů účtu 10/min/IP → 429, CSP a bezpečnostní hlavičky, Bootstrap lokálně, `enduser.id`, logy bez e-mailů) | hotovo | `docs/kroky-ucty/krok-08-zpevneni.md` |
+| 9. Otevření webu (`BASIC_AUTH=off`, objednávka jen s potvrzeným e-mailem, smazání účtu + anonymizace objednávek, `/Privacy`, bez hlaviček `Server`/`Via`; CAPTCHA odložena) | hotovo | `docs/kroky-ucty/krok-09-otevreni-webu.md` |
+| 10. Přihlášení přes Google | plán | — |
+
+## Stav e-shopu (viz `docs/Eshop-roadmap.md`)
+Výloha → košík → pokladna → platba → expedice → doručení. Košík je agregát v modulu Ordering (checkout = jedna transakce),
+nové moduly Notifications (odběratel událostí) a Payments (účastník ságy). Souhrny kroků do `docs/kroky-eshop/`.
+
+| Krok | Stav | Souhrn |
+| --- | --- | --- |
+| 1. Migrace databází (`ordering/inventory/journeys.db`, sdílený `DatabaseMigrator`, baseline produkční DB) | hotovo (nasazeno 30. 10. 2026, produkční DB prošly baseline, data zůstala) | `docs/kroky-eshop/krok-01-migrace.md` |
+| 2A. Výloha (`/Shop`, kategorie, hledání `SearchText`, `ProductUpdatedV2` expand → contract, `StockAvailabilityChangedV1` při změně pásma) | hotovo (nasazeno 30. 10. 2026, produkční kopie katalogu se po startu sama doplnila) | `docs/kroky-eshop/krok-02a-vyloha.md` |
+| 2B. Obrázky produktů (upload do skladu, typ podle bajtů, `/media/products/…` přes Web s immutable cache, `backup.py` `DIRECTORIES`) | hotovo (nasazeno 1. 11. 2026, obrázky ve výloze, noční záloha obsahuje `images/`) | `docs/kroky-eshop/krok-02b-obrazky.md` |
+| 3. Košík (agregát `Cart` v Orderingu s invarianty, `/Cart`, odznak v hlavičce, ceny z kopie katalogu, bez zpráv) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-03-kosik.md` |
+| 4. Pokladna a objednávka s více položkami (`CheckoutId`, adresa, doprava, změna ceny) | plán | — |
+| 5. Detail objednávky a historie stavů (`/Orders/{id}`) | plán | — |
+| 6. Expedice (Packing → Shipped → Completed, `OrderShippedV1`, odepsání rezervace, `Order.Version`) | plán | — |
+| 7. Notifikace jako samostatný odběratel (modul Notifications, šablony, `CustomerAnonymizedV1`) | plán | — |
+| 8. Platba – simulovaná brána (modul Payments, webhook s HMAC, timeout platby, dobírka) | plán | — |
+| 9. Zrušení kdykoli před odesláním (navazuje na účty krok 4) | plán | — |
+| 10. Opuštěný košík (volitelně) | plán | — |
 
 ## Postup práce na dalším kroku EDA
 1. Nejdřív **shrň**, co se bude přidávat/měnit a **proč** (teorie + konkrétní případ v MiniShopu),

@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using MiniShop.Application;
 using MiniShop.Application.Abstractions;
 using MiniShop.Application.Ordering;
+using MiniShop.Application.Ordering.Carts;
 using MiniShop.Domain.Common;
 using MiniShop.Domain.Orders.Events;
 using MiniShop.Infrastructure.Events;
@@ -25,7 +26,8 @@ public static class OrderingInfrastructure
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<IOrderSagaRepository, OrderSagaRepository>();
         services.AddScoped<ICatalogProductRepository, CatalogProductRepository>();
-        services.AddScoped<IOrderNotifier, LoggingOrderNotifier>();
+        services.AddScoped<ICartRepository, CartRepository>();   // e-shop krok 3
+        services.AddScoped<IOrderNotifier, EmailOrderNotifier>();   // účty krok 5: skutečný e-mail (IEmailSender)
 
         // Doménové události (kroky 2–6) – má je jen Ordering, putují přes jeho outbox.
         // Scoped – handlery sdílejí DbContext se scope, ve kterém OutboxProcessor zprávu zpracovává.

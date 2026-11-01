@@ -1,0 +1,15 @@
+@using System.Security.Claims
+@using MiniShop.Infrastructure.Accounts
+@* Účty krok 5: přihlášený uživatel s nepotvrzeným e-mailem vidí upozornění a může si nechat poslat odkaz znovu.
+   Stav bere z cookie (claim minishop:email_confirmed) – do databáze se nedívá. *@
+@if (User.Identity?.IsAuthenticated == true
+     && !User.HasClaim(c => c.Type == AccountClaimTypes.EmailConfirmed)
+     && !User.HasClaim(c => c.Type == AccountClaimTypes.MustChangePassword))
+{
+    <div class="alert alert-warning d-flex flex-wrap align-items-center gap-2">
+        <span>Potvrďte prosím e-mail <strong>@User.FindFirstValue(ClaimTypes.Email)</strong> – odkaz jsme poslali při registraci.</span>
+        <form method="post" asp-page="/Account/ResendConfirmation" class="d-inline">
+            <button type="submit" class="btn btn-sm btn-outline-dark" data-track="resend-confirmation">Poslat znovu</button>
+        </form>
+    </div>
+}

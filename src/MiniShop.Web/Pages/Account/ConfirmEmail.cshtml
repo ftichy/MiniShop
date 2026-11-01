@@ -1,0 +1,19 @@
+@page
+@model MiniShop.Web.Pages.Account.ConfirmEmailModel
+@{
+    ViewData["Title"] = "Potvrzení e-mailu";
+}
+<h1>Potvrzení e-mailu</h1>
+
+@if (Model.Confirmed)
+{
+    <div class="alert alert-success">E-mail je potvrzený. Děkujeme!</div>
+    <p><a asp-page="/Orders/Index">Pokračovat na objednávky</a></p>
+}
+else
+{
+    <div class="alert alert-danger">
+        Odkaz je neplatný nebo vypršel (platí 2 hodiny). Po přihlášení si můžete nechat poslat nový –
+        tlačítkem v upozornění nahoře na stránce.
+    </div>
+}

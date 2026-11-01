@@ -10,6 +10,9 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
     {
         builder.ToTable("Orders");
         builder.HasKey(o => o.Id);
+        // Účty krok 3: vlastník. Index – seznam „moje objednávky“ filtruje podle něj.
+        builder.Property(o => o.CustomerId).IsRequired().HasMaxLength(64);
+        builder.HasIndex(o => o.CustomerId);
         builder.Property(o => o.CustomerName).IsRequired().HasMaxLength(100);
         builder.Property(o => o.CustomerEmail).IsRequired().HasMaxLength(200);
         builder.Property(o => o.Status).HasConversion<string>().HasMaxLength(20);

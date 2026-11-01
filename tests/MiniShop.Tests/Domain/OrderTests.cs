@@ -7,7 +7,7 @@ public class OrderTests
 {
     private static readonly DateTime Now = new(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc);
 
-    private static Order CreateOrder() => new("Jan Novák", "jan@example.com", Now);
+    private static Order CreateOrder() => new("zakaznik-1", "Jan Novák", "jan@example.com", Now);
 
     private static Order CreateConfirmedOrder()
     {
@@ -92,5 +92,27 @@ public class OrderTests
         var order = CreateConfirmedOrder();
 
         Assert.Throws<DomainException>(() => order.AddItem(new CatalogProduct(1, "A", 100m, Now), 1, 0m));
+    }
+
+    // --- Účty krok 9: anonymizace po smazání účtu ---
+
+    [Fact]
+    public void Anonymizace_VyrizenaObjednavka_ZtratiJmenoAEmail()
+    {
+        var order = CreateConfirmedOrder();
+        order.Complete(Now);
+
+        order.Anonymize();
+
+        Assert.Equal(Order.AnonymizedCustomerName, order.CustomerName);
+        Assert.Equal(string.Empty, order.CustomerEmail);
+        Assert.Equal("zakaznik-1", order.CustomerId);
+    }
+
+    [Fact]
+    public void Anonymizace_RozpracovanaObjednavka_Nejde()
+    {
+        Assert.Throws<DomainException>(() => CreateOrder().Anonymize());            // Pending
+        Assert.Throws<DomainException>(() => CreateConfirmedOrder().Anonymize());   // Confirmed
     }
 }

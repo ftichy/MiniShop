@@ -106,8 +106,10 @@ public static class ServiceDefaultsExtensions
 
     public static WebApplication MapDefaultEndpoints(this WebApplication app)
     {
-        app.MapHealthChecks("/health");
-        app.MapHealthChecks("/alive", new() { Predicate = check => check.Tags.Contains("live") });
+        // Účty krok 2: zdraví musí být vidět bez přihlášení (UptimeRobot, Docker healthcheck),
+        // i když Web jinak všechno zamyká (fallback policy).
+        app.MapHealthChecks("/health").AllowAnonymous();
+        app.MapHealthChecks("/alive", new() { Predicate = check => check.Tags.Contains("live") }).AllowAnonymous();
 
         return app;
     }

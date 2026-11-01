@@ -17,6 +17,7 @@ public static class InventoryInfrastructure
         services.AddScoped<IInventoryMessagePublisher, InventoryMessagePublisher>();
 
         services.AddScoped<IProductRepository, ProductRepository>();
+        services.AddScoped<ICategoryRepository, CategoryRepository>();
         services.AddScoped<IStockReservationRepository, StockReservationRepository>();
 
         // Vlastní outbox = vlastní pošťák.
@@ -27,6 +28,17 @@ public static class InventoryInfrastructure
 
         services.AddIntegrationModule<InventoryDbContext>(IntegrationModules.Inventory);
 
+        return services;
+    }
+
+    /// <summary>
+    /// E-shop krok 2B: obrázky produktů ve složce <paramref name="rootPath"/> (konfigurace <c>ProductImages:Path</c>).
+    /// Zvlášť od <see cref="AddInventoryInfrastructure"/> – testy tak dají vlastní úložiště v paměti a nepíšou na disk.
+    /// </summary>
+    public static IServiceCollection AddFileSystemProductImages(this IServiceCollection services, string rootPath)
+    {
+        services.AddSingleton<IProductImageStore>(new FileSystemProductImageStore(Path.GetFullPath(rootPath)));
+        services.AddScoped<IProductImageService, ProductImageService>();
         return services;
     }
 }

@@ -74,6 +74,28 @@ flowchart LR
 | **IdempotentDomainEventHandler** | Dekorátor, který obalí každý doménový handler inboxem. | [IdempotentDomainEventHandler.cs](code:src/MiniShop.Infrastructure/Inbox/IdempotentDomainEventHandler.cs) |
 | **MessagingTelemetry** | Spany a metriky zpráv (zdroj `MiniShop.Messaging`). | [MessagingTelemetry.cs](code:src/MiniShop.Infrastructure/Observability/MessagingTelemetry.cs) |
 | **OutboxHealthCheck** | `/health` hlásí *Degraded*, když zpráva visí v outboxu déle než 5 minut. | [OutboxHealthCheck.cs](code:src/MiniShop.Infrastructure/Observability/OutboxHealthCheck.cs) |
+| **DatabaseMigrator** | Vytvoří nebo aktualizuje databázi modulu přes EF Core migrace, i starou databázi bez historie migrací (baseline). | [DatabaseMigrator.cs](code:src/MiniShop.Infrastructure/Persistence/DatabaseMigrator.cs) |
+
+## Migrace databází
+
+Každý modul má vlastní SQLite databázi a vlastní **EF Core migrace** – očíslované kroky „z verze N na N+1“
+(složky `Ordering/Migrations`, `Inventory/Migrations`, `Journeys/Migrations`, `Accounts/Migrations` v Infrastructure).
+Přirovnání: stavební deník – místo stavby nového domu při každé přestavbě kuchyně se zapíše, co se upravilo.
+
+- Při startu služby zavolá `…DatabaseInitializer` modulu [DatabaseMigrator](code:src/MiniShop.Infrastructure/Persistence/DatabaseMigrator.cs).
+  `Migrate` se podívá do tabulky `__EFMigrationsHistory` a spustí jen migrace, které tam ještě nejsou.
+- **Baseline:** databáze z doby před migracemi (vytvořené přes `EnsureCreated`) tabulky mají, historii ne. Migrátor je
+  pozná podle značkové tabulky modulu (`Orders`, `Products`, `JourneyEvents`, `AspNetUsers`) a první migraci do historie
+  zapíše jako provedenou – jinak by ji spustil znovu a spadl na existující tabulce.
+- [DatabaseMigrationTests](code:tests/MiniShop.Tests/Infrastructure/DatabaseMigrationTests.cs) hlídají, že model nemá
+  změny bez migrace a že první migrace vytvoří přesně stejné schéma jako `EnsureCreated` (jen tak je baseline správně).
+- Nová migrace (z kořene repozitáře, poprvé `dotnet tool restore`):
+
+  ```text
+  dotnet ef migrations add <Nazev> --project src/MiniShop.Infrastructure --context OrderingDbContext --output-dir Ordering/Migrations
+  ```
+
+  Vygenerovaný kód migrace je potřeba přečíst: přejmenování sloupce EF někdy pozná jako smazání a přidání (= ztráta dat).
 
 ## Jak se jádro zapojí do modulu
 

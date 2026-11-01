@@ -13,15 +13,18 @@ namespace MiniShop.Infrastructure.Persistence;
 /// </summary>
 /// <remarks>
 /// Potomci: OrderingDbContext (ordering.db) a InventoryDbContext (inventory.db). Každý určí, jaké entity má
-/// (<see cref="ConfigureModule"/>) a jak se jeho doménové události zapíšou do outboxu (<see cref="ToOutboxMessage"/>).
+/// (<see cref="ConfigureModule"/>) a jak se jeho doménové události zapíšou do outboxu (<see cref="ToOutboxMessages"/>).
 /// </remarks>
 public abstract class ModuleDbContext(DbContextOptions options) : DbContext(options), IUnitOfWork
 {
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<ProcessedMessage> ProcessedMessages => Set<ProcessedMessage>();
 
-    /// <summary>Jak doménovou událost modulu zapsat do outboxu (doménová zpráva, nebo rovnou integrační).</summary>
-    protected abstract OutboxMessage ToOutboxMessage(IDomainEvent domainEvent);
+    /// <summary>
+    /// Jak doménovou událost modulu zapsat do outboxu (doménová zpráva, nebo rovnou integrační). Obvykle jedna zpráva;
+    /// víc, když modul posílá stejnou změnu ve dvou verzích kontraktu (e-shop krok 2: ProductUpdatedV1 + V2).
+    /// </summary>
+    protected abstract IEnumerable<OutboxMessage> ToOutboxMessages(IDomainEvent domainEvent);
 
     /// <summary>Entity modulu (konfigurace EF).</summary>
     protected abstract void ConfigureModule(ModelBuilder modelBuilder);
@@ -53,7 +56,7 @@ public abstract class ModuleDbContext(DbContextOptions options) : DbContext(opti
         // Nejdřív entity – nová entita tím dostane ID, které potřebuje zpráva v outboxu.
         var result = await base.SaveChangesAsync(cancellationToken);
 
-        OutboxMessages.AddRange(domainEvents.Select(ToOutboxMessage));
+        OutboxMessages.AddRange(domainEvents.SelectMany(ToOutboxMessages));
         await base.SaveChangesAsync(cancellationToken);
 
         if (ownTransaction is not null)

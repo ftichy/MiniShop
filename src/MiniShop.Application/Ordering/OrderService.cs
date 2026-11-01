@@ -1,5 +1,6 @@
 using MiniShop.Application.Abstractions;
 using MiniShop.Application.Exceptions;
+using MiniShop.Application.Ordering.Carts;
 using MiniShop.Application.Ordering.Pricing;
 using MiniShop.Domain.Exceptions;
 using MiniShop.Domain.Orders;
@@ -22,29 +23,35 @@ namespace MiniShop.Application.Ordering;
 public sealed class OrderService(
     IOrderRepository orders,
     ICatalogProductRepository catalog,
+    ICartRepository carts,
     IOrderingUnitOfWork unitOfWork,
     IEnumerable<IDiscountPolicy> discountPolicies,
     TimeProvider timeProvider) : IOrderService
 {
-    public async Task<IReadOnlyList<OrderDto>> GetAllAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<OrderDto>> GetAllAsync(OrderAccess access, CancellationToken cancellationToken = default)
     {
-        var all = await orders.GetAllAsync(cancellationToken);
-        return all.Select(o => o.ToDto()).ToList();
+        // Účty krok 3: filtr přímo v dotazu do databáze – cizí objednávky se vůbec nenačtou.
+        var visible = await orders.GetAllAsync(access.CustomerId, cancellationToken);
+        return visible.Select(o => o.ToDto()).ToList();
     }
 
     public async Task<IReadOnlyList<CatalogItemDto>> GetCatalogAsync(CancellationToken cancellationToken = default)
     {
         var products = await catalog.GetAvailableAsync(cancellationToken);
-        return products.Select(p => new CatalogItemDto(p.Id, p.Name, p.Price)).ToList();
+        return products.Select(p => p.ToCatalogItemDto()).ToList();
     }
 
-    public async Task<OrderDto> GetByIdAsync(int id, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<CustomerOrderSummaryDto>> GetCustomerSummariesAsync(CancellationToken cancellationToken = default) =>
+        orders.GetCustomerSummariesAsync(cancellationToken);
+
+    public async Task<OrderDto> GetByIdAsync(int id, OrderAccess access, CancellationToken cancellationToken = default)
     {
-        var order = await GetOrderAsync(id, cancellationToken);
+        var order = await GetOrderAsync(id, access, cancellationToken);
         return order.ToDto();
     }
 
-    public async Task<OrderDto> PlaceOrderAsync(CreateOrderRequest request, CancellationToken cancellationToken = default)
+    public async Task<OrderDto> PlaceOrderAsync(CreateOrderRequest request, OrderCustomer customer,
+        CancellationToken cancellationToken = default)
     {
         if (request.Items.Count == 0)
         {
@@ -60,7 +67,8 @@ public sealed class OrderService(
         var productsById = (await catalog.GetAvailableByIdsAsync(requestedItems.Select(i => i.ProductId), cancellationToken))
             .ToDictionary(p => p.Id);
 
-        var order = new Order(request.CustomerName, request.CustomerEmail, UtcNow);
+        // Účty krok 3: zákazník je přihlášený uživatel – jméno a e-mail z jeho účtu, ne z požadavku.
+        var order = new Order(customer.CustomerId, customer.Name, customer.Email, UtcNow);
 
         foreach (var (productId, quantity) in requestedItems)
         {
@@ -83,7 +91,7 @@ public sealed class OrderService(
 
     public async Task<OrderDto> CompleteAsync(int id, CancellationToken cancellationToken = default)
     {
-        var order = await GetOrderAsync(id, cancellationToken);
+        var order = await GetOrderAsync(id, OrderAccess.AllOrders, cancellationToken);   // jen správce (hlídá Web)
         order.Complete(UtcNow);                                  // vyvolá OrderCompleted
 
         await unitOfWork.SaveChangesAsync(cancellationToken);   // → outbox → později handlery
@@ -91,15 +99,42 @@ public sealed class OrderService(
         return order.ToDto();
     }
 
-    public async Task<OrderDto> CancelAsync(int id, CancellationToken cancellationToken = default)
+    public async Task<OrderDto> CancelAsync(int id, OrderAccess access, CancellationToken cancellationToken = default)
     {
-        var order = await GetOrderAsync(id, cancellationToken);
+        var order = await GetOrderAsync(id, access, cancellationToken);
         order.Cancel(UtcNow);                                    // vyvolá OrderCancelled
 
         // Vrácení zboží zajistí sága (příkaz ReleaseStockV1 pro sklad), oznámení handler OrderCancelled.
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return order.ToDto();
+    }
+
+    public async Task<int> AnonymizeCustomerAsync(string customerId, CancellationToken cancellationToken = default)
+    {
+        var customerOrders = await orders.GetAllAsync(customerId, cancellationToken);
+
+        // Všechno, nebo nic: s rozpracovanou objednávkou se nezmění žádná.
+        if (customerOrders.Any(order => order.IsActive))
+        {
+            throw new DomainException(
+                "Účet nejde smazat, dokud máte nevyřízené objednávky. Počkejte na jejich vyřízení, nebo potvrzené zrušte.");
+        }
+
+        foreach (var order in customerOrders)
+        {
+            order.Anonymize();
+        }
+
+        // E-shop krok 3: košík je osobní údaj (co si kdo vybral) a bez účtu nemá smysl – pryč celý.
+        var cart = await carts.GetByCustomerIdAsync(customerId, cancellationToken);
+        if (cart is not null)
+        {
+            carts.Remove(cart);
+        }
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return customerOrders.Count;
     }
 
     private DateTime UtcNow => timeProvider.GetUtcNow().UtcDateTime;
@@ -111,10 +146,16 @@ public sealed class OrderService(
             .DefaultIfEmpty(0m)
             .Max();
 
-    private async Task<Order> GetOrderAsync(int id, CancellationToken cancellationToken)
+    /// <remarks>
+    /// Účty krok 3: cizí objednávka se tváří jako neexistující (stejná výjimka, stejná hláška → 404) –
+    /// zákazník tak ani nezjistí, že objednávka s tím číslem existuje.
+    /// </remarks>
+    private async Task<Order> GetOrderAsync(int id, OrderAccess access, CancellationToken cancellationToken)
     {
         TraceTags.TagOrder(id);   // krok 11: trasu požadavku (detail, vyřízení, zrušení) půjde najít podle čísla objednávky
-        return await orders.GetByIdAsync(id, cancellationToken)
-            ?? throw new NotFoundException($"Objednávka s ID {id} nebyla nalezena.");
+        var order = await orders.GetByIdAsync(id, cancellationToken);
+        return order is not null && access.CanSee(order)
+            ? order
+            : throw new NotFoundException($"Objednávka s ID {id} nebyla nalezena.");
     }
 }

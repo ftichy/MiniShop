@@ -23,8 +23,17 @@ public class Order : Entity
     {
     }
 
-    public Order(string customerName, string customerEmail, DateTime createdAtUtc)
+    /// <param name="customerId">
+    /// Účty krok 3: kdo objednává – ID uživatelského účtu. Pro Ordering je to jen neprůhledný řetězec
+    /// (o modulu účtů nic neví). Jméno a e-mail jsou kopie z doby objednání – pozdější změna účtu je nepřepíše.
+    /// </param>
+    public Order(string customerId, string customerName, string customerEmail, DateTime createdAtUtc)
     {
+        if (string.IsNullOrWhiteSpace(customerId))
+        {
+            throw new DomainException("Objednávka musí patřit zákazníkovi.");
+        }
+
         if (string.IsNullOrWhiteSpace(customerName))
         {
             throw new DomainException("Jméno zákazníka je povinné.");
@@ -35,6 +44,7 @@ public class Order : Entity
             throw new DomainException("E-mail zákazníka je povinný.");
         }
 
+        CustomerId = customerId;
         CustomerName = customerName.Trim();
         CustomerEmail = customerEmail.Trim();
         CreatedAtUtc = createdAtUtc;
@@ -46,6 +56,13 @@ public class Order : Entity
     }
 
     public int Id { get; private set; }
+
+    /// <summary>Účty krok 3: vlastník objednávky (ID uživatelského účtu).</summary>
+    public string CustomerId { get; private set; } = string.Empty;
+
+    /// <summary>Patří objednávka tomuto zákazníkovi?</summary>
+    public bool BelongsTo(string customerId) => CustomerId == customerId;
+
     public string CustomerName { get; private set; } = string.Empty;
     public string CustomerEmail { get; private set; } = string.Empty;
     public DateTime CreatedAtUtc { get; private set; }
@@ -105,6 +122,28 @@ public class Order : Entity
         EnsureStatus(OrderStatus.Confirmed, "Zrušit lze jen potvrzenou objednávku.");
         Status = OrderStatus.Cancelled;
         Raise(new OrderCancelled(this, cancelledAtUtc));
+    }
+
+    /// <summary>Jméno smazaného zákazníka na jeho objednávkách (účty krok 9).</summary>
+    public const string AnonymizedCustomerName = "Smazaný zákazník";
+
+    /// <summary>Čeká objednávka ještě na sklad nebo na vyřízení (Pending, Confirmed)?</summary>
+    public bool IsActive => Status is OrderStatus.Pending or OrderStatus.Confirmed;
+
+    /// <summary>
+    /// Účty krok 9: zákazník smazal účet – objednávka zůstane (položky, ceny, stav pro účetnictví a statistiky),
+    /// ale bez jména a e-mailu. Rozpracovanou objednávku anonymizovat nejde – nebylo by komu ji doručit.
+    /// </summary>
+    /// <remarks>Bez doménové události: zákazníkovi už se nic neposílá a nikoho jiného to nezajímá.</remarks>
+    public void Anonymize()
+    {
+        if (IsActive)
+        {
+            throw new DomainException("Rozpracovanou objednávku nejde anonymizovat.");
+        }
+
+        CustomerName = AnonymizedCustomerName;
+        CustomerEmail = string.Empty;
     }
 
     private void EnsureStatus(OrderStatus expected, string message)

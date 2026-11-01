@@ -3,7 +3,8 @@ using MiniShop.Application.Ordering.Catalog;
 namespace MiniShop.Web.BackgroundServices;
 
 /// <summary>
-/// Jednorázová kontrola po startu: když je kopie katalogu prázdná (např. smazaná ordering.db), požádá sklad
+/// Jednorázová kontrola po startu: když je kopie katalogu prázdná (např. nová ordering.db) nebo neúplná (e-shop krok 2:
+/// produkty bez dostupnosti po nasazení výlohy), požádá sklad
 /// o celý katalog (<see cref="CatalogSyncService"/>). Bez ní by formulář objednávky zůstal bez produktů,
 /// dokud by se ve skladu nezměnil každý produkt.
 /// </summary>
@@ -19,9 +20,9 @@ public sealed class CatalogSyncOnStartupWorker(
         try
         {
             await using var scope = scopeFactory.CreateAsyncScope();
-            if (await scope.ServiceProvider.GetRequiredService<CatalogSyncService>().RequestIfEmptyAsync(stoppingToken))
+            if (await scope.ServiceProvider.GetRequiredService<CatalogSyncService>().RequestIfEmptyOrIncompleteAsync(stoppingToken))
             {
-                logger.LogInformation("[Katalog] Kopie katalogu je prázdná – žádám sklad o celý katalog (SyncCatalogV1)");
+                logger.LogInformation("[Katalog] Kopie katalogu je prázdná nebo neúplná – žádám sklad o celý katalog (SyncCatalogV1)");
             }
         }
         catch (Exception ex) when (!stoppingToken.IsCancellationRequested)

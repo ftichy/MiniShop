@@ -54,6 +54,23 @@ flowchart LR
 3. Hlídá to [IntegrationContractTests](code:tests/MiniShop.Tests/Contracts/IntegrationContractTests.cs) –
    test zná přesný tvar každého kontraktu a změnu neprojde bez vědomého rozhodnutí.
 
+### Příklad: `ProductUpdatedV1` → `ProductUpdatedV2` (expand → contract)
+
+E-shop krok 2 potřeboval ve zprávě o produktu popis, kategorii a dostupnost. Postup ve dvou fázích:
+
+| Fáze | Odesílatel (sklad) | Příjemce (Ordering) |
+| --- | --- | --- |
+| **expand** (krok 2) | posílá **obě** verze – každá zpráva má vlastní ID | zpracuje obě; V1 kvůli zprávám, které při nasazení čekaly ve frontě |
+| **contract** (později) | přestane posílat V1 | handler V1 se odstraní |
+
+> **Přirovnání:** Úřad vydá nový tiskopis „vzor 2“. Nějakou dobu přijímá oba, protože lidé mají doma vyplněný starý.
+> Teprve když starý nikdo nenosí, přestane ho přijímat.
+
+Jedna doménová událost (`ProductChanged`) tak vede na dvě zprávy v outboxu – `ToOutboxMessages` modulu jich může vrátit víc.
+ID druhé zprávy je **odvozené** z ID události ([MessageIds](code:src/MiniShop.Infrastructure/Outbox/MessageIds.cs)):
+stejné při opakovaném uložení, ale jiné než u V1 – inbox příjemce rozlišuje zprávy podle (ID, handler) a V2 by jinak
+zahodil jako duplicitu.
+
 ## Proč takhle
 
 - Služby se nasazují **nezávisle** – kontrakt je jediné, na čem se musí shodnout.

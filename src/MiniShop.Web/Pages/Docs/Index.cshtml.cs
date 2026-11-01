@@ -1,10 +1,12 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using MiniShop.Web.Documentation;
 
 namespace MiniShop.Web.Pages.Docs;
 
-/// <summary>Příručka v aplikaci: jedna stránka z docs/prirucka + strom pro navigaci.</summary>
+/// <summary>Příručka v aplikaci: jedna stránka z docs/prirucka + strom pro navigaci. Veřejná (účty krok 2).</summary>
+[AllowAnonymous]
 public sealed class IndexModel(DocumentationStore store, DocumentationRenderer renderer) : PageModel
 {
     public DocumentationPage Current { get; private set; } = null!;

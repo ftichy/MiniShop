@@ -16,5 +16,15 @@ internal sealed class CatalogProductConfiguration : IEntityTypeConfiguration<Cat
 
         // SQLite neukládá DateTimeKind – při načtení čas označíme jako UTC.
         builder.Property(p => p.ChangedAtUtc).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+
+        // E-shop krok 2: výloha.
+        builder.Property(p => p.Description).HasMaxLength(500);
+        builder.Property(p => p.CategoryName).HasMaxLength(50);
+        builder.Property(p => p.ImageFileName).HasMaxLength(200);
+        builder.Property(p => p.Availability).HasConversion<string>().HasMaxLength(20);   // text – čitelné v DB
+        builder.Property(p => p.AvailabilityChangedAtUtc)
+            .HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+        builder.Property(p => p.SearchText).IsRequired().HasMaxLength(800);
+        builder.Ignore(p => p.IsOrderable);
     }
 }

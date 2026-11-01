@@ -11,6 +11,7 @@ order: 80
 | Pojem | Význam | Víc |
 | --- | --- | --- |
 | **Agregát / entita** | objekt domény s identitou a pravidly, stav mění jen přes své metody (`Order.Confirm`) | [Vrstvy](architektura/vrstvy.md) |
+| **Hranice konzistence** | co se musí změnit spolu v jedné transakci (košík + objednávka) – podle ní se kreslí hranice modulu | [Ordering](architektura/moduly/ordering.md) |
 | **At-least-once** | doručení „alespoň jednou“ – zpráva se neztratí, ale může přijít víckrát | [Outbox](eda/outbox.md) |
 | **Broker** | prostředník, který přijímá zprávy a doručuje je do front příjemců (RabbitMQ) | [Broker](eda/broker.md) |
 | **C4 model** | kreslení architektury v úrovních Context → Containers → Components → Code | [Architektura](architektura/index.md) |
@@ -21,14 +22,17 @@ order: 80
 | **Doménová událost** | fakt v minulém čase uvnitř modulu (`OrderConfirmed`) | [Doménové události](eda/domenove-udalosti.md) |
 | **Dual write** | zápis do dvou systémů (DB + broker), který může skončit napůl | [Outbox](eda/outbox.md) |
 | **Eventual consistency** | data se sjednotí se zpožděním (sekundy), ne okamžitě | [EDA](eda/index.md) |
+| **Expand → contract** | změna kontraktu ve dvou fázích: nejdřív posílat starou i novou verzi, až ji nikdo nečte, starou odebrat (`ProductUpdatedV1` → `V2`) | [Integrační zprávy](eda/integracni-zpravy.md) |
 | **Event sourcing** | ukládá se seznam událostí, stav se z nich počítá | [Proud událostí](eda/proud-udalosti.md) |
 | **Exchange** | „třídírna“ v RabbitMQ – rozesílá zprávy do navázaných front | [Broker](eda/broker.md) |
 | **Fanout** | typ exchange, který pošle kopii zprávy do každé navázané fronty | [Broker](eda/broker.md) |
 | **Fold** | postupné „složení“ stavu z událostí – start s prázdným stavem a `Apply` pro každou | [Proud událostí](eda/proud-udalosti.md) |
 | **Handler** | třída, která reaguje na jednu událost nebo zprávu | [Doménové události](eda/domenove-udalosti.md) |
+| **Immutable cache** | soubor se pod jednou adresou nikdy nemění (nový obsah = nové jméno), proto si ho prohlížeč smí uložit natrvalo | [Kopie katalogu](eda/kopie-katalogu.md) |
 | **Idempotence** | provést operaci jednou nebo víckrát má stejný výsledek | [Inbox](eda/inbox.md) |
 | **Inbox** | tabulka zpracovaných zpráv – ochrana před dvojím zpracováním | [Inbox](eda/inbox.md) |
 | **Integrační zpráva / kontrakt** | veřejná, verzovaná zpráva mezi službami (`ReserveStockV1`) | [Integrační zprávy](eda/integracni-zpravy.md) |
+| **Invariant** | pravidlo, které agregát hlídá vždy (košík: nejvýš 20 řádků, množství 1–100) – nejde obejít, protože se stav mění jen přes jeho metody | [Ordering](architektura/moduly/ordering.md) |
 | **Kompenzace** | akce, která ruší účinek dřívějšího kroku (vrácení zboží) | [Sága](eda/saga.md) |
 | **Modulární monolit** | jedna aplikace rozdělená na moduly s vlastními daty a jasnými hranicemi | [Moduly](architektura/moduly/index.md) |
 | **Orchestrace / choreografie** | proces řídí jeden „dirigent“ / každý reaguje sám na události ostatních | [Sága](eda/saga.md) |
@@ -40,7 +44,24 @@ order: 80
 | **SOLID** | pět principů objektového návrhu | [SOLID](architektura/solid.md) |
 | **Span / trasa (trace)** | jeden krok práce / strom kroků jednoho požadavku přes služby | [Observabilita](eda/observabilita.md) |
 | **traceparent** | standardní hlavička W3C nesoucí ID trasy mezi procesy | [Observabilita](eda/observabilita.md) |
+| **Path traversal** | útok podvrženou cestou k souboru (`../../appsettings.json`) – brání se mu jen jména podle přesného vzoru | [Inventory](architektura/moduly/inventory.md) |
+| **Výloha (/Shop)** | veřejná nabídka s hledáním a filtry nad kopií katalogu – read model tvarovaný pro čtení (CQRS) | [Kopie katalogu](eda/kopie-katalogu.md) |
 | **Wire tap** | „odposlech“ – fronta, která dostává kopii všech zpráv (audit) | [Broker](eda/broker.md) |
+
+## Účty a zabezpečení
+
+| Pojem | Význam | Víc |
+| --- | --- | --- |
+| **Autentizace / autorizace** | *kdo jsi?* (přihlášení) / *co smíš?* (role, vlastnictví záznamu) | [Accounts](architektura/moduly/accounts.md) |
+| **Claim** | jeden údaj o přihlášeném uživateli uložený v cookie (ID, e-mail, jméno, role) | [Accounts](architektura/moduly/accounts.md) |
+| **Hash hesla se solí** | jednosměrný otisk hesla s náhodnou přísadou – heslo samo se neukládá | [Accounts](architektura/moduly/accounts.md) |
+| **Fallback policy (secure by default)** | pravidlo pro vše, co nemá vlastní: v MiniShopu „musí být přihlášen“ – zapomenutá stránka je zamčená | [Accounts](architektura/moduly/accounts.md) |
+| **IDOR** | chyba: k cizím datům se dostanu jen změnou čísla v adrese (`/api/orders/43`) – brání filtr podle vlastníka a 404 | [Ordering](architektura/moduly/ordering.md) |
+| **Open redirect** | chyba: web po přihlášení přesměruje na adresu, kterou podstrčil útočník | [Accounts](architektura/moduly/accounts.md) |
+| **Policy** | pojmenované pravidlo autorizace (`RequireAdmin`), používané na stránkách i v API | [Accounts](architektura/moduly/accounts.md) |
+| **Přihlašovací cookie** | zašifrovaná identita v prohlížeči; `HttpOnly`, `Secure`, `SameSite` | [Accounts](architektura/moduly/accounts.md) |
+| **Resource-based authorization** | rozhodnutí podle konkrétního záznamu („objednávka patří přihlášenému“), ne jen podle role | [Ordering](architektura/moduly/ordering.md) |
+| **Role** | štítek na uživateli (`User`, `Admin`), podle kterého policies rozhodují | [Accounts](architektura/moduly/accounts.md) |
 
 ## Nasazení a provoz
 

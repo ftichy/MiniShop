@@ -54,7 +54,7 @@ flowchart TB
 1. **Závislosti vedou dovnitř** – doména nezávisí na ničem, databáze a web jsou jen „detail“. Viz [Vrstvy](vrstvy.md).
 2. **Moduly se navzájem neznají** – žádná reference, žádná sdílená tabulka. Mluví spolu jen zprávami
    z `MiniShop.Contracts`. Hlídá to test [ModuleBoundariesTests](code:tests/MiniShop.Tests/Architecture/ModuleBoundariesTests.cs).
-3. **Každý modul má vlastní databázi** (`ordering.db`, `inventory.db`, `journeys.db`).
+3. **Každý modul má vlastní databázi** (`ordering.db`, `inventory.db`, `journeys.db`, `users.db`).
 4. **Business tok jde jen přes zprávy** – HTTP mezi službami slouží jen k zobrazení dat v UI.
 
 ## Proč takhle (a ne jednodušeji)

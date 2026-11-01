@@ -41,6 +41,7 @@ USER $APP_UID
 ENV ASPNETCORE_HTTP_PORTS=8080 \
     ConnectionStrings__Ordering="Data Source=/data/ordering.db" \
     ConnectionStrings__Journeys="Data Source=/data/journeys.db" \
+    ConnectionStrings__Accounts="Data Source=/data/users.db" \
     DataProtection__KeysPath=/data/keys \
     Serilog__WriteTo__1__Args__path=/data/logs/minishop-.log
 EXPOSE 8080

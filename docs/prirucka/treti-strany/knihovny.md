@@ -21,13 +21,15 @@ v tabulce nejsou – jsou popsané níže.
 | **.NET 10 / C#** | běhové prostředí a jazyk | LTS verze, multiplatformní (ARM i x86), výkon | [dotnet.microsoft.com](https://dotnet.microsoft.com/) |
 | **ASP.NET Core** | web: Razor Pages (UI), kontrolery (REST API), DI, konfigurace, health checky | součást .NET, vše potřebné v jednom | [docs](https://learn.microsoft.com/aspnet/core/) |
 | **Microsoft.AspNetCore.OpenApi** | dokument `/openapi/v1.json` (popis REST API, jen ve vývoji) | standardní popis API pro nástroje a klienty | [docs](https://learn.microsoft.com/aspnet/core/fundamentals/openapi/overview) |
+| **ASP.NET Core Identity** (Microsoft.AspNetCore.Identity.EntityFrameworkCore) | uživatelské účty: hash hesla, pravidla hesla, role, přihlašovací cookie; tabulky v `users.db` | hotové a prověřené – vlastní kryptografie se nepíše; umí i zámek účtu, reset hesla a přihlášení přes Google | [docs](https://learn.microsoft.com/aspnet/core/security/authentication/identity) |
+| **MailKit** (+ **System.Security.Cryptography.Pkcs** připnutý na opravenou verzi) | odesílání e-mailů přes SMTP – Gmail v produkci, Mailpit lokálně ([E-maily](../architektura/emaily.md)) | doporučená náhrada zastaralého `SmtpClient`, umí STARTTLS i přihlášení; Pkcs je jeho tranzitivní závislost s opravou GHSA-846f-f764-76mx | [GitHub](https://github.com/jstedfast/MailKit) |
 | **Microsoft.Extensions.Hosting.Abstractions**, **Microsoft.Extensions.Configuration.Binder**, **Microsoft.Extensions.Diagnostics.HealthChecks** | background služby (outbox worker, consumery), načtení nastavení, health checky | Infrastructure není web projekt, potřebuje jen tyto části | [docs](https://learn.microsoft.com/dotnet/core/extensions/generic-host) |
 
 ## Data a zprávy
 
 | Co | K čemu | Proč | Odkazy |
 | --- | --- | --- | --- |
-| **Entity Framework Core** + **Microsoft.EntityFrameworkCore.Sqlite** | ORM – entity ↔ tabulky, transakce, change tracker (outbox v `SaveChanges`) | standard v .NET; transakce přes data i outbox v jednom `DbContext` | [docs](https://learn.microsoft.com/ef/core/) |
+| **Entity Framework Core** + **Microsoft.EntityFrameworkCore.Sqlite** | ORM – entity ↔ tabulky, transakce, change tracker (outbox v `SaveChanges`); **Microsoft.EntityFrameworkCore.Design** + nástroj `dotnet-ef` (`dotnet-tools.json`) pro migrace všech databází | standard v .NET; transakce přes data i outbox v jednom `DbContext`; migrace – produkční data se nesmí mazat ([Sdílené jádro – migrace](../architektura/sdilene-jadro.md)) | [docs](https://learn.microsoft.com/ef/core/) |
 | **SQLite** | databáze v jednom souboru na modul | žádný databázový server – ideální pro výuku a malou VM; online backup API | [sqlite.org](https://www.sqlite.org/) |
 | **RabbitMQ.Client** | připojení k RabbitMQ: exchange, fronty, publisher confirms, consumery | oficiální klient; vlastní tenká vrstva ukazuje, co dělají knihovny jako MassTransit | [docs](https://www.rabbitmq.com/client-libraries/dotnet) |
 
@@ -47,13 +49,14 @@ v tabulce nejsou – jsou popsané níže.
 | Co | K čemu | Proč | Odkazy |
 | --- | --- | --- | --- |
 | **xUnit** (xunit, xunit.runner.visualstudio) + **Microsoft.NET.Test.Sdk** | testovací framework a jeho spouštění | nejrozšířenější v .NET, jednoduchý | [xunit.net](https://xunit.net/) |
+| **Microsoft.AspNetCore.Mvc.Testing** | `WebApplicationFactory` – celý Web v paměti pro testy přes skutečné HTTP (matice oprávnění) | ověří přihlášení, cookie, policies i antiforgery dohromady, bez spuštění serveru | [docs](https://learn.microsoft.com/aspnet/core/test/integration-tests) |
 | **NetArchTest.Rules** | testy architektury – hranice modulů a vrstev | pravidla architektury hlídá CI, ne jen code review | [GitHub](https://github.com/BenMorris/NetArchTest) |
 
 ## Front-end a dokumentace
 
 | Co | K čemu | Proč | Odkazy |
 | --- | --- | --- | --- |
-| **Bootstrap 5** (z CDN jsDelivr) | vzhled UI – mřížka, formuláře, tabulky | hotový vzhled bez vlastního CSS | [getbootstrap.com](https://getbootstrap.com/) |
+| **Bootstrap 5** (5.3.3, jen CSS, lokálně ve `wwwroot/lib/bootstrap`) | vzhled UI – mřížka, formuláře, tabulky | hotový vzhled bez vlastního CSS; od účtů kroku 8 ne z CDN – CSP pouští jen vlastní soubory a cizí server nevidí návštěvníky | [getbootstrap.com](https://getbootstrap.com/) |
 | **Markdig** | převod Markdownu této dokumentace na HTML (na serveru) | nejrychlejší a nejúplnější Markdown pro .NET, tabulky i Mermaid bloky | [GitHub](https://github.com/xoofx/markdig) |
 | **Mermaid** (lokální kopie ve `wwwroot/lib/mermaid`) | diagramy z textu v prohlížeči | diagram se píše jako text vedle dokumentace a mění se s ní v PR | [mermaid.js.org](https://mermaid.js.org/) |
 

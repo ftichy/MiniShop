@@ -1,0 +1,14 @@
+@page
+@* Účty krok 2: sem cookie middleware pošle přihlášeného uživatele, kterému policy nedovolí stránku nebo akci. *@
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@{
+    ViewData["Title"] = "Přístup odepřen";
+}
+<h1>Přístup odepřen</h1>
+
+<p>Na tuto stránku nebo akci nemáte oprávnění.</p>
+<ul>
+    <li>Produkty, sklad, vyřízení objednávek a průběh objednávek spravuje <strong>admin</strong>.</li>
+    <li>Objednávky zakládají <strong>zákazníci</strong> – admin sám neobjednává.</li>
+</ul>
+<p><a asp-page="/Index">Zpět na úvod</a></p>

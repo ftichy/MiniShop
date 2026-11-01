@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using MiniShop.Application.Abstractions;
 using MiniShop.Contracts;
+using MiniShop.Infrastructure.Email;
 using MiniShop.Infrastructure.Integration;
 using MiniShop.Infrastructure.Integration.RabbitMq;
 using MiniShop.Infrastructure.Inventory;
@@ -30,6 +31,9 @@ public static class DependencyInjection
         services.AddSingleton<IIntegrationBus, InProcessIntegrationBus>();
         services.AddSingleton<IntegrationMessageRouting>();
         services.AddScoped<IntegrationMessageDispatcher>();
+
+        // Účty krok 5: e-maily jen do logu, dokud služba nezavolá AddEmail se SMTP serverem (Web).
+        services.TryAddSingleton<IEmailSender, LoggingEmailSender>();
 
         return services;
     }

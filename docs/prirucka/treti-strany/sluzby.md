@@ -1,6 +1,6 @@
 ---
 title: Online služby
-summary: Oracle Cloud, GitHub, Tailscale, DuckDNS, Let's Encrypt, UptimeRobot a healthchecks.io – všechny zdarma.
+summary: Oracle Cloud, GitHub, Tailscale, DuckDNS, Let's Encrypt, UptimeRobot, healthchecks.io a Gmail – všechny zdarma.
 order: 3
 ---
 
@@ -18,6 +18,7 @@ order: 3
 | **Let's Encrypt** | HTTPS certifikáty (vydává a obnovuje přes Caddy) | zdarma, automaticky, důvěryhodné ve všech prohlížečích | free | [letsencrypt.org](https://letsencrypt.org/) |
 | **UptimeRobot** | každých 5 minut zvenku kontroluje `/health` a `/health/inventory`, e-mail při výpadku | aktivní kontrola zvenku pozná i výpadek sítě, DNS či certifikátu ([detail](../nasazeni/monitoring.md)) | Free | [uptimerobot.com](https://uptimerobot.com/) |
 | **healthchecks.io** | hlídá, že noční záloha proběhla (*dead man's switch*) | ozve se, když se záloha **neozve** ([detail](../nasazeni/zalohy.md)) | Hobbyist (free) | [healthchecks.io](https://healthchecks.io/) |
+| **Gmail (SMTP)** | odesílání e-mailů z produkce – potvrzení e-mailu, nové heslo, stav objednávky; účet `ftichy.gemini@gmail.com` s heslem aplikace | zdarma (~500 e-mailů/den), dobrá doručitelnost i bez vlastní domény ([detail](../architektura/emaily.md)) | free | [heslo aplikace](https://support.google.com/accounts/answer/185833) |
 
 ## Účty a jejich ochrana
 
@@ -32,3 +33,4 @@ automaty (OAuth klient Tailscale, SSH klíč nasazení, API klíč OCI), jsou po
 | DuckDNS | vlastní doména – nový DNS záznam a `DOMAIN` v `production.env` |
 | Tailscale | dočasně SSH z vlastní IP v security listu; nebo jiná VPN (WireGuard) |
 | UptimeRobot, healthchecks.io | jiný free monitoring (např. Better Stack); kód se nemění |
+| Gmail | jiný SMTP (Brevo, Mailjet, OCI Email Delivery) – jen `EMAIL_*` v `production.env` a secret `SMTP_PASSWORD` |

@@ -16,11 +16,14 @@ public sealed class CatalogSyncService(
     IOrderingUnitOfWork unitOfWork,
     TimeProvider timeProvider)
 {
-    /// <summary>Po startu služby: když je kopie katalogu prázdná (nová databáze), požádá sklad o celý katalog.</summary>
+    /// <summary>
+    /// Po startu služby: když je kopie katalogu prázdná (nová databáze) nebo neúplná (e-shop krok 2: produkty bez
+    /// dostupnosti z doby před výlohou), požádá sklad o celý katalog.
+    /// </summary>
     /// <returns>true, když o katalog požádala.</returns>
-    public async Task<bool> RequestIfEmptyAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> RequestIfEmptyOrIncompleteAsync(CancellationToken cancellationToken = default)
     {
-        if (await catalog.AnyAsync(cancellationToken))
+        if (await catalog.AnyAsync(cancellationToken) && !await catalog.AnyIncompleteAsync(cancellationToken))
         {
             return false;
         }

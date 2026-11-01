@@ -13,7 +13,7 @@
     <ProjectReference Include="..\MiniShop.Inventory.Api\MiniShop.Inventory.Api.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Aspire.Hosting.RabbitMQ" Version="13.6.3" />
+    <PackageReference Include="Aspire.Hosting.RabbitMQ" Version="13.6.4" />
     <!-- Opravená verze tranzitivní závislosti Aspire (GHSA-qhrr-8q5h-9q3h). -->
     <PackageReference Include="MessagePack" Version="2.5.307" />
   </ItemGroup>

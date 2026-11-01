@@ -41,4 +41,24 @@ public sealed class AccountAuditEntry
     public string TargetUserId { get; private set; } = string.Empty;
     public string TargetEmail { get; private set; } = string.Empty;
     public AccountAuditAction Action { get; private set; }
+
+    /// <summary>Místo e-mailu smazaného účtu (účty krok 9).</summary>
+    public const string DeletedAccountEmail = "smazaný účet";
+
+    /// <summary>
+    /// Účty krok 9: uživatel smazal účet – v auditu zůstane, že se akce stala (kdo jako ID), ale bez jeho e-mailu.
+    /// Jediná výjimka z „audit se jen přidává“: právo být zapomenut je silnější.
+    /// </summary>
+    public void ForgetUser(string userId)
+    {
+        if (ActorUserId == userId)
+        {
+            ActorEmail = DeletedAccountEmail;
+        }
+
+        if (TargetUserId == userId)
+        {
+            TargetEmail = DeletedAccountEmail;
+        }
+    }
 }

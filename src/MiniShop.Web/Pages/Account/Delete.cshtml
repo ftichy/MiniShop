@@ -1,0 +1,40 @@
+@page
+@model MiniShop.Web.Pages.Account.DeleteModel
+@{
+    ViewData["Title"] = "Smazat účet";
+}
+<h1>Smazat účet</h1>
+
+@if (Model.CannotDeleteReason is not null)
+{
+    <div class="alert alert-warning">@Model.CannotDeleteReason</div>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-7 col-lg-6">
+            <p>Smazáním účtu:</p>
+            <ul>
+                <li>zmizí váš účet, jméno, e-mail a heslo – přihlásit se už nepůjde,</li>
+                <li>vaše objednávky zůstanou (položky a ceny kvůli účetnictví), ale <strong>bez jména a e-mailu</strong>,</li>
+                <li>v nočních zálohách zůstanou údaje ještě nejvýš 7 dní.</li>
+            </ul>
+            <p class="text-muted small">
+                Nevyřízenou objednávku nejdřív nechte vyřídit nebo ji zrušte. Víc v
+                <a asp-page="/Privacy">Ochraně osobních údajů</a>.
+            </p>
+
+            <form method="post">
+                <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                <input type="hidden" autocomplete="username" value="@User.Identity?.Name" />
+                <div class="mb-3">
+                    <label asp-for="Password" class="form-label"></label>
+                    <input asp-for="Password" class="form-control" autocomplete="current-password" />
+                    <span asp-validation-for="Password" class="text-danger small"></span>
+                </div>
+                <button type="submit" class="btn btn-danger">Trvale smazat účet</button>
+                <a asp-page="/Account/ChangePassword" class="btn btn-link">Zpět</a>
+            </form>
+        </div>
+    </div>
+}

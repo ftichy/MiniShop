@@ -59,11 +59,11 @@ public sealed class AccountAdministrationTests : IDisposable
         var janId = await CreateUserAsync("jan@example.com");
 
         Assert.True((await Admin(a => a.LockAsync(_adminId, janId))).Succeeded);
-        Assert.True((await Admin(a => a.GetAccountAsync(janId)))!.IsLocked);
+        Assert.True((await Admin(a => a.GetAccountAsync(janId)))!.IsBlocked);
         Assert.True(await Users(async m => await m.IsLockedOutAsync((await m.FindByIdAsync(janId))!)));
 
         Assert.True((await Admin(a => a.UnlockAsync(_adminId, janId))).Succeeded);
-        Assert.False((await Admin(a => a.GetAccountAsync(janId)))!.IsLocked);
+        Assert.False((await Admin(a => a.GetAccountAsync(janId)))!.IsBlocked);
 
         Assert.Equal(
             [AccountAuditAction.Unlocked, AccountAuditAction.Locked],
@@ -122,7 +122,7 @@ public sealed class AccountAdministrationTests : IDisposable
         var result = await Admin(a => a.LockAsync(petraId, janId));
 
         Assert.False(result.Succeeded);
-        Assert.False((await Admin(a => a.GetAccountAsync(janId)))!.IsLocked);
+        Assert.False((await Admin(a => a.GetAccountAsync(janId)))!.IsBlocked);
     }
 
     [Fact]
@@ -135,10 +135,61 @@ public sealed class AccountAdministrationTests : IDisposable
 
         Assert.Equal(["admin@example.com", "jan@example.com"], accounts.Select(a => a.Email));
         Assert.True(accounts[0].IsAdmin);
-        Assert.False(accounts[0].IsLocked);
+        Assert.False(accounts[0].IsBlocked);
         Assert.False(accounts[1].IsAdmin);
-        Assert.True(accounts[1].IsLocked);
+        Assert.True(accounts[1].IsBlocked);
+        Assert.Null(accounts[1].LockedOutUntil);
     }
+
+    // --- Účty krok 8: dočasný zámek po špatných heslech ---
+
+    [Fact]
+    public async Task PetSpatnychHesel_DocasnyZamek_NeniBlokace_AdminHoMuzeZrusit()
+    {
+        var janId = await CreateUserAsync("jan@example.com");
+        await FailPasswordAsync(janId, AccountsInfrastructure.MaxFailedAccessAttempts);
+
+        var jan = (await Admin(a => a.GetAccountAsync(janId)))!;
+        Assert.False(jan.IsBlocked);
+        Assert.NotNull(jan.LockedOutUntil);
+
+        Assert.True((await Admin(a => a.UnlockAsync(_adminId, janId))).Succeeded);
+        Assert.Null((await Admin(a => a.GetAccountAsync(janId)))!.LockedOutUntil);
+    }
+
+    [Fact]
+    public async Task DocasneZamcenyUcet_JdeZablokovat()
+    {
+        var janId = await CreateUserAsync("jan@example.com");
+        await FailPasswordAsync(janId, AccountsInfrastructure.MaxFailedAccessAttempts);
+
+        Assert.True((await Admin(a => a.LockAsync(_adminId, janId))).Succeeded);
+        Assert.True((await Admin(a => a.GetAccountAsync(janId)))!.IsBlocked);
+    }
+
+    [Fact]
+    public async Task DocasneZamcenyAdmin_ZustavaAktivnimAdminem()
+    {
+        // Útočník zkoušením hesel nesmí „odstavit“ admina – zámek jen brání přihlášení, práva nebere.
+        var petraId = await CreateUserAsync("petra@example.com");
+        await Admin(a => a.PromoteToAdminAsync(_adminId, petraId));
+        await FailPasswordAsync(_adminId, AccountsInfrastructure.MaxFailedAccessAttempts);
+
+        var result = await Admin(a => a.DemoteToUserAsync(_adminId, petraId));
+
+        Assert.True(result.Succeeded, result.Message);
+    }
+
+    private Task FailPasswordAsync(string userId, int times) => Users(async m =>
+    {
+        var user = (await m.FindByIdAsync(userId))!;
+        for (var i = 0; i < times; i++)
+        {
+            await m.AccessFailedAsync(user);
+        }
+
+        return true;
+    });
 
     [Fact]
     public async Task Migrace_DatabazeZEnsureCreated_DostaneAudit_UctyZustanou()

@@ -69,7 +69,8 @@ sequenceDiagram
   **2 hodiny**. Kdo ho změní, rozbije podpis.
 - **Stejná odpověď** pro existující i neexistující e-mail – stránka neprozradí, kdo má v MiniShopu účet.
 - **Potvrzený e-mail** je v cookie jako claim `minishop:email_confirmed`; bez něj ukazuje stránka upozornění.
-  Povinné potvrzení před objednávkou přijde v účtech kroku 9.
+  Od účtů kroku 9 je potvrzení **povinné před objednávkou** (policy `RequireCustomer`) – robot s vymyšlenou adresou
+  nic neobjedná a e-maily o objednávkách nechodí cizím lidem.
 - Do logu jde jen **předmět** e-mailu – adresa je osobní údaj a text obsahuje odkaz s tokenem.
 
 ## Konfigurace (sekce `Email`)

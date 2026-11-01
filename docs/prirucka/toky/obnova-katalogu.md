@@ -1,11 +1,13 @@
 ---
 title: Obnova katalogu
-summary: Když je kopie katalogu prázdná (nová databáze), Ordering požádá sklad, aby znovu poslal všechny produkty.
+summary: Když je kopie katalogu prázdná (nová databáze) nebo neúplná, Ordering požádá sklad, aby znovu poslal všechny produkty.
 order: 6
 ---
 
 > **Shrnutí:** Události o produktech chodí jen při změně. Nová `ordering.db` by tak zůstala bez katalogu.
-> Proto Web po startu (nebo tlačítkem) pošle příkaz `SyncCatalogV1` a sklad odpoví `ProductUpdatedV1` pro každý produkt.
+> Proto Web po startu (nebo tlačítkem) pošle příkaz `SyncCatalogV1` a sklad odpoví `ProductUpdatedV1` a `ProductUpdatedV2`
+> pro každý produkt. E-shop krok 2: obnova proběhne i u **neúplné** kopie – produkty z doby před výlohou nemají
+> dostupnost a kategorii (migrace jim dala `Unknown`), po nasazení je tak Web doplní sám.
 
 ```mermaid
 sequenceDiagram
@@ -17,17 +19,17 @@ sequenceDiagram
     participant SH as SyncCatalogHandler (sklad)
     participant CH as CatalogProjectionHandler
 
-    SW->>CS: RequestIfEmptyAsync() – po startu Webu
-    CS->>ODB: je kopie katalogu prázdná?
-    alt prázdná
+    SW->>CS: RequestIfEmptyOrIncompleteAsync() – po startu Webu
+    CS->>ODB: je kopie prázdná, nebo má produkt bez dostupnosti?
+    alt prázdná nebo neúplná
         CS->>ODB: COMMIT: Outbox[SyncCatalogV1]
         ODB->>MQ: SyncCatalogV1 (kolo workeru)
         MQ->>SH: fronta minishop.inventory
         loop pro každý produkt
-            SH->>MQ: ProductUpdatedV1 (nové EventId, čas = Product.ChangedAtUtc)
+            SH->>MQ: ProductUpdatedV1 + V2 (nová EventId, čas = Product.ChangedAtUtc)
         end
-        MQ->>CH: ProductUpdatedV1 …
-        CH->>ODB: CatalogProduct přidat / Apply
+        MQ->>CH: ProductUpdatedV1, ProductUpdatedV2 …
+        CH->>ODB: CatalogProduct přidat / Apply / ApplyDetails + dostupnost
     else už něco obsahuje
         CS-->>SW: nic nedělat
     end

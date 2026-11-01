@@ -5,7 +5,7 @@ namespace MiniShop.Application.Inventory;
 
 /// <summary>
 /// Modul Inventory: vyřídí příkaz <see cref="SyncCatalogV1"/> – pošle znovu aktuální stav všech produktů
-/// jako <see cref="ProductUpdatedV1"/>. Příjemci (kopie katalogu v Orderingu) si podle nich doplní, co jim chybí.
+/// jako <see cref="ProductUpdatedV1"/> a <see cref="ProductUpdatedV2"/>. Příjemci (kopie katalogu v Orderingu) si podle nich doplní, co jim chybí.
 /// </summary>
 /// <remarks>
 /// Každá zpráva má nové EventId (je to nové odeslání, inbox příjemce ji nesmí zahodit jako duplicitu),
@@ -23,6 +23,9 @@ public sealed class SyncCatalogHandler(
         foreach (var product in await products.GetAllAsync(cancellationToken))
         {
             publisher.Publish(new ProductUpdatedV1(Guid.NewGuid(), product.ChangedAtUtc, product.Id, product.Name, product.Price));
+
+            // E-shop krok 2: V2 nese i popis, kategorii a dostupnost (s časem její poslední změny) – obnova tak doplní výlohu.
+            publisher.Publish(product.ToProductUpdatedV2(Guid.NewGuid(), product.ChangedAtUtc));
         }
 
         // Zprávy jdou přes outbox skladu – odejdou, i kdyby broker zrovna nebyl dostupný.

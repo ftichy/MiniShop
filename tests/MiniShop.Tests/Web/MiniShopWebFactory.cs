@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using MiniShop.Application.Abstractions;
 using MiniShop.Application.Inventory;
 using MiniShop.Domain.Orders;
@@ -35,6 +36,9 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
     /// <summary>Účty krok 5: všechny e-maily, které Web „odeslal“.</summary>
     public RecordingEmailSender Emails { get; } = new();
 
+    /// <summary>Účty krok 8: všechno, co Web zapsal do logu.</summary>
+    public RecordingLoggerProvider Logs { get; } = new();
+
     private readonly InMemoryDatabase _ordering = new();
     private readonly InMemoryDatabase _journeys = new();
     private readonly InMemoryDatabase _accounts = new();
@@ -45,6 +49,10 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
         builder.UseSetting("ConnectionStrings:Ordering", _ordering.ConnectionString);
         builder.UseSetting("ConnectionStrings:Journeys", _journeys.ConnectionString);
         builder.UseSetting("ConnectionStrings:Accounts", _accounts.ConnectionString);
+        // Účty krok 7: servisní klíč skladu (sklad tu nahrazuje StubProductService, ale bez klíče by se Web nespustil).
+        builder.UseSetting("InventoryApi:ApiKey", new string('k', 64));
+        // Účty krok 8: limit formulářů účtu vysoko – testy se přihlašují stokrát z jedné „IP“. Limit zkouší vlastní test.
+        builder.UseSetting("RateLimiting:AccountForms:PermitLimit", "100000");
 
         // První admin z konfigurace (seed) – stejně jako ve vývoji, jen bez vynucené změny hesla.
         builder.UseSetting("AdminBootstrap:Email", AdminEmail);
@@ -66,10 +74,17 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
 
             services.RemoveAll<IProductService>();
             services.AddSingleton<IProductService, StubProductService>();
+            services.RemoveAll<ICategoryService>();
+            services.AddSingleton<ICategoryService, StubCategoryService>();
+            services.RemoveAll<IProductImageService>();
+            services.AddSingleton<IProductImageService, StubProductImageService>();
 
             // Účty krok 5: e-maily do „schránky“ testů – odkazy z nich testy otevírají.
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender>(Emails);
+
+            // Účty krok 8: log do paměti testu.
+            services.AddSingleton<ILoggerProvider>(Logs);
         });
     }
 
@@ -79,12 +94,15 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
         await CreateUserAsync(UserEmail, UserPassword);
     }
 
-    /// <summary>Zákazník (role User), volitelně s příznakem „musí změnit heslo“.</summary>
-    public async Task CreateUserAsync(string email, string password, bool mustChangePassword = false)
+    /// <summary>
+    /// Zákazník (role User), volitelně s příznakem „musí změnit heslo“. Účty krok 9: e-mail je standardně potvrzený
+    /// (bez potvrzení nejde objednávat).
+    /// </summary>
+    public async Task CreateUserAsync(string email, string password, bool mustChangePassword = false, bool emailConfirmed = true)
     {
         await using var scope = Services.CreateAsyncScope();
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        var user = new ApplicationUser { UserName = email, Email = email, DisplayName = "Test" };
+        var user = new ApplicationUser { UserName = email, Email = email, DisplayName = "Test", EmailConfirmed = emailConfirmed };
         Assert.True((await users.CreateAsync(user, password)).Succeeded);
         await users.AddToRoleAsync(user, AccountRoles.User);
         if (mustChangePassword)
@@ -96,16 +114,44 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
     /// <summary>
     /// Účty krok 3: objednávka zákazníka rovnou v ordering.db (bez katalogu a ságy – testy Webu je nepotřebují).
     /// </summary>
-    public async Task<int> CreateOrderForAsync(string email)
+    /// <param name="cancelled">Účty krok 9: rovnou potvrzená a zrušená (vyřízená – nebrání smazání účtu).</param>
+    public async Task<int> CreateOrderForAsync(string email, bool cancelled = false)
     {
         await using var scope = Services.CreateAsyncScope();
         var user = await scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().FindByEmailAsync(email)
             ?? throw new InvalidOperationException($"Uživatel {email} neexistuje.");
         var db = scope.ServiceProvider.GetRequiredService<OrderingDbContext>();
         var order = new Order(user.Id, user.DisplayName, email, DateTime.UtcNow);
+        if (cancelled)
+        {
+            order.Confirm(DateTime.UtcNow);
+            order.Cancel(DateTime.UtcNow);
+        }
+
         db.Orders.Add(order);
         await db.SaveChangesAsync();
         return order.Id;
+    }
+
+    /// <summary>E-shop krok 3: produkt rovnou v kopii katalogu (bez skladu a zpráv), skladem. Podruhé se nic nestane.</summary>
+    public async Task EnsureCatalogProductAsync(int id, string name, decimal price, string? imageFileName = null)
+    {
+        await using var scope = Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<OrderingDbContext>();
+        if (await db.CatalogProducts.FindAsync(id) is not null)
+        {
+            return;
+        }
+
+        var product = new CatalogProduct(id, name, price, DateTime.UtcNow);
+        if (imageFileName is not null)
+        {
+            product.ApplyDetails(name, null, price, 1, "Nezařazeno", imageFileName, DateTime.UtcNow);
+        }
+
+        product.ApplyAvailability(CatalogAvailability.InStock, DateTime.UtcNow);
+        db.CatalogProducts.Add(product);
+        await db.SaveChangesAsync();
     }
 
     /// <summary>Klient jako prohlížeč: HTTPS (kvůli Secure cookie), cookies, bez automatického přesměrování.</summary>
@@ -162,7 +208,8 @@ public sealed class WebCollection : ICollectionFixture<MiniShopWebFactory>
 /// <summary>Sklad v testech Webu – Inventory.Api neběží, stránka Produkty dostane jeden produkt.</summary>
 public sealed class StubProductService : IProductService
 {
-    private static readonly ProductDto Product = new(1, "Testovací produkt", null, 100m, 10);
+    private static readonly ProductDto Product =
+        new(1, "Testovací produkt", null, 100m, 10, 1, "Nezařazeno", StubProductImageService.KnownFileName);
 
     public Task<IReadOnlyList<ProductDto>> GetAllAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<ProductDto>>([Product]);
@@ -179,4 +226,56 @@ public sealed class StubProductService : IProductService
         Task.FromResult(Product);
 
     public Task DeleteAsync(int id, CancellationToken cancellationToken = default) => Task.CompletedTask;
+}
+
+/// <summary>E-shop krok 2: kategorie v testech Webu – Inventory.Api neběží, stránka Produkty dostane jednu kategorii.</summary>
+public sealed class StubCategoryService : ICategoryService
+{
+    private static readonly CategoryDto Category = new(1, "Nezařazeno", 1);
+
+    /// <summary>Názvy kategorií, které stránka poslala „skladu“ (založení i přejmenování) – pro testy formulářů.</summary>
+    public List<string> ReceivedNames { get; } = [];
+
+    public Task<IReadOnlyList<CategoryDto>> GetAllAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<CategoryDto>>([Category]);
+
+    public Task<CategoryDto> CreateAsync(CategoryRequest request, CancellationToken cancellationToken = default)
+    {
+        ReceivedNames.Add(request.Name);
+        return Task.FromResult(Category);
+    }
+
+    public Task<CategoryDto> RenameAsync(int id, CategoryRequest request, CancellationToken cancellationToken = default)
+    {
+        ReceivedNames.Add(request.Name);
+        return Task.FromResult(Category);
+    }
+
+    public Task DeleteAsync(int id, CancellationToken cancellationToken = default) => Task.CompletedTask;
+}
+
+/// <summary>
+/// E-shop krok 2B: obrázky v testech Webu – „sklad“ zná jeden obrázek (<see cref="KnownFileName"/>)
+/// a pamatuje si, co mu stránka poslala.
+/// </summary>
+public sealed class StubProductImageService : IProductImageService
+{
+    public const string KnownFileName = "1-0123456789ab.png";
+    public static readonly byte[] KnownContent = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3];
+
+    private static readonly ProductDto Product = new(1, "Testovací produkt", null, 100m, 10, 1, "Nezařazeno", KnownFileName);
+
+    public List<byte[]> Uploaded { get; } = [];
+
+    public Task<ProductDto> SetImageAsync(int productId, byte[] content, CancellationToken cancellationToken = default)
+    {
+        Uploaded.Add(content);
+        return Task.FromResult(Product);
+    }
+
+    public Task<ProductDto> RemoveImageAsync(int productId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Product);
+
+    public Task<ProductImage?> GetImageAsync(string fileName, CancellationToken cancellationToken = default) =>
+        Task.FromResult(fileName == KnownFileName ? new ProductImage(KnownContent, "image/png") : null);
 }

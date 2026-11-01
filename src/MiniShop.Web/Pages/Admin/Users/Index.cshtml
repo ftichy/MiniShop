@@ -34,7 +34,7 @@
                     }
                 </td>
                 <td><partial name="_RoleBadge" model="account.IsAdmin" /></td>
-                <td><partial name="_LockBadge" model="account.IsLocked" /></td>
+                <td><partial name="_LockBadge" model="account" /></td>
                 <td class="num">@row.OrderCount</td>
                 <td class="num">@row.TotalSpent.ToString("N2") Kč</td>
             </tr>

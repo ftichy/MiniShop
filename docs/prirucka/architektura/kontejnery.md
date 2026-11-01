@@ -66,7 +66,8 @@ flowchart TB
 ## Kdo s kým mluví a jak
 
 - **Prohlížeč → Web**: HTTP(S). Formulář objednávky je Razor Page, data se posílají klasicky formulářem.
-- **Web → Inventory.Api přes HTTP**: jen kvůli UI (stránka Produkty, volitelně zásoba ve formuláři).
+- **Web → Inventory.Api přes HTTP**: jen kvůli administraci (stránka Produkty a kategorie). Výloha a formulář
+  objednávky berou nabídku i dostupnost z kopie katalogu (e-shop krok 2) – na sklad se neptají.
   Klient [InventoryApiClient](code:src/MiniShop.Web/Inventory/InventoryApiClient.cs) má zapnutou *resilienci*
   (opakování, circuit breaker) – když sklad neběží, stránka se načte, jen bez údajů skladu.
 - **Business tok jde jen přes RabbitMQ.** Objednávka nikdy nevolá sklad synchronně. Kdyby sklad neběžel, objednávka

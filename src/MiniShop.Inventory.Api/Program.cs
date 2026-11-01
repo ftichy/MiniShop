@@ -5,6 +5,7 @@ using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Hosting;
 using MiniShop.Infrastructure.Inventory;
 using MiniShop.Inventory.Api;
+using Microsoft.AspNetCore.Authorization;
 using MiniShop.ServiceDefaults;
 using Serilog;
 
@@ -17,6 +18,9 @@ Log.Logger = new LoggerConfiguration()
 try
 {
     var builder = WebApplication.CreateBuilder(args);
+
+    // Účty krok 9: neprozrazovat technologii serveru (hlavička "Server: Kestrel") – útočníkovi by ušetřila práci.
+    builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
 
     // Krok 11: výchozí providery pryč – logy píše Serilog a OpenTelemetry (jinak by byly na konzoli dvakrát).
     builder.Logging.ClearProviders();
@@ -36,14 +40,28 @@ try
     // Jen modul Inventory: aplikační služba, handlery příkazů ságy a infrastruktura (inventory.db, outbox, inbox).
     builder.Services.AddSingleton(TimeProvider.System);
     builder.Services.AddScoped<IProductService, ProductService>();
+    builder.Services.AddScoped<ICategoryService, CategoryService>();
     builder.Services.AddIntegrationMessageHandler<ReserveStockV1, ReserveStockHandler>(IntegrationModules.Inventory);
     builder.Services.AddIntegrationMessageHandler<ReleaseStockV1, ReleaseStockHandler>(IntegrationModules.Inventory);
     builder.Services.AddIntegrationMessageHandler<SyncCatalogV1, SyncCatalogHandler>(IntegrationModules.Inventory);
     builder.Services.AddInfrastructureCore();
     builder.Services.AddInventoryInfrastructure(connectionString);
 
+    // E-shop krok 2B: obrázky produktů – v kontejneru /data/images (ENV v Dockerfile), lokálně složka images vedle projektu.
+    builder.Services.AddFileSystemProductImages(
+        Path.Combine(builder.Environment.ContentRootPath, builder.Configuration["ProductImages:Path"] ?? "images"));
+
     // Outbox worker + RabbitMQ (fronta minishop.inventory).
     builder.Services.AddMessaging(builder.Configuration);
+
+    // Účty krok 7: zero trust – /api jen se servisním klíčem Webu (401 bez něj). Bez klíče v konfiguraci se sklad nespustí.
+    var apiKey = ServiceApiKey.Read(key => builder.Configuration[key]);
+    builder.Services.AddAuthentication(ApiKeyAuthenticationHandler.SchemeName)
+        .AddScheme<ApiKeyAuthenticationOptions, ApiKeyAuthenticationHandler>(
+            ApiKeyAuthenticationHandler.SchemeName, options => options.ApiKey = apiKey);
+    builder.Services.AddAuthorizationBuilder()
+        // Co není výslovně [AllowAnonymous] (health checky), to vyžaduje klíč – i čtení.
+        .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
 
     builder.Services.AddControllers();
     builder.Services.AddOpenApi();
@@ -57,12 +75,15 @@ try
     if (app.Environment.IsDevelopment())
     {
         // OpenAPI dokument: /openapi/v1.json
-        app.MapOpenApi();
+        app.MapOpenApi().AllowAnonymous();
     }
 
     // Request logging vně exception handleru – loguje výsledný status (404/400), ne výjimku.
     app.UseSerilogRequestLogging();
     app.UseExceptionHandler();
+
+    app.UseAuthentication();
+    app.UseAuthorization();
 
     app.MapControllers();
     app.MapDefaultEndpoints();

@@ -1,12 +1,15 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.RateLimiting;
 using MiniShop.Infrastructure.Accounts;
 using MiniShop.Web.Accounts;
+using MiniShop.Web.Security;
 
 namespace MiniShop.Web.Pages.Account;
 
 /// <summary>Účty krok 5: znovu poslat odkaz pro potvrzení e-mailu přihlášenému uživateli (tlačítko v upozornění).</summary>
+[EnableRateLimiting(AccountRateLimiting.PolicyName)]   // účty krok 8: max. 10 odeslání za minutu z jedné IP
 public sealed class ResendConfirmationModel(
     UserManager<ApplicationUser> userManager,
     AccountEmails accountEmails,

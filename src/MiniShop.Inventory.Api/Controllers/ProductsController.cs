@@ -8,8 +8,37 @@ namespace MiniShop.Inventory.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/products")]
-public sealed class ProductsController(IProductService productService) : ControllerBase
+public sealed class ProductsController(IProductService productService, IProductImageService imageService) : ControllerBase
 {
+    // ---------- E-shop krok 2B: obrázky ----------
+
+    /// <summary>Nahraje obrázek (multipart, pole <c>file</c>). Limit požadavku hlídá i Kestrel – větší ani nedočte.</summary>
+    [HttpPut("{id:int}/image")]
+    [RequestSizeLimit(ProductImageFormat.MaxBytes + 64 * 1024)]
+    public async Task<ActionResult<ProductDto>> SetImage(int id, IFormFile file, CancellationToken cancellationToken)
+    {
+        if (file.Length > ProductImageFormat.MaxBytes)
+        {
+            return Problem("Obrázek může mít nejvýš 1 MB.", statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        using var content = new MemoryStream();
+        await file.CopyToAsync(content, cancellationToken);
+        return Ok(await imageService.SetImageAsync(id, content.ToArray(), cancellationToken));
+    }
+
+    [HttpDelete("{id:int}/image")]
+    public async Task<ActionResult<ProductDto>> RemoveImage(int id, CancellationToken cancellationToken) =>
+        Ok(await imageService.RemoveImageAsync(id, cancellationToken));
+
+    /// <summary>Soubor obrázku – čte ho Web a posílá ho dál veřejně na /media/products/{soubor}.</summary>
+    [HttpGet("images/{fileName}")]
+    public async Task<IActionResult> GetImage(string fileName, CancellationToken cancellationToken)
+    {
+        var image = await imageService.GetImageAsync(fileName, cancellationToken);
+        return image is null ? NotFound() : File(image.Content, image.ContentType);
+    }
+
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<ProductDto>>> GetAll(CancellationToken cancellationToken) =>
         Ok(await productService.GetAllAsync(cancellationToken));

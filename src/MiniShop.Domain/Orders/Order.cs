@@ -124,6 +124,28 @@ public class Order : Entity
         Raise(new OrderCancelled(this, cancelledAtUtc));
     }
 
+    /// <summary>Jméno smazaného zákazníka na jeho objednávkách (účty krok 9).</summary>
+    public const string AnonymizedCustomerName = "Smazaný zákazník";
+
+    /// <summary>Čeká objednávka ještě na sklad nebo na vyřízení (Pending, Confirmed)?</summary>
+    public bool IsActive => Status is OrderStatus.Pending or OrderStatus.Confirmed;
+
+    /// <summary>
+    /// Účty krok 9: zákazník smazal účet – objednávka zůstane (položky, ceny, stav pro účetnictví a statistiky),
+    /// ale bez jména a e-mailu. Rozpracovanou objednávku anonymizovat nejde – nebylo by komu ji doručit.
+    /// </summary>
+    /// <remarks>Bez doménové události: zákazníkovi už se nic neposílá a nikoho jiného to nezajímá.</remarks>
+    public void Anonymize()
+    {
+        if (IsActive)
+        {
+            throw new DomainException("Rozpracovanou objednávku nejde anonymizovat.");
+        }
+
+        CustomerName = AnonymizedCustomerName;
+        CustomerEmail = string.Empty;
+    }
+
     private void EnsureStatus(OrderStatus expected, string message)
     {
         if (Status != expected)

@@ -1,7 +1,13 @@
-@model bool
-@if (Model)
+@using MiniShop.Infrastructure.Accounts
+@model AccountSummary
+@if (Model.IsBlocked)
 {
     <span class="badge bg-danger">zablokovaný</span>
+}
+else if (Model.LockedOutUntil is { } until)
+{
+    @* Účty krok 8: dočasný zámek po špatných heslech. *@
+    <span class="badge bg-warning text-dark" title="Po opakovaném špatném hesle">zamčený do @until.ToLocalTime().ToString("t")</span>
 }
 else
 {

@@ -2,6 +2,7 @@ using MiniShop.Application;
 using MiniShop.Application.Inventory;
 using MiniShop.Application.Journeys;
 using MiniShop.Application.Ordering;
+using MiniShop.Application.Ordering.Carts;
 using MiniShop.Application.Ordering.Catalog;
 using MiniShop.Application.Ordering.EventHandlers;
 using MiniShop.Application.Ordering.IntegrationEvents;
@@ -11,6 +12,7 @@ using MiniShop.Contracts.Inventory;
 using MiniShop.Domain.Orders.Events;
 using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Ordering;
+using MiniShop.ServiceDefaults;
 using MiniShop.Web.Inventory;
 
 namespace MiniShop.Web.Extensions;
@@ -27,7 +29,7 @@ public static class ApplicationServiceCollectionExtensions
 
         services.AddOrderingModule(configuration);
         services.AddJourneysModule();
-        services.AddInventoryApiClient();
+        services.AddInventoryApiClient(configuration);
 
         return services;
     }
@@ -70,12 +72,21 @@ public static class ApplicationServiceCollectionExtensions
         services.AddIntegrationMessageHandler<StockReservationFailedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<StockReleasedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
 
-        // Kopie katalogu (krok 10): název a cena produktů ze skladu, bez přístupu do jeho databáze.
+        // Kopie katalogu (krok 10): produkty ze skladu, bez přístupu do jeho databáze. E-shop krok 2: V2 (popis, kategorie,
+        // dostupnost) a změny dostupnosti; V1 zatím zůstává (expand → contract).
         services.AddIntegrationMessageHandler<ProductUpdatedV1, CatalogProjectionHandler>(IntegrationModules.Ordering);
+        services.AddIntegrationMessageHandler<ProductUpdatedV2, CatalogProjectionHandler>(IntegrationModules.Ordering);
+        services.AddIntegrationMessageHandler<StockAvailabilityChangedV1, CatalogProjectionHandler>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<ProductRemovedV1, CatalogProjectionHandler>(IntegrationModules.Ordering);
 
-        // Obnova kopie katalogu (příkaz SyncCatalogV1 pro sklad): po startu, když je prázdná, nebo tlačítkem v UI.
+        // Obnova kopie katalogu (příkaz SyncCatalogV1 pro sklad): po startu, když je prázdná/neúplná, nebo tlačítkem v UI.
         services.AddScoped<CatalogSyncService>();
+
+        // E-shop krok 2: výloha – hledání nad kopií katalogu.
+        services.AddScoped<ICatalogQueryService, CatalogQueryService>();
+
+        // E-shop krok 3: košík (agregát Cart v ordering.db, ceny z kopie katalogu).
+        services.AddScoped<ICartService, CartService>();
 
         return services;
     }
@@ -83,11 +94,21 @@ public static class ApplicationServiceCollectionExtensions
     /// <summary>
     /// Krok 10B: stránky Produkty a Objednávky čtou sklad přes jeho HTTP API. "inventory-api" je jméno služby
     /// v AppHostu Aspire; skutečnou adresu doplní service discovery (bez Aspire ze sekce "Services" v appsettings.json).
+    /// Účty krok 7: každý požadavek nese servisní klíč skladu (<see cref="InventoryApiKeyHandler"/>); bez klíče
+    /// v konfiguraci se Web nespustí.
     /// </summary>
-    public static IServiceCollection AddInventoryApiClient(this IServiceCollection services)
+    public static IServiceCollection AddInventoryApiClient(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddHttpClient<IProductService, InventoryApiClient>(http =>
-            http.BaseAddress = new Uri("https+http://inventory-api"));
+        var apiKey = ServiceApiKey.Read(key => configuration[key]);
+
+        services.AddHttpClient<InventoryApiClient>(http =>
+                http.BaseAddress = new Uri("https+http://inventory-api"))
+            .AddHttpMessageHandler(() => new InventoryApiKeyHandler(apiKey));
+
+        // Jeden klient pro produkty i kategorie (e-shop krok 2) – stránky dostávají jen rozhraní, které potřebují (ISP).
+        services.AddTransient<IProductService>(sp => sp.GetRequiredService<InventoryApiClient>());
+        services.AddTransient<ICategoryService>(sp => sp.GetRequiredService<InventoryApiClient>());
+        services.AddTransient<IProductImageService>(sp => sp.GetRequiredService<InventoryApiClient>());   // e-shop krok 2B
 
         return services;
     }

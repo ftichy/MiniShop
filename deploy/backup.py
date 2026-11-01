@@ -1,4 +1,4 @@
-"""Cloud krok 12: záloha a obnova dat MiniShopu (SQLite + Data Protection klíče) do/z OCI Object Storage.
+"""Cloud krok 12: záloha a obnova dat MiniShopu (SQLite, Data Protection klíče, obrázky produktů) do/z OCI Object Storage.
 
 Běží v kontejneru ghcr.io/oracle/oci-cli (Python + OCI CLI) – spouští ho backup.sh / restore.sh na VM:
   python3 backup.py backup              → snímek všech DB a klíčů → minishop-RRRRMMDDTHHMMSSZ.tar.gz → bucket
@@ -35,7 +35,11 @@ DATABASES = [
     ("/web/users.db", "users.db"),  # účty krok 1 – starší zálohy ho nemají, obnova ho pak přeskočí
     ("/inventory/inventory.db", "inventory.db"),
 ]
-KEYS_DIR = ("/web/keys", "keys")  # Data Protection klíče Webu (cookies, antiforgery)
+# Složky s daty: (cesta ve volume, jméno v archivu). Chybějící složka se přeskočí – ve starších zálohách i na disku.
+DIRECTORIES = [
+    ("/web/keys", "keys"),  # Data Protection klíče Webu (cookies, antiforgery)
+    ("/inventory/images", "images"),  # e-shop krok 2B: obrázky produktů (jména souborů jsou v inventory.db)
+]
 
 
 def log(message: str) -> None:
@@ -72,10 +76,10 @@ def backup() -> None:
             check_integrity(destination)
             log(f"  {target}: {os.path.getsize(destination) // 1024} kB")
 
-        source, target = KEYS_DIR
-        if os.path.isdir(source):
-            shutil.copytree(source, os.path.join(content, target))
-            log(f"  {target}/: {len(os.listdir(source))} souborů")
+        for source, target in DIRECTORIES:
+            if os.path.isdir(source):
+                shutil.copytree(source, os.path.join(content, target))
+                log(f"  {target}/: {len(os.listdir(source))} souborů")
 
         with open(os.path.join(content, "manifest.json"), "w") as manifest:
             json.dump({"created_utc": datetime.now(timezone.utc).isoformat(),
@@ -140,8 +144,10 @@ def restore(name: str) -> None:
             os.chown(destination, owner.st_uid, owner.st_gid)
             log(f"  {target} → {destination}")
 
-        destination, target = KEYS_DIR
-        if os.path.isdir(os.path.join(content, target)):
+        for destination, target in DIRECTORIES:
+            if not os.path.isdir(os.path.join(content, target)):
+                log(f"  {target}/: v záloze není, ponechávám současný stav")
+                continue
             owner = os.stat(os.path.dirname(destination))
             if os.path.isdir(destination):
                 os.replace(destination, f"{destination}.before-restore-{stamp}")

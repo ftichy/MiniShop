@@ -35,11 +35,20 @@ public sealed class EmailOrderNotifier(IEmailSender emailSender) : IOrderNotifie
         SendAsync(order, $"Objednávka č. {order.Id} je zrušená",
             "objednávka byla zrušena, rezervované zboží se vrací na sklad.", cancellationToken);
 
-    private Task SendAsync(Order order, string subject, string text, CancellationToken cancellationToken) =>
-        emailSender.SendAsync(new EmailMessage(
+    private Task SendAsync(Order order, string subject, string text, CancellationToken cancellationToken)
+    {
+        // Účty krok 9: zákazník mezitím smazal účet (objednávka je anonymizovaná) – není komu psát.
+        // Bez téhle kontroly by handler za outboxem padal na prázdné adrese a zbytečně se opakoval.
+        if (string.IsNullOrEmpty(order.CustomerEmail))
+        {
+            return Task.CompletedTask;
+        }
+
+        return emailSender.SendAsync(new EmailMessage(
             order.CustomerEmail,
             $"MiniShop: {subject}",
             $"Dobrý den, {order.CustomerName},\n\n{text}\n\nMiniShop"), cancellationToken);
+    }
 
     private static string Summary(Order order)
     {

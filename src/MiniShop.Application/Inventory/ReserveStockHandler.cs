@@ -56,7 +56,7 @@ public sealed class ReserveStockHandler(
         {
             foreach (var (productId, quantity) in lines)
             {
-                productsById[productId].RemoveStock(quantity);
+                productsById[productId].RemoveStock(quantity, now);   // e-shop krok 2: změna pásma → StockAvailabilityChangedV1
                 reservations.Add(new StockReservation(command.OrderId, productId, quantity, now));
             }
 

@@ -8,9 +8,15 @@ var messaging = builder.AddRabbitMQ("messaging")
     .WithManagementPlugin()
     .WithLifetime(ContainerLifetime.Persistent);
 
+// Účty krok 7: servisní klíč skladu. Aspire ho vygeneruje (jako heslo RabbitMQ) a uloží do user secrets AppHostu;
+// obě služby ho dostanou v InventoryApi__ApiKey – Web ho posílá, sklad ověřuje.
+var inventoryApiKey = builder.AddParameter("inventory-api-key",
+    new GenerateParameterDefault { MinLength = 64, Special = false }, secret: true, persist: true);
+
 // Služba skladu: vlastní proces, vlastní inventory.db, fronta minishop.inventory.
 var inventoryApi = builder.AddProject<Projects.MiniShop_Inventory_Api>("inventory-api")
     .WithReference(messaging)
+    .WithEnvironment("InventoryApi__ApiKey", inventoryApiKey)
     .WaitFor(messaging)
     .WithHttpHealthCheck("/health");
 
@@ -25,6 +31,7 @@ var mailpitSmtp = mailpit.GetEndpoint("smtp");
 builder.AddProject<Projects.MiniShop_Web>("web")
     .WithReference(messaging)
     .WithReference(inventoryApi)
+    .WithEnvironment("InventoryApi__ApiKey", inventoryApiKey)
     .WithEnvironment("Email__Host", mailpitSmtp.Property(EndpointProperty.Host))
     .WithEnvironment("Email__Port", mailpitSmtp.Property(EndpointProperty.Port))
     .WithEnvironment("Email__UseTls", "false")

@@ -17,7 +17,8 @@ order: 30
 | [Timeout a kompenzace](timeout-a-kompenzace.md) | sklad neodpověděl včas; pozdní rezervace se vrací |
 | [Zrušení a vyřízení](zruseni-a-vyrizeni.md) | kompenzace po zrušení potvrzené objednávky |
 | [Změna produktu](zmena-produktu.md) | sklad → kopie katalogu v Orderingu |
-| [Obnova katalogu](obnova-katalogu.md) | prázdná kopie katalogu po startu |
+| [Obnova katalogu](obnova-katalogu.md) | prázdná nebo neúplná kopie katalogu po startu |
+| [Změna dostupnosti](zmena-dostupnosti.md) | rezervace/naskladnění změní pásmo dostupnosti → výloha |
 | [Cesta jedné zprávy](cesta-zpravy.md) | outbox → RabbitMQ → inbox, včetně chyb |
 | [Průběh formuláře](prubeh-formulare.md) | sledování a přehrání formuláře objednávky |
 

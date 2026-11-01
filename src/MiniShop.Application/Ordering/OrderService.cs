@@ -1,5 +1,6 @@
 using MiniShop.Application.Abstractions;
 using MiniShop.Application.Exceptions;
+using MiniShop.Application.Ordering.Carts;
 using MiniShop.Application.Ordering.Pricing;
 using MiniShop.Domain.Exceptions;
 using MiniShop.Domain.Orders;
@@ -22,6 +23,7 @@ namespace MiniShop.Application.Ordering;
 public sealed class OrderService(
     IOrderRepository orders,
     ICatalogProductRepository catalog,
+    ICartRepository carts,
     IOrderingUnitOfWork unitOfWork,
     IEnumerable<IDiscountPolicy> discountPolicies,
     TimeProvider timeProvider) : IOrderService
@@ -36,7 +38,7 @@ public sealed class OrderService(
     public async Task<IReadOnlyList<CatalogItemDto>> GetCatalogAsync(CancellationToken cancellationToken = default)
     {
         var products = await catalog.GetAvailableAsync(cancellationToken);
-        return products.Select(p => new CatalogItemDto(p.Id, p.Name, p.Price)).ToList();
+        return products.Select(p => p.ToCatalogItemDto()).ToList();
     }
 
     public Task<IReadOnlyList<CustomerOrderSummaryDto>> GetCustomerSummariesAsync(CancellationToken cancellationToken = default) =>
@@ -106,6 +108,33 @@ public sealed class OrderService(
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return order.ToDto();
+    }
+
+    public async Task<int> AnonymizeCustomerAsync(string customerId, CancellationToken cancellationToken = default)
+    {
+        var customerOrders = await orders.GetAllAsync(customerId, cancellationToken);
+
+        // Všechno, nebo nic: s rozpracovanou objednávkou se nezmění žádná.
+        if (customerOrders.Any(order => order.IsActive))
+        {
+            throw new DomainException(
+                "Účet nejde smazat, dokud máte nevyřízené objednávky. Počkejte na jejich vyřízení, nebo potvrzené zrušte.");
+        }
+
+        foreach (var order in customerOrders)
+        {
+            order.Anonymize();
+        }
+
+        // E-shop krok 3: košík je osobní údaj (co si kdo vybral) a bez účtu nemá smysl – pryč celý.
+        var cart = await carts.GetByCustomerIdAsync(customerId, cancellationToken);
+        if (cart is not null)
+        {
+            carts.Remove(cart);
+        }
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return customerOrders.Count;
     }
 
     private DateTime UtcNow => timeProvider.GetUtcNow().UtcDateTime;

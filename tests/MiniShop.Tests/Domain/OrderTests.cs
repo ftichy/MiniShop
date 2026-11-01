@@ -93,4 +93,26 @@ public class OrderTests
 
         Assert.Throws<DomainException>(() => order.AddItem(new CatalogProduct(1, "A", 100m, Now), 1, 0m));
     }
+
+    // --- Účty krok 9: anonymizace po smazání účtu ---
+
+    [Fact]
+    public void Anonymizace_VyrizenaObjednavka_ZtratiJmenoAEmail()
+    {
+        var order = CreateConfirmedOrder();
+        order.Complete(Now);
+
+        order.Anonymize();
+
+        Assert.Equal(Order.AnonymizedCustomerName, order.CustomerName);
+        Assert.Equal(string.Empty, order.CustomerEmail);
+        Assert.Equal("zakaznik-1", order.CustomerId);
+    }
+
+    [Fact]
+    public void Anonymizace_RozpracovanaObjednavka_Nejde()
+    {
+        Assert.Throws<DomainException>(() => CreateOrder().Anonymize());            // Pending
+        Assert.Throws<DomainException>(() => CreateConfirmedOrder().Anonymize());   // Confirmed
+    }
 }

@@ -3,6 +3,7 @@ using System.Text;
 using MiniShop.Application.Exceptions;
 using MiniShop.Application.Inventory;
 using MiniShop.Domain.Exceptions;
+using MiniShop.ServiceDefaults;
 using MiniShop.Web.Inventory;
 
 namespace MiniShop.Tests.Web;
@@ -18,11 +19,11 @@ public sealed class InventoryApiClientTests
     public async Task Uspech_VratiProdukty()
     {
         var client = Client(_ => Json(HttpStatusCode.OK,
-            """[{"id":1,"name":"Myš","description":null,"price":890.0,"stockQuantity":40}]"""));
+            """[{"id":1,"name":"Myš","description":null,"price":890.0,"stockQuantity":40,"categoryId":2,"categoryName":"Periferie"}]"""));
 
         var products = await client.GetAllAsync();
 
-        Assert.Equal(new ProductDto(1, "Myš", null, 890m, 40), Assert.Single(products));
+        Assert.Equal(new ProductDto(1, "Myš", null, 890m, 40, 2, "Periferie"), Assert.Single(products));
     }
 
     [Fact]
@@ -86,6 +87,36 @@ public sealed class InventoryApiClientTests
 
         var ex = await Assert.ThrowsAsync<InventoryUnavailableException>(() => client.GetAllAsync());
         Assert.IsType<HttpRequestException>(ex.InnerException);
+    }
+
+    [Fact]
+    public async Task ServisniKlic_JeVKazdemPozadavku()
+    {
+        // Účty krok 7: klíč přidá článek řetězu (InventoryApiKeyHandler), klient sám o něm neví.
+        HttpRequestMessage? sent = null;
+        var http = new HttpClient(new InventoryApiKeyHandler("tajny-klic-skladu")
+        {
+            InnerHandler = new FakeHandler(request =>
+            {
+                sent = request;
+                return Json(HttpStatusCode.OK, "[]");
+            })
+        }) { BaseAddress = new Uri("http://inventory/") };
+
+        await new InventoryApiClient(http).GetAllAsync();
+
+        Assert.Equal(["tajny-klic-skladu"], sent!.Headers.GetValues(ServiceApiKey.HeaderName));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("kratky-klic")]
+    public void ServisniKlic_ChybiNeboJeKratky_SluzbaSeNespusti(string? configured)
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() => ServiceApiKey.Read(_ => configured));
+
+        Assert.Contains(ServiceApiKey.ConfigurationKey, ex.Message);
     }
 
     private static InventoryApiClient Client(Func<HttpRequestMessage, HttpResponseMessage> respond) =>

@@ -62,6 +62,20 @@ Plán (role User a Admin, best practice): [docs/Ucty-roadmap.md](code:docs/Ucty-
 | 4 | Zrušení objednávky ve stavu Pending – **odloženo** | — |
 | 5 | Skutečné e-maily – potvrzení e-mailu, nové heslo, stav objednávky (Gmail, lokálně Mailpit) | [ucty-05](code:docs/kroky-ucty/krok-05-emaily.md) |
 | 6 | Správa uživatelů – povýšení, blokace, poslední admin, audit; EF Core migrace `users.db` | [ucty-06](code:docs/kroky-ucty/krok-06-sprava-uzivatelu.md) |
+| 7 | Zabezpečení skladu – servisní klíč mezi Webem a Inventory.Api (zero trust) | [ucty-07](code:docs/kroky-ucty/krok-07-zabezpeceni-skladu.md) |
+| 8 | Zpevnění – zámek účtu, rate limiting, CSP a bezpečnostní hlavičky, logy bez osobních údajů | [ucty-08](code:docs/kroky-ucty/krok-08-zpevneni.md) |
+| 9 | Otevření webu – bez basic auth, objednávka jen s potvrzeným e-mailem, smazání účtu, ochrana osobních údajů | [ucty-09](code:docs/kroky-ucty/krok-09-otevreni-webu.md) |
+
+## Dokončení e-shopu
+
+Plán (výloha, košík, pokladna, expedice, platba, notifikace): [docs/Eshop-roadmap.md](code:docs/Eshop-roadmap.md)
+
+| Krok | Co přinesl | Souhrn |
+| --- | --- | --- |
+| 1 | Migrace všech databází (EF Core, sdílený `DatabaseMigrator`, baseline produkčních DB) – schéma se mění bez mazání dat | [eshop-01](code:docs/kroky-eshop/krok-01-migrace.md) |
+| 2A | Výloha `/Shop` – kategorie, hledání bez diakritiky, filtry, řazení; `ProductUpdatedV2` (expand → contract), `StockAvailabilityChangedV1` jen při změně pásma | [eshop-02a](code:docs/kroky-eshop/krok-02a-vyloha.md) |
+| 2B | Obrázky produktů – bezpečný upload do skladu (typ podle bajtů, bez SVG, 1 MB), ve zprávě jen jméno souboru, `/media/products` s cache na rok, zálohy | [eshop-02b](code:docs/kroky-eshop/krok-02b-obrazky.md) |
+| 3 | Košík – agregát `Cart` s invarianty v Orderingu (bez nové zprávy, zboží neblokuje), `/Cart`, počet kusů v hlavičce, ceny vždy aktuální z kopie katalogu | [eshop-03](code:docs/kroky-eshop/krok-03-kosik.md) |
 
 ## Proč po krocích
 

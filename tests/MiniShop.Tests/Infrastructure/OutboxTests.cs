@@ -62,7 +62,7 @@ public sealed class OutboxTests : IDisposable
         services.AddSingleton<IIntegrationBus>(_bus);            // a "broker"
 
         _services = services.BuildServiceProvider();
-        Db(db => db.Database.EnsureCreatedAsync()).GetAwaiter().GetResult();
+        OrderingDatabaseInitializer.InitializeAsync(_services).GetAwaiter().GetResult();
     }
 
     /// <summary>Pošťák outboxu modulu Ordering (krok 10: každý modul má vlastní).</summary>

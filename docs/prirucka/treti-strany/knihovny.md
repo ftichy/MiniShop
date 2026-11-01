@@ -29,7 +29,7 @@ v tabulce nejsou – jsou popsané níže.
 
 | Co | K čemu | Proč | Odkazy |
 | --- | --- | --- | --- |
-| **Entity Framework Core** + **Microsoft.EntityFrameworkCore.Sqlite** | ORM – entity ↔ tabulky, transakce, change tracker (outbox v `SaveChanges`); **Microsoft.EntityFrameworkCore.Design** + nástroj `dotnet-ef` (`dotnet-tools.json`) jen pro migrace `users.db` | standard v .NET; transakce přes data i outbox v jednom `DbContext`; migrace jen u účtů – `users.db` se nesmí mazat ([Accounts](../architektura/moduly/accounts.md)) | [docs](https://learn.microsoft.com/ef/core/) |
+| **Entity Framework Core** + **Microsoft.EntityFrameworkCore.Sqlite** | ORM – entity ↔ tabulky, transakce, change tracker (outbox v `SaveChanges`); **Microsoft.EntityFrameworkCore.Design** + nástroj `dotnet-ef` (`dotnet-tools.json`) pro migrace všech databází | standard v .NET; transakce přes data i outbox v jednom `DbContext`; migrace – produkční data se nesmí mazat ([Sdílené jádro – migrace](../architektura/sdilene-jadro.md)) | [docs](https://learn.microsoft.com/ef/core/) |
 | **SQLite** | databáze v jednom souboru na modul | žádný databázový server – ideální pro výuku a malou VM; online backup API | [sqlite.org](https://www.sqlite.org/) |
 | **RabbitMQ.Client** | připojení k RabbitMQ: exchange, fronty, publisher confirms, consumery | oficiální klient; vlastní tenká vrstva ukazuje, co dělají knihovny jako MassTransit | [docs](https://www.rabbitmq.com/client-libraries/dotnet) |
 
@@ -56,7 +56,7 @@ v tabulce nejsou – jsou popsané níže.
 
 | Co | K čemu | Proč | Odkazy |
 | --- | --- | --- | --- |
-| **Bootstrap 5** (z CDN jsDelivr) | vzhled UI – mřížka, formuláře, tabulky | hotový vzhled bez vlastního CSS | [getbootstrap.com](https://getbootstrap.com/) |
+| **Bootstrap 5** (5.3.3, jen CSS, lokálně ve `wwwroot/lib/bootstrap`) | vzhled UI – mřížka, formuláře, tabulky | hotový vzhled bez vlastního CSS; od účtů kroku 8 ne z CDN – CSP pouští jen vlastní soubory a cizí server nevidí návštěvníky | [getbootstrap.com](https://getbootstrap.com/) |
 | **Markdig** | převod Markdownu této dokumentace na HTML (na serveru) | nejrychlejší a nejúplnější Markdown pro .NET, tabulky i Mermaid bloky | [GitHub](https://github.com/xoofx/markdig) |
 | **Mermaid** (lokální kopie ve `wwwroot/lib/mermaid`) | diagramy z textu v prohlížeči | diagram se píše jako text vedle dokumentace a mění se s ní v PR | [mermaid.js.org](https://mermaid.js.org/) |
 

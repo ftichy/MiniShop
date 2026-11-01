@@ -3,14 +3,18 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.RateLimiting;
 using MiniShop.Infrastructure.Accounts;
+using MiniShop.Web.Security;
 
 namespace MiniShop.Web.Pages.Account;
 
 /// <summary>Účty krok 1: přihlášení e-mailem a heslem. Výsledek je zašifrovaná cookie s identitou.</summary>
 [AllowAnonymous]
+[EnableRateLimiting(AccountRateLimiting.PolicyName)]   // účty krok 8: max. 10 odeslání za minutu z jedné IP
 public sealed class LoginModel(
     SignInManager<ApplicationUser> signInManager,
+    UserManager<ApplicationUser> userManager,
     ILogger<LoginModel> logger) : PageModel
 {
     [BindProperty]
@@ -30,27 +34,37 @@ public sealed class LoginModel(
             return Page();
         }
 
-        // lockoutOnFailure: false – zámek účtu po opakovaném špatném hesle přijde se zpevněním (účty krok 8).
-        var result = await signInManager.PasswordSignInAsync(
-            Input.Email.Trim(), Input.Password, Input.RememberMe, lockoutOnFailure: false);
+        // Účty krok 8: lockoutOnFailure – každé špatné heslo se počítá, po 5 se účet na 15 minut zamkne
+        // (úspěšné přihlášení počítadlo vynuluje).
+        var email = Input.Email.Trim();
+        var result = await signInManager.PasswordSignInAsync(email, Input.Password, Input.RememberMe, lockoutOnFailure: true);
 
         if (result.Succeeded)
         {
             return LocalRedirect(SafeReturnUrl());
         }
 
-        // Stejná hláška pro neznámý e-mail i špatné heslo – nikdo tak nezjistí, kdo v MiniShopu má účet.
-        // Účty krok 6: i pro zablokovaný účet (Identity zámek kontroluje ještě před heslem – jiná hláška by
-        // komukoli prozradila, že účet existuje a je zablokovaný). Admin to vidí v přehledu uživatelů.
-        if (result.IsLockedOut)
+        // Stejná hláška pro neznámý e-mail, špatné heslo i zamčený/zablokovaný účet (Identity zámek kontroluje
+        // ještě před heslem) – jiná by komukoli prozradila, kdo v MiniShopu má účet. Admin stav vidí v přehledu uživatelů.
+        // Krok 8: audit do logu – jen ID účtu, nikdy e-mail ani heslo.
+        var user = await userManager.FindByEmailAsync(email);
+        if (user is null)
         {
-            logger.LogWarning("Pokus o přihlášení k zablokovanému účtu");
+            logger.LogWarning("Neúspěšné přihlášení – neznámý e-mail");
+        }
+        else if (result.IsLockedOut)
+        {
+            logger.LogWarning("Přihlášení k zamčenému účtu {UserId}", user.Id);
         }
         else
         {
-            logger.LogWarning("Neúspěšné přihlášení");
+            logger.LogWarning("Neúspěšné přihlášení k účtu {UserId} (špatné heslo, {FailedCount}. pokus)",
+                user.Id, await userManager.GetAccessFailedCountAsync(user));
         }
-        ModelState.AddModelError(string.Empty, "Neplatný e-mail nebo heslo.");
+
+        ModelState.AddModelError(string.Empty,
+            $"Neplatný e-mail nebo heslo. Po {AccountsInfrastructure.MaxFailedAccessAttempts} neúspěšných pokusech " +
+            $"se účet na {AccountsInfrastructure.LockoutDuration.TotalMinutes:0} minut zamkne.");
         return Page();
     }
 

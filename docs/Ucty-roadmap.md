@@ -226,7 +226,7 @@ a nechat sklad ověřit roli sám.
 - Zapisovací endpointy skladu vyžadují hlavičku se servisním klíčem; `InventoryApiClient` ho posílá.
   Kdo smí co, rozhoduje Web (krok 2). Čtení zůstává bez klíče.
 - Secret `INVENTORY_API_KEY` (oba kontejnery), lokálně ho předá Aspire.
-- Volitelně: JWT od Webu, sklad ověří roli Admin.
+- Volitelně: JWT od Webu, sklad ověří roli Admin. **Odloženo** (krok 7 zavedl jen servisní klíč, i pro čtení).
 
 **Hotovo, když:** zápis bez klíče vrátí 401, aplikace funguje dál.
 
@@ -243,7 +243,8 @@ a nechat sklad ověřit roli sám.
 ## Krok 9: Otevření webu
 
 - `BASIC_AUTH=off` pro web; Aspire dashboard basic auth ponechá.
-- Ochrana registrace: objednat jde až s potvrzeným e-mailem; volitelně CAPTCHA (Cloudflare Turnstile, zdarma).
+- Ochrana registrace: objednat jde až s potvrzeným e-mailem; volitelně CAPTCHA (Cloudflare Turnstile, zdarma) – **odloženo**
+  (stačí rate limiting a potvrzení e-mailu; doplnit při falešných registracích).
 - GDPR minimum: uživatel může smazat účet → anonymizace (objednávky zůstanou bez osobních údajů).
 
 **Hotovo, když:** web je veřejný bez basic auth a registrace je chráněná.

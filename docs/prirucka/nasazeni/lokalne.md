@@ -55,8 +55,10 @@ Adresu skladu najde Web v `Services:inventory-api` v `appsettings.Development.js
 
 ## Databáze
 
-SQLite soubory vznikají samy (`EnsureCreated`) vedle projektu: `ordering.db`, `journeys.db`, `users.db` (Web) a
-`inventory.db` (sklad, s ukázkovými produkty). **Při změně schématu** je potřeba soubory smazat – projekt nepoužívá migrace.
+SQLite soubory vznikají samy při startu vedle projektu: `ordering.db`, `journeys.db`, `users.db` (Web) a
+`inventory.db` (sklad, s ukázkovými produkty). Schéma spravují **EF Core migrace** – při startu se doplní jen chybějící
+změny, data zůstanou. Soubory proto **nemaž**; změna schématu = nová migrace
+(viz [Sdílené jádro – migrace databází](../architektura/sdilene-jadro.md)).
 
 ## Testy
 

@@ -22,7 +22,23 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(o => o.CreatedAtUtc)
             .HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
         builder.Ignore(o => o.TotalPrice);
+        builder.Ignore(o => o.ItemsTotal);
         builder.Ignore(o => o.DomainEvents);
+
+        // E-shop krok 4: idempotence pokladny – stejné odeslání nesmí dát dvě objednávky ani při souběhu.
+        // Starší objednávky mají NULL (SQLite v unikátním indexu NULL nepočítá jako shodu).
+        builder.HasIndex(o => o.CheckoutId).IsUnique();
+        builder.Property(o => o.ShippingMethod).HasConversion<string>().HasMaxLength(20);
+        builder.Property(o => o.ShippingPrice).HasPrecision(18, 2);
+
+        // Hodnotový objekt = sloupce v tabulce Orders (žádná vlastní tabulka ani ID). Bez adresy = všechny NULL.
+        builder.OwnsOne(o => o.DeliveryAddress, address =>
+        {
+            address.Property(a => a.Street).HasColumnName("DeliveryStreet").HasMaxLength(DeliveryAddress.MaxLength);
+            address.Property(a => a.City).HasColumnName("DeliveryCity").HasMaxLength(DeliveryAddress.MaxLength);
+            address.Property(a => a.PostalCode).HasColumnName("DeliveryPostalCode").HasMaxLength(5);
+            address.Ignore(a => a.PostalCodeFormatted);
+        });
 
         // Položky jsou uložené v privátním poli _items, EF k nim přistupuje přímo.
         builder.HasMany(o => o.Items)

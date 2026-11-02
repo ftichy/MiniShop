@@ -12,6 +12,7 @@ order: 80
 | --- | --- | --- |
 | **Agregát / entita** | objekt domény s identitou a pravidly, stav mění jen přes své metody (`Order.Confirm`) | [Vrstvy](architektura/vrstvy.md) |
 | **Hranice konzistence** | co se musí změnit spolu v jedné transakci (košík + objednávka) – podle ní se kreslí hranice modulu | [Ordering](architektura/moduly/ordering.md) |
+| **Hodnotový objekt** | objekt bez vlastní identity, daný jen svými hodnotami a neměnný (`DeliveryAddress`) – dvě stejné adresy jsou jedna a ta samá; platnost ověří už při vytvoření | [Pokladna](toky/pokladna.md) |
 | **At-least-once** | doručení „alespoň jednou“ – zpráva se neztratí, ale může přijít víckrát | [Outbox](eda/outbox.md) |
 | **Broker** | prostředník, který přijímá zprávy a doručuje je do front příjemců (RabbitMQ) | [Broker](eda/broker.md) |
 | **C4 model** | kreslení architektury v úrovních Context → Containers → Components → Code | [Architektura](architektura/index.md) |
@@ -30,6 +31,7 @@ order: 80
 | **Handler** | třída, která reaguje na jednu událost nebo zprávu | [Doménové události](eda/domenove-udalosti.md) |
 | **Immutable cache** | soubor se pod jednou adresou nikdy nemění (nový obsah = nové jméno), proto si ho prohlížeč smí uložit natrvalo | [Kopie katalogu](eda/kopie-katalogu.md) |
 | **Idempotence** | provést operaci jednou nebo víckrát má stejný výsledek | [Inbox](eda/inbox.md) |
+| **Idempotentní příkaz** | požadavek s vlastním ID (`CheckoutId`) – opakované odeslání nic nového nezaloží, vrátí výsledek prvního | [Pokladna](toky/pokladna.md) |
 | **Inbox** | tabulka zpracovaných zpráv – ochrana před dvojím zpracováním | [Inbox](eda/inbox.md) |
 | **Integrační zpráva / kontrakt** | veřejná, verzovaná zpráva mezi službami (`ReserveStockV1`) | [Integrační zprávy](eda/integracni-zpravy.md) |
 | **Invariant** | pravidlo, které agregát hlídá vždy (košík: nejvýš 20 řádků, množství 1–100) – nejde obejít, protože se stav mění jen přes jeho metody | [Ordering](architektura/moduly/ordering.md) |

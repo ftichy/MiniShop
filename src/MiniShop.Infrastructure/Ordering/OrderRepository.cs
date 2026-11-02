@@ -22,6 +22,7 @@ public sealed class OrderRepository(OrderingDbContext db) : IOrderRepository
             {
                 o.CustomerId,
                 o.Status,
+                o.ShippingPrice,   // e-shop krok 4: útrata včetně dopravy
                 Lines = o.Items.Select(i => new { i.UnitPrice, i.Quantity, i.Discount }).ToList()
             })
             .ToListAsync(cancellationToken);
@@ -32,8 +33,7 @@ public sealed class OrderRepository(OrderingDbContext db) : IOrderRepository
                 group.Key,
                 group.Count(),
                 group.Where(row => row.Status is OrderStatus.Confirmed or OrderStatus.Completed)
-                    .SelectMany(row => row.Lines)
-                    .Sum(line => line.UnitPrice * line.Quantity - line.Discount)))
+                    .Sum(row => row.ShippingPrice + row.Lines.Sum(line => line.UnitPrice * line.Quantity - line.Discount))))
             .ToList();
     }
 
@@ -41,6 +41,21 @@ public sealed class OrderRepository(OrderingDbContext db) : IOrderRepository
         db.Orders
             .Include(o => o.Items)
             .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
+
+    public Task<Order?> GetByCheckoutIdAsync(string customerId, Guid checkoutId, CancellationToken cancellationToken = default) =>
+        db.Orders
+            .Include(o => o.Items)
+            .FirstOrDefaultAsync(o => o.CheckoutId == checkoutId && o.CustomerId == customerId, cancellationToken);
+
+    public async Task<DeliveryAddress?> GetLastDeliveryAddressAsync(string customerId, CancellationToken cancellationToken = default)
+    {
+        var last = await db.Orders
+            .AsNoTracking()
+            .Where(o => o.CustomerId == customerId && o.DeliveryAddress != null)
+            .OrderByDescending(o => o.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        return last?.DeliveryAddress;
+    }
 
     public void Add(Order order) => db.Orders.Add(order);
 }

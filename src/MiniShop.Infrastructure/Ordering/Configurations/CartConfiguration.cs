@@ -19,6 +19,10 @@ internal sealed class CartConfiguration : IEntityTypeConfiguration<Cart>
             .HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
         builder.Ignore(c => c.TotalQuantity);
 
+        // E-shop krok 4: verze košíku jako concurrency token – UPDATE … WHERE CheckoutId = původní. Dvě souběžná
+        // odeslání pokladny (nebo změny ze dvou záložek): druhé narazí a jeho transakce se celá zruší.
+        builder.Property(c => c.CheckoutId).IsConcurrencyToken();
+
         // Řádky jsou v privátním poli _lines, EF k nim přistupuje přímo.
         builder.HasMany(c => c.Lines)
             .WithOne()

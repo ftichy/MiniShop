@@ -10,6 +10,7 @@ using MiniShop.Application.Ordering;
 using MiniShop.Application.Exceptions;
 using MiniShop.Application.Ordering.Carts;
 using MiniShop.Application.Ordering.Catalog;
+using MiniShop.Application.Ordering.Checkout;
 using MiniShop.Application.Ordering.EventHandlers;
 using MiniShop.Application.Ordering.IntegrationEvents;
 using MiniShop.Application.Ordering.Saga;
@@ -19,6 +20,7 @@ using MiniShop.Contracts.Inventory;
 using MiniShop.Contracts.Orders;
 using MiniShop.Domain.Common;
 using MiniShop.Domain.Exceptions;
+using MiniShop.Domain.Orders;
 using MiniShop.Domain.Orders.Events;
 using MiniShop.Domain.Orders.Saga;
 using MiniShop.Infrastructure;
@@ -91,6 +93,8 @@ public sealed class OrderServiceTests : IDisposable
         services.AddScoped<IProductImageService, ProductImageService>();
         services.AddScoped<ICatalogQueryService, CatalogQueryService>();
         services.AddScoped<ICartService, CartService>();
+        services.AddScoped<ICheckoutService, CheckoutService>();
+        services.AddSingleton<IShippingPriceCalculator>(new StandardShippingPriceCalculator(courierPrice: 99m, freeFrom: 1_000m));
         services.AddIntegrationMessageHandler<ReserveStockV1, ReserveStockHandler>(IntegrationModules.Inventory);
         services.AddIntegrationMessageHandler<ReleaseStockV1, ReleaseStockHandler>(IntegrationModules.Inventory);
         services.AddIntegrationMessageHandler<SyncCatalogV1, SyncCatalogHandler>(IntegrationModules.Inventory);
@@ -1027,6 +1031,160 @@ public sealed class OrderServiceTests : IDisposable
         Assert.False((await Cart(s => s.GetAsync(Jan.CustomerId))).IsEmpty);   // všechno, nebo nic
     }
 
+    // ---------- E-shop krok 4: pokladna ----------
+
+    [Fact]
+    public async Task Pokladna_TriProdukty_JednaObjednavkaProjdeSagouAKosikJePrazdny()
+    {
+        var mouse = await AddProductAsync("Myš", 200m, stock: 10, UncategorizedId);
+        var cable = await AddProductAsync("Kabel", 50m, stock: 10, UncategorizedId);
+        var pad = await AddProductAsync("Podložka", 100m, stock: 10, UncategorizedId);
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, mouse.Id, 1));
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, cable.Id, 2));
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, pad.Id, 3));
+        var checkout = await Checkout(s => s.GetAsync(Jan.CustomerId));
+
+        var order = await Checkout(s => s.PlaceOrderAsync(Courier(checkout.CheckoutId), Jan));
+        await ProcessOutboxAsync();
+
+        Assert.Equal("Confirmed", await StatusAsync(order.Id));
+        Assert.Equal(3, order.Items.Count);
+        Assert.Equal((99m, 699m, "Dlouhá 5, 110 00 Praha"), (order.ShippingPrice, order.TotalPrice, order.DeliveryAddress));
+        Assert.True((await Cart(s => s.GetAsync(Jan.CustomerId))).IsEmpty);
+        Assert.Equal((9, 8, 7), (await StockAsync(mouse.Id), await StockAsync(cable.Id), await StockAsync(pad.Id)));
+        // OrderPlacedV1 se nezměnil – TotalPrice je celková cena včetně dopravy.
+        Assert.Equal(699m, Assert.Single(_bus.Published.OfType<OrderPlacedV1>()).TotalPrice);
+    }
+
+    [Fact]
+    public async Task Pokladna_DvojiOdeslani_JednaObjednavka()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 10);
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, product.Id, 1));
+        var checkoutId = (await Checkout(s => s.GetAsync(Jan.CustomerId))).CheckoutId;
+
+        var first = await Checkout(s => s.PlaceOrderAsync(Pickup(checkoutId), Jan));
+        var second = await Checkout(s => s.PlaceOrderAsync(Pickup(checkoutId), Jan));   // F5 / dvojklik
+
+        Assert.Equal(first.Id, second.Id);
+        Assert.Equal(1, await OrderingDb(db => db.Orders.CountAsync()));
+    }
+
+    [Fact]
+    public async Task Pokladna_SoubezneOdeslani_JednaObjednavka()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 10);
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, product.Id, 1));
+        var checkoutId = (await Checkout(s => s.GetAsync(Jan.CustomerId))).CheckoutId;
+
+        // Dva požadavky naráz (každý ve vlastním scope a DbContextu) – druhý narazí na verzi košíku nebo na unikátní index.
+        var results = await Task.WhenAll(
+            Checkout(s => s.PlaceOrderAsync(Pickup(checkoutId), Jan)),
+            Checkout(s => s.PlaceOrderAsync(Pickup(checkoutId), Jan)));
+
+        Assert.Equal(results[0].Id, results[1].Id);
+        Assert.Equal(1, await OrderingDb(db => db.Orders.CountAsync()));
+    }
+
+    [Fact]
+    public async Task Pokladna_ZmenaCeny_ChybaAzDoPotvrzeni()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 10);
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, product.Id, 2));
+        await Products(s => s.UpdateAsync(product.Id,
+            new UpdateProductRequest { Name = "Testovací produkt", Price = 130m, CategoryId = UncategorizedId }));
+        await ProcessOutboxAsync();
+        var checkout = await Checkout(s => s.GetAsync(Jan.CustomerId));
+        Assert.True(checkout.HasPriceChanges);
+        Assert.False(checkout.CanPlaceOrder);
+
+        await Assert.ThrowsAsync<DomainException>(() => Checkout(s => s.PlaceOrderAsync(Pickup(checkout.CheckoutId), Jan)));
+        Assert.Equal(0, await OrderingDb(db => db.Orders.CountAsync()));   // žádné tiché zdražení
+
+        await Checkout(async s => { await s.AcceptCurrentPricesAsync(Jan.CustomerId); return true; });
+        var accepted = await Checkout(s => s.GetAsync(Jan.CustomerId));
+        var order = await Checkout(s => s.PlaceOrderAsync(Pickup(accepted.CheckoutId), Jan));
+
+        Assert.Equal(260m, order.TotalPrice);
+    }
+
+    [Fact]
+    public async Task Pokladna_StaryFormularPoZmeneKosiku_Chyba()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 10);
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, product.Id, 1));
+        var seen = (await Checkout(s => s.GetAsync(Jan.CustomerId))).CheckoutId;
+
+        await Cart(async s => { await s.ChangeQuantityAsync(Jan.CustomerId, product.Id, 5); return true; });   // jiná záložka
+
+        await Assert.ThrowsAsync<DomainException>(() => Checkout(s => s.PlaceOrderAsync(Pickup(seen), Jan)));
+        Assert.Equal(5, await Cart(s => s.GetTotalQuantityAsync(Jan.CustomerId)));
+    }
+
+    [Fact]
+    public async Task Pokladna_NedostatekJednohoProduktu_ZamitnutaCelaANicSeNezarezervuje()
+    {
+        var plenty = await AddProductAsync("Kabel", 50m, stock: 10, UncategorizedId);
+        var scarce = await AddProductAsync("Myš", 200m, stock: 1, UncategorizedId);
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, plenty.Id, 2));
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, scarce.Id, 2));
+        var checkoutId = (await Checkout(s => s.GetAsync(Jan.CustomerId))).CheckoutId;
+
+        var order = await Checkout(s => s.PlaceOrderAsync(Pickup(checkoutId), Jan));
+        await ProcessOutboxAsync();
+
+        var rejected = await Orders(s => s.GetByIdAsync(order.Id, OrderAccess.AllOrders));
+        Assert.Equal("Rejected", rejected.Status);
+        Assert.Contains("Myš", rejected.RejectionReason);
+        Assert.Equal((10, 1), (await StockAsync(plenty.Id), await StockAsync(scarce.Id)));   // všechno, nebo nic
+    }
+
+    [Fact]
+    public async Task Pokladna_KuryrNadLimit_Zdarma_KuryrBezAdresy_Chyba()
+    {
+        var product = await AddProductAsync(price: 600m, stock: 10);
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, product.Id, 2));
+        var checkout = await Checkout(s => s.GetAsync(Jan.CustomerId));
+        Assert.Equal(0m, checkout.ShippingOptions.Single(o => o.Method == ShippingMethod.Courier).Price);
+
+        var noAddress = new CheckoutRequest { CheckoutId = checkout.CheckoutId, ShippingMethod = ShippingMethod.Courier };
+        await Assert.ThrowsAsync<DomainException>(() => Checkout(s => s.PlaceOrderAsync(noAddress, Jan)));
+        Assert.False((await Cart(s => s.GetAsync(Jan.CustomerId))).IsEmpty);   // košík zůstal
+
+        var order = await Checkout(s => s.PlaceOrderAsync(Courier(checkout.CheckoutId), Jan));
+        Assert.Equal((0m, 1200m), (order.ShippingPrice, order.TotalPrice));
+    }
+
+    [Fact]
+    public async Task Pokladna_PredvyplniAdresuZPosledniObjednavky_SmazaniUctuJiSmaze()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 10);
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, product.Id, 1));
+        var order = await Checkout(async s => await s.PlaceOrderAsync(Courier((await s.GetAsync(Jan.CustomerId)).CheckoutId), Jan));
+        await ProcessOutboxAsync();
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, product.Id, 1));
+
+        Assert.Equal(new DeliveryAddressDto("Dlouhá 5", "Praha", "11000"), (await Checkout(s => s.GetAsync(Jan.CustomerId))).LastAddress);
+
+        await Orders(s => s.CancelAsync(order.Id, OrderAccess.Customer(Jan.CustomerId)));
+        await Orders(s => s.AnonymizeCustomerAsync(Jan.CustomerId));
+        Assert.Null(await OrderingDb(db => db.Orders.AsNoTracking().Select(o => o.DeliveryAddress).SingleAsync()));
+    }
+
+    [Fact]
+    public async Task Api_StejneCheckoutId_JednaObjednavka()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 10);
+        var request = CreateRequest((product.Id, 1));
+        request.CheckoutId = Guid.NewGuid();
+
+        var first = await Orders(s => PlaceAsJan(s, request));
+        var retry = await Orders(s => PlaceAsJan(s, request));   // klient po výpadku sítě zopakuje požadavek
+
+        Assert.Equal(first.Id, retry.Id);
+        Assert.Equal("None", first.ShippingMethod);
+    }
+
     // ---------- Pomocné metody ----------
 
     /// <summary>
@@ -1158,6 +1316,25 @@ public sealed class OrderServiceTests : IDisposable
         await using var scope = _services.CreateAsyncScope();
         return await action(scope.ServiceProvider.GetRequiredService<ICategoryService>());
     }
+
+    /// <summary>E-shop krok 4: pokladna ve vlastním scope.</summary>
+    private async Task<T> Checkout<T>(Func<ICheckoutService, Task<T>> action)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await action(scope.ServiceProvider.GetRequiredService<ICheckoutService>());
+    }
+
+    private static CheckoutRequest Pickup(Guid checkoutId) =>
+        new() { CheckoutId = checkoutId, ShippingMethod = ShippingMethod.Pickup };
+
+    private static CheckoutRequest Courier(Guid checkoutId) => new()
+    {
+        CheckoutId = checkoutId,
+        ShippingMethod = ShippingMethod.Courier,
+        Street = "Dlouhá 5",
+        City = "Praha",
+        PostalCode = "110 00"
+    };
 
     /// <summary>E-shop krok 3: košík ve vlastním scope.</summary>
     private async Task<T> Cart<T>(Func<ICartService, Task<T>> action)

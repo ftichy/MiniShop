@@ -15,7 +15,7 @@ src/MiniShop.Contracts       integrační zprávy – události (OrderPlacedV1, 
 src/MiniShop.Domain          Common/ (Entity, IDomainEvent), Orders/ (Order, CatalogProduct, CatalogSearchText, Carts/Cart, Saga/OrderSaga), Inventory/ (Product, Category, StockAvailability, StockReservation),
                              Journeys/ (JourneyEvent, JourneyEventType)
 src/MiniShop.Application     Abstractions/ (sdílené: IUnitOfWork, IDomainEvent*, IIntegrationMessage*, TraceTags),
-                             Ordering/ (OrderService, DTO, Saga, Catalog projekce + CatalogQueryService, Carts/CartService, EventHandlers, Pricing), Inventory/ (ProductService, CategoryService, Reserve/ReleaseStock),
+                             Ordering/ (OrderService, DTO, Saga, Catalog projekce + CatalogQueryService, Carts/CartService, Checkout/CheckoutService, EventHandlers, Pricing), Inventory/ (ProductService, CategoryService, Reserve/ReleaseStock),
                              Journeys/ (JourneyService, OrderJourneyProjection, JourneyReplayProjection, DTO)
 src/MiniShop.Infrastructure  sdílené: Persistence/ModuleDbContext, Outbox, Inbox (InboxGuard), Integration (bus, routing, dispatcher, RabbitMq/), Events,
                              Observability/ (MessagingTelemetry – ActivitySource + Meter, OutboxHealthCheck),
@@ -89,6 +89,15 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   Zboží neblokuje, žádné zprávy ani doménové události (ty až krok 10). Jen `RequireCustomer`; přidání z výlohy =
   POST `/Cart?handler=Add` s `returnUrl` (jen lokální). Odznak v hlavičce `CartBadgeViewComponent`.
   Smazání účtu (`AnonymizeCustomerAsync`) smaže i košík.
+- **Pokladna (e-shop krok 4A):** `CheckoutService` (`Application/Ordering/Checkout`) – objednávka z košíku a vyprázdnění
+  košíku v jednom `SaveChanges`. `Cart.CheckoutId` = verze obsahu (nová při každé změně košíku) **a** concurrency token;
+  formulář `/Checkout` ji posílá zpět: stejné ID podruhé = vrátit hotovou objednávku (`Orders.CheckoutId` unikátní,
+  `POST /api/orders` má volitelné `checkoutId`). Pravidla v `Cart.CheckOut` (verze, nic staženého/vyprodaného, cena =
+  `PriceWhenAdded`, jinak `AcceptCurrentPrices`). Doprava `Order.SetShipping` + strategie `IShippingPriceCalculator`
+  (99 Kč, od 1 000 Kč zdarma); `TotalPrice` = položky + doprava (`OrderPlacedV1` beze změny). Adresa = hodnotový objekt
+  `DeliveryAddress` (owned type, jen kurýr, `Anonymize` ji maže). Konflikty EF (`DbUpdateConcurrencyException`, unikátní
+  index) převádí `ModuleDbContext` na `ConcurrencyConflictException` (`Application/Exceptions`, API 409) – aplikační vrstva
+  EF nezná. Starý formulář na `Orders/Index` a „Objednat“ ve výloze zůstávají do kroku 4B (Journeys).
 - **Soubory z `wwwroot` (CSS, JS, knihovny) vždy s `asp-append-version="true"`** – jinak prohlížeč po nasazení
   použije starou verzi z cache (e-shop krok 3: košík bez `.cart-thumb` ukázal obrázky v plné velikosti).
 - **Stránka s `[BindProperty]` a dalším formulářem:** když formulář pole vlastnosti neposílá, binder ji naváže BEZ prefixu
@@ -329,8 +338,9 @@ nové moduly Notifications (odběratel událostí) a Payments (účastník ságy
 | 1. Migrace databází (`ordering/inventory/journeys.db`, sdílený `DatabaseMigrator`, baseline produkční DB) | hotovo (nasazeno 30. 10. 2026, produkční DB prošly baseline, data zůstala) | `docs/kroky-eshop/krok-01-migrace.md` |
 | 2A. Výloha (`/Shop`, kategorie, hledání `SearchText`, `ProductUpdatedV2` expand → contract, `StockAvailabilityChangedV1` při změně pásma) | hotovo (nasazeno 30. 10. 2026, produkční kopie katalogu se po startu sama doplnila) | `docs/kroky-eshop/krok-02a-vyloha.md` |
 | 2B. Obrázky produktů (upload do skladu, typ podle bajtů, `/media/products/…` přes Web s immutable cache, `backup.py` `DIRECTORIES`) | hotovo (nasazeno 1. 11. 2026, obrázky ve výloze, noční záloha obsahuje `images/`) | `docs/kroky-eshop/krok-02b-obrazky.md` |
-| 3. Košík (agregát `Cart` v Orderingu s invarianty, `/Cart`, odznak v hlavičce, ceny z kopie katalogu, bez zpráv) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-03-kosik.md` |
-| 4. Pokladna a objednávka s více položkami (`CheckoutId`, adresa, doprava, změna ceny) | plán | — |
+| 3. Košík (agregát `Cart` v Orderingu s invarianty, `/Cart`, odznak v hlavičce, ceny z kopie katalogu, bez zpráv) | hotovo (nasazeno 1. 11. 2026; oprava: `asp-append-version` – starý CSS z cache) | `docs/kroky-eshop/krok-03-kosik.md` |
+| 4A. Pokladna (`/Checkout`, `CheckoutService`, `CheckoutId` = verze košíku + concurrency token, žádné tiché zdražení, `DeliveryAddress`, `IShippingPriceCalculator`, `checkoutId` v API) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-04a-pokladna.md` |
+| 4B. Journeys na pokladnu (sledování a přehrání pokladny, odstranění starého formuláře objednávky a „Objednat“ ve výloze) | plán | — |
 | 5. Detail objednávky a historie stavů (`/Orders/{id}`) | plán | — |
 | 6. Expedice (Packing → Shipped → Completed, `OrderShippedV1`, odepsání rezervace, `Order.Version`) | plán | — |
 | 7. Notifikace jako samostatný odběratel (modul Notifications, šablony, `CustomerAnonymizedV1`) | plán | — |

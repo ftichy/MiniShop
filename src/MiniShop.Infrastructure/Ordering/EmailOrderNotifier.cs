@@ -58,6 +58,17 @@ public sealed class EmailOrderNotifier(IEmailSender emailSender) : IOrderNotifie
             text.AppendLine(string.Format(Czech, "{0} × {1} … {2:N2} Kč", item.Quantity, item.ProductName, item.LineTotal));
         }
 
+        // E-shop krok 4: doprava z pokladny (starší objednávky ji nemají).
+        if (order.ShippingMethod != ShippingMethod.None)
+        {
+            var name = order.ShippingMethod == ShippingMethod.Courier ? "Kurýr" : "Osobní odběr";
+            text.AppendLine(string.Format(Czech, "{0} … {1:N2} Kč", name, order.ShippingPrice));
+            if (order.DeliveryAddress is not null)
+            {
+                text.AppendLine($"Doručovací adresa: {order.DeliveryAddress}");
+            }
+        }
+
         text.Append(string.Format(Czech, "Celkem: {0:N2} Kč", order.TotalPrice));
         return text.ToString();
     }

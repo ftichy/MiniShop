@@ -17,6 +17,7 @@ public sealed class GlobalExceptionHandler(
         var (statusCode, title) = exception switch
         {
             NotFoundException => (StatusCodes.Status404NotFound, "Nenalezeno"),
+            ConcurrencyConflictException => (StatusCodes.Status409Conflict, "Souběžná změna"),   // e-shop krok 4
             DomainException => (StatusCodes.Status400BadRequest, "Neplatná operace"),
             _ => (StatusCodes.Status500InternalServerError, "Neočekávaná chyba serveru")
         };

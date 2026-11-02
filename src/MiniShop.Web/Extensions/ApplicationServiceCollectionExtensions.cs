@@ -4,6 +4,7 @@ using MiniShop.Application.Journeys;
 using MiniShop.Application.Ordering;
 using MiniShop.Application.Ordering.Carts;
 using MiniShop.Application.Ordering.Catalog;
+using MiniShop.Application.Ordering.Checkout;
 using MiniShop.Application.Ordering.EventHandlers;
 using MiniShop.Application.Ordering.IntegrationEvents;
 using MiniShop.Application.Ordering.Pricing;
@@ -87,6 +88,10 @@ public static class ApplicationServiceCollectionExtensions
 
         // E-shop krok 3: košík (agregát Cart v ordering.db, ceny z kopie katalogu).
         services.AddScoped<ICartService, CartService>();
+
+        // E-shop krok 4: pokladna (košík → objednávka v jedné transakci) a ceník dopravy (strategie).
+        services.AddScoped<ICheckoutService, CheckoutService>();
+        services.AddSingleton<IShippingPriceCalculator>(new StandardShippingPriceCalculator(courierPrice: 99m, freeFrom: 1_000m));
 
         return services;
     }

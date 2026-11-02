@@ -15,6 +15,7 @@ flowchart TB
         ui["Razor Page Orders/Index<br/>OrdersController (REST)"]
         shop["Razor Page Shop/Index<br/>výloha"]
         cartUi["Razor Page Cart/Index<br/>košík + odznak v hlavičce"]
+        checkoutUi["Razor Page Checkout/Index<br/>pokladna"]
         consumer["Consumer fronty<br/>minishop.ordering"]
         timeout["OrderSagaTimeoutWorker<br/>(každých 5 s)"]
         sync["CatalogSyncOnStartupWorker"]
@@ -29,6 +30,8 @@ flowchart TB
         catsync["CatalogSyncService"]
         query["CatalogQueryService<br/>hledání ve výloze"]
         cartSvc["CartService<br/>use-casy košíku"]
+        checkoutSvc["CheckoutService<br/>košík → objednávka"]
+        shipping["IShippingPriceCalculator<br/>StandardShippingPriceCalculator"]
         pricing["IDiscountPolicy<br/>QuantityDiscountPolicy"]
     end
 
@@ -56,6 +59,12 @@ flowchart TB
     cartSvc --> cart
     cartSvc -->|"aktuální cena, dostupnost"| catProd
     cartSvc --> db
+    checkoutUi --> checkoutSvc
+    checkoutSvc -->|"CheckOut"| cart
+    checkoutSvc --> order
+    checkoutSvc --> pricing
+    checkoutSvc --> shipping
+    checkoutSvc --> db
     timeout --> saga
     sync --> catsync
     db -.->|"OutboxWorker doručí<br/>OrderPlaced, OrderConfirmed…"| saga
@@ -74,6 +83,7 @@ flowchart TB
     click catalog "/Docs/eda/kopie-katalogu"
     click catsync "/Docs/toky/obnova-katalogu"
     click cart "/Docs/architektura/vrstvy"
+    click checkoutSvc "/Docs/toky/pokladna"
     click db "/Docs/eda/outbox"
     click consumer "/Docs/eda/broker"
     click timeout "/Docs/toky/timeout-a-kompenzace"
@@ -87,7 +97,7 @@ později, v jiném scope, případně i opakovaně.
 | Komponenta | K čemu slouží | Kód |
 | --- | --- | --- |
 | **OrderService** | Use-casy: založit, vyřídit, zrušit objednávku, číst katalog. O skladu ani notifikacích neví – jen uloží objednávku a ta vyvolá událost. | [OrderService.cs](code:src/MiniShop.Application/Ordering/OrderService.cs) |
-| **Order** | Entita s business pravidly (potvrdit jde jen čekající objednávku…). Každá změna stavu vyvolá [doménovou událost](../../eda/domenove-udalosti.md). Patří zákazníkovi (`CustomerId`), jméno a e-mail jsou kopie z doby objednání. | [Order.cs](code:src/MiniShop.Domain/Orders/Order.cs) |
+| **Order** | Entita s business pravidly (potvrdit jde jen čekající objednávku…). Každá změna stavu vyvolá [doménovou událost](../../eda/domenove-udalosti.md). Patří zákazníkovi (`CustomerId`), jméno a e-mail jsou kopie z doby objednání. E-shop krok 4: doprava (`ShippingMethod`, `ShippingPrice` – snímek jako ceny položek), doručovací adresa (hodnotový objekt `DeliveryAddress`, jen kurýr) a `CheckoutId` (unikátní – idempotence). `TotalPrice` = položky + doprava. | [Order.cs](code:src/MiniShop.Domain/Orders/Order.cs) |
 | **OrderAccess**, **OrderCustomer** | Kdo se ptá (zákazník = jen své objednávky, správce = všechny) a kdo objednává. `OrderService` je dostává parametrem – o přihlášení neví; z cookie je skládá Web. | [OrderAccess.cs](code:src/MiniShop.Application/Ordering/OrderAccess.cs), [OrderAccessExtensions.cs](code:src/MiniShop.Web/Accounts/OrderAccessExtensions.cs) |
 | **OrderSagaOrchestrator** | „Dirigent“: na `OrderPlaced` založí ságu a pošle `ReserveStockV1`; na odpověď skladu objednávku potvrdí/zamítne; na zrušení pošle `ReleaseStockV1`. | [OrderSagaOrchestrator.cs](code:src/MiniShop.Application/Ordering/Saga/OrderSagaOrchestrator.cs) |
 | **OrderSaga** | Stavový automat ságy – jen rozhoduje, co dál, nic neprovádí. | [OrderSaga.cs](code:src/MiniShop.Domain/Orders/Saga/OrderSaga.cs) |
@@ -97,8 +107,10 @@ později, v jiném scope, případně i opakovaně.
 | **CatalogProjectionHandler** | Udržuje kopii katalogu z `ProductUpdatedV1`/`V2`, `StockAvailabilityChangedV1` a `ProductRemovedV1`. | [CatalogProjectionHandler.cs](code:src/MiniShop.Application/Ordering/Catalog/CatalogProjectionHandler.cs) |
 | **CatalogSyncService** | Požádá sklad o celý katalog (`SyncCatalogV1`) – po startu s prázdnou nebo neúplnou kopií, nebo tlačítkem. | [CatalogSyncService.cs](code:src/MiniShop.Application/Ordering/Catalog/CatalogSyncService.cs) |
 | **CatalogQueryService** | E-shop krok 2: výloha `/Shop` – hledání bez diakritiky (`SearchText`), filtr kategorie a „jen skladem“, řazení, stránkování. Čte jen kopii katalogu. | [CatalogQueryService.cs](code:src/MiniShop.Application/Ordering/Catalog/CatalogQueryService.cs), [Shop/Index.cshtml.cs](code:src/MiniShop.Web/Pages/Shop/Index.cshtml.cs) |
-| **Cart**, **CartLine** | E-shop krok 3: košík zákazníka – **agregát s invarianty**: nejvýš 20 řádků, množství 1–100, každý produkt jen jednou (další přidání navýší množství), nic vyprodaného ani staženého. Zboží neblokuje a nic neposílá. `PriceWhenAdded` jen pro upozornění na změnu ceny. Jeden košík na zákazníka (unikátní index), doménové události zatím žádné. | [Cart.cs](code:src/MiniShop.Domain/Orders/Carts/Cart.cs), [CartLine.cs](code:src/MiniShop.Domain/Orders/Carts/CartLine.cs) |
+| **Cart**, **CartLine** | E-shop krok 3: košík zákazníka – **agregát s invarianty**: nejvýš 20 řádků, množství 1–100, každý produkt jen jednou (další přidání navýší množství), nic vyprodaného ani staženého. Zboží neblokuje a nic neposílá. `PriceWhenAdded` jen pro upozornění na změnu ceny. Jeden košík na zákazníka (unikátní index), doménové události zatím žádné. E-shop krok 4: `CheckoutId` = verze obsahu (nová při každé změně, concurrency token), `CheckOut` ověří verzi, ceny a dostupnost a košík vyprázdní, `AcceptCurrentPrices`. | [Cart.cs](code:src/MiniShop.Domain/Orders/Carts/Cart.cs), [CartLine.cs](code:src/MiniShop.Domain/Orders/Carts/CartLine.cs) |
 | **CartService** | Přidat, změnit množství, odebrat, načíst košík s **aktuální** cenou a dostupností z kopie katalogu (vyprodaný řádek zůstane, ale nepočítá se; stažený produkt = „už není v nabídce“). Web z něj kreslí stránku `/Cart` a počet kusů v hlavičce (`CartBadgeViewComponent`). | [CartService.cs](code:src/MiniShop.Application/Ordering/Carts/CartService.cs), [Cart/Index.cshtml.cs](code:src/MiniShop.Web/Pages/Cart/Index.cshtml.cs), [CartBadgeViewComponent.cs](code:src/MiniShop.Web/Carts/CartBadgeViewComponent.cs) |
+| **CheckoutService** | E-shop krok 4: pokladna – souhrn (slevy, doprava, předvyplněná adresa), přijetí nových cen, objednání: idempotence přes `CheckoutId`, `Cart.CheckOut`, nová objednávka a vyprázdněný košík v **jedné transakci**; při souběhu vrátí objednávku prvního požadavku. Viz [Pokladna](../../toky/pokladna.md). | [CheckoutService.cs](code:src/MiniShop.Application/Ordering/Checkout/CheckoutService.cs), [Checkout/Index.cshtml.cs](code:src/MiniShop.Web/Pages/Checkout/Index.cshtml.cs) |
+| **IShippingPriceCalculator** | E-shop krok 4: cena dopravy jako strategie – `StandardShippingPriceCalculator`: osobní odběr zdarma, kurýr 99 Kč, od 1 000 Kč zdarma. Jiný ceník = nová třída. | [StandardShippingPriceCalculator.cs](code:src/MiniShop.Application/Ordering/Pricing/StandardShippingPriceCalculator.cs) |
 | **QuantityDiscountPolicy** | Množstevní sleva (od 10 ks 10 %). Další pravidlo = nová třída, `OrderService` se nemění. | [QuantityDiscountPolicy.cs](code:src/MiniShop.Application/Ordering/Pricing/QuantityDiscountPolicy.cs) |
 | **OrderSagaTimeoutWorker** | Každých 5 s hledá ságy, na které sklad neodpověděl včas (výchozí 30 s). | [OrderSagaTimeoutWorker.cs](code:src/MiniShop.Web/BackgroundServices/OrderSagaTimeoutWorker.cs) |
 | **OrderingDbContext** | `ordering.db`: objednávky, košíky, ságy, kopie katalogu, outbox, inbox. | [OrderingDbContext.cs](code:src/MiniShop.Infrastructure/Ordering/OrderingDbContext.cs) |
@@ -115,9 +127,9 @@ později, v jiném scope, případně i opakovaně.
 
 - UI: **výloha** (`/Shop`, veřejná – e-shop krok 2; tlačítko Objednat vede na `/Orders?productId=…`; obrázky
   ze skladu přes `/media/products/{soubor}` – krok 2B; tlačítko **Do košíku** – krok 3),
-  **košík** (`/Cart`, jen zákazník s potvrzeným e-mailem – admin neobjednává; pokladna přijde v kroku 4),
+  **košík** (`/Cart`, jen zákazník s potvrzeným e-mailem – admin neobjednává), **pokladna** (`/Checkout` – krok 4),
   stránka **Objednávky** (`/Orders`), detail průběhu (`/Orders/Journey/{id}`), přehrání (`/Orders/Replay/{id}`).
-- REST: `GET/POST /api/orders`, `POST /api/orders/{id}/complete`, `POST /api/orders/{id}/cancel`.
+- REST: `GET/POST /api/orders` (`POST` s volitelným `checkoutId` – opakovaný požadavek vrátí stejnou objednávku, krok 4), `POST /api/orders/{id}/complete`, `POST /api/orders/{id}/cancel`.
   `POST` vrací **202 Accepted** – objednávka je přijatá, ale o potvrzení teprve rozhodne sága.
 - **Vlastník (účty krok 3):** zákazník vidí a ruší jen své objednávky – seznam se filtruje přímo v SQL dotazu
   (`WHERE CustomerId = …`), cizí objednávka vrací **404** stejně jako neexistující (ochrana proti IDOR – zkoušení
@@ -126,7 +138,7 @@ později, v jiném scope, případně i opakovaně.
 - **Smazaný zákazník (účty krok 9):** `AnonymizeCustomerAsync` – objednávky smazaného účtu přijdou o jméno a e-mail
   (`Order.Anonymize`, jméno „Smazaný zákazník“), položky a ceny zůstanou. S nevyřízenou objednávkou (Pending,
   Confirmed) se nezmění nic. Volá ho jen Web před smazáním účtu; `EmailOrderNotifier` na prázdnou adresu nepíše.
-  E-shop krok 3: ve stejné transakci smaže i košík zákazníka.
+  E-shop krok 3: ve stejné transakci smaže i košík zákazníka. E-shop krok 4: smaže i doručovací adresy.
 
 ## Proč je košík v Orderingu (a ne ve vlastním modulu)
 

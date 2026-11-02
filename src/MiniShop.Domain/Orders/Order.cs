@@ -27,7 +27,11 @@ public class Order : Entity
     /// Účty krok 3: kdo objednává – ID uživatelského účtu. Pro Ordering je to jen neprůhledný řetězec
     /// (o modulu účtů nic neví). Jméno a e-mail jsou kopie z doby objednání – pozdější změna účtu je nepřepíše.
     /// </param>
-    public Order(string customerId, string customerName, string customerEmail, DateTime createdAtUtc)
+    /// <param name="checkoutId">
+    /// E-shop krok 4: ID odeslání z pokladny (nebo z API) – stejné ID podruhé nezaloží druhou objednávku
+    /// (unikátní index). Null = objednávka bez něj (starší, API bez <c>checkoutId</c>).
+    /// </param>
+    public Order(string customerId, string customerName, string customerEmail, DateTime createdAtUtc, Guid? checkoutId = null)
     {
         if (string.IsNullOrWhiteSpace(customerId))
         {
@@ -48,6 +52,7 @@ public class Order : Entity
         CustomerName = customerName.Trim();
         CustomerEmail = customerEmail.Trim();
         CreatedAtUtc = createdAtUtc;
+        CheckoutId = checkoutId;
         Status = OrderStatus.Pending;
 
         // Položky se přidají až po konstruktoru, ale událost drží odkaz na objednávku,
@@ -73,7 +78,50 @@ public class Order : Entity
 
     public IReadOnlyCollection<OrderItem> Items => _items.AsReadOnly();
 
-    public decimal TotalPrice => _items.Sum(i => i.LineTotal);
+    /// <summary>E-shop krok 4: ID odeslání z pokladny – idempotence (dvojklik, F5 nevytvoří druhou objednávku).</summary>
+    public Guid? CheckoutId { get; private set; }
+
+    /// <summary>E-shop krok 4: způsob dopravy (None = objednávka bez pokladny).</summary>
+    public ShippingMethod ShippingMethod { get; private set; }
+
+    /// <summary>E-shop krok 4: cena dopravy v době objednání (snímek, jako ceny položek).</summary>
+    public decimal ShippingPrice { get; private set; }
+
+    /// <summary>E-shop krok 4: doručovací adresa – jen u kurýra. Osobní údaj: smaže ji <see cref="Anonymize"/>.</summary>
+    public DeliveryAddress? DeliveryAddress { get; private set; }
+
+    /// <summary>Součet položek po slevách (bez dopravy).</summary>
+    public decimal ItemsTotal => _items.Sum(i => i.LineTotal);
+
+    /// <summary>Celkem k zaplacení – položky + doprava.</summary>
+    public decimal TotalPrice => ItemsTotal + ShippingPrice;
+
+    /// <summary>
+    /// E-shop krok 4: doprava z pokladny. Kurýr potřebuje adresu, osobní odběr žádnou (ani ji neuloží).
+    /// Cenu spočítá aplikační vrstva (strategie), objednávka si ji jen zapamatuje.
+    /// </summary>
+    public void SetShipping(ShippingMethod method, decimal price, DeliveryAddress? address)
+    {
+        EnsureStatus(OrderStatus.Pending, "Dopravu lze zadat jen u nové objednávky.");
+        if (method == ShippingMethod.None)
+        {
+            throw new DomainException("Vyberte způsob dopravy.");
+        }
+
+        if (method == ShippingMethod.Courier && address is null)
+        {
+            throw new DomainException("Pro doručení kurýrem vyplňte doručovací adresu.");
+        }
+
+        if (price < 0)
+        {
+            throw new DomainException("Cena dopravy nesmí být záporná.");
+        }
+
+        ShippingMethod = method;
+        ShippingPrice = price;
+        DeliveryAddress = method == ShippingMethod.Courier ? address : null;
+    }
 
     /// <summary>Název a cena se berou z lokální kopie katalogu (krok 10) a uloží se jako snímek v položce.</summary>
     public void AddItem(CatalogProduct product, int quantity, decimal discount)
@@ -144,6 +192,7 @@ public class Order : Entity
 
         CustomerName = AnonymizedCustomerName;
         CustomerEmail = string.Empty;
+        DeliveryAddress = null;   // e-shop krok 4: adresa je osobní údaj
     }
 
     private void EnsureStatus(OrderStatus expected, string message)

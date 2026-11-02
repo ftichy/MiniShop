@@ -1,5 +1,7 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using MiniShop.Application.Abstractions;
+using MiniShop.Application.Exceptions;
 using MiniShop.Domain.Common;
 using MiniShop.Infrastructure.Inbox;
 using MiniShop.Infrastructure.Outbox;
@@ -33,7 +35,27 @@ public abstract class ModuleDbContext(DbContextOptions options) : DbContext(opti
     /// Outbox (krok 4): v JEDNÉ transakci uloží změny entit i řádky outboxu – buď obojí, nebo nic.
     /// Události se tady nerozesílají: doručí je později OutboxProcessor na pozadí (krok 5).
     /// </summary>
+    /// <exception cref="ConcurrencyConflictException">
+    /// E-shop krok 4: data mezitím změnil jiný požadavek (concurrency token, unikátní index). Aplikační vrstva
+    /// o EF Core neví – dostane vlastní výjimku a rozhodne, co dál (pokladna najde hotovou objednávku).
+    /// </exception>
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await SaveWithOutboxAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (ex is DbUpdateConcurrencyException || IsUniqueViolation(ex))
+        {
+            throw new ConcurrencyConflictException(ex);
+        }
+    }
+
+    // SQLITE_CONSTRAINT_UNIQUE – druhý zápis stejné unikátní hodnoty (souběžné odeslání pokladny…).
+    private static bool IsUniqueViolation(DbUpdateException ex) =>
+        ex.InnerException is SqliteException { SqliteExtendedErrorCode: 2067 };
+
+    private async Task<int> SaveWithOutboxAsync(CancellationToken cancellationToken)
     {
         var entities = ChangeTracker.Entries<Entity>()
             .Select(entry => entry.Entity)

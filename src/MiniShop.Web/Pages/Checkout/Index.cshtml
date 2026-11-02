@@ -1,0 +1,124 @@
+@page
+@using MiniShop.Domain.Orders
+@using MiniShop.Web.Catalog
+@model MiniShop.Web.Pages.Checkout.IndexModel
+@{
+    ViewData["Title"] = "Pokladna";
+}
+<h1>Pokladna</h1>
+
+<div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+@if (Model.Summary.HasPriceChanges)
+{
+    @* E-shop krok 4: žádné tiché zdražení – změnu ceny musí zákazník vidět a potvrdit. *@
+    <div class="alert alert-warning d-flex justify-content-between align-items-center">
+        <span>Ceny některých produktů se od vložení do košíku změnily. Zkontrolujte je a potvrďte.</span>
+        <form method="post" asp-page-handler="AcceptPrices">
+            <button type="submit" class="btn btn-warning" data-track="checkout-accept-prices">Přijmout nové ceny</button>
+        </form>
+    </div>
+}
+@if (Model.Summary.HasUnavailableItems)
+{
+    <div class="alert alert-danger">
+        Košík obsahuje vyprodaný nebo stažený produkt. <a asp-page="/Cart/Index" class="alert-link">Odeberte ho v košíku</a>.
+    </div>
+}
+
+<h2 class="h5">Zboží</h2>
+<table class="table table-sm align-middle">
+    <thead>
+        <tr>
+            <th>Produkt</th>
+            <th class="text-end">Cena za kus</th>
+            <th class="text-end">Množství</th>
+            <th class="text-end">Celkem</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var line in Model.Summary.Cart.Lines)
+        {
+            <tr class="@(line.IsOrderable ? null : "text-muted")">
+                <td>
+                    @line.Name
+                    @if (!line.IsOrderable)
+                    {
+                        <span class="badge bg-secondary">@(line.IsInOffer ? AvailabilityLabels.Text(line.Availability) : "Už není v nabídce")</span>
+                    }
+                </td>
+                <td class="text-end">
+                    @line.UnitPrice.ToString("N2") Kč
+                    @if (line.PriceChanged)
+                    {
+                        <div class="small text-warning-emphasis">dříve @line.PriceWhenAdded.ToString("N2") Kč</div>
+                    }
+                </td>
+                <td class="text-end">@line.Quantity</td>
+                <td class="text-end">@line.LineTotal.ToString("N2") Kč</td>
+            </tr>
+        }
+    </tbody>
+    <tfoot>
+        @if (Model.Summary.Discount > 0)
+        {
+            <tr>
+                <td colspan="3" class="text-end">Množstevní sleva</td>
+                <td class="text-end">-@Model.Summary.Discount.ToString("N2") Kč</td>
+            </tr>
+        }
+        <tr class="fw-bold">
+            <td colspan="3" class="text-end">Zboží celkem</td>
+            <td class="text-end">@Model.Summary.ItemsTotal.ToString("N2") Kč</td>
+        </tr>
+    </tfoot>
+</table>
+
+<form method="post" class="row g-3">
+    <input type="hidden" asp-for="Input.CheckoutId" />
+
+    <fieldset class="col-md-5">
+        <legend class="h5">Doprava</legend>
+        @foreach (var option in Model.Summary.ShippingOptions)
+        {
+            var id = $"shipping-{option.Method}";
+            <div class="form-check">
+                <input type="radio" id="@id" name="Input.ShippingMethod" value="@option.Method" class="form-check-input"
+                       checked="@(Model.Input.ShippingMethod == option.Method)" data-track="checkout-shipping" />
+                <label for="@id" class="form-check-label">
+                    @IndexModel.ShippingName(option.Method) –
+                    <strong>@(option.Price == 0 ? "zdarma" : $"{option.Price:N2} Kč")</strong>
+                    <span class="text-muted">(celkem @((Model.Summary.ItemsTotal + option.Price).ToString("N2")) Kč)</span>
+                </label>
+            </div>
+        }
+    </fieldset>
+
+    <fieldset class="col-md-7">
+        <legend class="h5">Doručovací adresa <span class="text-muted fs-6">(jen pro kurýra)</span></legend>
+        <div class="mb-2">
+            <label asp-for="Input.Street" class="form-label">Ulice a číslo popisné</label>
+            <input asp-for="Input.Street" class="form-control" autocomplete="street-address" data-track="checkout-street" />
+        </div>
+        <div class="row g-2">
+            <div class="col-8">
+                <label asp-for="Input.City" class="form-label">Město</label>
+                <input asp-for="Input.City" class="form-control" autocomplete="address-level2" data-track="checkout-city" />
+            </div>
+            <div class="col-4">
+                <label asp-for="Input.PostalCode" class="form-label">PSČ</label>
+                <input asp-for="Input.PostalCode" class="form-control" inputmode="numeric" autocomplete="postal-code"
+                       data-track="checkout-postal-code" />
+            </div>
+        </div>
+    </fieldset>
+
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <a asp-page="/Cart/Index" class="btn btn-outline-secondary" data-track="checkout-back">Zpět do košíku</a>
+        <span>
+            <span class="text-muted small me-2">Po odeslání ověříme sklad, potvrzení přijde e-mailem.</span>
+            <button type="submit" class="btn btn-primary btn-lg" disabled="@(!Model.Summary.CanPlaceOrder)"
+                    data-track="checkout-submit">Objednat</button>
+        </span>
+    </div>
+</form>

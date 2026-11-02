@@ -35,6 +35,7 @@ public sealed class Cart
 
         CustomerId = customerId;
         UpdatedAtUtc = createdAtUtc;
+        CheckoutId = Guid.NewGuid();
     }
 
     public int Id { get; private set; }
@@ -45,6 +46,13 @@ public sealed class Cart
     public DateTime UpdatedAtUtc { get; private set; }
 
     public IReadOnlyCollection<CartLine> Lines => _lines.AsReadOnly();
+
+    /// <summary>
+    /// E-shop krok 4: „verze“ obsahu košíku pro pokladnu. Mění se při každé změně košíku i po objednání.
+    /// Formulář pokladny ji pošle zpět: stejná verze = zákazník objednává přesně to, co viděl; po objednání
+    /// stejné ID najde hotovou objednávku (idempotence – dvojklik, F5). Hlídá i souběh (concurrency token).
+    /// </summary>
+    public Guid CheckoutId { get; private set; }
 
     /// <summary>Počet kusů v košíku (číslo v hlavičce webu).</summary>
     public int TotalQuantity => _lines.Sum(l => l.Quantity);
@@ -80,14 +88,14 @@ public sealed class Cart
             _lines.Add(new CartLine(product.Id, quantity, product.Price));
         }
 
-        UpdatedAtUtc = nowUtc;
+        Changed(nowUtc);
     }
 
     public void ChangeQuantity(int productId, int quantity, DateTime nowUtc)
     {
         var line = FindLine(productId) ?? throw new DomainException("Produkt v košíku není.");
         line.SetQuantity(quantity);
-        UpdatedAtUtc = nowUtc;
+        Changed(nowUtc);
     }
 
     /// <summary>Odebere řádek. Když v košíku není (odebraný v jiné záložce), nic se nestane.</summary>
@@ -100,14 +108,83 @@ public sealed class Cart
         }
 
         _lines.Remove(line);
-        UpdatedAtUtc = nowUtc;
+        Changed(nowUtc);
     }
 
-    /// <summary>Vyprázdní košík – po objednání (krok 4).</summary>
+    /// <summary>Vyprázdní košík.</summary>
     public void Clear(DateTime nowUtc)
     {
         _lines.Clear();
+        Changed(nowUtc);
+    }
+
+    /// <summary>
+    /// E-shop krok 4: zákazník viděl nové ceny a souhlasí s nimi – zapamatují se jako ceny „při přidání“,
+    /// upozornění zmizí a pokladna je pustí.
+    /// </summary>
+    public void AcceptCurrentPrices(IReadOnlyDictionary<int, CatalogProduct> catalog, DateTime nowUtc)
+    {
+        foreach (var line in _lines)
+        {
+            if (catalog.TryGetValue(line.ProductId, out var product))
+            {
+                line.AcceptPrice(product.Price);
+            }
+        }
+
+        Changed(nowUtc);
+    }
+
+    /// <summary>
+    /// E-shop krok 4: pokladna – ověří, že zákazník objednává přesně to, co viděl, a vyprázdní košík.
+    /// Vrací řádky pro objednávku; objednávku zakládá aplikační vrstva ve stejné transakci.
+    /// </summary>
+    /// <param name="checkoutId">Verze košíku z formuláře pokladny (<see cref="CheckoutId"/>).</param>
+    /// <param name="catalog">Produkty košíku z kopie katalogu (i stažené).</param>
+    public IReadOnlyList<(CatalogProduct Product, int Quantity)> CheckOut(
+        Guid checkoutId, IReadOnlyDictionary<int, CatalogProduct> catalog, DateTime nowUtc)
+    {
+        if (checkoutId != CheckoutId)
+        {
+            throw new DomainException("Košík se mezitím změnil. Zkontrolujte ho a objednejte znovu.");
+        }
+
+        if (_lines.Count == 0)
+        {
+            throw new DomainException("Košík je prázdný.");
+        }
+
+        var result = new List<(CatalogProduct, int)>();
+        foreach (var line in _lines.OrderBy(l => l.Id))
+        {
+            if (!catalog.TryGetValue(line.ProductId, out var product) || product.IsRemoved)
+            {
+                throw new DomainException("Košík obsahuje produkt, který už není v nabídce. Odeberte ho z košíku.");
+            }
+
+            if (product.Availability == CatalogAvailability.OutOfStock)
+            {
+                throw new DomainException($"Produkt '{product.Name}' je vyprodaný. Odeberte ho z košíku.");
+            }
+
+            // Žádné tiché zdražení (ani zlevnění): změnu ceny musí zákazník vidět a potvrdit.
+            if (product.Price != line.PriceWhenAdded)
+            {
+                throw new DomainException("Ceny některých produktů se změnily. Zkontrolujte je a potvrďte nové ceny.");
+            }
+
+            result.Add((product, line.Quantity));
+        }
+
+        Clear(nowUtc);
+        return result;
+    }
+
+    /// <summary>Každá změna obsahu = nová verze pro pokladnu (starý formulář pokladny už neprojde).</summary>
+    private void Changed(DateTime nowUtc)
+    {
         UpdatedAtUtc = nowUtc;
+        CheckoutId = Guid.NewGuid();
     }
 
     private CartLine? FindLine(int productId) => _lines.FirstOrDefault(l => l.ProductId == productId);

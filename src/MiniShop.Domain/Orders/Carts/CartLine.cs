@@ -41,6 +41,8 @@ public sealed class CartLine
         PriceWhenAdded = currentPrice;
     }
 
+    internal void AcceptPrice(decimal currentPrice) => PriceWhenAdded = currentPrice;
+
     internal void SetQuantity(int quantity)
     {
         if (quantity is < 1 or > Cart.MaxQuantity)

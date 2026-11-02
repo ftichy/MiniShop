@@ -149,6 +149,20 @@ else if (Model.NeedsEmailConfirmation)
                         <td class="num">@item.LineTotal.ToString("N2") Kč</td>
                     </tr>
                 }
+                @* E-shop krok 4: doprava z pokladny (starší objednávky a objednávky přes API ji nemají). *@
+                @if (order.ShippingMethod != "None")
+                {
+                    <tr>
+                        <td colspan="4">
+                            Doprava: @(order.ShippingMethod == "Courier" ? "kurýr" : "osobní odběr")
+                            @if (order.DeliveryAddress is not null)
+                            {
+                                <span class="text-muted">– @order.DeliveryAddress</span>
+                            }
+                        </td>
+                        <td class="num">@(order.ShippingPrice == 0 ? "zdarma" : $"{order.ShippingPrice:N2} Kč")</td>
+                    </tr>
+                }
                 <tr class="fw-bold">
                     <td colspan="4">Celkem</td>
                     <td class="num">@order.TotalPrice.ToString("N2") Kč</td>

@@ -1,12 +1,14 @@
 ---
 title: Vytvoření objednávky
-summary: Hlavní tok – od odeslání formuláře přes ságu a rezervaci skladu až po potvrzení zákazníkovi.
+summary: Hlavní tok – od odeslání objednávky (pokladna nebo formulář) přes ságu a rezervaci skladu až po potvrzení zákazníkovi.
 order: 1
 ---
 
 > **Shrnutí:** Web objednávku uloží jako `Pending` a hned odpoví. Na pozadí sága pošle skladu příkaz
 > `ReserveStockV1`, sklad zboží zarezervuje a odpoví `StockReservedV1`, sága objednávku potvrdí a zákazník
 > dostane potvrzení. Celé to trvá **~4–8 s**.
+>
+> Od e-shop kroku 4 objednávka vzniká hlavně v [pokladně](pokladna.md) z košíku (dál stejný tok jako níže).
 
 ## Zjednodušeně
 

@@ -10,6 +10,9 @@ public sealed record OrderItemDto(
     decimal Discount,
     decimal LineTotal);
 
+/// <param name="TotalPrice">Celkem k zaplacení – položky po slevách + doprava.</param>
+/// <param name="ShippingMethod">E-shop krok 4: <c>None</c> (bez pokladny), <c>Pickup</c>, <c>Courier</c>.</param>
+/// <param name="DeliveryAddress">E-shop krok 4: adresa jedním řádkem (jen kurýr).</param>
 public sealed record OrderDto(
     int Id,
     string CustomerName,
@@ -18,7 +21,10 @@ public sealed record OrderDto(
     string Status,
     decimal TotalPrice,
     IReadOnlyList<OrderItemDto> Items,
-    string? RejectionReason);
+    string? RejectionReason,
+    string ShippingMethod = "None",
+    decimal ShippingPrice = 0m,
+    string? DeliveryAddress = null);
 
 /// <summary>
 /// Produkt v nabídce – z kopie katalogu (krok 10), bez přesné zásoby (ta patří skladu).
@@ -42,6 +48,12 @@ public sealed class CreateOrderRequest
 {
     [MinLength(1, ErrorMessage = "Objednávka musí obsahovat alespoň jednu položku.")]
     public List<CreateOrderItemRequest> Items { get; set; } = new();
+
+    /// <summary>
+    /// E-shop krok 4 (volitelné): ID odeslání, které si klient vygeneruje. Opakovaný požadavek se stejným ID
+    /// (třeba po výpadku sítě) nezaloží druhou objednávku, ale vrátí tu první.
+    /// </summary>
+    public Guid? CheckoutId { get; set; }
 }
 
 public sealed class CreateOrderItemRequest

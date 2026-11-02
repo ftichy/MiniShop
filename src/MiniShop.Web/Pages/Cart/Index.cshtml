@@ -105,13 +105,13 @@ else
         </tfoot>
     </table>
 
-    @* E-shop krok 3: košík zboží neblokuje – závazná cena a rezervace vzniknou až v pokladně (krok 4). *@
+    @* E-shop krok 3: košík zboží neblokuje – závazná cena a rezervace vzniknou až objednáním v pokladně (krok 4). *@
     <p class="text-muted small">
         Zboží v košíku není rezervované a ceny jsou orientační – závazné budou až při objednání.
         Vyprodané a stažené produkty se do součtu nepočítají.
     </p>
     <div class="d-flex justify-content-between">
         <a asp-page="/Shop/Index" class="btn btn-outline-primary" data-track="cart-continue">Pokračovat v nákupu</a>
-        <button type="button" class="btn btn-primary" disabled title="Pokladna přijde v dalším kroku">K pokladně (připravujeme)</button>
+        <a asp-page="/Checkout/Index" class="btn btn-primary" data-track="cart-checkout">K pokladně</a>
     </div>
 }

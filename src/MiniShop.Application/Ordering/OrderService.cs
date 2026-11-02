@@ -58,6 +58,13 @@ public sealed class OrderService(
             throw new DomainException("Objednávka musí obsahovat alespoň jednu položku.");
         }
 
+        // E-shop krok 4: opakovaný požadavek se stejným checkoutId (výpadek sítě, retry klienta) vrátí hotovou objednávku.
+        if (request.CheckoutId is { } checkoutId
+            && await orders.GetByCheckoutIdAsync(customer.CustomerId, checkoutId, cancellationToken) is { } placed)
+        {
+            return placed.ToDto();
+        }
+
         // Stejný produkt zadaný vícekrát sloučíme do jedné položky.
         var requestedItems = request.Items
             .GroupBy(i => i.ProductId)
@@ -68,7 +75,7 @@ public sealed class OrderService(
             .ToDictionary(p => p.Id);
 
         // Účty krok 3: zákazník je přihlášený uživatel – jméno a e-mail z jeho účtu, ne z požadavku.
-        var order = new Order(customer.CustomerId, customer.Name, customer.Email, UtcNow);
+        var order = new Order(customer.CustomerId, customer.Name, customer.Email, UtcNow, request.CheckoutId);
 
         foreach (var (productId, quantity) in requestedItems)
         {
@@ -79,11 +86,26 @@ public sealed class OrderService(
             }
 
             // Kopie katalogu dodá název a cenu. Zásobu řeší až sklad (sága).
-            order.AddItem(product, quantity, CalculateDiscount(product, quantity));
+            order.AddItem(product, quantity, discountPolicies.BestDiscount(product, quantity));
         }
 
         orders.Add(order);
-        await unitOfWork.SaveChangesAsync(cancellationToken);   // → OrderPlaced do outboxu → sága → ReserveStockV1
+        try
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken);   // → OrderPlaced do outboxu → sága → ReserveStockV1
+        }
+        catch (ConcurrencyConflictException) when (request.CheckoutId is not null)
+        {
+            // Dva souběžné požadavky se stejným checkoutId – druhý narazil na unikátní index; vrátíme ten první.
+            var first = await orders.GetByCheckoutIdAsync(customer.CustomerId, request.CheckoutId.Value, cancellationToken);
+            if (first is null)
+            {
+                throw;
+            }
+
+            return first.ToDto();
+        }
+
         TraceTags.TagOrder(order.Id);                            // ID přidělila až databáze
 
         return order.ToDto();
@@ -138,13 +160,6 @@ public sealed class OrderService(
     }
 
     private DateTime UtcNow => timeProvider.GetUtcNow().UtcDateTime;
-
-    // Uplatní se nejvýhodnější sleva ze všech pravidel (slevy se nesčítají).
-    private decimal CalculateDiscount(CatalogProduct product, int quantity) =>
-        discountPolicies
-            .Select(policy => policy.CalculateDiscount(product, quantity))
-            .DefaultIfEmpty(0m)
-            .Max();
 
     /// <remarks>
     /// Účty krok 3: cizí objednávka se tváří jako neexistující (stejná výjimka, stejná hláška → 404) –

@@ -26,17 +26,7 @@ public sealed class CartService(
             return CartDto.Empty;
         }
 
-        // I odebrané produkty – řádek pak ukáže „už není v nabídce“ s názvem, ne jen číslem.
-        var products = (await catalog.GetByIdsAsync(cart.Lines.Select(l => l.ProductId), cancellationToken))
-            .ToDictionary(p => p.Id);
-
-        // V pořadí přidání (nový produkt na konec), ne podle názvu – řádky při změně množství neposkakují.
-        var lines = cart.Lines
-            .OrderBy(line => line.Id)
-            .Select(line => ToDto(line, products.GetValueOrDefault(line.ProductId)))
-            .ToList();
-
-        return new CartDto(lines, lines.Where(l => l.IsOrderable).Sum(l => l.LineTotal), cart.TotalQuantity);
+        return cart.ToDto(await catalog.GetForCartAsync(cart, cancellationToken));
     }
 
     public Task<int> GetTotalQuantityAsync(string customerId, CancellationToken cancellationToken = default) =>
@@ -83,12 +73,4 @@ public sealed class CartService(
     }
 
     private DateTime UtcNow => timeProvider.GetUtcNow().UtcDateTime;
-
-    private static CartLineDto ToDto(CartLine line, CatalogProduct? product) =>
-        product is null
-            // Kopie katalogu produkt vůbec nezná (např. obnovená DB) – stejné jako odebraný.
-            ? new(line.ProductId, $"Produkt č. {line.ProductId}", null, line.Quantity, line.PriceWhenAdded,
-                line.PriceWhenAdded, CatalogAvailability.Unknown.ToString(), IsInOffer: false)
-            : new(line.ProductId, product.Name, product.ImageFileName, line.Quantity, product.Price,
-                line.PriceWhenAdded, product.Availability.ToString(), IsInOffer: !product.IsRemoved);
 }

@@ -76,6 +76,7 @@ Plán (výloha, košík, pokladna, expedice, platba, notifikace): [docs/Eshop-ro
 | 2A | Výloha `/Shop` – kategorie, hledání bez diakritiky, filtry, řazení; `ProductUpdatedV2` (expand → contract), `StockAvailabilityChangedV1` jen při změně pásma | [eshop-02a](code:docs/kroky-eshop/krok-02a-vyloha.md) |
 | 2B | Obrázky produktů – bezpečný upload do skladu (typ podle bajtů, bez SVG, 1 MB), ve zprávě jen jméno souboru, `/media/products` s cache na rok, zálohy | [eshop-02b](code:docs/kroky-eshop/krok-02b-obrazky.md) |
 | 3 | Košík – agregát `Cart` s invarianty v Orderingu (bez nové zprávy, zboží neblokuje), `/Cart`, počet kusů v hlavičce, ceny vždy aktuální z kopie katalogu | [eshop-03](code:docs/kroky-eshop/krok-03-kosik.md) |
+| 4A | Pokladna `/Checkout` – objednávka s více položkami z košíku v jedné transakci, idempotentní příkaz (`CheckoutId` = verze košíku + concurrency token), žádné tiché zdražení, doprava (strategie) a adresa (hodnotový objekt) | [eshop-04a](code:docs/kroky-eshop/krok-04a-pokladna.md) |
 
 ## Proč po krocích
 

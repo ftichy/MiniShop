@@ -220,6 +220,10 @@ testy domény hlídají všechny invarianty.
 
 ## Krok 4: Pokladna a objednávka s více položkami
 
+*Rozděleno: 4A pokladna (hotovo 2. 11. 2026 – souhrn v `docs/kroky-eshop/krok-04a-pokladna.md`; `CheckoutId` je verze
+košíku a zároveň concurrency token; zamítnutí s názvem produktu už fungovalo) a 4B (Journeys na pokladnu, odstranění
+starého formuláře a tlačítka „Objednat“ ve výloze).*
+
 **Teorie.** Pokladna je jediné místo, kde nezávazný výběr přechází v závazek. Tři klasické problémy:
 
 1. **Dvojí odeslání** (dvojklik, F5, opakování po výpadku sítě) → **idempotentní příkaz**: košík nese `CheckoutId`

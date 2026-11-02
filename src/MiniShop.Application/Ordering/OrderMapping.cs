@@ -18,7 +18,10 @@ public static class OrderMapping
             order.Items
                 .Select(i => new OrderItemDto(i.ProductId, i.ProductName, i.UnitPrice, i.Quantity, i.Discount, i.LineTotal))
                 .ToList(),
-            order.RejectionReason);
+            order.RejectionReason,
+            order.ShippingMethod.ToString(),
+            order.ShippingPrice,
+            order.DeliveryAddress?.ToString());
 
     /// <summary>E-shop krok 2: produkt z kopie katalogu pro výlohu i formulář objednávky.</summary>
     public static CatalogItemDto ToCatalogItemDto(this CatalogProduct product) =>

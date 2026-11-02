@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using MiniShop.Application.Exceptions;
 using MiniShop.Application.Ordering.Carts;
 using MiniShop.Domain.Exceptions;
 using MiniShop.Web.Accounts;
@@ -52,6 +53,11 @@ public sealed class IndexModel(ICartService carts) : PageModel
         catch (DomainException ex)
         {
             ErrorMessage = ex.Message;
+        }
+        catch (ConcurrencyConflictException)
+        {
+            // E-shop krok 4: košík mezitím změnila jiná záložka (verze košíku = concurrency token).
+            ErrorMessage = "Košík se mezitím změnil v jiném okně. Zkontrolujte ho a zkuste to znovu.";
         }
 
         return returnUrl is null ? RedirectToPage() : LocalRedirect(returnUrl);

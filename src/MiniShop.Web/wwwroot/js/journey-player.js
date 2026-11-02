@@ -23,12 +23,14 @@
     const clock = document.getElementById('replay-clock');
     const playButton = document.getElementById('replay-play');
     const stepRows = [...document.querySelectorAll('[data-step-index]')];
+    // Seznam produktů má jen kopie původního formuláře objednávky; kopie pokladny (e-shop krok 4B) ne.
     const select = stage.querySelector('select');
 
     // Výchozí stav kopie formuláře – sem se vrací přetočení.
     const fields = [...stage.querySelectorAll('input, select')];
     const initialValues = new Map(fields.map(field => [field, field.value]));
-    const initialOptions = select.innerHTML;
+    const initialChecked = new Map(fields.map(field => [field, field.checked]));
+    const initialOptions = select ? select.innerHTML : '';
 
     let position = 0;      // čas přehrávání (ms, po zkrácení pauz)
     let next = 0;          // index dalšího snímku, který se ještě neodehrál
@@ -104,7 +106,11 @@
                 break;
 
             case 'FieldChanged':
-                if (element) {
+                if (element?.type === 'radio') {
+                    // Přepínač (doprava v pokladně): všechny možnosti mají stejný Target, rozhoduje hodnota.
+                    stage.querySelectorAll(`[data-replay-target="${CSS.escape(e.target)}"]`)
+                        .forEach(radio => { radio.checked = radio.value === e.value; });
+                } else if (element) {
                     if (element.tagName === 'SELECT') {
                         ensureOption(e.value ?? '', e.valueText);
                     }
@@ -128,7 +134,7 @@
                 clearFocus();
                 alertBox.hidden = true;   // nové odeslání – stará chybová hláška zmizí, jako na skutečné stránce
                 if (animate) {
-                    pulse(find('order-submit'));
+                    pulse(stage.querySelector('[data-replay-submit]'));
                 }
                 break;
 
@@ -150,6 +156,7 @@
                 select.innerHTML = initialOptions;
             }
             field.value = initialValues.get(field);
+            field.checked = initialChecked.get(field);
             field.classList.remove('is-invalid');
         });
         clearFocus();

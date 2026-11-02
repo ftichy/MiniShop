@@ -20,7 +20,7 @@ order: 30
 | [Obnova katalogu](obnova-katalogu.md) | prázdná nebo neúplná kopie katalogu po startu |
 | [Změna dostupnosti](zmena-dostupnosti.md) | rezervace/naskladnění změní pásmo dostupnosti → výloha |
 | [Cesta jedné zprávy](cesta-zpravy.md) | outbox → RabbitMQ → inbox, včetně chyb |
-| [Průběh formuláře](prubeh-formulare.md) | sledování a přehrání formuláře objednávky |
+| [Průběh formuláře](prubeh-formulare.md) | sledování a přehrání pokladny (staré proudy: formulář objednávky) |
 | [Pokladna](pokladna.md) | košík → objednávka v jedné transakci; dvojí odeslání, souběh, změna ceny |
 
 Diagramy v Markdownu jsou psané v [Mermaidu](https://mermaid.js.org/syntax/sequenceDiagram.html). Velký diagram

@@ -1,4 +1,5 @@
 @page "{orderId:int?}"
+@using MiniShop.Application.Journeys
 @model MiniShop.Web.Pages.Orders.ReplayModel
 @{
     ViewData["Title"] = Model.OrderId is { } id ? $"Přehrání objednávky č. {id}" : "Přehrání objednávky";
@@ -51,33 +52,76 @@
 
     <div class="row g-4">
         <div class="col-lg-7">
-            @* Kopie formuláře z /Orders – stejná jména polí, jaká posílá order-form-tracker.js (Target).
-               Nedá se do ní psát ani klikat, hodnoty mění jen přehrávač. *@
+            @* Kopie formuláře – stejná jména polí, jaká posílá order-form-tracker.js (Target).
+               Nedá se do ní psát ani klikat, hodnoty mění jen přehrávač. E-shop krok 4B: podle formuláře, ve kterém
+               proud vznikl – pokladna, nebo původní formulář ze stránky Objednávky (staré proudy se nepřepisují).
+               Nové pole pokladny = přidat ho i sem. *@
             <div id="replay-stage" class="card replay-stage">
                 <div class="card-header d-flex justify-content-between">
-                    <span>Nová objednávka <span class="text-muted small">(přehrávání)</span></span>
+                    <span>@(journey.Form == JourneyForms.Checkout ? "Pokladna" : "Nová objednávka") <span class="text-muted small">(přehrávání)</span></span>
                     <span id="replay-pause" class="small text-warning-emphasis" hidden></span>
                 </div>
                 <div class="card-body">
                     <div id="replay-alert" class="alert py-2 small" hidden></div>
-                    @* Účty krok 3: jméno a e-mail už formulář nemá (bere je server z účtu). Starší záznamy, kde se
-                       psaly, se přehrají bez nich – přehrávač události k chybějícím polím přeskočí. *@
-                    <div class="row g-2">
-                        <div class="col-md-6">
-                            <label class="form-label">Produkt</label>
-                            @* Možnosti doplní přehrávač podle toho, co uživatel vybíral (ValueText) – nezávisí na dnešním katalogu. *@
-                            <select class="form-select" data-replay-target="Input.ProductId" tabindex="-1">
-                                <option value="0">-- vyberte --</option>
-                            </select>
+                    @if (journey.Form == JourneyForms.Checkout)
+                    {
+                        @* Pokladna (e-shop krok 4B). Souhrn košíku se nesleduje – přehrává se jen to, co zákazník vyplňoval. *@
+                        <div class="row g-3">
+                            <fieldset class="col-md-5">
+                                <legend class="h6">Doprava</legend>
+                                <div class="form-check">
+                                    <input type="radio" class="form-check-input" data-replay-target="Input.ShippingMethod" value="Pickup" tabindex="-1" />
+                                    <label class="form-check-label">Osobní odběr na prodejně</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="radio" class="form-check-input" data-replay-target="Input.ShippingMethod" value="Courier" tabindex="-1" />
+                                    <label class="form-check-label">Kurýr na adresu</label>
+                                </div>
+                            </fieldset>
+                            <fieldset class="col-md-7">
+                                <legend class="h6">Doručovací adresa</legend>
+                                <input class="form-control form-control-sm mb-2" placeholder="Ulice a číslo popisné"
+                                       data-replay-target="Input.Street" readonly tabindex="-1" />
+                                <div class="row g-2">
+                                    <div class="col-8">
+                                        <input class="form-control form-control-sm" placeholder="Město" data-replay-target="Input.City" readonly tabindex="-1" />
+                                    </div>
+                                    <div class="col-4">
+                                        <input class="form-control form-control-sm" placeholder="PSČ" data-replay-target="Input.PostalCode" readonly tabindex="-1" />
+                                    </div>
+                                </div>
+                            </fieldset>
+                            <div class="col-12 d-flex justify-content-between">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-replay-target="checkout-back" tabindex="-1">Zpět do košíku</button>
+                                <span>
+                                    <button type="button" class="btn btn-warning btn-sm" data-replay-target="checkout-accept-prices" tabindex="-1">Přijmout nové ceny</button>
+                                    <button type="button" class="btn btn-primary" data-replay-target="checkout-submit" data-replay-submit tabindex="-1">Objednat</button>
+                                </span>
+                            </div>
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Množství</label>
-                            <input class="form-control" data-replay-target="Input.Quantity" value="1" readonly tabindex="-1" />
+                    }
+                    else
+                    {
+                        @* Původní formulář ze stránky Objednávky (kroky 12A/12B až do e-shop kroku 4B).
+                           Účty krok 3: jméno a e-mail už formulář neměl (bere je server z účtu). Starší záznamy, kde se
+                           psaly, se přehrají bez nich – přehrávač události k chybějícím polím přeskočí. *@
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label class="form-label">Produkt</label>
+                                @* Možnosti doplní přehrávač podle toho, co uživatel vybíral (ValueText) – nezávisí na dnešním katalogu. *@
+                                <select class="form-select" data-replay-target="Input.ProductId" tabindex="-1">
+                                    <option value="0">-- vyberte --</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Množství</label>
+                                <input class="form-control" data-replay-target="Input.Quantity" value="1" readonly tabindex="-1" />
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end">
+                                <button type="button" class="btn btn-primary w-100" data-replay-target="order-submit" data-replay-submit tabindex="-1">Objednat</button>
+                            </div>
                         </div>
-                        <div class="col-md-3 d-flex align-items-end">
-                            <button type="button" class="btn btn-primary w-100" data-replay-target="order-submit" tabindex="-1">Objednat</button>
-                        </div>
-                    </div>
+                    }
                 </div>
                 <div class="card-footer">
                     <span id="replay-caption" class="fw-semibold">Stiskněte Přehrát.</span>

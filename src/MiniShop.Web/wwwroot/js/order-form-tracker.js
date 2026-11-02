@@ -1,9 +1,11 @@
 // Krok 12A: sledování formuláře objednávky. Každá akce uživatele = jedna událost v proudu (JourneyId z formuláře).
+// E-shop krok 4B: sleduje formulář označený data-journey-id (pokladna, dřív formulář na stránce Objednávky);
+// FormOpened nese jeho jméno (data-journey-form), podle kterého projekce a přehrávač poznají, o jaký formulář jde.
 // Události se sbírají do fronty a odcházejí dávkově na POST /api/journeys/{journeyId}/events – každé 2 s
 // a při odeslání nebo opuštění stránky (sendBeacon doručí i ve chvíli, kdy prohlížeč stránku zavírá).
 // Každá událost má vlastní eventId: když se dávka pošle dvakrát, server duplicity přeskočí (idempotence).
 (() => {
-    const form = document.getElementById('order-form');
+    const form = document.querySelector('form[data-journey-id]');
     if (!form) {
         return;
     }
@@ -22,9 +24,13 @@
 
     const textOf = el => (el.textContent || '').replace(/\s+/g, ' ').trim();
 
+    const legendOf = el => el.closest('fieldset')?.querySelector('legend');
+
     // Lidský popis prvku: popisek pole, text tlačítka/odkazu, nebo aspoň jeho jméno.
     const labelOf = el =>
-        (el.labels && el.labels.length ? textOf(el.labels[0]) : null)
+        // Přepínač (radio): popisek celé skupiny (legend), ne jedné možnosti – „Doprava“, ne „Kurýr – 99 Kč“.
+        (el.type === 'radio' && legendOf(el) ? textOf(legendOf(el)) : null)
+        || (el.labels && el.labels.length ? textOf(el.labels[0]) : null)
         || el.dataset.trackLabel
         || textOf(el)
         || el.value
@@ -91,7 +97,10 @@
         // 'input' = každý napsaný znak i výběr v seznamu. Value je celá aktuální hodnota pole – skutečně napsaný text.
         field.addEventListener('input', () => record('FieldChanged', field, {
             value: field.value,
-            valueText: field.tagName === 'SELECT' ? textOf(field.selectedOptions[0] || field) : null
+            // Výběr ze seznamu i přepínač: čitelný text zvolené možnosti (u přepínače jen jeho název, bez ceny).
+            valueText: field.tagName === 'SELECT' ? textOf(field.selectedOptions[0] || field)
+                : field.type === 'radio' ? (field.dataset.trackValue || textOf(field.labels[0] || field))
+                : null
         }));
     });
 
@@ -119,7 +128,7 @@
 
     // Po neúspěšném odeslání se formulář načte znovu se stejným proudem – „otevření“ už v proudu je.
     if (baseOffset === 0) {
-        record('FormOpened', null);
+        record('FormOpened', null, { target: form.dataset.journeyForm || null });
     } else {
         state.touched = true;   // uživatel je uprostřed vyplňování
     }

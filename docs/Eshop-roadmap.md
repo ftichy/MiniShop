@@ -222,7 +222,8 @@ testy domény hlídají všechny invarianty.
 
 *Rozděleno: 4A pokladna (hotovo 2. 11. 2026 – souhrn v `docs/kroky-eshop/krok-04a-pokladna.md`; `CheckoutId` je verze
 košíku a zároveň concurrency token; zamítnutí s názvem produktu už fungovalo) a 4B (Journeys na pokladnu, odstranění
-starého formuláře a tlačítka „Objednat“ ve výloze).*
+starého formuláře a tlačítka „Objednat“ ve výloze – hotovo 2. 11. 2026, souhrn v `docs/kroky-eshop/krok-04b-journeys-pokladna.md`;
+bez nového typu události, staré proudy se nepřepisují).*
 
 **Teorie.** Pokladna je jediné místo, kde nezávazný výběr přechází v závazek. Tři klasické problémy:
 

@@ -100,17 +100,13 @@
                             }
                             else
                             {
-                                @* E-shop krok 3: do košíku (POST na stránku Košík, pak zpět sem i s filtry). „Objednat“
-                                   (jeden produkt) zůstává, dokud ho v kroku 4 nenahradí pokladna. *@
-                                <div class="d-flex gap-1">
-                                    <a asp-page="/Orders/Index" asp-route-productId="@p.ProductId" class="btn btn-outline-secondary"
-                                       data-track="shop-order">Objednat</a>
-                                    <form method="post" asp-page="/Cart/Index" asp-page-handler="Add">
-                                        <input type="hidden" name="productId" value="@p.ProductId" />
-                                        <input type="hidden" name="returnUrl" value="@Model.CurrentUrl" />
-                                        <button type="submit" class="btn btn-primary" data-track="shop-add-to-cart">Do košíku</button>
-                                    </form>
-                                </div>
+                                @* E-shop krok 3: do košíku (POST na stránku Košík, pak zpět sem i s filtry).
+                                   Krok 4B: jediná cesta k objednávce – košík → pokladna. *@
+                                <form method="post" asp-page="/Cart/Index" asp-page-handler="Add">
+                                    <input type="hidden" name="productId" value="@p.ProductId" />
+                                    <input type="hidden" name="returnUrl" value="@Model.CurrentUrl" />
+                                    <button type="submit" class="btn btn-primary" data-track="shop-add-to-cart">Do košíku</button>
+                                </form>
                             }
                         }
                         else if (Model.IsAnonymous)

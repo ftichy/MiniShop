@@ -29,7 +29,7 @@ public sealed class AccountDeletionTests(MiniShopWebFactory web)
         var page = WebUtility.HtmlDecode(await client.GetStringAsync("/Orders"));
         var api = await client.PostAsJsonAsync("/api/orders", new { items = new[] { new { productId = 1, quantity = 1 } } });
 
-        Assert.DoesNotContain("id=\"order-form\"", page);
+        Assert.DoesNotContain("data-journey-id", page);   // e-shop krok 4B: formulář je jen v pokladně
         Assert.Contains("Objednávat můžete, až potvrdíte svůj e-mail", page);
         Assert.Equal(HttpStatusCode.Forbidden, api.StatusCode);
     }

@@ -125,10 +125,10 @@ později, v jiném scope, případně i opakovaně.
 
 ## Rozhraní navenek
 
-- UI: **výloha** (`/Shop`, veřejná – e-shop krok 2; tlačítko Objednat vede na `/Orders?productId=…`; obrázky
-  ze skladu přes `/media/products/{soubor}` – krok 2B; tlačítko **Do košíku** – krok 3),
+- UI: **výloha** (`/Shop`, veřejná – e-shop krok 2; obrázky ze skladu přes
+  `/media/products/{soubor}` – krok 2B; tlačítko **Do košíku** – krok 3, od kroku 4B jediná cesta k objednávce),
   **košík** (`/Cart`, jen zákazník s potvrzeným e-mailem – admin neobjednává), **pokladna** (`/Checkout` – krok 4),
-  stránka **Objednávky** (`/Orders`), detail průběhu (`/Orders/Journey/{id}`), přehrání (`/Orders/Replay/{id}`).
+  stránka **Objednávky** (`/Orders` – přehled, od kroku 4B bez formuláře), detail průběhu (`/Orders/Journey/{id}`), přehrání (`/Orders/Replay/{id}`).
 - REST: `GET/POST /api/orders` (`POST` s volitelným `checkoutId` – opakovaný požadavek vrátí stejnou objednávku, krok 4), `POST /api/orders/{id}/complete`, `POST /api/orders/{id}/cancel`.
   `POST` vrací **202 Accepted** – objednávka je přijatá, ale o potvrzení teprve rozhodne sága.
 - **Vlastník (účty krok 3):** zákazník vidí a ruší jen své objednávky – seznam se filtruje přímo v SQL dotazu

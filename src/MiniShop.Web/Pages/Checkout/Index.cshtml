@@ -74,8 +74,13 @@
     </tfoot>
 </table>
 
-<form method="post" class="row g-3">
+@* E-shop krok 4B: order-form-tracker.js zapisuje, co zákazník v pokladně dělá (proud JourneyId, modul Journeys).
+   Hodnoty proudu ručně (ne asp-for) – po chybě musí platit hodnota ze serveru, ne ta odeslaná. *@
+<form method="post" class="row g-3" data-journey-form="@IndexModel.JourneyFormName"
+      data-journey-id="@Model.JourneyId" data-journey-offset="@Model.JourneyOffsetMs">
     <input type="hidden" asp-for="Input.CheckoutId" />
+    <input type="hidden" name="JourneyId" value="@Model.JourneyId" />
+    <input type="hidden" name="JourneyOffsetMs" value="@Model.JourneyOffsetMs" />
 
     <fieldset class="col-md-5">
         <legend class="h5">Doprava</legend>
@@ -84,7 +89,8 @@
             var id = $"shipping-{option.Method}";
             <div class="form-check">
                 <input type="radio" id="@id" name="Input.ShippingMethod" value="@option.Method" class="form-check-input"
-                       checked="@(Model.Input.ShippingMethod == option.Method)" data-track="checkout-shipping" />
+                       checked="@(Model.Input.ShippingMethod == option.Method)"
+                       data-track-value="@IndexModel.ShippingName(option.Method)" />
                 <label for="@id" class="form-check-label">
                     @IndexModel.ShippingName(option.Method) –
                     <strong>@(option.Price == 0 ? "zdarma" : $"{option.Price:N2} Kč")</strong>
@@ -98,17 +104,16 @@
         <legend class="h5">Doručovací adresa <span class="text-muted fs-6">(jen pro kurýra)</span></legend>
         <div class="mb-2">
             <label asp-for="Input.Street" class="form-label">Ulice a číslo popisné</label>
-            <input asp-for="Input.Street" class="form-control" autocomplete="street-address" data-track="checkout-street" />
+            <input asp-for="Input.Street" class="form-control" autocomplete="street-address" />
         </div>
         <div class="row g-2">
             <div class="col-8">
                 <label asp-for="Input.City" class="form-label">Město</label>
-                <input asp-for="Input.City" class="form-control" autocomplete="address-level2" data-track="checkout-city" />
+                <input asp-for="Input.City" class="form-control" autocomplete="address-level2" />
             </div>
             <div class="col-4">
                 <label asp-for="Input.PostalCode" class="form-label">PSČ</label>
-                <input asp-for="Input.PostalCode" class="form-control" inputmode="numeric" autocomplete="postal-code"
-                       data-track="checkout-postal-code" />
+                <input asp-for="Input.PostalCode" class="form-control" inputmode="numeric" autocomplete="postal-code" />
             </div>
         </div>
     </fieldset>
@@ -122,3 +127,7 @@
         </span>
     </div>
 </form>
+
+@section Scripts {
+    <script src="~/js/order-form-tracker.js" asp-append-version="true"></script>
+}

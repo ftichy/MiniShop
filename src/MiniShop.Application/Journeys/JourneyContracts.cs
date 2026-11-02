@@ -45,10 +45,25 @@ public sealed record JourneySummaryDto(
     IReadOnlyList<JourneyFieldTimeDto> TimeInFields);
 
 /// <summary>Průběh zakládání objednávky – výsledek projekce <see cref="OrderJourneyProjection"/>.</summary>
+/// <param name="Form">E-shop krok 4B: ve kterém formuláři proud vznikl (<see cref="JourneyForms"/>).</param>
 public sealed record OrderJourneyDto(
     int OrderId,
     Guid JourneyId,
     DateTime StartedAtUtc,
     JourneySummaryDto Summary,
     IReadOnlyList<JourneyStepDto> Steps,
-    IReadOnlyList<JourneyEventDto> Events);
+    IReadOnlyList<JourneyEventDto> Events,
+    string Form = JourneyForms.OrderForm);
+
+/// <summary>
+/// E-shop krok 4B: formuláře, ze kterých proud může pocházet. Jméno nese událost FormOpened (Target) – uložené proudy
+/// se nepřepisují, takže staré (bez jména) jsou vždy z původního formuláře na stránce Objednávky.
+/// </summary>
+public static class JourneyForms
+{
+    /// <summary>Formulář „Nová objednávka“ (jeden produkt) na stránce Objednávky – kroky 12A/12B až do e-shop kroku 4B.</summary>
+    public const string OrderForm = "order-form";
+
+    /// <summary>Pokladna /Checkout (e-shop krok 4B).</summary>
+    public const string Checkout = "checkout";
+}

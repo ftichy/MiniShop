@@ -22,6 +22,7 @@ public sealed class OrderJourneyProjection
     private int _failedSubmits;
     private long _lastOffsetMs;
     private long? _submittedAtMs;
+    private string _form = JourneyForms.OrderForm;
 
     /// <summary>Celý fold najednou: nový stav → Apply pro každou událost → výsledek.</summary>
     public static OrderJourneyDto Project(int orderId, Guid journeyId, IReadOnlyList<JourneyEvent> events)
@@ -37,7 +38,8 @@ public sealed class OrderJourneyProjection
             : events.Min(e => e.RecordedAtUtc.AddMilliseconds(-e.OffsetMs));
 
         return new OrderJourneyDto(orderId, journeyId, startedAtUtc, projection.Summary(), projection.Steps(),
-            events.OrderBy(e => e.OffsetMs).ThenBy(e => e.Id).Select(ToDto).ToList());
+            events.OrderBy(e => e.OffsetMs).ThenBy(e => e.Id).Select(ToDto).ToList(),
+            projection._form);
     }
 
     /// <summary>Jeden krok foldu: posune stav podle jedné události.</summary>
@@ -49,7 +51,9 @@ public sealed class OrderJourneyProjection
         switch (e.Type)
         {
             case JourneyEventType.FormOpened:
-                AddStep(e, "Otevřel formulář objednávky");
+                // E-shop krok 4B: jméno formuláře v Target; starší proudy ho nemají = původní formulář objednávky.
+                _form = e.Target ?? JourneyForms.OrderForm;
+                AddStep(e, _form == JourneyForms.Checkout ? "Otevřel pokladnu" : "Otevřel formulář objednávky");
                 break;
 
             case JourneyEventType.FieldFocused:

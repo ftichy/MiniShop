@@ -9,50 +9,17 @@
 <partial name="_StatusMessage" model="Model.StatusMessage" />
 <div asp-validation-summary="ModelOnly" class="text-danger"></div>
 
-@* Účty krok 2: formulář vidí jen zákazník (role User) – admin neobjednává. Server to hlídá i v OnPostCreate. *@
+@* E-shop krok 4B: objednává se přes košík a pokladnu – tady jen přehled objednávek. *@
 @if (Model.CanPlaceOrders)
 {
-<h2 class="h4">Nová objednávka</h2>
-@* Účty krok 3: jméno a e-mail se nepíšou – bere je server z přihlášeného účtu (nejdou podvrhnout). *@
-<p class="mb-1">Objednává: <strong>@Model.CustomerName</strong> <span class="text-muted">(@Model.CustomerEmail)</span></p>
-<p class="text-muted small">Od 10 ks jednoho produktu se uplatní množstevní sleva 10 %.</p>
-@* Krok 12A: order-form-tracker.js zapisuje, co uživatel ve formuláři dělá (proud JourneyId). *@
-<form id="order-form" method="post" asp-page-handler="Create" class="row g-2 mb-4"
-      data-journey-id="@Model.JourneyId" data-journey-offset="@Model.JourneyOffsetMs">
-    <input type="hidden" name="JourneyId" value="@Model.JourneyId" />
-    <input type="hidden" name="JourneyOffsetMs" value="@Model.JourneyOffsetMs" />
-    <div class="col-md-6">
-        <label asp-for="Input.ProductId" class="form-label"></label>
-        <select asp-for="Input.ProductId" asp-items="Model.ProductOptions" class="form-select">
-            <option value="0">-- vyberte --</option>
-        </select>
-        <span asp-validation-for="Input.ProductId" class="text-danger small"></span>
-    </div>
-    <div class="col-md-2">
-        <label asp-for="Input.Quantity" class="form-label"></label>
-        <input asp-for="Input.Quantity" class="form-control" />
-        <span asp-validation-for="Input.Quantity" class="text-danger small"></span>
-    </div>
-    <div class="col-md-1 d-flex align-items-end">
-        <button type="submit" class="btn btn-primary w-100" data-track="order-submit">Objednat</button>
-    </div>
-</form>
+    <p><a asp-page="/Shop/Index" class="btn btn-outline-primary btn-sm" data-track="orders-to-shop">Nakupovat v obchodě</a></p>
 }
 else if (Model.NeedsEmailConfirmation)
 {
-    @* Účty krok 9: zákazník bez potvrzeného e-mailu formulář nevidí (server to hlídá i v OnPostCreate a v API). *@
+    @* Účty krok 9: bez potvrzeného e-mailu nejde objednávat (hlídá to i košík, pokladna a API). *@
     <div class="alert alert-info">
         Objednávat můžete, až potvrdíte svůj e-mail – odkaz jsme poslali po registraci,
         nový pošle tlačítko <strong>Poslat znovu</strong> v upozornění nahoře.
-    </div>
-}
-
-@if (Model.CatalogEmpty)
-{
-    @* Kopie katalogu se plní zprávami ze skladu – po startu s prázdnou ordering.db o ně Web požádá sám (SyncCatalogV1). *@
-    <div class="alert alert-info" data-reload-when-idle>
-        Katalog produktů se načítá ze skladu… Stránka se sama obnoví. Pokud produkty nepřibývají, zkontrolujte,
-        že běží služba skladu a RabbitMQ.
     </div>
 }
 
@@ -175,8 +142,4 @@ else if (Model.NeedsEmailConfirmation)
 @section Scripts {
     @* Účty krok 8: obnovení stránky ze souboru (CSP nepustí inline skript). *@
     <script src="~/js/orders-reload.js" asp-append-version="true"></script>
-    @if (Model.CanPlaceOrders)
-    {
-        <script src="~/js/order-form-tracker.js" asp-append-version="true"></script>
-    }
 }

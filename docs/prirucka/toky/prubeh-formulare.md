@@ -1,6 +1,6 @@
 ---
 title: Průběh formuláře a přehrání
-summary: Jak se zaznamenává vyplňování formuláře objednávky a jak se pak zobrazí jako časová osa nebo „video“.
+summary: Jak se zaznamenává vyplňování pokladny (dříve formuláře objednávky) a jak se pak zobrazí jako časová osa nebo „video“.
 order: 9
 ---
 
@@ -15,11 +15,11 @@ sequenceDiagram
     actor Z as Zákazník
     participant T as order-form-tracker.js
     participant JC as JourneysController
-    participant P as Orders/Index (server)
+    participant P as Checkout/Index (server)
     participant JS as JourneyService
     participant DB as journeys.db
 
-    Z->>T: otevře formulář → FormOpened (journeyId = nové GUID)
+    Z->>T: otevře pokladnu → FormOpened (journeyId = nové GUID, target = checkout)
     Z->>T: píše, kliká → FieldFocused, FieldChanged, Clicked…
     loop každé 2 s
         T->>JC: POST /api/journeys/{journeyId}/events (dávka)
@@ -63,8 +63,9 @@ sequenceDiagram
 
 - **Sledování nesmí rozbít objednávku** – chyba zápisu do `journeys.db` se jen zaloguje.
 - Čas událostí je relativní k otevření formuláře – dávky můžou dorazit v libovolném pořadí.
-- Prvky, které má přehrávač najít, mají atribut `data-track`; `Replay.cshtml` má ruční kopii formuláře
-  (nové pole formuláře je potřeba přidat i tam).
+- Prvky, které má přehrávač najít, mají atribut `data-track` nebo jméno pole; `Replay.cshtml` má ruční kopii
+  pokladny (nové pole pokladny je potřeba přidat i tam) a kopii původního formuláře pro staré proudy.
+- Po **Přijmout nové ceny** se pokladna načte znovu a začne nový proud (známé omezení e-shop kroku 4B).
 
 ## Kód
 

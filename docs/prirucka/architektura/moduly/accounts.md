@@ -56,7 +56,7 @@ flowchart TD
   je zamčená, i když na ni autor zapomene.
 - **Stránka Objednávky** má víc akcí (handlerů) s různými pravidly – Razor Pages umí `[Authorize]` jen na celou
   stránku, proto handlery volají `IAuthorizationService` se stejnými policies a bez oprávnění vrátí `Forbid()`.
-- **Skrytí v UI je jen pohodlí** (menu Produkty, formulář objednávky, tlačítko Vyřídit). Chrání server.
+- **Skrytí v UI je jen pohodlí** (menu Produkty, košík a pokladna, tlačítko Vyřídit). Chrání server.
 
 ## První admin
 

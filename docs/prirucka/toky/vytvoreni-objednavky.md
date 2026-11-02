@@ -8,7 +8,8 @@ order: 1
 > `ReserveStockV1`, sklad zboží zarezervuje a odpoví `StockReservedV1`, sága objednávku potvrdí a zákazník
 > dostane potvrzení. Celé to trvá **~4–8 s**.
 >
-> Od e-shop kroku 4 objednávka vzniká hlavně v [pokladně](pokladna.md) z košíku (dál stejný tok jako níže).
+> Od e-shop kroku 4B vzniká objednávka z webu jen v [pokladně](pokladna.md) z košíku (`CheckoutService` místo
+> `OrderService`, dál stejný tok jako níže). Diagram níže ukazuje původní formulář; stejně dnes funguje `POST /api/orders`.
 
 ## Zjednodušeně
 

@@ -30,7 +30,7 @@ sequenceDiagram
     IDB->>MQ: StockReservedV1, StockAvailabilityChangedV1
     MQ->>CH: StockAvailabilityChangedV1 (přes inbox)
     CH->>ODB: CatalogProduct.ApplyAvailability(OutOfStock, čas) – jen když je novější
-    Z->>ODB: /Shop – „Vyprodáno“, tlačítko Objednat zmizí
+    Z->>ODB: /Shop – „Vyprodáno“, tlačítko Do košíku zmizí
 ```
 
 Zrušení objednávky vrátí zboží (kompenzace `ReleaseStockV1` → `AddStock`) a produkt se přes stejnou zprávu vrátí

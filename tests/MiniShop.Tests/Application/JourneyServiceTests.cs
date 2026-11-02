@@ -186,6 +186,43 @@ public sealed class JourneyServiceTests : IDisposable
         Assert.Equal(60_001, replay.Journey.Summary.DurationMs);
     }
 
+    /// <summary>E-shop krok 4B: proud z pokladny – jméno formuláře z FormOpened, přepínač dopravy jako výběr.</summary>
+    [Fact]
+    public async Task Prubeh_Pokladna_PoznaFormularAVyberDopravy()
+    {
+        await Journeys(s => s.RecordAsync(_journeyId,
+        [
+            Event("FormOpened", 0, JourneyForms.Checkout),
+            Event("FieldChanged", 1_000, "Input.ShippingMethod", "Doprava", "Courier", "Kurýr na adresu"),
+            Event("FieldChanged", 2_000, "Input.PostalCode", "PSČ", "1"),
+            Event("FieldChanged", 2_200, "Input.PostalCode", "PSČ", "12"),
+            Event("SubmitClicked", 3_000)
+        ]));
+        await Journeys(s => s.RecordValidationFailedAsync(_journeyId, 3_001, "PSČ musí mít 5 číslic."));
+        await Journeys(s => s.RecordOrderSubmittedAsync(_journeyId, 9_001, orderId: 21));
+
+        var journey = await Journeys(s => s.GetByOrderIdAsync(21));
+
+        Assert.Equal(JourneyForms.Checkout, journey.Form);
+        Assert.Equal(
+            ["Otevřel pokladnu", "Vybral „Doprava“: Kurýr na adresu", "Vyplnil „PSČ“: „12“", "Odeslal formulář",
+             "Server formulář vrátil: PSČ musí mít 5 číslic.", "Objednávka č. 21 vznikla"],
+            journey.Steps.Select(s => s.Description));
+        Assert.Equal(1, journey.Summary.FailedSubmits);
+    }
+
+    [Fact]
+    public async Task Prubeh_StaryProudBezJmenaFormulare_JePuvodniFormularObjednavky()
+    {
+        await Journeys(s => s.RecordAsync(_journeyId, [Event("FormOpened", 0), Event("SubmitClicked", 1_000)]));
+        await Journeys(s => s.RecordOrderSubmittedAsync(_journeyId, 1_001, orderId: 22));
+
+        var journey = await Journeys(s => s.GetByOrderIdAsync(22));
+
+        Assert.Equal(JourneyForms.OrderForm, journey.Form);
+        Assert.Equal("Otevřel formulář objednávky", journey.Steps[0].Description);
+    }
+
     [Fact]
     public async Task Prubeh_ObjednavkaBezProudu_NotFound()
     {

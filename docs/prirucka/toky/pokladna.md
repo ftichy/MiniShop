@@ -76,6 +76,12 @@ sequenceDiagram
 | Produkt se vyprodá nebo zmizí z nabídky | Pokladna ho označí a objednat nejde, dokud ho zákazník neodebere. |
 | Sklad mezitím nemá dost kusů | Pokladna to nepozná (zásobu zná jen sklad). Objednávka vznikne a sága ji zamítne s důvodem, který produkt chybí – viz [Zamítnutí objednávky](zamitnuti-objednavky.md). |
 
+## Sledování průběhu (e-shop krok 4B)
+
+Pokladna je formulář sledovaný modulem Journeys: skript zapisuje pole, kliky a odeslání, stránka po odeslání přidá
+chybu (`ValidationFailed`) nebo vznik objednávky (`OrderSubmitted`). Admin pak průběh objednávky zobrazí nebo
+přehraje – viz [Průběh formuláře a přehrání](prubeh-formulare.md).
+
 Kód: [CheckoutService.cs](code:src/MiniShop.Application/Ordering/Checkout/CheckoutService.cs),
 `Cart.CheckOut` v [Cart.cs](code:src/MiniShop.Domain/Orders/Carts/Cart.cs),
 [Checkout/Index.cshtml.cs](code:src/MiniShop.Web/Pages/Checkout/Index.cshtml.cs),

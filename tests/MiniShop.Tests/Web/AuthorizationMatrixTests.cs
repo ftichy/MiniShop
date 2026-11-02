@@ -87,11 +87,6 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
 
     public static TheoryData<Who, string, Expect> PageActions() => new()
     {
-        // Založit objednávku: jen zákazník
-        { Who.Anonymous, "/Orders?handler=Create", Expect.Login },
-        { Who.User, "/Orders?handler=Create", Expect.Allowed },
-        { Who.Admin, "/Orders?handler=Create", Expect.Denied },
-
         // E-shop krok 3: košík – jen zákazník (bez produktu: projde autorizací, hláška na stránce)
         { Who.Anonymous, "/Cart?handler=Add", Expect.Login },
         { Who.User, "/Cart?handler=Add", Expect.Allowed },
@@ -234,13 +229,16 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
     }
 
     [Fact]
-    public async Task FormularObjednavky_JenZakaznik()
+    public async Task StrankaObjednavky_BezFormulare_ZakaznikMaOdkazDoObchodu()
     {
         var userHtml = await (await ClientAsync(Who.User)).GetStringAsync("/Orders");
         var adminHtml = await (await ClientAsync(Who.Admin)).GetStringAsync("/Orders");
 
-        Assert.Contains("id=\"order-form\"", userHtml);
-        Assert.DoesNotContain("id=\"order-form\"", adminHtml);
+        // E-shop krok 4B: objednává se jen přes košík a pokladnu – na stránce Objednávky formulář nemá nikdo.
+        Assert.DoesNotContain("data-journey-id", userHtml);
+        Assert.DoesNotContain("data-journey-id", adminHtml);
+        Assert.Contains("data-track=\"orders-to-shop\"", userHtml);
+        Assert.DoesNotContain("data-track=\"orders-to-shop\"", adminHtml);
     }
 
     private Task<HttpClient> ClientAsync(Who who) => who switch

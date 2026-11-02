@@ -59,7 +59,7 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   Web volá sklad přes HTTP jen kvůli UI (`InventoryApiClient` : `IProductService`, `https+http://inventory-api`,
   bez Aspire adresa v `Services:inventory-api` v `appsettings.Development.json` Webu – jinde ji dává Aspire/Compose,
   `https` adresa má přednost a v kontejneru by přebila `http`); business tok jde jen přes zprávy.
-  Formulář objednávky i výloha berou nabídku a dostupnost z kopie katalogu (`IOrderService.GetCatalogAsync`, `ICatalogQueryService`).
+  Výloha, košík i pokladna berou nabídku a dostupnost z kopie katalogu (`ICatalogQueryService`, `ICatalogProductRepository`).
   Web nesmí referencovat `Domain/Infrastructure.Inventory`, Inventory.Api nic z Orderingu (testy architektury).
   Auditní frontu poslouchá jen Web (`AuditQueue` prázdná v Inventory.Api). RabbitMQ adresu dává Aspire v `ConnectionStrings:messaging`.
 - Ordering zná produkty jen z kopie katalogu `CatalogProduct` (plní `CatalogProjectionHandler` z `ProductUpdatedV1`/`V2`,
@@ -76,7 +76,7 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   (`StockAvailabilityBands`, víc než 5 / 1–5 / 0) – `Product.AddStock/RemoveStock(quantity, čas)`. Dostupnost má v obou
   modulech vlastní čas (`AvailabilityChangedAtUtc`). Kategorie (`Category`, `CategoryService`, `/api/categories`) patří skladu,
   Ordering zná jen jméno ze zprávy o produktu (přejmenování → `product.CategoryRenamed` → V2 pro každý produkt);
-  názvy kategorií porovnávat/řadit česky v paměti. Formulář objednávky bere dostupnost z kopie (`?productId=` předvybere produkt),
+  názvy kategorií porovnávat/řadit česky v paměti. Košík a pokladna berou ceny a dostupnost z kopie katalogu,
   na sklad se Web ptá jen v administraci (`InventoryApiClient` = `IProductService` + `ICategoryService` + `IProductImageService`).
 - **Obrázky produktů (e-shop krok 2B):** soubor patří skladu (`IProductImageStore` → `FileSystemProductImageStore`, `ProductImages:Path`,
   kontejner `/data/images`, lokálně `src/MiniShop.Inventory.Api/images/`), do zpráv jen jméno (`ProductUpdatedV2.ImageFileName`).
@@ -97,7 +97,7 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   (99 Kč, od 1 000 Kč zdarma); `TotalPrice` = položky + doprava (`OrderPlacedV1` beze změny). Adresa = hodnotový objekt
   `DeliveryAddress` (owned type, jen kurýr, `Anonymize` ji maže). Konflikty EF (`DbUpdateConcurrencyException`, unikátní
   index) převádí `ModuleDbContext` na `ConcurrencyConflictException` (`Application/Exceptions`, API 409) – aplikační vrstva
-  EF nezná. Starý formulář na `Orders/Index` a „Objednat“ ve výloze zůstávají do kroku 4B (Journeys).
+  EF nezná. Od kroku 4B jediná cesta k objednávce z webu (formulář na `Orders/Index` a „Objednat“ ve výloze zmizely).
 - **Soubory z `wwwroot` (CSS, JS, knihovny) vždy s `asp-append-version="true"`** – jinak prohlížeč po nasazení
   použije starou verzi z cache (e-shop krok 3: košík bez `.cart-thumb` ukázal obrázky v plné velikosti).
 - **Stránka s `[BindProperty]` a dalším formulářem:** když formulář pole vlastnosti neposílá, binder ji naváže BEZ prefixu
@@ -143,11 +143,13 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
 - **Průběh objednávky (krok 12):** modul Journeys (`…Journeys` ve všech vrstvách, hostuje ho Web, vlastní `journeys.db`,
   bez zpráv → `JourneysDbContext` nedědí z `ModuleDbContext`). Proud `JourneyEvents` = jen INSERT, idempotence přes unikátní `EventId`
   z prohlížeče, řazení podle `OffsetMs` (čas od otevření formuláře). `ValidationFailed`/`OrderSubmitted` zapisuje jen server
-  (stránka `Orders/Index`), Ordering o Journeys neví (hlídá `ModuleBoundariesTests`). Průběh = projekce při čtení
+  (stránka `Checkout/Index` – od e-shop kroku 4B, dřív `Orders/Index`), Ordering o Journeys neví (hlídá `ModuleBoundariesTests`). Průběh = projekce při čtení
   (`OrderJourneyProjection`, fold). Sledování nesmí rozbít objednávku (chyba zápisu jen do logu). Ukládá se skutečně napsaný text.
   Automatické obnovení stránky Objednávky jen atributem `data-reload-when-idle` (`wwwroot/js/orders-reload.js`, nespustí se, když uživatel vyplňuje).
   Přehrání (12B) = druhá projekce `JourneyReplayProjection` (scénář počítá server, `journey-player.js` jen přehrává);
-  `Replay.cshtml` má ruční kopii formuláře – **nové pole formuláře objednávky přidat i tam**. Nové typy událostí jen na konec
+  `Replay.cshtml` má ruční kopii pokladny – **nové pole pokladny přidat i tam** (a kopii původního formuláře pro staré
+  proudy; formulář pozná `OrderJourneyDto.Form` z `FormOpened.Target`, staré proudy jméno nemají = `order-form`).
+  Sledovaný formulář = `data-journey-id` + `data-journey-form` (ne `data-track` – ten zapisuje kliky). Nové typy událostí jen na konec
   `JourneyEventType` (ukládá se jako text). Prvky, které má přehrávač najít, mají `data-track`.
 
 ## Dokumentace v aplikaci (`/Docs`, menu Dokumentace)
@@ -339,8 +341,8 @@ nové moduly Notifications (odběratel událostí) a Payments (účastník ságy
 | 2A. Výloha (`/Shop`, kategorie, hledání `SearchText`, `ProductUpdatedV2` expand → contract, `StockAvailabilityChangedV1` při změně pásma) | hotovo (nasazeno 30. 10. 2026, produkční kopie katalogu se po startu sama doplnila) | `docs/kroky-eshop/krok-02a-vyloha.md` |
 | 2B. Obrázky produktů (upload do skladu, typ podle bajtů, `/media/products/…` přes Web s immutable cache, `backup.py` `DIRECTORIES`) | hotovo (nasazeno 1. 11. 2026, obrázky ve výloze, noční záloha obsahuje `images/`) | `docs/kroky-eshop/krok-02b-obrazky.md` |
 | 3. Košík (agregát `Cart` v Orderingu s invarianty, `/Cart`, odznak v hlavičce, ceny z kopie katalogu, bez zpráv) | hotovo (nasazeno 1. 11. 2026; oprava: `asp-append-version` – starý CSS z cache) | `docs/kroky-eshop/krok-03-kosik.md` |
-| 4A. Pokladna (`/Checkout`, `CheckoutService`, `CheckoutId` = verze košíku + concurrency token, žádné tiché zdražení, `DeliveryAddress`, `IShippingPriceCalculator`, `checkoutId` v API) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-04a-pokladna.md` |
-| 4B. Journeys na pokladnu (sledování a přehrání pokladny, odstranění starého formuláře objednávky a „Objednat“ ve výloze) | plán | — |
+| 4A. Pokladna (`/Checkout`, `CheckoutService`, `CheckoutId` = verze košíku + concurrency token, žádné tiché zdražení, `DeliveryAddress`, `IShippingPriceCalculator`, `checkoutId` v API) | hotovo (nasazeno 2. 11. 2026, ověřeno objednávkou v produkci) | `docs/kroky-eshop/krok-04a-pokladna.md` |
+| 4B. Journeys na pokladnu (sledování a přehrání pokladny, `OrderJourneyDto.Form`, staré proudy beze změny, odstranění starého formuláře objednávky a „Objednat“ ve výloze) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-04b-journeys-pokladna.md` |
 | 5. Detail objednávky a historie stavů (`/Orders/{id}`) | plán | — |
 | 6. Expedice (Packing → Shipped → Completed, `OrderShippedV1`, odepsání rezervace, `Order.Version`) | plán | — |
 | 7. Notifikace jako samostatný odběratel (modul Notifications, šablony, `CustomerAnonymizedV1`) | plán | — |

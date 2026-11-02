@@ -1,7 +1,9 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using MiniShop.Application.Journeys;
 using MiniShop.Infrastructure.Ordering;
 
 namespace MiniShop.Tests.Web;
@@ -47,6 +49,46 @@ public sealed partial class CheckoutPageTests(MiniShopWebFactory web)
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("PSČ musí mít 5 číslic.", WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync()));
         Assert.Contains("Pokladní kabel", WebUtility.HtmlDecode(await client.GetStringAsync("/Cart")));
+    }
+
+    /// <summary>
+    /// E-shop krok 4B: průběh pokladny – prohlížeč pošle FormOpened (jako order-form-tracker.js), server zapíše chybu
+    /// formuláře a vznik objednávky. Admin pak průběh přehraje na kopii pokladny.
+    /// </summary>
+    [Fact]
+    public async Task Prubeh_ChybaAObjednavkaVProudu_PrehraniUkazePokladnu()
+    {
+        await web.EnsureCatalogProductAsync(403, "Sledovaná podložka", 120m);
+        var client = await CustomerAsync("pokladna-4@example.com");
+        await AddToCartAsync(client, 403);
+        var html = await client.GetStringAsync("/Checkout");
+        Assert.Contains("order-form-tracker.js", html);
+        var journeyId = Guid.Parse(JourneyIdPattern().Match(html).Groups[1].Value);
+        await client.PostAsJsonAsync($"/api/journeys/{journeyId}/events",
+            new[] { new { eventId = Guid.NewGuid(), type = "FormOpened", offsetMs = 0, target = "checkout" } });
+        var (token, checkoutId) = await ReadFormAsync(client);
+
+        var fields = CourierFields(token, checkoutId);
+        fields["JourneyId"] = journeyId.ToString();
+        fields["JourneyOffsetMs"] = "5000";
+        fields["Input.PostalCode"] = "12";
+        await client.PostAsync("/Checkout", new FormUrlEncodedContent(fields));   // chyba PSČ
+        fields["Input.PostalCode"] = "110 00";
+        fields["JourneyOffsetMs"] = "9000";
+        await client.PostAsync("/Checkout", new FormUrlEncodedContent(fields));
+
+        var orderId = await OrderIdAsync(checkoutId);
+        await using (var scope = web.Services.CreateAsyncScope())
+        {
+            var journey = await scope.ServiceProvider.GetRequiredService<IJourneyService>().GetByOrderIdAsync(orderId);
+            Assert.Equal(JourneyForms.Checkout, journey.Form);
+            Assert.Equal(["FormOpened", "ValidationFailed", "OrderSubmitted"], journey.Events.Select(e => e.Type));
+        }
+
+        var admin = await web.LoginAsync(MiniShopWebFactory.AdminEmail, MiniShopWebFactory.AdminPassword);
+        var replay = await admin.GetStringAsync($"/Orders/Replay/{orderId}");
+        Assert.Contains("data-replay-target=\"Input.Street\"", replay);
+        Assert.DoesNotContain("data-replay-target=\"Input.ProductId\"", replay);
     }
 
     [Fact]
@@ -100,6 +142,16 @@ public sealed partial class CheckoutPageTests(MiniShopWebFactory web)
         return await scope.ServiceProvider.GetRequiredService<OrderingDbContext>().Orders.CountAsync(o => o.CheckoutId == checkoutId);
     }
 
+    private async Task<int> OrderIdAsync(Guid checkoutId)
+    {
+        await using var scope = web.Services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<OrderingDbContext>().Orders
+            .Where(o => o.CheckoutId == checkoutId).Select(o => o.Id).SingleAsync();
+    }
+
     [GeneratedRegex("name=\"Input\\.CheckoutId\" value=\"([0-9a-fA-F-]{36})\"")]
     private static partial Regex CheckoutIdPattern();
+
+    [GeneratedRegex("name=\"JourneyId\" value=\"([0-9a-fA-F-]{36})\"")]
+    private static partial Regex JourneyIdPattern();
 }

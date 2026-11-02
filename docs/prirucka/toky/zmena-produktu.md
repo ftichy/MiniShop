@@ -32,7 +32,7 @@ sequenceDiagram
     IDB->>MQ: ProductUpdatedV1, ProductUpdatedV2
     MQ->>CH: fronta minishop.ordering (přes inbox, každá verze zvlášť)
     CH->>ODB: nový CatalogProduct (V2: + popis, kategorie, dostupnost)
-    Note over ODB: produkt je ve výloze i v nabídce formuláře objednávky
+    Note over ODB: produkt je ve výloze (a jde přidat do košíku)
 ```
 
 ## Změna produktu nebo kategorie

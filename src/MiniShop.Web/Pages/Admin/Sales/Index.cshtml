@@ -1,0 +1,109 @@
+@page
+@model MiniShop.Web.Pages.Admin.Sales.IndexModel
+@using MiniShop.Application.Reporting
+@{
+    ViewData["Title"] = "Přehled tržeb";
+    var report = Model.Report;
+}
+<h1>Přehled tržeb</h1>
+<p class="text-muted">
+    Čtecí model (CQRS) z událostí objednávek a plateb – Ordering o něm neví. Tržba = objednávky, které nejsou
+    zamítnuté ani zrušené, včetně dopravy. Dny v českém čase.
+    @if (report.LastUpdatedAtUtc is { } updated)
+    {
+        <span>Data k <strong data-track="sales-updated">@updated.ToLocalTime().ToString("g")</strong> (o pár sekund pozadu).</span>
+    }
+    else
+    {
+        <span>Přehled je zatím prázdný.</span>
+    }
+</p>
+
+<partial name="_StatusMessage" model="Model.StatusMessage" />
+
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-3">
+        <div class="card"><div class="card-body">
+            <div class="text-muted small">Dnes – objednávky</div>
+            <div class="fs-3 fw-bold" data-track="sales-today-count">@report.Today.OrderCount</div>
+        </div></div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card"><div class="card-body">
+            <div class="text-muted small">Dnes – tržba</div>
+            <div class="fs-3 fw-bold" data-track="sales-today-revenue">@IndexModel.Money(report.Today.Revenue)</div>
+        </div></div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card"><div class="card-body">
+            <div class="text-muted small">@SalesReportService.DaysInChart dní – tržba</div>
+            <div class="fs-3 fw-bold">@IndexModel.Money(report.Days.Sum(d => d.Revenue))</div>
+        </div></div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card"><div class="card-body">
+            <div class="text-muted small">@SalesReportService.DaysInTopProducts dní – vráceno</div>
+            <div class="fs-3 fw-bold">@IndexModel.Money(report.RefundedAmount)</div>
+        </div></div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <h2 class="h5">Posledních @SalesReportService.DaysInChart dní</h2>
+        <table class="table table-sm align-middle">
+            <thead><tr><th>Den</th><th class="text-end">Objednávky</th><th class="text-end">Tržba</th><th class="w-50"></th></tr></thead>
+            <tbody>
+                @foreach (var day in report.Days)
+                {
+                    <tr>
+                        <td class="text-nowrap">@IndexModel.DayName(day.Day)</td>
+                        <td class="text-end">@day.OrderCount</td>
+                        <td class="text-end text-nowrap">@IndexModel.Money(day.Revenue)</td>
+                        <td>
+                            <div class="progress" role="progressbar" aria-label="Tržba @IndexModel.DayName(day.Day)"
+                                 aria-valuenow="@Model.BarPercent(day.Revenue)" aria-valuemin="0" aria-valuemax="100">
+                                <div class="progress-bar" style="width: @Model.BarPercent(day.Revenue)%"></div>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="col-lg-5">
+        <h2 class="h5">Nejprodávanější za @SalesReportService.DaysInTopProducts dní</h2>
+        @if (report.TopProducts.Count == 0)
+        {
+            <p class="text-muted">Zatím nic.</p>
+        }
+        else
+        {
+            <ol class="list-group list-group-numbered mb-4" data-track="sales-top-products">
+                @foreach (var product in report.TopProducts)
+                {
+                    <li class="list-group-item d-flex justify-content-between align-items-start">
+                        <div class="ms-2 me-auto">@product.Name</div>
+                        <span class="text-nowrap">@product.Quantity ks · @IndexModel.Money(product.Revenue)</span>
+                    </li>
+                }
+            </ol>
+        }
+
+        <h2 class="h5">Objednávky podle stavu (@SalesReportService.DaysInTopProducts dní)</h2>
+        <table class="table table-sm">
+            <tbody>
+                @foreach (var (status, count) in report.StatusCounts)
+                {
+                    <tr><td>@IndexModel.StatusName(status)</td><td class="text-end">@count</td></tr>
+                }
+            </tbody>
+        </table>
+
+        <form method="post" asp-page-handler="Rebuild" class="mt-3">
+            <button type="submit" class="btn btn-outline-secondary btn-sm" data-track="sales-rebuild">Přestavět přehled</button>
+            <div class="form-text">Smaže čtecí model a postaví ho znovu ze snímků všech objednávek (vrácené platby se neobnoví).</div>
+        </form>
+    </div>
+</div>

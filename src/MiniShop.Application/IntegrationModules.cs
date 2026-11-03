@@ -17,4 +17,7 @@ public static class IntegrationModules
 
     /// <summary>E-shop krok 8: platby kartou – účastník ságy objednávky (RequestPayment, RefundPayment).</summary>
     public const string Payments = "payments";
+
+    /// <summary>E-shop krok 11: přehled tržeb pro admina (CQRS – čtecí model z událostí objednávek a plateb).</summary>
+    public const string Reporting = "reporting";
 }

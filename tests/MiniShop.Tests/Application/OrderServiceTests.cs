@@ -13,6 +13,7 @@ using MiniShop.Application.Ordering.Catalog;
 using MiniShop.Application.Ordering.Checkout;
 using MiniShop.Application.Notifications;
 using MiniShop.Application.Payments;
+using MiniShop.Application.Reporting;
 using MiniShop.Application.Ordering.IntegrationEvents;
 using MiniShop.Application.Ordering.Saga;
 using MiniShop.Application.Ordering.Pricing;
@@ -22,12 +23,14 @@ using MiniShop.Contracts.Customers;
 using MiniShop.Contracts.Inventory;
 using MiniShop.Contracts.Orders;
 using MiniShop.Contracts.Payments;
+using MiniShop.Contracts.Reporting;
 using MiniShop.Domain.Common;
 using MiniShop.Domain.Exceptions;
 using MiniShop.Domain.Orders;
 using MiniShop.Domain.Orders.Events;
 using MiniShop.Domain.Orders.Saga;
 using MiniShop.Domain.Payments;
+using MiniShop.Domain.Reporting;
 using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Events;
 using MiniShop.Infrastructure.Integration;
@@ -35,6 +38,7 @@ using MiniShop.Infrastructure.Outbox;
 using MiniShop.Infrastructure.Inventory;
 using MiniShop.Infrastructure.Notifications;
 using MiniShop.Infrastructure.Payments;
+using MiniShop.Infrastructure.Reporting;
 using MiniShop.Infrastructure.Ordering;
 using MiniShop.Tests.TestDoubles;
 
@@ -63,6 +67,7 @@ public sealed class OrderServiceTests : IDisposable
     private readonly FixedTimeProvider _time = new(Now);
     private readonly InMemoryDatabase _notificationsDatabase = new();   // e-shop krok 7: modul Notifications
     private readonly InMemoryDatabase _paymentsDatabase = new();        // e-shop krok 8: modul Payments
+    private readonly InMemoryDatabase _reportingDatabase = new();       // e-shop krok 11: modul Reporting (CQRS)
     private readonly RecordingEmailSender _emails = new();
     private readonly InMemoryCustomerContacts _contacts = new();   // e-shop krok 10: účty se souhlasem
     private readonly InMemoryProductImageStore _images = new();   // e-shop krok 2B
@@ -141,6 +146,19 @@ public sealed class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<RequestPaymentV1, PaymentCommandHandlers>(IntegrationModules.Payments);
         services.AddIntegrationMessageHandler<RefundPaymentV1, PaymentCommandHandlers>(IntegrationModules.Payments);
 
+        // E-shop krok 11: modul Reporting (přehled tržeb) – jako AddReportingModule + AddReportingInfrastructure ve Webu,
+        // a snímky objednávek pro přestavění (handler v Orderingu).
+        services.AddReportingInfrastructure(_reportingDatabase.ConnectionString);
+        services.AddScoped<SalesReportService>();
+        services.AddIntegrationMessageHandler<OrderPlacedV2, SalesProjectionHandler>(IntegrationModules.Reporting);
+        services.AddIntegrationMessageHandler<OrderConfirmedV1, SalesProjectionHandler>(IntegrationModules.Reporting);
+        services.AddIntegrationMessageHandler<OrderRejectedV1, SalesProjectionHandler>(IntegrationModules.Reporting);
+        services.AddIntegrationMessageHandler<OrderCancelledV1, SalesProjectionHandler>(IntegrationModules.Reporting);
+        services.AddIntegrationMessageHandler<OrderCompletedV1, SalesProjectionHandler>(IntegrationModules.Reporting);
+        services.AddIntegrationMessageHandler<PaymentRefundedV1, SalesProjectionHandler>(IntegrationModules.Reporting);
+        services.AddIntegrationMessageHandler<OrderSnapshotV1, SalesProjectionHandler>(IntegrationModules.Reporting);
+        services.AddIntegrationMessageHandler<RebuildSalesReportV1, RebuildSalesReportHandler>(IntegrationModules.Ordering);
+
         // Testovací náhrady: notifikace do seznamu, "broker" si zprávy zapamatuje a doručí je v procesu,
         // skutečný dispatcher obalený záznamníkem.
         services.AddSingleton<IEmailSender>(_emails);
@@ -155,6 +173,7 @@ public sealed class OrderServiceTests : IDisposable
         OrderingDatabaseInitializer.InitializeAsync(_services).GetAwaiter().GetResult();
         NotificationsDatabaseInitializer.InitializeAsync(_services).GetAwaiter().GetResult();
         PaymentsDatabaseInitializer.InitializeAsync(_services).GetAwaiter().GetResult();
+        ReportingDatabaseInitializer.InitializeAsync(_services).GetAwaiter().GetResult();
         InventoryDb(async db => { await InventoryDatabaseInitializer.MigrateAsync(db); return true; }).GetAwaiter().GetResult();
     }
 
@@ -783,6 +802,81 @@ public sealed class OrderServiceTests : IDisposable
 
         Assert.Equal(2, _bus.Published.OfType<CartAbandonedV1>().Count());
         Assert.Equal(2, _emails.Sent.Count(e => e.Subject.Contains("košíku")));
+    }
+
+    // ---------- E-shop krok 11: přehled tržeb (CQRS) ----------
+
+    [Fact]
+    public async Task Prehled_ZUdalosti_TrzbaJenZPlatnychObjednavek()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 10);
+        await PlaceConfirmedOrderAsync(product.Id, quantity: 2);
+        var cancelled = await PlaceConfirmedOrderAsync(product.Id, quantity: 1);
+        await Orders(s => s.CancelAsync(cancelled.Id, OrderAccess.AllOrders));
+        await ProcessOutboxAsync();
+
+        var report = await Report(s => s.GetAsync());
+
+        Assert.Equal((1, 200m), (report.Today.OrderCount, report.Today.Revenue));   // zrušená se nepočítá
+        Assert.Equal(1, report.StatusCounts[SalesOrderStatus.Confirmed]);
+        Assert.Equal(1, report.StatusCounts[SalesOrderStatus.Cancelled]);
+        var top = Assert.Single(report.TopProducts);
+        Assert.Equal(("Testovací produkt", 2, 200m), (top.Name, top.Quantity, top.Revenue));
+        Assert.Equal(SalesReportService.DaysInChart, report.Days.Count);
+        Assert.NotNull(report.LastUpdatedAtUtc);
+    }
+
+    [Fact]
+    public async Task Prehled_ZpravyMimoPoradi_StavNecouvne()
+    {
+        // Potvrzení a zrušení dorazí dřív než vznik, pak ještě pozdní potvrzení – výsledek je pořád „zrušená“.
+        await RedeliverAsync(new OrderConfirmedV1(Guid.NewGuid(), Now.UtcDateTime, 555), IntegrationModules.Reporting);
+        await RedeliverAsync(new OrderCancelledV1(Guid.NewGuid(), Now.UtcDateTime, 555, "jan@example.com", []),
+            IntegrationModules.Reporting);
+        Assert.Equal(0, (await Report(s => s.GetAsync())).Today.OrderCount);   // bez vzniku nevíme kdy ani kolik
+
+        await RedeliverAsync(new OrderPlacedV2(Guid.NewGuid(), Now.UtcDateTime, 555, Jan.CustomerId, Jan.Name, Jan.Email,
+            [new OrderItemV2(1, "Myš", 1, 300m, 0m, 300m)], "None", 0m, null, 300m), IntegrationModules.Reporting);
+        await RedeliverAsync(new OrderConfirmedV1(Guid.NewGuid(), Now.UtcDateTime, 555), IntegrationModules.Reporting);
+
+        var report = await Report(s => s.GetAsync());
+        Assert.Equal(1, report.StatusCounts[SalesOrderStatus.Cancelled]);
+        Assert.Equal(0, report.StatusCounts[SalesOrderStatus.Confirmed]);
+        Assert.Equal(0m, report.Today.Revenue);
+    }
+
+    [Fact]
+    public async Task Prehled_Prestaveni_ZeSnimkuStejnyVysledekBezEmailu()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 10);
+        await PlaceConfirmedOrderAsync(product.Id, quantity: 3);
+        var cancelled = await PlaceConfirmedOrderAsync(product.Id, quantity: 1);
+        await Orders(s => s.CancelAsync(cancelled.Id, OrderAccess.AllOrders));
+        await ProcessOutboxAsync();
+        var before = await Report(s => s.GetAsync());
+        var emailsBefore = _emails.Sent.Count;
+
+        await Report(async s => { await s.RebuildAsync(); return true; });
+        Assert.Null((await Report(s => s.GetAsync())).LastUpdatedAtUtc);   // čtecí model je pryč
+        await ProcessOutboxAsync();   // RebuildSalesReportV1 → Ordering → OrderSnapshotV1 × 2 → projekce
+
+        var after = await Report(s => s.GetAsync());
+        Assert.Equal(2, _bus.Published.OfType<OrderSnapshotV1>().Count());
+        Assert.Equal(before.Today, after.Today);
+        Assert.Equal(before.TopProducts.Single(), after.TopProducts.Single());
+        Assert.Equal(1, after.StatusCounts[SalesOrderStatus.Cancelled]);
+        Assert.Equal(emailsBefore, _emails.Sent.Count);   // snímek není „nová objednávka“ – Notifications mlčí
+    }
+
+    [Fact]
+    public async Task Prehled_PrazdnyPoStartu_PozadaOPrestaveni_PodruheUzNe()
+    {
+        Assert.True(await Report(s => s.RebuildIfEmptyAsync()));
+
+        var product = await AddProductAsync(price: 100m, stock: 10);
+        await PlaceConfirmedOrderAsync(product.Id, quantity: 1);
+
+        Assert.False(await Report(s => s.RebuildIfEmptyAsync()));
     }
 
     // ---------- E-shop krok 7: Notifications ----------
@@ -1853,6 +1947,13 @@ public sealed class OrderServiceTests : IDisposable
         }
     }
 
+    /// <summary>E-shop krok 11: přehled tržeb (čtecí strana modulu Reporting) ve vlastním scope.</summary>
+    private async Task<T> Report<T>(Func<SalesReportService, Task<T>> action)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await action(scope.ServiceProvider.GetRequiredService<SalesReportService>());
+    }
+
     private async Task<T> Reminders<T>(Func<CartReminderService, Task<T>> action)
     {
         await using var scope = _services.CreateAsyncScope();
@@ -1971,5 +2072,6 @@ public sealed class OrderServiceTests : IDisposable
         _inventoryDatabase.Dispose();
         _notificationsDatabase.Dispose();
         _paymentsDatabase.Dispose();
+        _reportingDatabase.Dispose();
     }
 }

@@ -14,6 +14,7 @@ order: 80
 | **Hranice konzistence** | co se musí změnit spolu v jedné transakci (košík + objednávka) – podle ní se kreslí hranice modulu | [Ordering](architektura/moduly/ordering.md) |
 | **Hodnotový objekt** | objekt bez vlastní identity, daný jen svými hodnotami a neměnný (`DeliveryAddress`) – dvě stejné adresy jsou jedna a ta samá; platnost ověří už při vytvoření | [Pokladna](toky/pokladna.md) |
 | **At-least-once** | doručení „alespoň jednou“ – zpráva se neztratí, ale může přijít víckrát | [Outbox](eda/outbox.md) |
+| **CQRS** | oddělený model pro zápis a pro čtení – přehled tržeb čte vlastní tabulku plněnou z událostí, ne objednávky | [CQRS](eda/cqrs.md) |
 | **Broker** | prostředník, který přijímá zprávy a doručuje je do front příjemců (RabbitMQ) | [Broker](eda/broker.md) |
 | **C4 model** | kreslení architektury v úrovních Context → Containers → Components → Code | [Architektura](architektura/index.md) |
 | **Composition root** | jediné místo, kde se skládají závislosti (DI) – `Program.cs` | [Vrstvy](architektura/vrstvy.md) |

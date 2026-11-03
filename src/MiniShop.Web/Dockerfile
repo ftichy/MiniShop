@@ -43,6 +43,7 @@ ENV ASPNETCORE_HTTP_PORTS=8080 \
     ConnectionStrings__Journeys="Data Source=/data/journeys.db" \
     ConnectionStrings__Notifications="Data Source=/data/notifications.db" \
     ConnectionStrings__Payments="Data Source=/data/payments.db" \
+    ConnectionStrings__Reporting="Data Source=/data/reporting.db" \
     ConnectionStrings__Accounts="Data Source=/data/users.db" \
     DataProtection__KeysPath=/data/keys \
     Serilog__WriteTo__1__Args__path=/data/logs/minishop-.log

@@ -395,14 +395,14 @@ Nereagujeme na událost, ale na to, že po `CartItemAdded` do 24 hodin nepřiše
 ## Volitelně: kam dál
 
 - **Slevové kódy** – další `IDiscountPolicy` (strategie), uplatnění v pokladně, limit použití (souběžnost!).
-- **Kategorie, vyhledávání a filtrování** ve výloze; obrázky produktů.
+- ~~**Kategorie, vyhledávání a filtrování** ve výloze; obrázky produktů~~ – hotovo v krocích 2A a 2B.
 - **Skutečná platební brána** (Stripe test mode, GoPay sandbox) – jen nová implementace `IPaymentGateway`.
 - **Vrácení zboží / reklamace** – nový proces (sága) po doručení: žádost → přijetí na sklad → refundace.
 - **Faktura PDF** po zaplacení (QuestPDF – ověřit licenci) jako příloha e-mailu.
 - **Hodnocení produktů** jen od zákazníků, kteří produkt koupili (dotaz na doručené objednávky).
 - **Event sourcing košíku** – stav košíku jako fold nad událostmi (Journeys už ten vzor ukazuje),
   analytika „co lidé vkládají a nekupují“.
-- **CQRS přehled pro admina** – tržby za den, nejprodávanější produkty jako projekce z integračních událostí.
+- ~~**CQRS přehled pro admina**~~ – **hotovo jako krok 11** ([souhrn](kroky-eshop/krok-11-prehled-trzeb.md)): modul Reporting, projekce z událostí, přestavění ze snímků.
 
 ## Shrnutí nákladů
 

@@ -13,19 +13,21 @@ Cíl: postupně ho převést na EDA podle plánu v `docs/EDA-roadmap.md`.
 ```
 src/MiniShop.Contracts       integrační zprávy – události (OrderPlacedV1, StockReservedV1, …) a příkazy (ReserveStockV1, …), žádné závislosti
 src/MiniShop.Domain          Common/ (Entity, IDomainEvent), Orders/ (Order, CatalogProduct, CatalogSearchText, Carts/Cart, Saga/OrderSaga), Inventory/ (Product, Category, StockAvailability, StockReservation),
-                             Journeys/ (JourneyEvent, JourneyEventType), Notifications/ (OrderRecipient), Payments/ (Payment)
+                             Journeys/ (JourneyEvent, JourneyEventType), Notifications/ (OrderRecipient), Payments/ (Payment), Reporting/ (SalesOrder – čtecí model)
 src/MiniShop.Application     Abstractions/ (sdílené: IUnitOfWork, IDomainEvent*, IIntegrationMessage*, TraceTags),
                              Ordering/ (OrderService, DTO, Saga, Catalog projekce + CatalogQueryService, Carts/CartService, Checkout/CheckoutService, IntegrationEvents (překladač), Pricing), Inventory/ (ProductService, CategoryService, Reserve/ReleaseStock),
                              Journeys/ (JourneyService, OrderJourneyProjection, JourneyReplayProjection, DTO),
                              Notifications/ (OrderNotificationsHandler, OrderEmailTemplates, NotificationSettings, CartReminderHandler, ICustomerContacts),
-                             Payments/ (PaymentCommandHandlers, PaymentWebhookProcessor, WebhookSignature, IPaymentGateway)
+                             Payments/ (PaymentCommandHandlers, PaymentWebhookProcessor, WebhookSignature, IPaymentGateway),
+                             Reporting/ (SalesProjectionHandler, SalesReportService)
 src/MiniShop.Infrastructure  sdílené: Persistence/ModuleDbContext, Outbox, Inbox (InboxGuard), Integration (bus, routing, dispatcher, RabbitMq/), Events,
                              Observability/ (MessagingTelemetry – ActivitySource + Meter, OutboxHealthCheck),
                              Hosting/ (OutboxWorker, RabbitMqConsumersWorker, AddMessaging);
                              Ordering/ (OrderingDbContext, repozitáře, notifier, DB init), Inventory/ (InventoryDbContext, repozitáře, DB init + seed),
                              Journeys/ (JourneysDbContext – journeys.db bez outboxu/inboxu, repozitář, DB init),
                              Notifications/ (NotificationsDbContext – notifications.db s inboxem, repozitář příjemců, DB init),
-                             Payments/ (PaymentsDbContext – payments.db s outboxem + inboxem, FakePaymentGateway + simulátor)
+                             Payments/ (PaymentsDbContext – payments.db s outboxem + inboxem, FakePaymentGateway + simulátor),
+                             Reporting/ (ReportingDbContext – reporting.db s inboxem + outboxem, jen příkaz na přestavění)
 src/MiniShop.Web             služba Ordering (7180): API objednávek, Razor Pages (celé UI), Inventory/InventoryApiClient (HTTP na sklad),
                              OrderSagaTimeoutWorker, Program.cs (composition root); krok 12: JourneysController, Pages/Orders/Journey + Replay,
                              wwwroot/js/order-form-tracker.js + journey-player.js
@@ -188,6 +190,13 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   **až při odeslání** přes `ICustomerContacts` (implementace `Web/Accounts/IdentityCustomerContacts` nad `users.db`)
   potvrzený e-mail a `ApplicationUser.CartRemindersConsent` (výchozí false, stránka `/Account/EmailPreferences`).
   Šablona `CartEmailTemplates`. Testy: `InMemoryCustomerContacts`, `RunCartReminderWorkerAsync`.
+- **Přehled tržeb (e-shop krok 11, CQRS):** modul Reporting (`…Reporting` ve všech vrstvách, hostuje Web, `reporting.db` s inboxem
+  + outboxem, fronta `minishop.reporting`) = čtecí model `SalesOrder` z existujících událostí (`OrderPlacedV2`, `OrderConfirmedV1`,
+  `OrderRejectedV1`, `OrderCancelledV1`, `OrderCompletedV1`, `PaymentRefundedV1`) – Ordering o něm neví. Zprávy mimo pořadí: upsert
+  (`SalesOrder.Create`) + **stav jen dopředu** (`ApplyStatus`). Bez osobních údajů. Přestavění (`SalesReportService.RebuildAsync`,
+  tlačítko na `/Admin/Sales`, automaticky nad prázdnou DB – `SalesReportOnStartupWorker`): smazat + `RebuildSalesReportV1` →
+  Ordering `RebuildSalesReportHandler` → `OrderSnapshotV1` pro každou objednávku (**ne** `OrderPlacedV2` – rozeslalo by e-maily).
+  **Nový údaj v přehledu = projekce + `RebuildSalesReportHandler`/snímek, pak Přestavět.** Součty v paměti, dny v `Europe/Prague`.
 - **Průběh objednávky (krok 12):** modul Journeys (`…Journeys` ve všech vrstvách, hostuje ho Web, vlastní `journeys.db`,
   bez zpráv → `JourneysDbContext` nedědí z `ModuleDbContext`). Proud `JourneyEvents` = jen INSERT, idempotence přes unikátní `EventId`
   z prohlížeče, řazení podle `OffsetMs` (čas od otevření formuláře). `ValidationFailed`/`OrderSubmitted` zapisuje jen server
@@ -306,7 +315,7 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   `<<: *otel-env` + `OTEL_SERVICE_NAME` v compose. Alarmy VM (CPU, paměť, chybějící metriky) + e-mail v `infra/monitoring.tf`
   (OCI Monitoring + Notifications, `alert_email` v `terraform.tfvars`).
 - Zálohy (krok 12): `minishop-backup.timer` (02:30 UTC, uživatel `deploy`) → `/opt/minishop/backup.sh` → `backup.py`
-  v kontejneru `ghcr.io/oracle/oci-cli:20261007` (online backup SQLite `ordering/journeys/inventory.db` + `/data/keys` + obrázky skladu
+  v kontejneru `ghcr.io/oracle/oci-cli:20261007` (online backup SQLite `ordering/journeys/notifications/payments/reporting/users/inventory.db` + `/data/keys` + obrázky skladu
   → `minishop-RRRRMMDDTHHMMSSZ.tar.gz` → bucket `minishop-backups`, lifecycle 7 dní). VM se přihlašuje jako instance principal
   (dynamická skupina `minishop-vm`, politika v `infra/backup.tf`: číst + vytvářet, ne mazat). Obnova:
   `sudo -u deploy /opt/minishop/restore.sh latest|<jméno>|list` (zastaví web + inventory-api, původní soubory nechá jako
@@ -401,7 +410,8 @@ nové moduly Notifications (odběratel událostí) a Payments (účastník ságy
 | 7. Notifikace jako samostatný odběratel (modul Notifications, `notifications.db`, `OrderPlacedV2` + `OrderConfirmedV1`/`OrderRejectedV1`, `CustomerAnonymizedV1`, šablony s odkazem; Ordering bez e-mailů) | hotovo (nasazeno 3. 11. 2026, e-maily ověřeny v produkci) | `docs/kroky-eshop/krok-07-notifikace.md` |
 | 8. Platba – simulovaná brána (modul Payments, `payments.db`, `RequestPaymentV1`/`RefundPaymentV1`, webhook s HMAC, `AwaitingPayment` + timeout 30 min, vrácení pozdní platby, dobírka) | hotovo (nasazeno 3. 11. 2026, platba kartou, zamítnutí na bráně i dobírka ověřeny v produkci) | `docs/kroky-eshop/krok-08-platba.md` |
 | 9. Zrušení kdykoli před odesláním (i `Pending`/`AwaitingPayment`, stav ságy `Cancelled`, orchestrátor dožene zrušení, zrušená zaplacená = `ReleaseStockAndRefundPayment`, `/Pay` u zrušené nepustí platit) | hotovo (nasazeno 3. 11. 2026, zrušení před platbou, po platbě i dobírky ověřeno v produkci) | `docs/kroky-eshop/krok-09-zruseni.md` |
-| 10. Opuštěný košík (`CartReminderWorker`, `CartAbandonedV1`, `Cart.ReminderSentAtUtc`, souhlas `CartRemindersConsent` ověřený až při odeslání přes `ICustomerContacts`, `/Account/EmailPreferences`) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-10-opusteny-kosik.md` |
+| 10. Opuštěný košík (`CartReminderWorker`, `CartAbandonedV1`, `Cart.ReminderSentAtUtc`, souhlas `CartRemindersConsent` ověřený až při odeslání přes `ICustomerContacts`, `/Account/EmailPreferences`) | hotovo (nasazeno 3. 11. 2026, nastavení souhlasu ověřeno v produkci; e-mail po 24 h) | `docs/kroky-eshop/krok-10-opusteny-kosik.md` |
+| 11. Přehled tržeb pro admina – CQRS (modul Reporting, `reporting.db`, projekce se stavem jen dopředu, `/Admin/Sales`, přestavění `RebuildSalesReportV1` → `OrderSnapshotV1`) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-11-prehled-trzeb.md` |
 
 ## Postup práce na dalším kroku EDA
 1. Nejdřív **shrň**, co se bude přidávat/měnit a **proč** (teorie + konkrétní případ v MiniShopu),

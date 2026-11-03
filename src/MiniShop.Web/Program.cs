@@ -8,6 +8,7 @@ using MiniShop.Infrastructure.Hosting;
 using MiniShop.Infrastructure.Journeys;
 using MiniShop.Infrastructure.Notifications;
 using MiniShop.Infrastructure.Payments;
+using MiniShop.Infrastructure.Reporting;
 using MiniShop.Infrastructure.Ordering;
 using MiniShop.ServiceDefaults;
 using MiniShop.Web.Accounts;
@@ -67,6 +68,10 @@ try
     var paymentsConnectionString = builder.Configuration.GetConnectionString("Payments")
         ?? throw new InvalidOperationException("Chybí connection string 'Payments' v appsettings.json.");
 
+    // E-shop krok 11: přehled tržeb (modul Reporting) – čtecí model, inbox a outbox ve vlastní databázi.
+    var reportingConnectionString = builder.Configuration.GetConnectionString("Reporting")
+        ?? throw new InvalidOperationException("Chybí connection string 'Reporting' v appsettings.json.");
+
     // Registrace vrstev (composition root).
     builder.Services.AddApplication(builder.Configuration);
     builder.Services.AddInfrastructureCore();
@@ -75,6 +80,7 @@ try
     builder.Services.AddNotificationsInfrastructure(notificationsConnectionString);
     // Bez tajemství webhooku (Payments:WebhookSecret, min. 32 znaků) se Web nespustí – jako se servisním klíčem skladu.
     builder.Services.AddPaymentsInfrastructure(paymentsConnectionString, builder.Configuration["Payments:WebhookSecret"]);
+    builder.Services.AddReportingInfrastructure(reportingConnectionString);
     builder.Services.AddAccounts(accountsConnectionString);
 
     // Účty krok 8: zpevnění – limit odeslání formulářů účtu z jedné IP a HSTS (prohlížeč pak chodí jen přes HTTPS).
@@ -92,6 +98,9 @@ try
 
     // Prázdná kopie katalogu po startu (nová ordering.db) → požádat sklad o celý katalog.
     builder.Services.AddHostedService<CatalogSyncOnStartupWorker>();
+
+    // E-shop krok 11: prázdný přehled tržeb po startu (nová reporting.db) → postavit ho ze snímků objednávek.
+    builder.Services.AddHostedService<SalesReportOnStartupWorker>();
 
     // Kroky 5 a 8: outbox worker + RabbitMQ (fronty minishop.ordering a minishop.audit), viz sekce "Messaging".
     builder.Services.AddMessaging(builder.Configuration);
@@ -131,6 +140,7 @@ try
     await JourneysDatabaseInitializer.InitializeAsync(app.Services);
     await NotificationsDatabaseInitializer.InitializeAsync(app.Services);
     await PaymentsDatabaseInitializer.InitializeAsync(app.Services);
+    await ReportingDatabaseInitializer.InitializeAsync(app.Services);
 
     // Účty krok 2: role + první admin. AdminBootstrap je nastavený jen ve vývoji (appsettings.Development.json),
     // v produkci admina založí příkaz create-admin.

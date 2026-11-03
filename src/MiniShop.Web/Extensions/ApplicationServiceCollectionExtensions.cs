@@ -15,6 +15,8 @@ using MiniShop.Contracts.Customers;
 using MiniShop.Contracts.Inventory;
 using MiniShop.Contracts.Orders;
 using MiniShop.Contracts.Payments;
+using MiniShop.Contracts.Reporting;
+using MiniShop.Application.Reporting;
 using MiniShop.Domain.Orders.Events;
 using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Ordering;
@@ -38,8 +40,26 @@ public static class ApplicationServiceCollectionExtensions
         services.AddJourneysModule();
         services.AddNotificationsModule(configuration);
         services.AddPaymentsModule();
+        services.AddReportingModule();
         services.AddInventoryApiClient(configuration);
 
+        return services;
+    }
+
+    /// <summary>
+    /// E-shop krok 11 (CQRS): modul Reporting – přehled tržeb pro admina jako projekce z událostí, které už existují.
+    /// Vlastní fronta minishop.reporting; Ordering ani Payments o něm nevědí. Databázi registruje AddReportingInfrastructure.
+    /// </summary>
+    public static IServiceCollection AddReportingModule(this IServiceCollection services)
+    {
+        services.AddScoped<SalesReportService>();
+        services.AddIntegrationMessageHandler<OrderPlacedV2, SalesProjectionHandler>(IntegrationModules.Reporting);
+        services.AddIntegrationMessageHandler<OrderConfirmedV1, SalesProjectionHandler>(IntegrationModules.Reporting);
+        services.AddIntegrationMessageHandler<OrderRejectedV1, SalesProjectionHandler>(IntegrationModules.Reporting);
+        services.AddIntegrationMessageHandler<OrderCancelledV1, SalesProjectionHandler>(IntegrationModules.Reporting);
+        services.AddIntegrationMessageHandler<OrderCompletedV1, SalesProjectionHandler>(IntegrationModules.Reporting);
+        services.AddIntegrationMessageHandler<PaymentRefundedV1, SalesProjectionHandler>(IntegrationModules.Reporting);
+        services.AddIntegrationMessageHandler<OrderSnapshotV1, SalesProjectionHandler>(IntegrationModules.Reporting);
         return services;
     }
 
@@ -129,6 +149,9 @@ public static class ApplicationServiceCollectionExtensions
         services.AddIntegrationMessageHandler<ProductUpdatedV2, CatalogProjectionHandler>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<StockAvailabilityChangedV1, CatalogProjectionHandler>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<ProductRemovedV1, CatalogProjectionHandler>(IntegrationModules.Ordering);
+
+        // E-shop krok 11: snímky všech objednávek pro přestavění přehledu tržeb (Reporting si o ně řekne příkazem).
+        services.AddIntegrationMessageHandler<RebuildSalesReportV1, RebuildSalesReportHandler>(IntegrationModules.Ordering);
 
         // Obnova kopie katalogu (příkaz SyncCatalogV1 pro sklad): po startu, když je prázdná/neúplná, nebo tlačítkem v UI.
         services.AddScoped<CatalogSyncService>();

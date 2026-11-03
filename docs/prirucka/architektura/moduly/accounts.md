@@ -21,11 +21,12 @@ a 9 ([otevřený web](#otevřený-web-a-osobní-údaje)); krok 7 zabezpečil skl
 | Objednávky – seznam a detail | → přihlášení | jen své (cizí = 404) | všechny |
 | Objednávky – založit (stránka i `POST /api/orders`) | ❌ | ✅ jen s **potvrzeným e-mailem** (jméno a e-mail z účtu) | ❌ |
 | Smazat vlastní účet | ❌ | ✅ (bez nevyřízených objednávek) | ❌ (nejdřív vrátit na usera) |
-| Objednávky – zrušit (potvrzenou nebo balenou, e-shop krok 6) | ❌ | jen svou | jakoukoli |
+| Objednávky – zrušit (kdykoli před odesláním, e-shop krok 9) | ❌ | jen svou | jakoukoli |
 | Expedice – balit, odeslat, doručeno (`/Admin/Fulfilment`, e-shop krok 6), obnovit katalog | ❌ | ❌ | ✅ |
 | Produkty – přidat, naskladnit, upravit, smazat | ❌ | ❌ | ✅ |
 | Průběh a přehrání objednávky (stránky i `GET /api/journeys/…`) | ❌ | ❌ | ✅ |
 | Změna hesla | ❌ | ✅ | ✅ |
+| Nastavení e-mailů – souhlas s připomínkou košíku (`/Account/EmailPreferences`, e-shop krok 10, výchozí vypnuto) | ❌ | ✅ | ❌ |
 | Uživatelé – přehled, detail, povýšit / vrátit na usera, zablokovat / odblokovat (`/Admin/…`) | ❌ | ❌ | ✅ (ne sám sobě) |
 
 Pravidla jsou pojmenovaná na jednom místě – **policies** `RequireAdmin` a `RequireCustomer`

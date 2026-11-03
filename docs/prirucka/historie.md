@@ -84,6 +84,7 @@ Plán (výloha, košík, pokladna, expedice, platba, notifikace): [docs/Eshop-ro
 | 7 | Notifikace jako samostatný modul – Ordering jen oznamuje fakta (`OrderPlacedV2`, `OrderConfirmedV1`, `OrderRejectedV1`…), modul Notifications si drží kopii příjemce a posílá e-maily; zprávy mimo pořadí, `CustomerAnonymizedV1` (zapomenout zákazníka) | [eshop-07](code:docs/kroky-eshop/krok-07-notifikace.md) |
 | 8 | Platba kartou – modul Payments jako druhý účastník ságy (`RequestPaymentV1` → `PaymentSucceededV1`/`FailedV1`), simulovaná brána a podepsaný webhook (HMAC), termín platby s kompenzací, vrácení pozdní platby, dobírka | [eshop-08](code:docs/kroky-eshop/krok-08-platba.md) |
 | 9 | Zrušení kdykoli před odesláním – sága zrušení zapíše a pozdní odpověď skladu/brány dožene kompenzací (uvolnit zboží, vrátit peníze); orchestrátor dožene zrušení, které předběhla odpověď; zrušená zaplacená objednávka vrací peníze | [eshop-09](code:docs/kroky-eshop/krok-09-zruseni.md) |
+| 10 | Opuštěný košík – reakce na „ticho“ (worker hledá košíky nezměněné 24 h), `CartAbandonedV1` bez osobních údajů, připomínka jen se souhlasem ověřeným až při odeslání, nejvýš jedna na nákup | [eshop-10](code:docs/kroky-eshop/krok-10-opusteny-kosik.md) |
 
 ## Proč po krocích
 

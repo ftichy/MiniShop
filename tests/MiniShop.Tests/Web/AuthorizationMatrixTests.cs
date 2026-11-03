@@ -70,6 +70,9 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
 
         { Who.Anonymous, "/Account/ChangePassword", Expect.Login },
         { Who.User, "/Account/ChangePassword", Expect.Allowed },
+        { Who.Anonymous, "/Account/EmailPreferences", Expect.Login },      // e-shop krok 10: souhlas s připomínkou košíku
+        { Who.User, "/Account/EmailPreferences", Expect.Allowed },
+        { Who.Admin, "/Account/EmailPreferences", Expect.Denied },
 
         // Jen admin
         { Who.Anonymous, "/Products", Expect.Login },

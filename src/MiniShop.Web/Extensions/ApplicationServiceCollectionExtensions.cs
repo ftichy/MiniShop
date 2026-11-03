@@ -10,6 +10,7 @@ using MiniShop.Application.Payments;
 using MiniShop.Application.Ordering.IntegrationEvents;
 using MiniShop.Application.Ordering.Pricing;
 using MiniShop.Application.Ordering.Saga;
+using MiniShop.Contracts.Carts;
 using MiniShop.Contracts.Customers;
 using MiniShop.Contracts.Inventory;
 using MiniShop.Contracts.Orders;
@@ -18,6 +19,7 @@ using MiniShop.Domain.Orders.Events;
 using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Ordering;
 using MiniShop.ServiceDefaults;
+using MiniShop.Web.Accounts;
 using MiniShop.Web.Inventory;
 
 namespace MiniShop.Web.Extensions;
@@ -70,6 +72,11 @@ public static class ApplicationServiceCollectionExtensions
         services.AddIntegrationMessageHandler<OrderCancelledV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<CustomerAnonymizedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<PaymentRefundedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);   // e-shop krok 8
+
+        // E-shop krok 10: připomínka opuštěného košíku – kontakt a souhlas až při odeslání (z účtů, přes Web).
+        services.AddSingleton<CartEmailTemplates>();
+        services.AddScoped<ICustomerContacts, IdentityCustomerContacts>();
+        services.AddIntegrationMessageHandler<CartAbandonedV1, CartReminderHandler>(IntegrationModules.Notifications);
         return services;
     }
 
@@ -131,6 +138,12 @@ public static class ApplicationServiceCollectionExtensions
 
         // E-shop krok 3: košík (agregát Cart v ordering.db, ceny z kopie katalogu).
         services.AddScoped<ICartService, CartService>();
+
+        // E-shop krok 10: opuštěný košík – worker (CartReminderWorker) a oznámení CartAbandonedV1.
+        services.AddSingleton(new CartReminderSettings(
+            TimeSpan.FromHours(configuration.GetValue("Carts:AbandonedAfterHours", 24.0)),
+            TimeSpan.FromMinutes(configuration.GetValue("Carts:ReminderCheckMinutes", 15.0))));
+        services.AddScoped<CartReminderService>();
 
         // E-shop krok 4: pokladna (košík → objednávka v jedné transakci) a ceník dopravy (strategie).
         services.AddScoped<ICheckoutService, CheckoutService>();

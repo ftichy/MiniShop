@@ -88,6 +88,7 @@ try
 
     // Krok 9: hlídání termínů ságy (sklad neodpověděl včas → zamítnout).
     builder.Services.AddHostedService<OrderSagaTimeoutWorker>();
+    builder.Services.AddHostedService<CartReminderWorker>();   // e-shop krok 10: opuštěné košíky
 
     // Prázdná kopie katalogu po startu (nová ordering.db) → požádat sklad o celý katalog.
     builder.Services.AddHostedService<CatalogSyncOnStartupWorker>();

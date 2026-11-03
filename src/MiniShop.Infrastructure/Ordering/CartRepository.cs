@@ -17,6 +17,17 @@ public sealed class CartRepository(OrderingDbContext db) : ICartRepository
             .SelectMany(c => c.Lines)
             .SumAsync(l => l.Quantity, cancellationToken);
 
+    public Task<Cart?> GetByIdAsync(int cartId, CancellationToken cancellationToken = default) =>
+        db.Carts
+            .Include(c => c.Lines)
+            .FirstOrDefaultAsync(c => c.Id == cartId, cancellationToken);
+
+    public async Task<IReadOnlyList<int>> GetAbandonedIdsAsync(DateTime changedBeforeUtc, CancellationToken cancellationToken = default) =>
+        await db.Carts
+            .Where(c => c.ReminderSentAtUtc == null && c.UpdatedAtUtc <= changedBeforeUtc && c.Lines.Any())
+            .Select(c => c.Id)
+            .ToListAsync(cancellationToken);
+
     public void Add(Cart cart) => db.Carts.Add(cart);
 
     public void Remove(Cart cart) => db.Carts.Remove(cart);

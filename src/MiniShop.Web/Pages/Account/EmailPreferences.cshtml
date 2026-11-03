@@ -1,0 +1,36 @@
+@page
+@model MiniShop.Web.Pages.Account.EmailPreferencesModel
+@{
+    ViewData["Title"] = "Nastavení e-mailů";
+}
+<h1>Nastavení e-mailů</h1>
+
+@if (Model.StatusMessage is not null)
+{
+    <div class="alert alert-success">@Model.StatusMessage</div>
+}
+
+<div class="row">
+    <div class="col-md-7 col-lg-6">
+        <p class="text-muted">
+            E-maily o objednávkách (přijetí, potvrzení, odeslání…) posíláme vždy – patří k nákupu.
+            Ostatní upozornění si můžete zapnout nebo vypnout.
+        </p>
+
+        <form method="post">
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+            <div class="form-check mb-3">
+                <input asp-for="CartReminders" class="form-check-input" data-track="email-cart-reminders" />
+                <label asp-for="CartReminders" class="form-check-label">
+                    Připomenout mi zboží, které jsem nechal(a) v košíku
+                </label>
+                <div class="form-text">
+                    Nejvýš jeden e-mail na jeden nákup, když se košík 24 hodin nezmění. Vypnout jde kdykoli tady
+                    nebo odkazem v e-mailu.
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Uložit</button>
+            <a asp-page="/Account/ChangePassword" class="btn btn-link">Zpět na účet</a>
+        </form>
+    </div>
+</div>

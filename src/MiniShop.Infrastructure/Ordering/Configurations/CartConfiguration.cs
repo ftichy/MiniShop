@@ -17,6 +17,8 @@ internal sealed class CartConfiguration : IEntityTypeConfiguration<Cart>
         // SQLite neukládá DateTimeKind – při načtení čas označíme jako UTC.
         builder.Property(c => c.UpdatedAtUtc)
             .HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+        builder.Property(c => c.ReminderSentAtUtc)   // e-shop krok 10
+            .HasConversion(v => v, v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
         builder.Ignore(c => c.TotalQuantity);
 
         // E-shop krok 4: verze košíku jako concurrency token – UPDATE … WHERE CheckoutId = původní. Dvě souběžná

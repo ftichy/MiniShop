@@ -56,10 +56,13 @@ public sealed class OrderEmailTemplates(NotificationSettings settings)
             ? Build(to, $"Objednávka č. {to.OrderId} je vyzvednutá", "děkujeme za nákup!")
             : Build(to, $"Objednávka č. {to.OrderId} je doručená", "objednávka je doručená. Děkujeme za nákup!");
 
-    /// <summary>E-shop krok 8: platba přišla po termínu (objednávka už byla zamítnutá) – peníze se vracejí.</summary>
+    /// <summary>
+    /// E-shop krok 8: platba přišla po termínu (objednávka už byla zamítnutá) – peníze se vracejí.
+    /// E-shop krok 9: totéž při zrušení zaplacené objednávky (ten e-mail jde vedle „zrušeno“).
+    /// </summary>
     public EmailMessage Refunded(OrderMailRecipient to, decimal amount) =>
         Build(to, $"Platbu za objednávku č. {to.OrderId} vracíme",
-            string.Format(Czech, "platba {0:N2} Kč přišla až po termínu – objednávka už byla zrušená. Peníze vám vracíme.", amount));
+            string.Format(Czech, "objednávku nevyřídíme (byla zrušená nebo platba přišla až po termínu), proto vám platbu {0:N2} Kč vracíme.", amount));
 
     public EmailMessage Cancelled(OrderMailRecipient to) =>
         Build(to, $"Objednávka č. {to.OrderId} je zrušená", "objednávka byla zrušena, rezervované zboží se vrací na sklad.");

@@ -17,6 +17,7 @@ using MiniShop.Application.Ordering.IntegrationEvents;
 using MiniShop.Application.Ordering.Saga;
 using MiniShop.Application.Ordering.Pricing;
 using MiniShop.Contracts;
+using MiniShop.Contracts.Carts;
 using MiniShop.Contracts.Customers;
 using MiniShop.Contracts.Inventory;
 using MiniShop.Contracts.Orders;
@@ -54,6 +55,7 @@ public sealed class OrderServiceTests : IDisposable
 
     private static readonly TimeSpan ReservationTimeout = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan PaymentTimeout = TimeSpan.FromMinutes(30);   // e-shop krok 8
+    private static readonly TimeSpan CartAbandonedAfter = TimeSpan.FromHours(24);   // e-shop krok 10
     private const string WebhookSecret = "testovaci-tajemstvi-webhooku-plateb-0123456789";
 
     private readonly InMemoryDatabase _orderingDatabase = new();
@@ -62,6 +64,7 @@ public sealed class OrderServiceTests : IDisposable
     private readonly InMemoryDatabase _notificationsDatabase = new();   // e-shop krok 7: modul Notifications
     private readonly InMemoryDatabase _paymentsDatabase = new();        // e-shop krok 8: modul Payments
     private readonly RecordingEmailSender _emails = new();
+    private readonly InMemoryCustomerContacts _contacts = new();   // e-shop krok 10: účty se souhlasem
     private readonly InMemoryProductImageStore _images = new();   // e-shop krok 2B
     private readonly List<IDomainEvent> _dispatched = new();
     private readonly ServiceProvider _services;
@@ -125,6 +128,13 @@ public sealed class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<OrderCancelledV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<CustomerAnonymizedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<PaymentRefundedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
+
+        // E-shop krok 10: opuštěný košík – služba v Orderingu, připomínka v Notifications, kontakty místo účtů v paměti.
+        services.AddSingleton(new CartReminderSettings(CartAbandonedAfter, TimeSpan.FromMinutes(15)));
+        services.AddScoped<CartReminderService>();
+        services.AddSingleton<CartEmailTemplates>();
+        services.AddSingleton<ICustomerContacts>(_contacts);
+        services.AddIntegrationMessageHandler<CartAbandonedV1, CartReminderHandler>(IntegrationModules.Notifications);
 
         // E-shop krok 8: modul Payments (účastník ságy) – jako AddPaymentsModule + AddPaymentsInfrastructure ve Webu.
         services.AddPaymentsInfrastructure(_paymentsDatabase.ConnectionString, WebhookSecret);
@@ -680,6 +690,99 @@ public sealed class OrderServiceTests : IDisposable
 
         Assert.Equal(5, await StockAsync());
         Assert.Empty(_bus.Published.OfType<RefundPaymentV1>());
+    }
+
+    // ---------- E-shop krok 10: opuštěný košík ----------
+
+    [Fact]
+    public async Task OpustenyKosik_SeSouhlasem_JednaPripominkaSOdkazy()
+    {
+        AllowReminders(consent: true);
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, product.Id, 2));
+
+        _time.Advance(CartAbandonedAfter - TimeSpan.FromMinutes(1));
+        Assert.Empty(await Reminders(s => s.GetAbandonedCartIdsAsync()));   // ještě to není „ticho“
+
+        _time.Advance(TimeSpan.FromMinutes(1));
+        await RunCartReminderWorkerAsync();
+        await RunCartReminderWorkerAsync();   // další kolo workeru už nic nepošle
+        await ProcessOutboxAsync();
+
+        var abandoned = Assert.Single(_bus.Published.OfType<CartAbandonedV1>());
+        Assert.Equal(Jan.CustomerId, abandoned.CustomerId);
+        Assert.Equal((2, 100m), (Assert.Single(abandoned.Items).Quantity, abandoned.Items[0].UnitPrice));
+        var email = Assert.Single(_emails.Sent);
+        Assert.Equal("jan@example.com", email.To);
+        Assert.Contains("2 × Testovací produkt", email.TextBody);
+        Assert.Contains("https://minishop.test/Cart", email.TextBody);
+        Assert.Contains("https://minishop.test/Account/EmailPreferences", email.HtmlBody);
+    }
+
+    [Theory]
+    [InlineData(false, true)]    // bez souhlasu
+    [InlineData(true, false)]    // nepotvrzený e-mail
+    public async Task OpustenyKosik_BezSouhlasuNeboPotvrzeni_ZadnyEmail(bool consent, bool emailConfirmed)
+    {
+        AllowReminders(consent, emailConfirmed);
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, product.Id, 1));
+
+        _time.Advance(CartAbandonedAfter);
+        await RunCartReminderWorkerAsync();
+        await ProcessOutboxAsync();
+
+        Assert.Single(_bus.Published.OfType<CartAbandonedV1>());   // fakt se oznámí, rozhoduje odběratel
+        Assert.Empty(_emails.Sent);
+    }
+
+    [Fact]
+    public async Task OpustenyKosik_SouhlasOdvolanyPredOdeslanim_ZadnyEmail()
+    {
+        AllowReminders(consent: true);
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, product.Id, 1));
+        _time.Advance(CartAbandonedAfter);
+        await RunCartReminderWorkerAsync();   // CartAbandonedV1 čeká v outboxu
+
+        AllowReminders(consent: false);       // zákazník mezitím připomínky vypnul
+        await ProcessOutboxAsync();
+
+        Assert.Empty(_emails.Sent);           // souhlas se ověřuje až při odeslání
+    }
+
+    [Fact]
+    public async Task OpustenyKosik_ZmenaMeziVyhledanimAOznamenim_NicNeodejde()
+    {
+        AllowReminders(consent: true);
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, product.Id, 1));
+        _time.Advance(CartAbandonedAfter);
+
+        var cartId = Assert.Single(await Reminders(s => s.GetAbandonedCartIdsAsync()));
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, product.Id, 1));   // zákazník se vrátil
+
+        Assert.False(await Reminders(s => s.RemindAsync(cartId)));
+        Assert.Empty(_bus.Published.OfType<CartAbandonedV1>());
+    }
+
+    [Fact]
+    public async Task OpustenyKosik_PoObjednaniNovyNakup_DalsiPripominka()
+    {
+        AllowReminders(consent: true);
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, product.Id, 1));
+        _time.Advance(CartAbandonedAfter);
+        await RunCartReminderWorkerAsync();
+
+        await PlaceCardOrderAsync(product.Id, quantity: 1, PaymentMethod.CashOnDelivery);   // nákup dokončen → košík prázdný
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, product.Id, 1));                   // nový nákup
+        _time.Advance(CartAbandonedAfter);
+        await RunCartReminderWorkerAsync();
+        await ProcessOutboxAsync();
+
+        Assert.Equal(2, _bus.Published.OfType<CartAbandonedV1>().Count());
+        Assert.Equal(2, _emails.Sent.Count(e => e.Subject.Contains("košíku")));
     }
 
     // ---------- E-shop krok 7: Notifications ----------
@@ -1736,6 +1839,25 @@ public sealed class OrderServiceTests : IDisposable
     private async Task<string> StatusAsync(int orderId) => (await Orders(s => s.GetByIdAsync(orderId, OrderAccess.AllOrders))).Status;
 
     private Task<OrderSaga> SagaAsync(int orderId) => OrderingDb(db => db.OrderSagas.SingleAsync(s => s.OrderId == orderId));
+
+    /// <summary>E-shop krok 10: Jan má účet s e-mailem a (ne)souhlasem s připomínkou košíku.</summary>
+    private void AllowReminders(bool consent, bool emailConfirmed = true) =>
+        _contacts.Set(Jan.CustomerId, new CustomerContact(Jan.Email, Jan.Name, emailConfirmed, consent));
+
+    /// <summary>E-shop krok 10: jedno kolo CartReminderWorkeru – najít opuštěné košíky, každý ve vlastním scope.</summary>
+    private async Task RunCartReminderWorkerAsync()
+    {
+        foreach (var cartId in await Reminders(s => s.GetAbandonedCartIdsAsync()))
+        {
+            await Reminders(s => s.RemindAsync(cartId));
+        }
+    }
+
+    private async Task<T> Reminders<T>(Func<CartReminderService, Task<T>> action)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await action(scope.ServiceProvider.GetRequiredService<CartReminderService>());
+    }
 
     /// <summary>E-shop krok 9: stav platby v modulu Payments (čerstvý scope).</summary>
     private async Task<PaymentStatus> PaymentStatusAsync(int orderId)

@@ -77,6 +77,16 @@
                                     <input type="radio" class="form-check-input" data-replay-target="Input.ShippingMethod" value="Courier" tabindex="-1" />
                                     <label class="form-check-label">Kurýr na adresu</label>
                                 </div>
+                                @* E-shop krok 8: platba (starší proudy ji nemají – zůstane nezaškrtnutá). *@
+                                <legend class="h6 mt-2">Platba</legend>
+                                <div class="form-check">
+                                    <input type="radio" class="form-check-input" data-replay-target="Input.PaymentMethod" value="Card" tabindex="-1" />
+                                    <label class="form-check-label">Kartou online</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="radio" class="form-check-input" data-replay-target="Input.PaymentMethod" value="CashOnDelivery" tabindex="-1" />
+                                    <label class="form-check-label">Dobírka</label>
+                                </div>
                             </fieldset>
                             <fieldset class="col-md-7">
                                 <legend class="h6">Doručovací adresa</legend>

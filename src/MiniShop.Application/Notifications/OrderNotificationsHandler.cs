@@ -1,6 +1,7 @@
 using MiniShop.Application.Abstractions;
 using MiniShop.Contracts.Customers;
 using MiniShop.Contracts.Orders;
+using MiniShop.Contracts.Payments;
 using MiniShop.Domain.Notifications;
 
 namespace MiniShop.Application.Notifications;
@@ -33,7 +34,8 @@ public sealed class OrderNotificationsHandler(
     IIntegrationMessageHandler<OrderShippedV1>,
     IIntegrationMessageHandler<OrderCompletedV1>,
     IIntegrationMessageHandler<OrderCancelledV1>,
-    IIntegrationMessageHandler<CustomerAnonymizedV1>
+    IIntegrationMessageHandler<CustomerAnonymizedV1>,
+    IIntegrationMessageHandler<PaymentRefundedV1>
 {
     /// <summary>Jak dlouho čekat, než dorazí OrderPlacedV2 (zpráva mimo pořadí), u potvrzení a zamítnutí.</summary>
     public static readonly TimeSpan MaxWaitForPlacedOrder = TimeSpan.FromMinutes(5);
@@ -87,6 +89,13 @@ public sealed class OrderNotificationsHandler(
     public async Task HandleAsync(OrderCancelledV1 message, CancellationToken cancellationToken) =>
         await SendAsync(await RecipientOrFallbackAsync(message.OrderId, message.CustomerEmail, cancellationToken),
             templates.Cancelled, cancellationToken);
+
+    /// <summary>E-shop krok 8: pozdní platba se vrací – dát vědět (zprávu posílá modul Payments, ne Ordering).</summary>
+    public async Task HandleAsync(PaymentRefundedV1 message, CancellationToken cancellationToken)
+    {
+        var recipient = await RequireRecipientAsync(message.OrderId, message.OccurredAtUtc, cancellationToken);
+        await SendAsync(recipient, to => templates.Refunded(to, message.Amount), cancellationToken);
+    }
 
     /// <summary>Zákazník smazal účet → zapomenout jeho jméno, e-mail, adresu i souhrny objednávek.</summary>
     public async Task HandleAsync(CustomerAnonymizedV1 message, CancellationToken cancellationToken)

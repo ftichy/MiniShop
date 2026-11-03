@@ -17,6 +17,7 @@ Pravidla:
 | `HEALTHCHECKS_BACKUP_URL` | adresa, kam noční záloha hlásí průběh (healthchecks.io, krok 12) – kdo ji zná, může hlídači „nalhat“ zálohu | `.env` na VM | healthchecks.io → kontrola → *Ping URL* → *Regenerate* → secret → Deploy | při podezření |
 | `SMTP_PASSWORD` | heslo aplikace Gmailu účtu `ftichy.gemini@gmail.com` – Web jím posílá e-maily (účty krok 5). Dává přístup k **celé schránce** toho účtu. Volitelný: prázdný = e-maily jen do logu | `.env` na VM | [R8](#r8-heslo-aplikace-gmailu) | při podezření, jinak 1× ročně |
 | `INVENTORY_API_KEY` | servisní klíč mezi Webem a skladem (účty krok 7) – kdo ho zná a dostane se do sítě Dockeru, může měnit produkty a zásoby. 64 hex znaků, povinný | `.env` na VM → proměnná `InventoryApi__ApiKey` v kontejnerech `web` a `inventory-api` | [R9](#r9-servisní-klíč-skladu) | při podezření, jinak 1× ročně |
+| `PAYMENTS_WEBHOOK_SECRET` | sdílené tajemství s platební bránou (e-shop krok 8) – HMAC podpis webhooku `/api/payments/webhook`. Kdo ho zná, může „zaplatit“ libovolnou objednávku. 64 hex znaků, povinný (bez něj se Web nespustí) | `.env` na VM → proměnná `Payments__WebhookSecret` v kontejneru `web` | [R10](#r10-tajemství-webhooku-plateb) | při podezření, jinak 1× ročně |
 
 ## Secrets nasazení (GitHub → Environments → `production`)
 
@@ -128,6 +129,14 @@ Nový klíč (`ssh-keygen`), veřejnou část přidat na VM do `/home/ubuntu/.ss
 2. GitHub → *Environments* → `production` → `INVENTORY_API_KEY` → nová hodnota → *Actions → Deploy → Run workflow*
    (SHA viz níže). Compose znovu vytvoří oba kontejnery – po pár sekund může stránka Produkty hlásit „sklad nedostupný“.
 3. Ověření: stránka Produkty se načte; v logu skladu není „Požadavek na sklad se špatným servisním klíčem“.
+
+### R10. Tajemství webhooku plateb
+
+1. Nové tajemství – 64 malých hex znaků, stejně jako u R9 (`openssl rand -hex 32` nebo PowerShell příkaz výše).
+2. GitHub → *Environments* → `production` → `PAYMENTS_WEBHOOK_SECRET` → nová hodnota → *Actions → Deploy → Run workflow*.
+   Simulovaná brána běží ve Webu, takže podepisuje i ověřuje stejným tajemstvím – výměna nic nerozbije.
+   (Se skutečnou bránou by se nové tajemství muselo nastavit i u ní – jinak by webhooky do výměny vracely 401.)
+3. Ověření: objednávka kartou → *Zaplatit* → objednávka potvrzená.
 
 ### Které SHA nasadit
 

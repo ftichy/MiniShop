@@ -55,6 +55,7 @@ flowchart TB
 | `OrderCompletedV1` | „Doručená“ (osobní odběr: „vyzvednutá“) |
 | `OrderCancelledV1` | „Zrušená“ |
 | `CustomerAnonymizedV1` | žádný – smaže jméno, e-mail, adresu a souhrny zákazníka |
+| `PaymentRefundedV1` | „Platbu vracíme“ – pozdní platba (e-shop krok 8, zprávu posílá modul Payments) |
 
 Neposílá nic. Ordering o modulu neví – hlídají to
 [ModuleBoundariesTests](code:tests/MiniShop.Tests/Architecture/ModuleBoundariesTests.cs) (včetně pravidla, že Ordering

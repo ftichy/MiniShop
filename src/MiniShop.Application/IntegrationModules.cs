@@ -14,4 +14,7 @@ public static class IntegrationModules
 
     /// <summary>E-shop krok 7: e-maily zákazníkovi podle událostí objednávky (jen poslouchá, nic neposílá).</summary>
     public const string Notifications = "notifications";
+
+    /// <summary>E-shop krok 8: platby kartou – účastník ságy objednávky (RequestPayment, RefundPayment).</summary>
+    public const string Payments = "payments";
 }

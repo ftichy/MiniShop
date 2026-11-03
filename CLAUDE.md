@@ -13,17 +13,19 @@ Cíl: postupně ho převést na EDA podle plánu v `docs/EDA-roadmap.md`.
 ```
 src/MiniShop.Contracts       integrační zprávy – události (OrderPlacedV1, StockReservedV1, …) a příkazy (ReserveStockV1, …), žádné závislosti
 src/MiniShop.Domain          Common/ (Entity, IDomainEvent), Orders/ (Order, CatalogProduct, CatalogSearchText, Carts/Cart, Saga/OrderSaga), Inventory/ (Product, Category, StockAvailability, StockReservation),
-                             Journeys/ (JourneyEvent, JourneyEventType), Notifications/ (OrderRecipient)
+                             Journeys/ (JourneyEvent, JourneyEventType), Notifications/ (OrderRecipient), Payments/ (Payment)
 src/MiniShop.Application     Abstractions/ (sdílené: IUnitOfWork, IDomainEvent*, IIntegrationMessage*, TraceTags),
                              Ordering/ (OrderService, DTO, Saga, Catalog projekce + CatalogQueryService, Carts/CartService, Checkout/CheckoutService, IntegrationEvents (překladač), Pricing), Inventory/ (ProductService, CategoryService, Reserve/ReleaseStock),
                              Journeys/ (JourneyService, OrderJourneyProjection, JourneyReplayProjection, DTO),
-                             Notifications/ (OrderNotificationsHandler, OrderEmailTemplates, NotificationSettings)
+                             Notifications/ (OrderNotificationsHandler, OrderEmailTemplates, NotificationSettings),
+                             Payments/ (PaymentCommandHandlers, PaymentWebhookProcessor, WebhookSignature, IPaymentGateway)
 src/MiniShop.Infrastructure  sdílené: Persistence/ModuleDbContext, Outbox, Inbox (InboxGuard), Integration (bus, routing, dispatcher, RabbitMq/), Events,
                              Observability/ (MessagingTelemetry – ActivitySource + Meter, OutboxHealthCheck),
                              Hosting/ (OutboxWorker, RabbitMqConsumersWorker, AddMessaging);
                              Ordering/ (OrderingDbContext, repozitáře, notifier, DB init), Inventory/ (InventoryDbContext, repozitáře, DB init + seed),
                              Journeys/ (JourneysDbContext – journeys.db bez outboxu/inboxu, repozitář, DB init),
-                             Notifications/ (NotificationsDbContext – notifications.db s inboxem, repozitář příjemců, DB init)
+                             Notifications/ (NotificationsDbContext – notifications.db s inboxem, repozitář příjemců, DB init),
+                             Payments/ (PaymentsDbContext – payments.db s outboxem + inboxem, FakePaymentGateway + simulátor)
 src/MiniShop.Web             služba Ordering (7180): API objednávek, Razor Pages (celé UI), Inventory/InventoryApiClient (HTTP na sklad),
                              OrderSagaTimeoutWorker, Program.cs (composition root); krok 12: JourneysController, Pages/Orders/Journey + Replay,
                              wwwroot/js/order-form-tracker.js + journey-player.js
@@ -162,6 +164,17 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   kratší e-mail na adresu ze zprávy. Texty jen v `OrderEmailTemplates` (text + HTML, `WebUtility.HtmlEncode`), odkaz z
   `Notifications:PublicBaseUrl` (produkce `PUBLIC_BASE_URL` v `production.env`). **Nový e-mail o objednávce = šablona + handler
   v Notifications, ne v Orderingu.** Testy: `OrderServiceTests` mají modul Notifications + `RecordingEmailSender` (`FailNext`).
+- **Platba (e-shop krok 8):** modul Payments (`…Payments` ve všech vrstvách, hostuje Web, `payments.db` s outboxem + inboxem,
+  fronta `minishop.payments`) = druhý účastník ságy. Kartou (`Order.PaymentMethod`, volba v pokladně): `StockReserved` →
+  saga `AwaitingPayment` (termín `Sagas:PaymentTimeoutMinutes`, 30) + `Order.AwaitPayment` + `RequestPaymentV1`; `PaymentSucceededV1`
+  → `Confirm`; `PaymentFailedV1`/timeout → `RejectOrderAndReleaseStock` (nezaplaceno = **Rejected**, ne Cancelled); pozdní
+  platba → `RefundPaymentV1` (jen jednou, `RefundRequested`). Dobírka a objednávky z API (`PaymentMethod.None`) platbu přeskočí.
+  Webhook `POST /api/payments/webhook` (`[AllowAnonymous]`, podpis HMAC v `X-MiniShop-Signature`, `PaymentWebhookProcessor`:
+  nejdřív podpis, pak obsah; 401/400/404/200, opakovaný = 200 bez efektu). Brána jen přes `IPaymentGateway` (dnes `FakePaymentGateway`
+  + stránka `/Pay/{orderId}`, `FakePaymentGatewaySimulator` volá stejný procesor). Tajemství `Payments:WebhookSecret` (min. 32,
+  jinak se Web **nespustí**): Aspire parametr `payments-webhook-secret`, dev `appsettings.Development.json`, Compose
+  `PAYMENTS_WEBHOOK_SECRET` (povinný), produkce secret → `deploy.yml` → `deploy.sh`. Testy: `MiniShopWebFactory.WebhookSecret`,
+  `OrderServiceTests` mají modul Payments (`SimulateGatewayAsync`).
 - **Průběh objednávky (krok 12):** modul Journeys (`…Journeys` ve všech vrstvách, hostuje ho Web, vlastní `journeys.db`,
   bez zpráv → `JourneysDbContext` nedědí z `ModuleDbContext`). Proud `JourneyEvents` = jen INSERT, idempotence přes unikátní `EventId`
   z prohlížeče, řazení podle `OffsetMs` (čas od otevření formuláře). `ValidationFailed`/`OrderSubmitted` zapisuje jen server
@@ -248,7 +261,7 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   (**před** sloučením, pokud na změně závisí její vlastní nasazení). Změněný `Caddyfile` `deploy.sh` načte přes `caddy reload`.
   Port 22 je z internetu zavřený – SSH jen přes Tailscale. Nouzově: pravidlo 22 v security listu vrátit.
   Secrets/proměnné jen v environmentu `production`: `TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`, `DEPLOY_SSH_KEY`,
-  `RABBITMQ_PASSWORD`, `BASIC_AUTH_HASH` (krok 10), `SMTP_PASSWORD` (účty krok 5), `INVENTORY_API_KEY` (účty krok 7), `DEPLOY_HOST`, `DEPLOY_KNOWN_HOSTS`.
+  `RABBITMQ_PASSWORD`, `BASIC_AUTH_HASH` (krok 10), `SMTP_PASSWORD` (účty krok 5), `INVENTORY_API_KEY` (účty krok 7), `PAYMENTS_WEBHOOK_SECRET` (e-shop krok 8), `DEPLOY_HOST`, `DEPLOY_KNOWN_HOSTS`.
 - Doména (krok 13): `https://minishop-tichy.cz` (Wedos: registrace + DNS, záznamy A `@` a `dashboard` → reserved IP, TTL 300,
   žádné AAAA – zadává uživatel ručně v client.wedos.com, pak *Aplikovat změny*). `DOMAIN` + `LEGACY_DOMAIN` v `production.env`;
   stará `minishop-tichy.duckdns.org` (i `dashboard.`) = 301 na novou doménu (Caddyfile), smoke test hlídá obojí (doména
@@ -372,8 +385,8 @@ nové moduly Notifications (odběratel událostí) a Payments (účastník ságy
 | 4B. Journeys na pokladnu (sledování a přehrání pokladny, `OrderJourneyDto.Form`, staré proudy beze změny, odstranění starého formuláře objednávky a „Objednat“ ve výloze) | hotovo (nasazeno 3. 11. 2026, přehrání pokladny ověřeno v produkci) | `docs/kroky-eshop/krok-04b-journeys-pokladna.md` |
 | 5. Detail objednávky a historie stavů (`/Orders/{id}`, `OrderStatusChange` v agregátu, migrace doplní historii starým objednávkám) | hotovo (nasazeno 3. 11. 2026, detail a historie ověřeny v produkci) | `docs/kroky-eshop/krok-05-detail-objednavky.md` |
 | 6. Expedice (Packing → Shipped → Completed, `/Admin/Fulfilment`, `OrderShippedV1` → sklad vydá rezervaci, `Order.Version` proti souběhu, e-mail s číslem zásilky) | hotovo (nasazeno 3. 11. 2026, celá expedice ověřena v produkci) | `docs/kroky-eshop/krok-06-expedice.md` |
-| 7. Notifikace jako samostatný odběratel (modul Notifications, `notifications.db`, `OrderPlacedV2` + `OrderConfirmedV1`/`OrderRejectedV1`, `CustomerAnonymizedV1`, šablony s odkazem; Ordering bez e-mailů) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-07-notifikace.md` |
-| 8. Platba – simulovaná brána (modul Payments, webhook s HMAC, timeout platby, dobírka) | plán | — |
+| 7. Notifikace jako samostatný odběratel (modul Notifications, `notifications.db`, `OrderPlacedV2` + `OrderConfirmedV1`/`OrderRejectedV1`, `CustomerAnonymizedV1`, šablony s odkazem; Ordering bez e-mailů) | hotovo (nasazeno 3. 11. 2026, e-maily ověřeny v produkci) | `docs/kroky-eshop/krok-07-notifikace.md` |
+| 8. Platba – simulovaná brána (modul Payments, `payments.db`, `RequestPaymentV1`/`RefundPaymentV1`, webhook s HMAC, `AwaitingPayment` + timeout 30 min, vrácení pozdní platby, dobírka) | kód hotový, čeká na nasazení (secret `PAYMENTS_WEBHOOK_SECRET`, reinstalace `deploy.sh`) | `docs/kroky-eshop/krok-08-platba.md` |
 | 9. Zrušení kdykoli před odesláním (navazuje na účty krok 4) | plán | — |
 | 10. Opuštěný košík (volitelně) | plán | — |
 

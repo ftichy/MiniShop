@@ -25,5 +25,10 @@ internal sealed class OrderSagaConfiguration : IEntityTypeConfiguration<OrderSag
 
         // Timeout worker hledá: WHERE State = 'AwaitingReservation' AND ReservationDeadlineUtc <= now.
         builder.HasIndex(s => new { s.State, s.ReservationDeadlineUtc });
+
+        // E-shop krok 8: termín platby kartou (null = bez platby).
+        builder.Property(s => s.PaymentDeadlineUtc)
+            .HasConversion(v => v, v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
+        builder.HasIndex(s => new { s.State, s.PaymentDeadlineUtc });
     }
 }

@@ -32,6 +32,7 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
     public const string AdminPassword = "admin-heslo-pro-test";
     public const string UserEmail = "jan@test.local";
     public const string UserPassword = "jan-heslo-pro-test";
+    public const string WebhookSecret = "testovaci-tajemstvi-webhooku-plateb-pro-web-0123456789";
 
     /// <summary>Účty krok 5: všechny e-maily, které Web „odeslal“.</summary>
     public RecordingEmailSender Emails { get; } = new();
@@ -43,6 +44,7 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
     private readonly InMemoryDatabase _journeys = new();
     private readonly InMemoryDatabase _accounts = new();
     private readonly InMemoryDatabase _notifications = new();   // e-shop krok 7
+    private readonly InMemoryDatabase _payments = new();        // e-shop krok 8
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -51,6 +53,9 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
         builder.UseSetting("ConnectionStrings:Journeys", _journeys.ConnectionString);
         builder.UseSetting("ConnectionStrings:Accounts", _accounts.ConnectionString);
         builder.UseSetting("ConnectionStrings:Notifications", _notifications.ConnectionString);
+        builder.UseSetting("ConnectionStrings:Payments", _payments.ConnectionString);
+        // E-shop krok 8: tajemství webhooku platební brány (bez něj by se Web nespustil). Testy jím i podepisují.
+        builder.UseSetting("Payments:WebhookSecret", WebhookSecret);
         // Účty krok 7: servisní klíč skladu (sklad tu nahrazuje StubProductService, ale bez klíče by se Web nespustil).
         builder.UseSetting("InventoryApi:ApiKey", new string('k', 64));
         // Účty krok 8: limit formulářů účtu vysoko – testy se přihlašují stokrát z jedné „IP“. Limit zkouší vlastní test.
@@ -212,6 +217,7 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
         _journeys.Dispose();
         _accounts.Dispose();
         _notifications.Dispose();
+        _payments.Dispose();
     }
 
     [GeneratedRegex("name=\"__RequestVerificationToken\" type=\"hidden\" value=\"([^\"]+)\"")]

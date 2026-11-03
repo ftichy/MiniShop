@@ -15,7 +15,8 @@ public sealed class OrderEventsLogHandler(ILogger<OrderEventsLogHandler> logger)
     IDomainEventHandler<OrderCompleted>,
     IDomainEventHandler<OrderCancelled>,
     IDomainEventHandler<OrderPackingStarted>,
-    IDomainEventHandler<OrderShipped>
+    IDomainEventHandler<OrderShipped>,
+    IDomainEventHandler<OrderAwaitingPayment>
 {
     public Task HandleAsync(OrderPlaced domainEvent, CancellationToken cancellationToken)
     {
@@ -60,6 +61,12 @@ public sealed class OrderEventsLogHandler(ILogger<OrderEventsLogHandler> logger)
     {
         logger.LogInformation("[Událost] OrderShipped: objednávka {OrderId}, dopravce {Carrier}",
             domainEvent.Order.Id, domainEvent.Order.Carrier);
+        return Task.CompletedTask;
+    }
+
+    public Task HandleAsync(OrderAwaitingPayment domainEvent, CancellationToken cancellationToken)
+    {
+        logger.LogInformation("[Událost] OrderAwaitingPayment: objednávka {OrderId} čeká na platbu", domainEvent.Order.Id);
         return Task.CompletedTask;
     }
 }

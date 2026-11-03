@@ -9,6 +9,9 @@ order: 10
 > objednávku založilo. Objednávka a vyprázdněný košík se uloží **v jedné transakci**. Dál jde všechno stejně jako
 > v [Vytvoření objednávky](vytvoreni-objednavky.md): sága, sklad, potvrzení. Přirovnání: u pokladny v obchodě
 > se zboží namarkuje, zaplatí a vozík se vyprázdní – nikdy jen půlka z toho.
+>
+> **E-shop krok 8:** pokladna má i volbu **platby** – kartou (po rezervaci objednávka čeká na zaplacení přes bránu,
+> viz [Platba kartou](platba.md)), nebo dobírka (sága platbu přeskočí, potvrdí hned po rezervaci).
 
 ## Běžné objednání
 

@@ -9,6 +9,7 @@ public static class OrderStatusLabels
     public static string Badge(string status) => status switch
     {
         "Pending" => "bg-warning text-dark",
+        "AwaitingPayment" => "bg-warning text-dark",
         "Confirmed" => "bg-primary",
         "Packing" => "bg-info text-dark",
         "Shipped" => "bg-primary",
@@ -21,6 +22,7 @@ public static class OrderStatusLabels
     public static string Text(string status, string shippingMethod = "None") => (status, IsPickup(shippingMethod)) switch
     {
         ("Pending", _) => "Ověřujeme sklad…",
+        ("AwaitingPayment", _) => "Čeká na platbu",
         ("Confirmed", _) => "Potvrzená",
         ("Packing", false) => "Balíme",
         ("Packing", true) => "Připravujeme",
@@ -37,6 +39,7 @@ public static class OrderStatusLabels
     public static string HistoryText(string status, string shippingMethod = "None") => (status, IsPickup(shippingMethod)) switch
     {
         ("Pending", _) => "Objednávka přijata, ověřujeme sklad",
+        ("AwaitingPayment", _) => "Zboží je rezervované – čekáme na platbu kartou",
         ("Confirmed", _) => "Sklad zboží zarezervoval – objednávka potvrzena",
         ("Packing", false) => "Objednávku balíme",
         ("Packing", true) => "Objednávku připravujeme k vyzvednutí",

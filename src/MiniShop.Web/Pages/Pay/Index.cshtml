@@ -1,0 +1,63 @@
+@page "/Pay/{orderId:int}"
+@model MiniShop.Web.Pages.Pay.IndexModel
+@{
+    ViewData["Title"] = "Platební brána (simulace)";
+}
+<div class="alert alert-secondary small">
+    <strong>Simulace platební brány.</strong> Ve skutečném e-shopu by tahle stránka byla na webu banky.
+    Tlačítko pošle MiniShopu podepsaný webhook – stejně jako skutečná brána. Nic se neplatí.
+</div>
+
+<div class="card mx-auto" style="max-width: 32rem">
+    <div class="card-body">
+        <h1 class="h4 card-title">Platba kartou</h1>
+
+        @if (Model.Payment is null)
+        {
+            @* Sága platbu založí až po rezervaci zboží (pár sekund). *@
+            <p class="text-muted" data-reload-when-idle>Připravujeme platbu – stránka se za chvilku sama obnoví…</p>
+        }
+        else
+        {
+            var payment = Model.Payment;
+            <p class="mb-1">Objednávka č. <strong>@payment.OrderId</strong></p>
+            <p class="fs-3 fw-bold mb-3" data-track="pay-amount">@payment.Amount.ToString("N2") Kč</p>
+
+            @if (payment.Status == "Pending" && !payment.IsExpired)
+            {
+                <p class="text-muted small">Zaplatit můžete do @payment.ExpiresAtUtc.ToLocalTime().ToString("g").</p>
+                <div class="d-flex gap-2">
+                    <form method="post" asp-page-handler="Pay" asp-route-orderId="@payment.OrderId">
+                        <button type="submit" class="btn btn-success" data-track="pay-confirm">Zaplatit</button>
+                    </form>
+                    <form method="post" asp-page-handler="Decline" asp-route-orderId="@payment.OrderId">
+                        <button type="submit" class="btn btn-outline-danger" data-track="pay-decline">Zamítnout</button>
+                    </form>
+                </div>
+                <p class="text-muted small mt-3">Když stránku jen zavřete, objednávka po uplynutí času vyprší a zboží se vrátí na sklad.</p>
+            }
+            else if (payment.Status == "Pending")
+            {
+                <div class="alert alert-warning">Čas na zaplacení vypršel – objednávku jsme zrušili a zboží vrátili na sklad.</div>
+            }
+            else if (payment.Status == "Succeeded")
+            {
+                <div class="alert alert-success">Zaplaceno.</div>
+            }
+            else if (payment.Status == "Refunded")
+            {
+                <div class="alert alert-info">Platba přišla po termínu – peníze vracíme.</div>
+            }
+            else
+            {
+                <div class="alert alert-danger">Platba zamítnuta: @payment.FailureReason</div>
+            }
+        }
+
+        <p class="mt-3 mb-0"><a asp-page="/Orders/Detail" asp-route-id="@Model.OrderId">← Zpět na objednávku</a></p>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/orders-reload.js" asp-append-version="true"></script>
+}

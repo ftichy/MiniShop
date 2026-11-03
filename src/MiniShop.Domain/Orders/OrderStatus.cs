@@ -3,6 +3,7 @@ namespace MiniShop.Domain.Orders;
 /// <summary>
 /// Životní cyklus objednávky od kroku 9 (sága):
 /// Pending → Confirmed (sklad zarezervoval) nebo Rejected (nezarezervoval / neodpověděl včas).
+/// E-shop krok 8: platba kartou – Pending → AwaitingPayment → Confirmed (zaplaceno) / Rejected (nezaplaceno).
 /// E-shop krok 6 (expedice): Confirmed → Packing → Shipped → Completed (= doručeno);
 /// zrušit (Cancelled) jde z Confirmed a Packing, po odeslání už ne.
 /// </summary>
@@ -27,5 +28,8 @@ public enum OrderStatus
     Packing = 5,
 
     /// <summary>E-shop krok 6: předána dopravci (osobní odběr: připravena k vyzvednutí). Zrušit už nejde.</summary>
-    Shipped = 6
+    Shipped = 6,
+
+    /// <summary>E-shop krok 8: zboží zarezervované, čeká se na platbu kartou (sága má termín, pak zamítne).</summary>
+    AwaitingPayment = 7
 }

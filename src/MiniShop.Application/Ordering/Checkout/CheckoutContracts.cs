@@ -39,6 +39,9 @@ public sealed class CheckoutRequest
 
     public ShippingMethod ShippingMethod { get; set; }
 
+    /// <summary>E-shop krok 8: kartou (sága čeká na platbu přes bránu), nebo dobírka.</summary>
+    public PaymentMethod PaymentMethod { get; set; }
+
     [MaxLength(DeliveryAddress.MaxLength)]
     public string? Street { get; set; }
 

@@ -13,6 +13,7 @@
 #   HEALTHCHECKS_BACKUP_URL=https://hc-ping.com/…   (krok 12, volitelný)
 #   SMTP_PASSWORD=abcdefghijklmnop                   (účty krok 5, volitelný – heslo aplikace Gmailu)
 #   INVENTORY_API_KEY=<64 hex znaků>                  (účty krok 7, povinný – servisní klíč skladu)
+#   PAYMENTS_WEBHOOK_SECRET=<64 hex znaků>            (e-shop krok 8, povinný – podpis webhooku platební brány)
 # Co na vstupu chybí (ruční spuštění z terminálu), vezme se z dosavadního .env. Netajná konfigurace je v gitu
 # (deploy/production.env). Soubor .env na VM skript pokaždé sestaví znovu – ruční změny v něm nepřežijí.
 # Změněné heslo RabbitMQ nejdřív vymění v běžícím RabbitMQ (RABBITMQ_DEFAULT_PASS platí jen při prvním startu).
@@ -42,6 +43,7 @@ basic_auth_hash=""
 healthchecks_backup_url=""
 smtp_password=""
 inventory_api_key=""
+payments_webhook_secret=""
 if [ ! -t 0 ]; then
     while IFS= read -r line || [ -n "$line" ]; do
         [ -z "$line" ] && continue
@@ -67,6 +69,10 @@ if [ ! -t 0 ]; then
                 # Účty krok 7: servisní klíč mezi Webem a skladem = 64 hex znaků (openssl rand -hex 32).
                 [[ "$value" =~ ^[0-9a-f]{64}$ ]] || { echo "Chybný INVENTORY_API_KEY (čekám 64 malých hex znaků)." >&2; exit 2; }
                 inventory_api_key="$value" ;;
+            PAYMENTS_WEBHOOK_SECRET)
+                # E-shop krok 8: tajemství pro podpis webhooku platební brány (HMAC) = 64 hex znaků (openssl rand -hex 32).
+                [[ "$value" =~ ^[0-9a-f]{64}$ ]] || { echo "Chybný PAYMENTS_WEBHOOK_SECRET (čekám 64 malých hex znaků)." >&2; exit 2; }
+                payments_webhook_secret="$value" ;;
             *)
                 echo "Neznámý klíč na vstupu: $key" >&2
                 exit 2 ;;
@@ -90,9 +96,11 @@ basic_auth_hash="${basic_auth_hash:-$(current BASIC_AUTH_HASH)}"
 healthchecks_backup_url="${healthchecks_backup_url:-$(current HEALTHCHECKS_BACKUP_URL)}"
 smtp_password="${smtp_password:-$(current SMTP_PASSWORD)}"
 inventory_api_key="${inventory_api_key:-$(current INVENTORY_API_KEY)}"
+payments_webhook_secret="${payments_webhook_secret:-$(current PAYMENTS_WEBHOOK_SECRET)}"
 [ -n "$rabbitmq_password" ] || { echo "Chybí RABBITMQ_PASSWORD (na vstupu ani v .env)." >&2; exit 2; }
 [ -n "$basic_auth_hash" ] || { echo "Chybí BASIC_AUTH_HASH (na vstupu ani v .env)." >&2; exit 2; }
 [ -n "$inventory_api_key" ] || { echo "Chybí INVENTORY_API_KEY (na vstupu ani v .env)." >&2; exit 2; }
+[ -n "$payments_webhook_secret" ] || { echo "Chybí PAYMENTS_WEBHOOK_SECRET (na vstupu ani v .env)." >&2; exit 2; }
 
 log "Nasazuji $tag (commit $sha), předchozí ${previous_tag:-žádná}"
 
@@ -121,6 +129,7 @@ chmod 755 "$work"/*.sh 2>/dev/null || true
         [ -n "$healthchecks_backup_url" ] && echo "HEALTHCHECKS_BACKUP_URL=$healthchecks_backup_url"
         [ -n "$smtp_password" ] && echo "SMTP_PASSWORD=$smtp_password"
         echo "INVENTORY_API_KEY=$inventory_api_key"
+        echo "PAYMENTS_WEBHOOK_SECRET=$payments_webhook_secret"
         true
     } > "$work/.env"
 )

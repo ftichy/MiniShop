@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using MiniShop.Application.Exceptions;
 using MiniShop.Application.Ordering;
+using MiniShop.Application.Ordering.Saga;
 using MiniShop.Web.Accounts;
 
 namespace MiniShop.Web.Pages.Orders;
@@ -14,7 +15,8 @@ namespace MiniShop.Web.Pages.Orders;
 /// Jen přihlášený (fallback policy). Zákazník vidí jen svou objednávku – cizí se tváří jako neexistující (404),
 /// admin jakoukoli. Zrušení a vyřízení posílají formuláře na stránku Objednávky (tam jsou handlery i kontrola práv).
 /// </remarks>
-public sealed class DetailModel(IOrderService orderService, IAuthorizationService authorization) : PageModel
+public sealed class DetailModel(IOrderService orderService, IAuthorizationService authorization, OrderSagaSettings sagaSettings)
+    : PageModel
 {
     public OrderDetailDto Detail { get; private set; } = null!;
 
@@ -22,6 +24,9 @@ public sealed class DetailModel(IOrderService orderService, IAuthorizationServic
 
     /// <summary>Admin: vyřízení a odkazy na průběh zadání (Journeys).</summary>
     public bool CanManageOrders { get; private set; }
+
+    /// <summary>E-shop krok 8: kolik minut má zákazník na platbu kartou (termín ságy).</summary>
+    public int PaymentMinutes => (int)sagaSettings.PaymentTimeout.TotalMinutes;
 
     /// <summary>Hláška z pokladny („Objednávka č. 5 přijata…“) – pokladna sem po odeslání přesměruje.</summary>
     [TempData]

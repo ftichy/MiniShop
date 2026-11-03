@@ -154,6 +154,11 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("PaymentMethod")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("RejectionReason")
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
@@ -260,9 +265,18 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
                     b.Property<int>("OrderId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTime?>("PaymentDeadlineUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("RefundRequested")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("RejectionReason")
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("RequiresPayment")
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("ReservationDeadlineUtc")
                         .HasColumnType("TEXT");
@@ -283,6 +297,8 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
                         .HasColumnType("INTEGER");
 
                     b.HasKey("OrderId");
+
+                    b.HasIndex("State", "PaymentDeadlineUtc");
 
                     b.HasIndex("State", "ReservationDeadlineUtc");
 

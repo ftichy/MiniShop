@@ -1,5 +1,6 @@
 using MiniShop.Application.Abstractions;
 using MiniShop.Contracts.Inventory;
+using MiniShop.Contracts.Payments;
 using MiniShop.Domain.Orders;
 using MiniShop.Domain.Orders.Events;
 using MiniShop.Domain.Orders.Saga;
@@ -29,7 +30,9 @@ public sealed class OrderSagaOrchestrator(
     IDomainEventHandler<OrderCancelled>,
     IIntegrationMessageHandler<StockReservedV1>,
     IIntegrationMessageHandler<StockReservationFailedV1>,
-    IIntegrationMessageHandler<StockReleasedV1>
+    IIntegrationMessageHandler<StockReleasedV1>,
+    IIntegrationMessageHandler<PaymentSucceededV1>,
+    IIntegrationMessageHandler<PaymentFailedV1>
 {
     /// <summary>Start ságy: objednávka vznikla → zapsat si to a požádat sklad o rezervaci.</summary>
     public async Task HandleAsync(OrderPlaced domainEvent, CancellationToken cancellationToken)
@@ -41,7 +44,8 @@ public sealed class OrderSagaOrchestrator(
             return;   // sága už běží
         }
 
-        sagas.Add(OrderSaga.Start(order.Id, UtcNow, settings.ReservationTimeout));
+        // E-shop krok 8: platba kartou = po rezervaci ještě čekat na platbu (dobírka a API objednávky ne).
+        sagas.Add(OrderSaga.Start(order.Id, UtcNow, settings.ReservationTimeout, order.RequiresOnlinePayment));
         publisher.Send(new ReserveStockV1(
             Guid.NewGuid(),
             UtcNow,
@@ -52,13 +56,20 @@ public sealed class OrderSagaOrchestrator(
     }
 
     public Task HandleAsync(StockReservedV1 message, CancellationToken cancellationToken) =>
-        StepAsync(message.OrderId, saga => saga.StockReserved(UtcNow), cancellationToken);
+        StepAsync(message.OrderId, saga => saga.StockReserved(UtcNow, settings.PaymentTimeout), cancellationToken);
 
     public Task HandleAsync(StockReservationFailedV1 message, CancellationToken cancellationToken) =>
         StepAsync(message.OrderId, saga => saga.StockReservationFailed(message.Reason, UtcNow), cancellationToken);
 
     public Task HandleAsync(StockReleasedV1 message, CancellationToken cancellationToken) =>
         StepAsync(message.OrderId, saga => saga.StockReleased(UtcNow), cancellationToken);
+
+    /// <summary>E-shop krok 8: brána potvrdila platbu → potvrdit objednávku (nebo vrátit peníze, když přišla pozdě).</summary>
+    public Task HandleAsync(PaymentSucceededV1 message, CancellationToken cancellationToken) =>
+        StepAsync(message.OrderId, saga => saga.PaymentSucceeded(UtcNow), cancellationToken);
+
+    public Task HandleAsync(PaymentFailedV1 message, CancellationToken cancellationToken) =>
+        StepAsync(message.OrderId, saga => saga.PaymentFailed(message.Reason, UtcNow), cancellationToken);
 
     /// <summary>E-shop krok 6: zboží odešlo – sága už ho při zrušení nevrací (zrušit stejně nejde).</summary>
     public Task HandleAsync(OrderShipped domainEvent, CancellationToken cancellationToken) =>
@@ -71,11 +82,12 @@ public sealed class OrderSagaOrchestrator(
         StepAsync(domainEvent.Order.Id, saga => saga.OrderCancelled(UtcNow), cancellationToken);
 
     /// <summary>
-    /// Volá OrderSagaTimeoutWorker pro ságy, které čekají na sklad příliš dlouho.
-    /// Vrací true, když se objednávka opravdu zamítla (sklad mezitím mohl odpovědět).
+    /// Volá OrderSagaTimeoutWorker pro ságy, které čekají na sklad (nebo od e-shop kroku 8 na platbu) příliš dlouho.
+    /// Vrací true, když se objednávka opravdu zamítla (sklad nebo brána mezitím mohli odpovědět).
     /// </summary>
     public async Task<bool> TimeOutAsync(int orderId, CancellationToken cancellationToken) =>
-        await StepAsync(orderId, saga => saga.ReservationTimedOut(UtcNow), cancellationToken) == OrderSagaAction.RejectOrder;
+        await StepAsync(orderId, saga => saga.TimedOut(UtcNow), cancellationToken)
+            is OrderSagaAction.RejectOrder or OrderSagaAction.RejectOrderAndReleaseStock;
 
     private async Task<OrderSagaAction> StepAsync(int orderId, Func<OrderSaga, OrderSagaAction> transition,
         CancellationToken cancellationToken)
@@ -98,6 +110,26 @@ public sealed class OrderSagaOrchestrator(
             case OrderSagaAction.ReleaseStock:
                 publisher.Send(new ReleaseStockV1(Guid.NewGuid(), UtcNow, orderId));       // kompenzace
                 break;
+
+            case OrderSagaAction.RequestPayment:
+            {
+                // E-shop krok 8: zboží drží rezervace, Payments připraví platbu (stránka brány) s termínem ságy.
+                var order = await GetOrderAsync(orderId, cancellationToken);
+                order.AwaitPayment(UtcNow);                                                   // → OrderAwaitingPayment
+                publisher.Send(new RequestPaymentV1(
+                    Guid.NewGuid(), UtcNow, orderId, order.CustomerId, order.TotalPrice, saga.PaymentDeadlineUtc!.Value));
+                break;
+            }
+
+            case OrderSagaAction.RejectOrderAndReleaseStock:
+                // E-shop krok 8: nezaplaceno – objednávku zamítnout a zboží vrátit, v jedné transakci (outbox).
+                (await GetOrderAsync(orderId, cancellationToken)).Reject(saga.RejectionReason!, UtcNow);
+                publisher.Send(new ReleaseStockV1(Guid.NewGuid(), UtcNow, orderId));
+                break;
+
+            case OrderSagaAction.RefundPayment:
+                publisher.Send(new RefundPaymentV1(Guid.NewGuid(), UtcNow, orderId));     // kompenzace pozdní platby
+                break;
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -113,4 +145,5 @@ public sealed class OrderSagaOrchestrator(
 
 /// <summary>Nastavení ságy (sekce Sagas v appsettings.json).</summary>
 /// <param name="ReservationTimeout">Jak dlouho čekat na odpověď skladu, než se objednávka zamítne.</param>
-public sealed record OrderSagaSettings(TimeSpan ReservationTimeout);
+/// <param name="PaymentTimeout">E-shop krok 8: jak dlouho čekat na platbu kartou (od rezervace), než se objednávka zamítne.</param>
+public sealed record OrderSagaSettings(TimeSpan ReservationTimeout, TimeSpan PaymentTimeout);

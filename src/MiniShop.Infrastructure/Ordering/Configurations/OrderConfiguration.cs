@@ -30,6 +30,7 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.HasIndex(o => o.CheckoutId).IsUnique();
         builder.Property(o => o.ShippingMethod).HasConversion<string>().HasMaxLength(20);
         builder.Property(o => o.ShippingPrice).HasPrecision(18, 2);
+        builder.Property(o => o.PaymentMethod).HasConversion<string>().HasMaxLength(20);   // e-shop krok 8
 
         // E-shop krok 6: expedice. Version = concurrency token – UPDATE … WHERE Version = původní; když objednávku
         // mezitím změnil někdo jiný (admin odeslal × zákazník zrušil), EF vyhodí výjimku a ModuleDbContext ji převede

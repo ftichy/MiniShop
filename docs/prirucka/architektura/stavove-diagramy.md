@@ -12,7 +12,10 @@ order: 6
 ```mermaid
 stateDiagram-v2
     [*] --> Pending : zákazník odeslal formulář
-    Pending --> Confirmed : sklad zarezervoval (sága)
+    Pending --> Confirmed : sklad zarezervoval (sága; dobírka, API)
+    Pending --> AwaitingPayment : sklad zarezervoval, platba kartou (e-shop krok 8)
+    AwaitingPayment --> Confirmed : zaplaceno (webhook brány)
+    AwaitingPayment --> Rejected : zamítnuto na bráně / 30 min bez platby → zboží zpět
     Pending --> Rejected : nedostatek zboží / sklad neodpověděl včas
     Confirmed --> Packing : admin začal balit
     Packing --> Shipped : admin odeslal (kurýr: dopravce + číslo zásilky)
@@ -28,6 +31,7 @@ stateDiagram-v2
 | --- | --- | --- |
 | `Pending` | Přijatá, čeká na rezervaci skladu | `OrderPlaced` |
 | `Confirmed` | Zboží zarezervované | `OrderConfirmed` |
+| `AwaitingPayment` | Zboží zarezervované, čeká se na platbu kartou (termín ságy) – e-shop krok 8 | `OrderAwaitingPayment` |
 | `Rejected` | Zamítnutá, důvod v `RejectionReason` | `OrderRejected` |
 | `Packing` | Balí se (osobní odběr: připravuje se) – e-shop krok 6 | `OrderPackingStarted` |
 | `Shipped` | Odeslaná, `Carrier` + `TrackingNumber` (osobní odběr: připravená k vyzvednutí); **zrušit už nejde** – e-shop krok 6 | `OrderShipped` → `OrderShippedV1` |
@@ -65,6 +69,10 @@ stateDiagram-v2
     AwaitingReservation --> Rejected : StockReservationFailedV1 → zamítne
     AwaitingReservation --> Rejected : timeout (30 s) → zamítne
     Rejected --> ReleasingStock : StockReservedV1 pozdě → pošle ReleaseStockV1
+    AwaitingReservation --> AwaitingPayment : StockReservedV1 + platba kartou → pošle RequestPaymentV1
+    AwaitingPayment --> Reserved : PaymentSucceededV1 → potvrdí objednávku
+    AwaitingPayment --> ReleasingStock : PaymentFailedV1 / timeout platby → zamítne + ReleaseStockV1
+    Released --> Released : PaymentSucceededV1 pozdě → RefundPaymentV1
     Reserved --> Shipped : OrderShipped (sklad vydá rezervaci sám z OrderShippedV1)
     Shipped --> Completed : OrderCompleted (doručeno)
     Reserved --> ReleasingStock : OrderCancelled (i během balení) → pošle ReleaseStockV1

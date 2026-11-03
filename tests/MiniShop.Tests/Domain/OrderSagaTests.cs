@@ -138,4 +138,74 @@ public class OrderSagaTests
 
         Assert.Equal(1, saga.Version);
     }
+
+    // --- E-shop krok 8: platba kartou ---
+
+    private static readonly TimeSpan PaymentTimeout = TimeSpan.FromMinutes(30);
+
+    private static OrderSaga CardSaga()
+    {
+        var saga = OrderSaga.Start(orderId: 42, Start, Timeout, requiresPayment: true);
+        Assert.Equal(OrderSagaAction.RequestPayment, saga.StockReserved(Start, PaymentTimeout));
+        return saga;
+    }
+
+    [Fact]
+    public void Platba_PoRezervaciCekaNaPlatbuSTerminem()
+    {
+        var saga = CardSaga();
+
+        Assert.Equal(OrderSagaState.AwaitingPayment, saga.State);
+        Assert.Equal(Start + PaymentTimeout, saga.PaymentDeadlineUtc);
+    }
+
+    [Fact]
+    public void Platba_Zaplaceno_Potvrdit_DruhaZpravaNicNeudela()
+    {
+        var saga = CardSaga();
+
+        Assert.Equal(OrderSagaAction.ConfirmOrder, saga.PaymentSucceeded(Start));
+        Assert.Equal(OrderSagaState.Reserved, saga.State);
+        Assert.Equal(OrderSagaAction.None, saga.PaymentSucceeded(Start));   // duplicita – nic (a žádné vrácení peněz)
+    }
+
+    [Fact]
+    public void Platba_Zamitnuta_ZamitnoutAVratitZbozi()
+    {
+        var saga = CardSaga();
+
+        Assert.Equal(OrderSagaAction.RejectOrderAndReleaseStock, saga.PaymentFailed("Karta zamítnuta", Start));
+        Assert.Equal((OrderSagaState.ReleasingStock, "Karta zamítnuta"), (saga.State, saga.RejectionReason));
+    }
+
+    [Fact]
+    public void Platba_Timeout_AzPoTerminu()
+    {
+        var saga = CardSaga();
+
+        Assert.Equal(OrderSagaAction.None, saga.TimedOut(Start + PaymentTimeout - TimeSpan.FromSeconds(1)));
+        Assert.Equal(OrderSagaAction.RejectOrderAndReleaseStock, saga.TimedOut(Start + PaymentTimeout));
+        Assert.Equal(OrderSaga.PaymentTimeoutReason, saga.RejectionReason);
+    }
+
+    [Fact]
+    public void Platba_PozdniPlatba_VratitPenizeJednou()
+    {
+        var saga = CardSaga();
+        saga.TimedOut(Start + PaymentTimeout);
+        saga.StockReleased(Start + PaymentTimeout);
+
+        Assert.Equal(OrderSagaAction.RefundPayment, saga.PaymentSucceeded(Start + PaymentTimeout));
+        Assert.Equal(OrderSagaAction.None, saga.PaymentSucceeded(Start + PaymentTimeout));   // vrací se jen jednou
+        Assert.Equal(OrderSagaState.Released, saga.State);
+    }
+
+    [Fact]
+    public void Platba_DobirkaPotvrdiHnedPoRezervaci()
+    {
+        var saga = OrderSaga.Start(orderId: 42, Start, Timeout, requiresPayment: false);
+
+        Assert.Equal(OrderSagaAction.ConfirmOrder, saga.StockReserved(Start, PaymentTimeout));
+        Assert.Equal(OrderSagaAction.None, saga.PaymentSucceeded(Start));   // platba sem nepatří
+    }
 }

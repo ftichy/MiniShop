@@ -42,6 +42,7 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
     private readonly InMemoryDatabase _ordering = new();
     private readonly InMemoryDatabase _journeys = new();
     private readonly InMemoryDatabase _accounts = new();
+    private readonly InMemoryDatabase _notifications = new();   // e-shop krok 7
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -49,6 +50,7 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
         builder.UseSetting("ConnectionStrings:Ordering", _ordering.ConnectionString);
         builder.UseSetting("ConnectionStrings:Journeys", _journeys.ConnectionString);
         builder.UseSetting("ConnectionStrings:Accounts", _accounts.ConnectionString);
+        builder.UseSetting("ConnectionStrings:Notifications", _notifications.ConnectionString);
         // Účty krok 7: servisní klíč skladu (sklad tu nahrazuje StubProductService, ale bez klíče by se Web nespustil).
         builder.UseSetting("InventoryApi:ApiKey", new string('k', 64));
         // Účty krok 8: limit formulářů účtu vysoko – testy se přihlašují stokrát z jedné „IP“. Limit zkouší vlastní test.
@@ -209,6 +211,7 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
         _ordering.Dispose();
         _journeys.Dispose();
         _accounts.Dispose();
+        _notifications.Dispose();
     }
 
     [GeneratedRegex("name=\"__RequestVerificationToken\" type=\"hidden\" value=\"([^\"]+)\"")]

@@ -25,6 +25,7 @@ public sealed class ModuleBoundariesTests
     private const string Inventory = "Inventory";
     private const string Journeys = "Journeys";
     private const string Accounts = "Accounts";
+    private const string Notifications = "Notifications";
 
     /// <summary>Namespace modulu v každé vrstvě (Domain používá "Orders"; Accounts je zatím jen v Infrastructure).</summary>
     private static readonly IReadOnlyDictionary<string, string[]> ModuleNamespaces = new Dictionary<string, string[]>
@@ -32,7 +33,8 @@ public sealed class ModuleBoundariesTests
         [Ordering] = ["MiniShop.Domain.Orders", "MiniShop.Application.Ordering", "MiniShop.Infrastructure.Ordering"],
         [Inventory] = ["MiniShop.Domain.Inventory", "MiniShop.Application.Inventory", "MiniShop.Infrastructure.Inventory"],
         [Journeys] = ["MiniShop.Domain.Journeys", "MiniShop.Application.Journeys", "MiniShop.Infrastructure.Journeys"],
-        [Accounts] = ["MiniShop.Infrastructure.Accounts"]
+        [Accounts] = ["MiniShop.Infrastructure.Accounts"],
+        [Notifications] = ["MiniShop.Domain.Notifications", "MiniShop.Application.Notifications", "MiniShop.Infrastructure.Notifications"]
     };
 
     [Theory]
@@ -48,6 +50,11 @@ public sealed class ModuleBoundariesTests
     [InlineData(Accounts, Inventory)]
     [InlineData(Journeys, Accounts)]
     [InlineData(Accounts, Journeys)]
+    [InlineData(Notifications, Ordering)]   // e-shop krok 7: oznámení znají objednávky jen ze zpráv (Contracts)
+    [InlineData(Ordering, Notifications)]   // … a Ordering o oznámeních neví vůbec
+    [InlineData(Notifications, Inventory)]
+    [InlineData(Notifications, Accounts)]
+    [InlineData(Notifications, Journeys)]
     public void Modul_NezavisiNaJinemModulu(string module, string forbiddenModule)
     {
         foreach (var moduleNamespace in ModuleNamespaces[module])
@@ -60,6 +67,22 @@ public sealed class ModuleBoundariesTests
             Assert.True(result.IsSuccessful,
                 $"{moduleNamespace} sahá do modulu {forbiddenModule}: {string.Join(", ", result.FailingTypeNames ?? [])}");
         }
+    }
+
+    /// <summary>
+    /// E-shop krok 7: Ordering zákazníkovi nepíše – jen oznamuje fakta (integrační události). E-maily posílá modul
+    /// Notifications; kdyby se odesílání e-mailu vrátilo do objednávek, test spadne.
+    /// </summary>
+    [Fact]
+    public void Ordering_NeposilaEmaily()
+    {
+        var result = Types.InAssemblies(SourceAssemblies)
+            .That().ResideInNamespace("MiniShop.Application.Ordering")
+            .Or().ResideInNamespace("MiniShop.Infrastructure.Ordering")
+            .ShouldNot().HaveDependencyOnAny("MiniShop.Application.Abstractions.IEmailSender", "MiniShop.Infrastructure.Email")
+            .GetResult();
+
+        Assert.True(result.IsSuccessful, string.Join(", ", result.FailingTypeNames ?? []));
     }
 
     /// <summary>Společné jádro (outbox, inbox, bus, základ DbContextu) nesmí znát žádný modul – jinak by nešlo sdílet.</summary>

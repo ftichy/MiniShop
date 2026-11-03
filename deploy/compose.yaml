@@ -122,6 +122,8 @@ services:
       Email__UserName: ${EMAIL_USERNAME:-}
       Email__Password: ${SMTP_PASSWORD:-}
       Email__FromAddress: ${EMAIL_FROM_ADDRESS:-minishop@localhost}
+      # E-shop krok 7: odkazy v e-mailech o objednávce (modul Notifications). Produkce: PUBLIC_BASE_URL v production.env.
+      Notifications__PublicBaseUrl: ${PUBLIC_BASE_URL:-http://localhost:8080}
     volumes:
       - web-data:/data
     ports:

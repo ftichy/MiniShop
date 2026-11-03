@@ -11,4 +11,7 @@ public static class IntegrationModules
 
     /// <summary>Sklad: rezervace a jejich uvolnění.</summary>
     public const string Inventory = "inventory";
+
+    /// <summary>E-shop krok 7: e-maily zákazníkovi podle událostí objednávky (jen poslouchá, nic neposílá).</summary>
+    public const string Notifications = "notifications";
 }

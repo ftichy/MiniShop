@@ -11,11 +11,12 @@ using MiniShop.Application.Exceptions;
 using MiniShop.Application.Ordering.Carts;
 using MiniShop.Application.Ordering.Catalog;
 using MiniShop.Application.Ordering.Checkout;
-using MiniShop.Application.Ordering.EventHandlers;
+using MiniShop.Application.Notifications;
 using MiniShop.Application.Ordering.IntegrationEvents;
 using MiniShop.Application.Ordering.Saga;
 using MiniShop.Application.Ordering.Pricing;
 using MiniShop.Contracts;
+using MiniShop.Contracts.Customers;
 using MiniShop.Contracts.Inventory;
 using MiniShop.Contracts.Orders;
 using MiniShop.Domain.Common;
@@ -28,6 +29,7 @@ using MiniShop.Infrastructure.Events;
 using MiniShop.Infrastructure.Integration;
 using MiniShop.Infrastructure.Outbox;
 using MiniShop.Infrastructure.Inventory;
+using MiniShop.Infrastructure.Notifications;
 using MiniShop.Infrastructure.Ordering;
 using MiniShop.Tests.TestDoubles;
 
@@ -51,7 +53,8 @@ public sealed class OrderServiceTests : IDisposable
     private readonly InMemoryDatabase _orderingDatabase = new();
     private readonly InMemoryDatabase _inventoryDatabase = new();
     private readonly FixedTimeProvider _time = new(Now);
-    private readonly RecordingOrderNotifier _notifier = new();
+    private readonly InMemoryDatabase _notificationsDatabase = new();   // e-shop krok 7: modul Notifications
+    private readonly RecordingEmailSender _emails = new();
     private readonly InMemoryProductImageStore _images = new();   // e-shop krok 2B
     private readonly List<IDomainEvent> _dispatched = new();
     private readonly ServiceProvider _services;
@@ -67,11 +70,8 @@ public sealed class OrderServiceTests : IDisposable
         // Stejné služby a handlery jako v aplikaci (ApplicationServiceCollectionExtensions).
         services.AddScoped<IOrderService, OrderService>();
         services.AddSingleton<IDiscountPolicy>(new QuantityDiscountPolicy(minimumQuantity: 10, percentage: 0.10m));
-        services.AddDomainEventHandler<OrderConfirmed, SendOrderConfirmationHandler>();
-        services.AddDomainEventHandler<OrderRejected, SendRejectionNoticeHandler>();
-        services.AddDomainEventHandler<OrderShipped, SendShippingNoticeHandler>();          // e-shop krok 6
-        services.AddDomainEventHandler<OrderCompleted, SendCompletionNoticeHandler>();
-        services.AddDomainEventHandler<OrderCancelled, SendCancellationNoticeHandler>();
+        services.AddDomainEventHandler<OrderConfirmed, PublishOrderIntegrationEventsHandler>();   // e-shop krok 7
+        services.AddDomainEventHandler<OrderRejected, PublishOrderIntegrationEventsHandler>();
         services.AddDomainEventHandler<OrderPlaced, PublishOrderIntegrationEventsHandler>();
         services.AddDomainEventHandler<OrderShipped, PublishOrderIntegrationEventsHandler>();
         services.AddDomainEventHandler<OrderCompleted, PublishOrderIntegrationEventsHandler>();
@@ -104,9 +104,21 @@ public sealed class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<SyncCatalogV1, SyncCatalogHandler>(IntegrationModules.Inventory);
         services.AddScoped<CatalogSyncService>();
 
+        // E-shop krok 7: modul Notifications (e-maily podle integračních událostí) – jako AddNotificationsModule ve Webu.
+        services.AddNotificationsInfrastructure(_notificationsDatabase.ConnectionString);
+        services.AddSingleton(new NotificationSettings("https://minishop.test"));
+        services.AddSingleton<OrderEmailTemplates>();
+        services.AddIntegrationMessageHandler<OrderPlacedV2, OrderNotificationsHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<OrderConfirmedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<OrderRejectedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<OrderShippedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<OrderCompletedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<OrderCancelledV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<CustomerAnonymizedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
+
         // Testovací náhrady: notifikace do seznamu, "broker" si zprávy zapamatuje a doručí je v procesu,
         // skutečný dispatcher obalený záznamníkem.
-        services.AddSingleton<IOrderNotifier>(_notifier);
+        services.AddSingleton<IEmailSender>(_emails);
         services.AddSingleton<IIntegrationBus>(sp =>
             new RecordingIntegrationBus(ActivatorUtilities.CreateInstance<InProcessIntegrationBus>(sp)));
         services.AddScoped<DomainEventDispatcher>();
@@ -116,6 +128,7 @@ public sealed class OrderServiceTests : IDisposable
         _services = services.BuildServiceProvider();
         _bus = (RecordingIntegrationBus)_services.GetRequiredService<IIntegrationBus>();
         OrderingDatabaseInitializer.InitializeAsync(_services).GetAwaiter().GetResult();
+        NotificationsDatabaseInitializer.InitializeAsync(_services).GetAwaiter().GetResult();
         InventoryDb(async db => { await InventoryDatabaseInitializer.MigrateAsync(db); return true; }).GetAwaiter().GetResult();
     }
 
@@ -133,7 +146,7 @@ public sealed class OrderServiceTests : IDisposable
         Assert.Equal(300m, order.TotalPrice);
         Assert.Equal(Now.UtcDateTime, order.CreatedAtUtc);
         Assert.Equal(5, await StockAsync());
-        Assert.Empty(_notifier.Events);
+        Assert.Empty(NotifierEvents);
     }
 
     [Fact]
@@ -146,7 +159,7 @@ public sealed class OrderServiceTests : IDisposable
 
         Assert.Equal("Confirmed", await StatusAsync(order.Id));
         Assert.Equal(2, await StockAsync());
-        Assert.Contains($"confirmed:{order.Id}", _notifier.Events);
+        Assert.Contains($"confirmed:{order.Id}", NotifierEvents);
 
         var saga = await SagaAsync(order.Id);
         Assert.Equal(OrderSagaState.Reserved, saga.State);
@@ -185,7 +198,7 @@ public sealed class OrderServiceTests : IDisposable
         Assert.Contains("požadováno 3 ks, skladem 2 ks", rejected.RejectionReason);
         Assert.Equal(2, await StockAsync());
         Assert.Empty(await InventoryDb(db => db.StockReservations.ToListAsync()));
-        Assert.Contains($"rejected:{order.Id}", _notifier.Events);
+        Assert.Contains($"rejected:{order.Id}", NotifierEvents);
         Assert.Equal(OrderSagaState.Rejected, (await SagaAsync(order.Id)).State);
     }
 
@@ -326,7 +339,7 @@ public sealed class OrderServiceTests : IDisposable
         await ProcessOutboxAsync();
 
         Assert.Equal(5, await StockAsync());
-        Assert.Contains($"cancelled:{order.Id}", _notifier.Events);
+        Assert.Contains($"cancelled:{order.Id}", NotifierEvents);
         Assert.Single(_bus.Published.OfType<ReleaseStockV1>());
         Assert.Single(_bus.Published.OfType<StockReleasedV1>());
         Assert.Equal(OrderSagaState.Released, (await SagaAsync(order.Id)).State);
@@ -368,7 +381,7 @@ public sealed class OrderServiceTests : IDisposable
 
         var shipped = Assert.Single(_bus.Published.OfType<OrderShippedV1>());
         Assert.Equal((order.Id, "PPL", "123456"), (shipped.OrderId, shipped.Carrier, shipped.TrackingNumber));
-        Assert.Contains($"shipped:{order.Id}", _notifier.Events);
+        Assert.Contains($"shipped:{order.Id}", NotifierEvents);
         Assert.Equal(OrderSagaState.Shipped, (await SagaAsync(order.Id)).State);
         var reservation = Assert.Single(await InventoryDb(db => db.StockReservations.Where(r => r.OrderId == order.Id).ToListAsync()));
         Assert.NotNull(reservation.FulfilledAtUtc);
@@ -377,7 +390,7 @@ public sealed class OrderServiceTests : IDisposable
         await Orders(s => s.CompleteAsync(order.Id));
         await ProcessOutboxAsync();
 
-        Assert.Contains($"completed:{order.Id}", _notifier.Events);
+        Assert.Contains($"completed:{order.Id}", NotifierEvents);
         Assert.Equal(4, await StockAsync());   // výdej zásobu nemění – odečetla se při rezervaci
         Assert.Equal(OrderSagaState.Completed, (await SagaAsync(order.Id)).State);
         var detail = await Orders(s => s.GetDetailAsync(order.Id, OrderAccess.AllOrders));
@@ -446,28 +459,92 @@ public sealed class OrderServiceTests : IDisposable
         Assert.Equal(["Pending", "Confirmed", "Packing", "Cancelled"], detail.History.Select(h => h.Status));
     }
 
+    /// <summary>
+    /// E-shop krok 7: e-mail o zrušení poprvé selže (SMTP nejde). Selže jen doručení OrderCancelledV1 do Notifications
+    /// – zpráva se zopakuje a e-mail odejde právě jednou. Objednávky ani skladu se výpadek e-mailu netýká
+    /// (dřív byl e-mail handler uvnitř Orderingu a jeho chyba opakovala i doménovou událost).
+    /// </summary>
     [Fact]
-    public async Task Cancel_NotifikacePoprveSelze_PriOpakovaniSeZboziNevratiDvakrat()
+    public async Task Cancel_EmailPoprveSelze_PriOpakovaniJedenEmailAZboziJednou()
     {
         var product = await AddProductAsync(price: 100m, stock: 5);
         var order = await PlaceConfirmedOrderAsync(product.Id, quantity: 2);
-        _notifier.CancellationFailuresLeft = 1;
+        _emails.FailNext = ("je zrušená", 1);
 
         await Orders(s => s.CancelAsync(order.Id, OrderAccess.AllOrders));
-
-        // 1. kolo workera: orchestrátor pošle ReleaseStock, notifikace selže → OrderCancelled zůstane nezpracovaná.
-        await ProcessOneRoundAsync();
-        Assert.DoesNotContain($"cancelled:{order.Id}", _notifier.Events);
-
-        // Další kola: OrderCancelled se zopakuje – orchestrátor ji díky inboxu přeskočí, notifikace projde.
         await ProcessOutboxAsync();
-        Assert.Equal(5, await StockAsync());   // bez inboxu by šly dva příkazy ReleaseStock
-        Assert.Contains($"cancelled:{order.Id}", _notifier.Events);
-        Assert.Single(_bus.Published.OfType<ReleaseStockV1>());
 
-        var message = await OrderingDb(db => db.OutboxMessages.SingleAsync(m => m.Type == "OrderCancelled"));
-        Assert.NotNull(message.ProcessedAtUtc);
-        Assert.Equal(1, message.Attempts);
+        Assert.Equal(5, await StockAsync());
+        Assert.Single(_bus.Published.OfType<ReleaseStockV1>());
+        Assert.Single(NotifierEvents, e => e == $"cancelled:{order.Id}");
+        var message = await OrderingDb(db => db.OutboxMessages.SingleAsync(m => m.Type == nameof(OrderCancelledV1)));
+        Assert.NotNull(message.ProcessedAtUtc);   // napodruhé doručeno
+    }
+
+    // ---------- E-shop krok 7: Notifications ----------
+
+    [Fact]
+    public async Task Notifikace_CelaCesta_KazdyStavPraveJedenEmailSOdkazem()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await PlaceConfirmedOrderAsync(product.Id, quantity: 1);
+        await ShipAsync(order.Id);
+        await Orders(s => s.CompleteAsync(order.Id));
+        await ProcessOutboxAsync();
+        await ProcessOutboxAsync();   // další kola nic nového nepošlou (inbox)
+
+        Assert.Equal(
+            [$"placed:{order.Id}", $"confirmed:{order.Id}", $"shipped:{order.Id}", $"completed:{order.Id}"],
+            NotifierEvents);
+        var placed = _emails.Sent[0];
+        Assert.Equal("jan@example.com", placed.To);
+        Assert.Contains("Jan Novák", placed.TextBody);
+        Assert.Contains("1 × Testovací produkt", placed.TextBody);
+        Assert.Contains($"https://minishop.test/Orders/{order.Id}", placed.TextBody);
+        Assert.Contains($"href=\"https://minishop.test/Orders/{order.Id}\"", placed.HtmlBody);
+        Assert.Contains("číslo zásilky 123456", _emails.Sent[2].TextBody);
+    }
+
+    [Fact]
+    public async Task Notifikace_StejnaZpravaDvakrat_JedenEmail()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await PlaceConfirmedOrderAsync(product.Id, quantity: 1);
+        var confirmed = Assert.Single(_bus.Published.OfType<OrderConfirmedV1>());
+
+        await RedeliverAsync(confirmed, IntegrationModules.Notifications);   // broker zprávu doručil znovu
+
+        Assert.Single(NotifierEvents, e => e == $"confirmed:{order.Id}");
+    }
+
+    [Fact]
+    public async Task Notifikace_PotvrzeniPredbehloVznik_ZkusiSeZnovu()
+    {
+        // Potvrzení objednávky, o které Notifications ještě neví (OrderPlacedV2 nedorazilo) – handler selže,
+        // zpráva se zopakuje. Po 5 minutách to vzdá (objednávka z doby před modulem Notifications).
+        var early = new OrderConfirmedV1(Guid.NewGuid(), Now.UtcDateTime, 777);
+
+        await Assert.ThrowsAsync<AggregateException>(() => RedeliverAsync(early, IntegrationModules.Notifications));
+
+        _time.Advance(OrderNotificationsHandler.MaxWaitForPlacedOrder);
+        await RedeliverAsync(early, IntegrationModules.Notifications);
+        Assert.Empty(_emails.Sent);
+    }
+
+    [Fact]
+    public async Task Notifikace_SmazanyUcet_ZapomeneZakaznika()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await PlaceConfirmedOrderAsync(product.Id, quantity: 1);
+        await Orders(s => s.CancelAsync(order.Id, OrderAccess.AllOrders));
+        await ProcessOutboxAsync();
+        Assert.True(await NotificationsDb(db => db.OrderRecipients.AnyAsync(r => r.OrderId == order.Id)));
+
+        await Orders(s => s.AnonymizeCustomerAsync(Jan.CustomerId));
+        await ProcessOutboxAsync();   // CustomerAnonymizedV1 → Notifications
+
+        Assert.Single(_bus.Published.OfType<CustomerAnonymizedV1>());
+        Assert.False(await NotificationsDb(db => db.OrderRecipients.AnyAsync(r => r.CustomerId == Jan.CustomerId)));
     }
 
     // ---------- Timeout a pozdní odpověď ----------
@@ -499,8 +576,8 @@ public sealed class OrderServiceTests : IDisposable
         Assert.Equal(5, await StockAsync());                      // zboží je zpátky
         Assert.Equal("Rejected", await StatusAsync(order.Id));    // objednávka zůstala zamítnutá
         Assert.Equal(OrderSagaState.Released, (await SagaAsync(order.Id)).State);
-        Assert.Contains($"rejected:{order.Id}", _notifier.Events);
-        Assert.DoesNotContain($"confirmed:{order.Id}", _notifier.Events);
+        Assert.Contains($"rejected:{order.Id}", NotifierEvents);
+        Assert.DoesNotContain($"confirmed:{order.Id}", NotifierEvents);
     }
 
     [Fact]
@@ -526,7 +603,7 @@ public sealed class OrderServiceTests : IDisposable
         await _bus.PublishAsync(new StockReservedV1(Guid.NewGuid(), Now.UtcDateTime, order.Id));
         await ProcessOutboxAsync();
 
-        Assert.Single(_notifier.Events, e => e == $"confirmed:{order.Id}");
+        Assert.Single(NotifierEvents, e => e == $"confirmed:{order.Id}");
         Assert.Equal("Confirmed", await StatusAsync(order.Id));
     }
 
@@ -557,7 +634,7 @@ public sealed class OrderServiceTests : IDisposable
         // 1. kolo: handlery OrderPlaced zapíšou do outboxu integrační událost i příkaz pro sklad – ven ještě neodešly.
         await ProcessOneRoundAsync();
         var integration = await OrderingDb(db => db.OutboxMessages.Where(m => m.Kind == OutboxMessageKind.Integration).ToListAsync());
-        Assert.Equal(new[] { "OrderPlacedV1", "ReserveStockV1" }, integration.Select(m => m.Type).Order());
+        Assert.Equal(new[] { "OrderPlacedV1", "OrderPlacedV2", "ReserveStockV1" }, integration.Select(m => m.Type).Order());   // e-shop krok 7: V2
         Assert.All(integration, m => Assert.Null(m.ProcessedAtUtc));
         Assert.Empty(_bus.Published);
 
@@ -607,7 +684,7 @@ public sealed class OrderServiceTests : IDisposable
         Assert.Equal(
             new[]
             {
-                "OrderCancelled", "OrderCancelledV1", "OrderConfirmed", "OrderPlaced", "OrderPlacedV1",
+                "OrderCancelled", "OrderCancelledV1", "OrderConfirmed", "OrderConfirmedV1", "OrderPlaced", "OrderPlacedV1", "OrderPlacedV2",
                 "ReleaseStockV1", "ReserveStockV1"
             },
             ordering.Select(m => m.Type).Order());
@@ -1303,6 +1380,26 @@ public sealed class OrderServiceTests : IDisposable
     // ---------- Pomocné metody ----------
 
     /// <summary>
+    /// E-shop krok 7: e-maily, které modul Notifications „odeslal“, jako krátké záznamy „confirmed:5“, „shipped:5“…
+    /// (podle předmětu šablony) – testy se tak ptají na typ oznámení, ne na přesné znění.
+    /// </summary>
+    private IReadOnlyList<string> NotifierEvents => _emails.Sent.Select(email =>
+    {
+        var orderId = System.Text.RegularExpressions.Regex.Match(email.Subject, @"č\. (\d+)").Groups[1].Value;
+        var kind = email.Subject switch
+        {
+            var s when s.Contains("jsme přijali") => "placed",
+            var s when s.Contains("je potvrzená") => "confirmed",
+            var s when s.Contains("nelze vyřídit") => "rejected",
+            var s when s.Contains("je na cestě") || s.Contains("k vyzvednutí") => "shipped",
+            var s when s.Contains("je doručená") || s.Contains("je vyzvednutá") => "completed",
+            var s when s.Contains("je zrušená") => "cancelled",
+            _ => email.Subject
+        };
+        return $"{kind}:{orderId}";
+    }).ToList();
+
+    /// <summary>
     /// Zpracuje outboxy všech modulů jako několik kol OutboxWorkeru: pokračuje, dokud byla dávka plná nebo
     /// handlery přidaly nové zprávy (sága = řetěz zpráv). Pozor: v dalších kolech se zkusí znovu
     /// i zprávy, které selhaly – pro jedno kolo je <see cref="ProcessOneRoundAsync"/>.
@@ -1375,6 +1472,19 @@ public sealed class OrderServiceTests : IDisposable
     {
         await using var scope = _services.CreateAsyncScope();
         return await action(scope.ServiceProvider.GetRequiredService<InventoryDbContext>());
+    }
+
+    private async Task<T> NotificationsDb<T>(Func<NotificationsDbContext, Task<T>> action)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await action(scope.ServiceProvider.GetRequiredService<NotificationsDbContext>());
+    }
+
+    /// <summary>E-shop krok 7: doručí zprávu modulu ještě jednou (jako broker po výpadku) – ve vlastním scope.</summary>
+    private async Task RedeliverAsync(IIntegrationMessage message, string module)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<IntegrationMessageDispatcher>().DispatchAsync(message, module);
     }
 
     /// <summary>Zavolá obnovu katalogu ve vlastním scope – jako CatalogSyncOnStartupWorker nebo tlačítko v UI.</summary>
@@ -1503,5 +1613,6 @@ public sealed class OrderServiceTests : IDisposable
         _services.Dispose();
         _orderingDatabase.Dispose();
         _inventoryDatabase.Dispose();
+        _notificationsDatabase.Dispose();
     }
 }

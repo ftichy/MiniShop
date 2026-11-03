@@ -1,4 +1,5 @@
 using MiniShop.Application.Abstractions;
+using MiniShop.Contracts.Customers;
 using MiniShop.Application.Exceptions;
 using MiniShop.Application.Ordering.Carts;
 using MiniShop.Application.Ordering.Pricing;
@@ -25,6 +26,7 @@ public sealed class OrderService(
     ICatalogProductRepository catalog,
     ICartRepository carts,
     IOrderingUnitOfWork unitOfWork,
+    IOrderingMessagePublisher publisher,
     IEnumerable<IDiscountPolicy> discountPolicies,
     TimeProvider timeProvider) : IOrderService
 {
@@ -181,6 +183,10 @@ public sealed class OrderService(
         {
             carts.Remove(cart);
         }
+
+        // E-shop krok 7: kdo si z událostí uložil osobní údaje zákazníka (Notifications), musí zapomenout. Ve stejné
+        // transakci jako anonymizace (outbox) – buď obojí, nebo nic.
+        publisher.Publish(new CustomerAnonymizedV1(Guid.NewGuid(), UtcNow, customerId));
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return customerOrders.Count;

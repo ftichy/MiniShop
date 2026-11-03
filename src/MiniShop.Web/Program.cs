@@ -6,6 +6,7 @@ using MiniShop.Infrastructure.Accounts;
 using MiniShop.Infrastructure.Email;
 using MiniShop.Infrastructure.Hosting;
 using MiniShop.Infrastructure.Journeys;
+using MiniShop.Infrastructure.Notifications;
 using MiniShop.Infrastructure.Ordering;
 using MiniShop.ServiceDefaults;
 using MiniShop.Web.Accounts;
@@ -57,11 +58,16 @@ try
     var accountsConnectionString = builder.Configuration.GetConnectionString("Accounts")
         ?? throw new InvalidOperationException("Chybí connection string 'Accounts' v appsettings.json.");
 
+    // E-shop krok 7: oznámení zákazníkům (modul Notifications) – příjemci a inbox ve vlastní databázi.
+    var notificationsConnectionString = builder.Configuration.GetConnectionString("Notifications")
+        ?? throw new InvalidOperationException("Chybí connection string 'Notifications' v appsettings.json.");
+
     // Registrace vrstev (composition root).
     builder.Services.AddApplication(builder.Configuration);
     builder.Services.AddInfrastructureCore();
     builder.Services.AddOrderingInfrastructure(orderingConnectionString);
     builder.Services.AddJourneysInfrastructure(journeysConnectionString);
+    builder.Services.AddNotificationsInfrastructure(notificationsConnectionString);
     builder.Services.AddAccounts(accountsConnectionString);
 
     // Účty krok 8: zpevnění – limit odeslání formulářů účtu z jedné IP a HSTS (prohlížeč pak chodí jen přes HTTPS).
@@ -115,6 +121,7 @@ try
 
     await OrderingDatabaseInitializer.InitializeAsync(app.Services);
     await JourneysDatabaseInitializer.InitializeAsync(app.Services);
+    await NotificationsDatabaseInitializer.InitializeAsync(app.Services);
 
     // Účty krok 2: role + první admin. AdminBootstrap je nastavený jen ve vývoji (appsettings.Development.json),
     // v produkci admina založí příkaz create-admin.

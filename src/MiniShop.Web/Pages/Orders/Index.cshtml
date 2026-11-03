@@ -25,6 +25,8 @@ else if (Model.NeedsEmailConfirmation)
 
 @if (Model.CanManageOrders)
 {
+    @* E-shop krok 6: balení, odeslání a doručení – vlastní stránka s frontami. *@
+    <p><a asp-page="/Admin/Fulfilment/Index" class="btn btn-outline-primary btn-sm" data-track="orders-to-fulfilment">Expedice</a></p>
     <form method="post" asp-page-handler="SyncCatalog" class="mb-4">
         <button type="submit" class="btn btn-link btn-sm p-0">Obnovit katalog ze skladu</button>
         <span class="text-muted small">– když v nabídce chybí produkt, který sklad má</span>
@@ -77,15 +79,10 @@ else if (Model.NeedsEmailConfirmation)
                     <a asp-page="/Orders/Journey" asp-route-orderId="@order.Id" class="btn btn-sm btn-link">Průběh zadání</a>
                     <a asp-page="/Orders/Replay" asp-route-orderId="@order.Id" asp-route-autoplay="1" class="btn btn-sm btn-link">▶ Přehrát</a>
                 }
-                <span class="badge @IndexModel.StatusBadge(order.Status) me-2">@IndexModel.StatusText(order.Status)</span>
-                @if (order.Status == "Confirmed")
+                <span class="badge @OrderStatusLabels.Badge(order.Status) me-2">@OrderStatusLabels.Text(order.Status, order.ShippingMethod)</span>
+                @* E-shop krok 6: „Vyřídit“ nahradila stránka Expedice; zrušit jde i během balení. *@
+                @if (OrderStatusLabels.CanCancel(order.Status))
                 {
-                    @if (Model.CanManageOrders)
-                    {
-                        <form method="post" asp-page-handler="Complete" asp-route-id="@order.Id" class="d-inline">
-                            <button type="submit" class="btn btn-sm btn-success">Vyřídit</button>
-                        </form>
-                    }
                     <form method="post" asp-page-handler="Cancel" asp-route-id="@order.Id" class="d-inline">
                         <button type="submit" class="btn btn-sm btn-outline-danger">Zrušit</button>
                     </form>

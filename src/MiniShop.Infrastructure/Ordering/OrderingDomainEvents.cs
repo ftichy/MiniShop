@@ -20,6 +20,8 @@ public static class OrderingDomainEvents
         OrderPlaced e => OutboxMessageFactory.Create(e, ToPayload(e.Order)),
         OrderConfirmed e => OutboxMessageFactory.Create(e, ToPayload(e.Order)),
         OrderRejected e => OutboxMessageFactory.Create(e, ToPayload(e.Order)),
+        OrderPackingStarted e => OutboxMessageFactory.Create(e, ToPayload(e.Order)),   // e-shop krok 6
+        OrderShipped e => OutboxMessageFactory.Create(e, ToPayload(e.Order)),
         OrderCompleted e => OutboxMessageFactory.Create(e, ToPayload(e.Order)),
         OrderCancelled e => OutboxMessageFactory.Create(e, ToPayload(e.Order)),
         _ => throw new InvalidOperationException(

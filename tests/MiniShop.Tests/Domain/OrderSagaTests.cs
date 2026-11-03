@@ -62,10 +62,18 @@ public class OrderSagaTests
     }
 
     [Fact]
-    public void Vyrizeni_Konec()
+    public void Odeslani_PakDoruceni_Konec()
     {
         var saga = NewSaga();
         saga.StockReserved(Start);
+
+        Assert.Equal(OrderSagaAction.None, saga.OrderCompleted(Start));   // e-shop krok 6: doručit jde až po odeslání
+        Assert.Equal(OrderSagaState.Reserved, saga.State);
+
+        Assert.Equal(OrderSagaAction.None, saga.OrderShipped(Start));     // sklad vydá rezervaci sám (OrderShippedV1)
+        Assert.Equal(OrderSagaState.Shipped, saga.State);
+        Assert.Equal(OrderSagaAction.None, saga.OrderCancelled(Start));   // po odeslání se zboží nevrací
+        Assert.Equal(OrderSagaState.Shipped, saga.State);
 
         Assert.Equal(OrderSagaAction.None, saga.OrderCompleted(Start));
         Assert.Equal(OrderSagaState.Completed, saga.State);

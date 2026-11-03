@@ -15,7 +15,7 @@ Přidáno v [účty kroku 5](code:docs/kroky-ucty/krok-05-emaily.md).
 | --- | --- | --- |
 | **Potvrzení e-mailu** | po registraci, nebo tlačítkem *Poslat znovu* v upozornění nahoře na stránce | hned během požadavku ([AccountEmails](code:src/MiniShop.Web/Accounts/AccountEmails.cs)) |
 | **Nové heslo** | stránka *Zapomenuté heslo* | hned během požadavku |
-| **Objednávka** potvrzená / zamítnutá / vyřízená / zrušená | když se změní stav objednávky | z handleru doménové události **za outboxem** ([EmailOrderNotifier](code:src/MiniShop.Infrastructure/Ordering/EmailOrderNotifier.cs)) |
+| **Objednávka** potvrzená / zamítnutá / odeslaná (s číslem zásilky – e-shop krok 6) / doručená / zrušená | když se změní stav objednávky | z handleru doménové události **za outboxem** ([EmailOrderNotifier](code:src/MiniShop.Infrastructure/Ordering/EmailOrderNotifier.cs)) |
 
 ```mermaid
 flowchart LR

@@ -18,5 +18,7 @@ internal sealed class StockReservationConfiguration : IEntityTypeConfiguration<S
         builder.Property(r => r.ReservedAtUtc).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
         builder.Property(r => r.ReleasedAtUtc)
             .HasConversion(v => v, v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
+        builder.Property(r => r.FulfilledAtUtc)   // e-shop krok 6: výdej po odeslání
+            .HasConversion(v => v, v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
     }
 }

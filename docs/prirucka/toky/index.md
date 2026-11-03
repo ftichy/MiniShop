@@ -15,7 +15,8 @@ order: 30
 | [Vytvoření objednávky](vytvoreni-objednavky.md) | hlavní tok: formulář → sága → sklad → potvrzení |
 | [Zamítnutí objednávky](zamitnuti-objednavky.md) | sklad nemá dost zboží |
 | [Timeout a kompenzace](timeout-a-kompenzace.md) | sklad neodpověděl včas; pozdní rezervace se vrací |
-| [Zrušení a vyřízení](zruseni-a-vyrizeni.md) | kompenzace po zrušení potvrzené objednávky |
+| [Zrušení objednávky](zruseni-a-vyrizeni.md) | kompenzace po zrušení potvrzené nebo balené objednávky |
+| [Expedice](expedice.md) | balení → odeslání (`OrderShippedV1`, sklad vydá rezervaci) → doručení; souběh odeslat × zrušit |
 | [Změna produktu](zmena-produktu.md) | sklad → kopie katalogu v Orderingu |
 | [Obnova katalogu](obnova-katalogu.md) | prázdná nebo neúplná kopie katalogu po startu |
 | [Změna dostupnosti](zmena-dostupnosti.md) | rezervace/naskladnění změní pásmo dostupnosti → výloha |

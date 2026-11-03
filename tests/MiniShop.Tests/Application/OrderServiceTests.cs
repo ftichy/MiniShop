@@ -69,15 +69,18 @@ public sealed class OrderServiceTests : IDisposable
         services.AddSingleton<IDiscountPolicy>(new QuantityDiscountPolicy(minimumQuantity: 10, percentage: 0.10m));
         services.AddDomainEventHandler<OrderConfirmed, SendOrderConfirmationHandler>();
         services.AddDomainEventHandler<OrderRejected, SendRejectionNoticeHandler>();
+        services.AddDomainEventHandler<OrderShipped, SendShippingNoticeHandler>();          // e-shop krok 6
         services.AddDomainEventHandler<OrderCompleted, SendCompletionNoticeHandler>();
         services.AddDomainEventHandler<OrderCancelled, SendCancellationNoticeHandler>();
         services.AddDomainEventHandler<OrderPlaced, PublishOrderIntegrationEventsHandler>();
+        services.AddDomainEventHandler<OrderShipped, PublishOrderIntegrationEventsHandler>();
         services.AddDomainEventHandler<OrderCompleted, PublishOrderIntegrationEventsHandler>();
         services.AddDomainEventHandler<OrderCancelled, PublishOrderIntegrationEventsHandler>();
 
         // Sága (orchestrátor), kopie katalogu (krok 10) a modul Inventory.
         services.AddSingleton(new OrderSagaSettings(ReservationTimeout));
         services.AddDomainEventHandler<OrderPlaced, OrderSagaOrchestrator>();
+        services.AddDomainEventHandler<OrderShipped, OrderSagaOrchestrator>();
         services.AddDomainEventHandler<OrderCompleted, OrderSagaOrchestrator>();
         services.AddDomainEventHandler<OrderCancelled, OrderSagaOrchestrator>();
         services.AddIntegrationMessageHandler<StockReservedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
@@ -97,6 +100,7 @@ public sealed class OrderServiceTests : IDisposable
         services.AddSingleton<IShippingPriceCalculator>(new StandardShippingPriceCalculator(courierPrice: 99m, freeFrom: 1_000m));
         services.AddIntegrationMessageHandler<ReserveStockV1, ReserveStockHandler>(IntegrationModules.Inventory);
         services.AddIntegrationMessageHandler<ReleaseStockV1, ReleaseStockHandler>(IntegrationModules.Inventory);
+        services.AddIntegrationMessageHandler<OrderShippedV1, FulfilReservationHandler>(IntegrationModules.Inventory);
         services.AddIntegrationMessageHandler<SyncCatalogV1, SyncCatalogHandler>(IntegrationModules.Inventory);
         services.AddScoped<CatalogSyncService>();
 
@@ -339,27 +343,107 @@ public sealed class OrderServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Cancel_VyrizenouObjednavku_VyhodiDomainException()
+    public async Task Cancel_OdeslanouObjednavku_VyhodiDomainException()
     {
         var product = await AddProductAsync(price: 100m, stock: 5);
         var order = await PlaceConfirmedOrderAsync(product.Id, quantity: 1);
-        await Orders(s => s.CompleteAsync(order.Id));
+        await ShipAsync(order.Id);
 
         await Assert.ThrowsAsync<DomainException>(() => Orders(s => s.CancelAsync(order.Id, OrderAccess.AllOrders)));
     }
 
+    // ---------- E-shop krok 6: expedice ----------
+
     [Fact]
-    public async Task Complete_PotvrzenouObjednavku_ZboziZustaneProdane()
+    public async Task Expedice_BaleniOdeslaniDoruceni_ZboziZustaneProdaneARezervaceVydana()
     {
         var product = await AddProductAsync(price: 100m, stock: 5);
         var order = await PlaceConfirmedOrderAsync(product.Id, quantity: 1);
+
+        // Dřív „Vyřídit“ rovnou z Confirmed – teď to nejde.
+        await Assert.ThrowsAsync<DomainException>(() => Orders(s => s.CompleteAsync(order.Id)));
+
+        await ShipAsync(order.Id);
+        await ProcessOutboxAsync();   // OrderShippedV1 → sklad vydá rezervaci, sága → Shipped
+
+        var shipped = Assert.Single(_bus.Published.OfType<OrderShippedV1>());
+        Assert.Equal((order.Id, "PPL", "123456"), (shipped.OrderId, shipped.Carrier, shipped.TrackingNumber));
+        Assert.Contains($"shipped:{order.Id}", _notifier.Events);
+        Assert.Equal(OrderSagaState.Shipped, (await SagaAsync(order.Id)).State);
+        var reservation = Assert.Single(await InventoryDb(db => db.StockReservations.Where(r => r.OrderId == order.Id).ToListAsync()));
+        Assert.NotNull(reservation.FulfilledAtUtc);
+        Assert.Null(reservation.ReleasedAtUtc);
 
         await Orders(s => s.CompleteAsync(order.Id));
         await ProcessOutboxAsync();
 
         Assert.Contains($"completed:{order.Id}", _notifier.Events);
-        Assert.Equal(4, await StockAsync());
+        Assert.Equal(4, await StockAsync());   // výdej zásobu nemění – odečetla se při rezervaci
         Assert.Equal(OrderSagaState.Completed, (await SagaAsync(order.Id)).State);
+        var detail = await Orders(s => s.GetDetailAsync(order.Id, OrderAccess.AllOrders));
+        Assert.Equal(["Pending", "Confirmed", "Packing", "Shipped", "Completed"], detail.History.Select(h => h.Status));
+    }
+
+    [Fact]
+    public async Task Expedice_ZruseniBehemBaleni_ZboziSeVratiNaSklad()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await PlaceConfirmedOrderAsync(product.Id, quantity: 2);
+        await Orders(s => s.StartPackingAsync(order.Id));
+
+        await Orders(s => s.CancelAsync(order.Id, OrderAccess.Customer(Jan.CustomerId)));
+        await ProcessOutboxAsync();
+
+        Assert.Equal(5, await StockAsync());
+        Assert.Equal(OrderSagaState.Released, (await SagaAsync(order.Id)).State);
+        Assert.Empty(_bus.Published.OfType<OrderShippedV1>());
+    }
+
+    [Fact]
+    public async Task Expedice_FrontaObsahujeJenRozpracovane()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 10);
+        var confirmed = await PlaceConfirmedOrderAsync(product.Id, quantity: 1);
+        var shipped = await PlaceConfirmedOrderAsync(product.Id, quantity: 1);
+        var cancelled = await PlaceConfirmedOrderAsync(product.Id, quantity: 1);
+        await ShipAsync(shipped.Id);
+        await Orders(s => s.CancelAsync(cancelled.Id, OrderAccess.AllOrders));
+
+        var queue = await Orders(s => s.GetFulfilmentQueueAsync());
+
+        Assert.Equal([(confirmed.Id, "Confirmed"), (shipped.Id, "Shipped")], queue.Select(o => (o.Id, o.Status)));
+    }
+
+    /// <summary>
+    /// E-shop krok 6: souběh – admin a zákazník načtou stejnou objednávku, oba ji změní. Uloží se jen první změna,
+    /// druhá skončí ConcurrencyConflictException (Version už nesedí) a nic nepřepíše.
+    /// </summary>
+    [Fact]
+    public async Task Soubeh_OdeslatAZrusitZaroven_VyhrajeJedenADataSedi()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var placed = await PlaceConfirmedOrderAsync(product.Id, quantity: 1);
+        await Orders(s => s.StartPackingAsync(placed.Id));
+
+        await using var adminScope = _services.CreateAsyncScope();
+        await using var customerScope = _services.CreateAsyncScope();
+        var adminDb = adminScope.ServiceProvider.GetRequiredService<OrderingDbContext>();
+        var customerDb = customerScope.ServiceProvider.GetRequiredService<OrderingDbContext>();
+        var forAdmin = await adminDb.Orders.SingleAsync(o => o.Id == placed.Id);       // oba vidí Packing
+        var forCustomer = await customerDb.Orders.SingleAsync(o => o.Id == placed.Id);
+
+        forCustomer.Cancel(Now.UtcDateTime);
+        await customerDb.SaveChangesAsync();                                           // zákazník byl rychlejší
+        forAdmin.Ship("PPL", "123456", Now.UtcDateTime);
+
+        await Assert.ThrowsAsync<ConcurrencyConflictException>(() => adminDb.SaveChangesAsync());
+        await ProcessOutboxAsync();
+
+        Assert.Equal("Cancelled", await StatusAsync(placed.Id));
+        Assert.Empty(_bus.Published.OfType<OrderShippedV1>());                         // odeslání se neuložilo ani do outboxu
+        Assert.Equal(5, await StockAsync());                                           // zboží zpátky, nic nevydáno
+        var detail = await Orders(s => s.GetDetailAsync(placed.Id, OrderAccess.AllOrders));
+        Assert.Equal(["Pending", "Confirmed", "Packing", "Cancelled"], detail.History.Select(h => h.Status));
     }
 
     [Fact]
@@ -493,6 +577,7 @@ public sealed class OrderServiceTests : IDisposable
         var completedOrder = await PlaceConfirmedOrderAsync(product.Id, quantity: 1);
 
         await Orders(s => s.CancelAsync(cancelledOrder.Id, OrderAccess.AllOrders));
+        await ShipAsync(completedOrder.Id);
         await Orders(s => s.CompleteAsync(completedOrder.Id));
         await ProcessOutboxAsync();
 
@@ -1248,6 +1333,13 @@ public sealed class OrderServiceTests : IDisposable
 
     private async Task<int> OutboxCountAsync() =>
         await OrderingDb(db => db.OutboxMessages.CountAsync()) + await InventoryDb(db => db.OutboxMessages.CountAsync());
+
+    /// <summary>E-shop krok 6: zabalit a odeslat (kurýr PPL) – každý krok jako samostatný požadavek admina.</summary>
+    private async Task ShipAsync(int orderId)
+    {
+        await Orders(s => s.StartPackingAsync(orderId));
+        await Orders(s => s.ShipAsync(orderId, "PPL", "123456"));
+    }
 
     private async Task<OrderDto> PlaceConfirmedOrderAsync(int productId, int quantity, OrderCustomer? customer = null)
     {

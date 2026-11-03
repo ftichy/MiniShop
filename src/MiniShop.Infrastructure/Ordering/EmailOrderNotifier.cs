@@ -27,9 +27,24 @@ public sealed class EmailOrderNotifier(IEmailSender emailSender) : IOrderNotifie
         SendAsync(order, $"Objednávku č. {order.Id} nelze vyřídit",
             $"omlouváme se, objednávku nemůžeme vyřídit: {order.RejectionReason}\n\n{Summary(order)}", cancellationToken);
 
+    /// <summary>E-shop krok 6: kurýr – dopravce a číslo zásilky; osobní odběr – můžete si ji vyzvednout.</summary>
+    public Task OrderShippedAsync(Order order, CancellationToken cancellationToken = default) =>
+        order.ShippingMethod == ShippingMethod.Pickup
+            ? SendAsync(order, $"Objednávka č. {order.Id} je připravená k vyzvednutí",
+                "objednávka na vás čeká na prodejně, můžete si ji vyzvednout.", cancellationToken)
+            : SendAsync(order, $"Objednávka č. {order.Id} je na cestě",
+                order.Carrier is null
+                    ? "objednávka odešla."
+                    : $"objednávku jsme předali dopravci {order.Carrier}" +
+                      (order.TrackingNumber is null ? "." : $", číslo zásilky {order.TrackingNumber}."),
+                cancellationToken);
+
+    /// <summary>E-shop krok 6: doručeno (osobní odběr: vyzvednuto) – dřív „vyřízeno“.</summary>
     public Task OrderCompletedAsync(Order order, CancellationToken cancellationToken = default) =>
-        SendAsync(order, $"Objednávka č. {order.Id} je vyřízená",
-            "objednávka je vyřízená. Děkujeme za nákup!", cancellationToken);
+        order.ShippingMethod == ShippingMethod.Pickup
+            ? SendAsync(order, $"Objednávka č. {order.Id} je vyzvednutá", "děkujeme za nákup!", cancellationToken)
+            : SendAsync(order, $"Objednávka č. {order.Id} je doručená", "objednávka je doručená. Děkujeme za nákup!",
+                cancellationToken);
 
     public Task OrderCancelledAsync(Order order, CancellationToken cancellationToken = default) =>
         SendAsync(order, $"Objednávka č. {order.Id} je zrušená",

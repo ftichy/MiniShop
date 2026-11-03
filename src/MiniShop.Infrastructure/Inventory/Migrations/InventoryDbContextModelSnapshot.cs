@@ -15,7 +15,7 @@ namespace MiniShop.Infrastructure.Inventory.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.13");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.14");
 
             modelBuilder.Entity("MiniShop.Domain.Inventory.Category", b =>
                 {
@@ -83,6 +83,9 @@ namespace MiniShop.Infrastructure.Inventory.Migrations
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("FulfilledAtUtc")
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("OrderId")
                         .HasColumnType("INTEGER");

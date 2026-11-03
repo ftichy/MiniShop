@@ -37,4 +37,24 @@ public sealed class EmailOrderNotifierTests
 
         Assert.Contains("Nedostatek zboží.", Assert.Single(emails.Sent).TextBody);
     }
+
+    /// <summary>E-shop krok 6: kurýr – dopravce a číslo zásilky; osobní odběr – připraveno k vyzvednutí.</summary>
+    [Theory]
+    [InlineData(ShippingMethod.Courier, "je na cestě", "předali dopravci PPL, číslo zásilky ZAS-42.")]
+    [InlineData(ShippingMethod.Pickup, "připravená k vyzvednutí", "můžete si ji vyzvednout")]
+    public async Task Odeslani_ObsahujeZasilkuNeboVyzvednuti(ShippingMethod shipping, string subject, string text)
+    {
+        var emails = new RecordingEmailSender();
+        var order = new Order("zakaznik-1", "Jan Novák", "jan@example.com", Now);
+        order.SetShipping(shipping, 99m, shipping == ShippingMethod.Courier ? new DeliveryAddress("Dlouhá 5", "Praha", "11000") : null);
+        order.Confirm(Now);
+        order.StartPacking(Now);
+        order.Ship("PPL", "ZAS-42", Now);
+
+        await new EmailOrderNotifier(emails).OrderShippedAsync(order);
+
+        var email = Assert.Single(emails.Sent);
+        Assert.Contains(subject, email.Subject);
+        Assert.Contains(text, email.TextBody);
+    }
 }

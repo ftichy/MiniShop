@@ -17,6 +17,7 @@ namespace MiniShop.Application.Ordering.IntegrationEvents;
 /// </remarks>
 public sealed class PublishOrderIntegrationEventsHandler(IOrderingMessagePublisher publisher, IOrderingUnitOfWork unitOfWork) :
     IDomainEventHandler<OrderPlaced>,
+    IDomainEventHandler<OrderShipped>,
     IDomainEventHandler<OrderCompleted>,
     IDomainEventHandler<OrderCancelled>
 {
@@ -28,6 +29,16 @@ public sealed class PublishOrderIntegrationEventsHandler(IOrderingMessagePublish
             domainEvent.Order.CustomerEmail,
             domainEvent.Order.TotalPrice,
             ToLines(domainEvent.Order)), cancellationToken);
+
+    /// <summary>E-shop krok 6: odeslání je fakt pro okolí – sklad podle něj vydá rezervaci, notifikace pošlou číslo zásilky.</summary>
+    public Task HandleAsync(OrderShipped domainEvent, CancellationToken cancellationToken) =>
+        PublishAsync(new OrderShippedV1(
+            Guid.NewGuid(),
+            domainEvent.OccurredAtUtc,
+            domainEvent.Order.Id,
+            domainEvent.Order.CustomerEmail,
+            domainEvent.Order.Carrier,
+            domainEvent.Order.TrackingNumber), cancellationToken);
 
     public Task HandleAsync(OrderCompleted domainEvent, CancellationToken cancellationToken) =>
         PublishAsync(new OrderCompletedV1(

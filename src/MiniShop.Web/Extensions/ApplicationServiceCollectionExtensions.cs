@@ -54,11 +54,13 @@ public static class ApplicationServiceCollectionExtensions
         // AddDomainEventHandler je obalí dekorátorem, který hlídá opakované doručení (krok 6).
         services.AddDomainEventHandler<OrderConfirmed, SendOrderConfirmationHandler>();
         services.AddDomainEventHandler<OrderRejected, SendRejectionNoticeHandler>();
+        services.AddDomainEventHandler<OrderShipped, SendShippingNoticeHandler>();   // e-shop krok 6: číslo zásilky
         services.AddDomainEventHandler<OrderCompleted, SendCompletionNoticeHandler>();
         services.AddDomainEventHandler<OrderCancelled, SendCancellationNoticeHandler>();
 
         // Překlad doménových událostí na integrační (krok 7) – jedna třída pro všechny události objednávky.
         services.AddDomainEventHandler<OrderPlaced, PublishOrderIntegrationEventsHandler>();
+        services.AddDomainEventHandler<OrderShipped, PublishOrderIntegrationEventsHandler>();   // e-shop krok 6
         services.AddDomainEventHandler<OrderCompleted, PublishOrderIntegrationEventsHandler>();
         services.AddDomainEventHandler<OrderCancelled, PublishOrderIntegrationEventsHandler>();
 
@@ -67,6 +69,7 @@ public static class ApplicationServiceCollectionExtensions
         var timeoutSeconds = configuration.GetValue("Sagas:ReservationTimeoutSeconds", 30);
         services.AddSingleton(new OrderSagaSettings(TimeSpan.FromSeconds(timeoutSeconds)));
         services.AddDomainEventHandler<OrderPlaced, OrderSagaOrchestrator>();
+        services.AddDomainEventHandler<OrderShipped, OrderSagaOrchestrator>();   // e-shop krok 6
         services.AddDomainEventHandler<OrderCompleted, OrderSagaOrchestrator>();
         services.AddDomainEventHandler<OrderCancelled, OrderSagaOrchestrator>();
         services.AddIntegrationMessageHandler<StockReservedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);

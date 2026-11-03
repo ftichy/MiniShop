@@ -4,7 +4,7 @@ using MiniShop.Domain.Orders.Events;
 namespace MiniShop.Application.Ordering.EventHandlers;
 
 /// <summary>
-/// Po vyřízení objednávky pošle zákazníkovi oznámení.
+/// Po doručení (osobní odběr: vyzvednutí) pošle zákazníkovi poděkování. E-shop krok 6: dřív „po vyřízení“.
 /// </summary>
 public sealed class SendCompletionNoticeHandler(IOrderNotifier notifier) : IDomainEventHandler<OrderCompleted>
 {

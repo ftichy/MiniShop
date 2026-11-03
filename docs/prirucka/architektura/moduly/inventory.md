@@ -21,6 +21,7 @@ flowchart TB
         svc["ProductService, CategoryService<br/>CRUD produktů a kategorií, naskladnění"]
         reserve["ReserveStockHandler<br/>všechno, nebo nic"]
         release["ReleaseStockHandler<br/>vrácení zboží"]
+        fulfil["FulfilReservationHandler<br/>výdej po odeslání"]
         syncH["SyncCatalogHandler<br/>znovu pošle celý katalog"]
         images["ProductImageService<br/>obrázky: formát, jméno, úklid"]
     end
@@ -41,19 +42,23 @@ flowchart TB
     images --> files
     consumer -->|ReserveStockV1| reserve
     consumer -->|ReleaseStockV1| release
+    consumer -->|"OrderShippedV1 (událost)"| fulfil
     consumer -->|SyncCatalogV1| syncH
     svc --> product
     product --> category
     reserve --> product
     reserve --> reservation
     release --> reservation
+    fulfil --> reservation
     svc --> db
     reserve --> db
     release --> db
+    fulfil --> db
     syncH --> db
 
     click reserve "/Docs/toky/vytvoreni-objednavky"
     click release "/Docs/toky/zruseni-a-vyrizeni"
+    click fulfil "/Docs/toky/expedice"
     click syncH "/Docs/toky/obnova-katalogu"
     click db "/Docs/eda/outbox"
     click consumer "/Docs/eda/broker"
@@ -73,8 +78,9 @@ flowchart TB
 | **FileSystemProductImageStore** | Soubory obrázků ve složce `ProductImages:Path` (kontejner `/data/images` na volume skladu, lokálně `images/`). Pracuje jen se jmény podle vzoru – žádné `../` (path traversal). Zálohuje `backup.py`. | [FileSystemProductImageStore.cs](code:src/MiniShop.Infrastructure/Inventory/FileSystemProductImageStore.cs) |
 | **ReserveStockHandler** | Vyřídí `ReserveStockV1`: nejdřív zkontroluje všechny položky, pak buď zarezervuje vše, nebo nic. Odpoví `StockReservedV1` / `StockReservationFailedV1`. | [ReserveStockHandler.cs](code:src/MiniShop.Application/Inventory/ReserveStockHandler.cs) |
 | **ReleaseStockHandler** | Vyřídí `ReleaseStockV1`: vrátí zboží podle **svých** rezervací (ne podle objednávky) a odpoví `StockReleasedV1`. | [ReleaseStockHandler.cs](code:src/MiniShop.Application/Inventory/ReleaseStockHandler.cs) |
+| **FulfilReservationHandler** | E-shop krok 6: na **událost** `OrderShippedV1` (ne příkaz) označí rezervace objednávky jako vydané (`Fulfil`). Zásobu nemění, nic neposílá – výdej nemůže selhat, sága na něj nečeká. | [FulfilReservationHandler.cs](code:src/MiniShop.Application/Inventory/FulfilReservationHandler.cs) |
 | **SyncCatalogHandler** | Vyřídí `SyncCatalogV1`: pošle `ProductUpdatedV1` + `ProductUpdatedV2` pro každý produkt s časem jeho poslední změny. | [SyncCatalogHandler.cs](code:src/MiniShop.Application/Inventory/SyncCatalogHandler.cs) |
-| **StockReservation** | Záznam „pro objednávku X je odložených N kusů produktu Y“. | [StockReservation.cs](code:src/MiniShop.Domain/Inventory/StockReservation.cs) |
+| **StockReservation** | Záznam „pro objednávku X je odložených N kusů produktu Y“. Končí uvolněním (`Release` – zboží zpět) nebo od e-shop kroku 6 výdejem (`Fulfil` – zboží odešlo, vrátit už nejde). | [StockReservation.cs](code:src/MiniShop.Domain/Inventory/StockReservation.cs) |
 | **InventoryDbContext** | `inventory.db`. Doménové události produktu převádí na integrační **rovnou při uložení**. | [InventoryDbContext.cs](code:src/MiniShop.Infrastructure/Inventory/InventoryDbContext.cs) |
 
 ## Zajímavá rozhodnutí
@@ -105,7 +111,7 @@ flowchart TB
 
 | Směr | Zprávy |
 | --- | --- |
-| přijímá (fronta `minishop.inventory`) | `ReserveStockV1`, `ReleaseStockV1`, `SyncCatalogV1` |
+| přijímá (fronta `minishop.inventory`) | `ReserveStockV1`, `ReleaseStockV1`, `SyncCatalogV1` (příkazy), `OrderShippedV1` (událost – e-shop krok 6) |
 | posílá | `StockReservedV1`, `StockReservationFailedV1`, `StockReleasedV1`, `ProductUpdatedV1`, `ProductUpdatedV2`, `StockAvailabilityChangedV1`, `ProductRemovedV1` |
 
 ## Dál

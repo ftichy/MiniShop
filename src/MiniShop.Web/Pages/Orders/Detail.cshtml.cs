@@ -45,15 +45,4 @@ public sealed class DetailModel(IOrderService orderService, IAuthorizationServic
     /// <summary>Čas přechodu pro člověka; starší objednávky (před e-shop krokem 5) ho u pozdějších stavů nemají.</summary>
     public static string FormatTime(DateTime? changedAtUtc) =>
         changedAtUtc is { } time ? time.ToLocalTime().ToString("g") : "čas neznámý (starší objednávka)";
-
-    /// <summary>Popis kroku na časové ose – co se s objednávkou stalo, ne jen název stavu.</summary>
-    public static string HistoryText(string status) => status switch
-    {
-        "Pending" => "Objednávka přijata, ověřujeme sklad",
-        "Confirmed" => "Sklad zboží zarezervoval – objednávka potvrzena",
-        "Rejected" => "Objednávka zamítnuta",
-        "Completed" => "Objednávka vyřízena",
-        "Cancelled" => "Objednávka zrušena",
-        _ => status
-    };
 }

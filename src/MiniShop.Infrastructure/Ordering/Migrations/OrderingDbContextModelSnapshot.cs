@@ -129,6 +129,10 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("Carrier")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid?>("CheckoutId")
                         .HasColumnType("TEXT");
 
@@ -167,6 +171,14 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("TEXT");
+
+                    b.Property<string>("TrackingNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 

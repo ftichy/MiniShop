@@ -51,21 +51,10 @@ public sealed class IndexModel(
         return RedirectToPage();
     }
 
-    public async Task<IActionResult> OnPostCompleteAsync(int id, CancellationToken cancellationToken)
-    {
-        if (!await IsAuthorizedAsync(AuthorizationPolicies.RequireAdmin))
-        {
-            return Forbid();
-        }
-
-        return await ExecuteAsync(async () =>
-        {
-            await orderService.CompleteAsync(id, cancellationToken);
-            StatusMessage = $"Objednávka č. {id} byla vyřízena.";
-        }, cancellationToken);
-    }
-
-    /// <summary>Zákazník ruší jen své objednávky (účty krok 3 – cizí = 404), admin kteroukoli.</summary>
+    /// <summary>
+    /// Zákazník ruší jen své objednávky (účty krok 3 – cizí = 404), admin kteroukoli. E-shop krok 6: i během balení,
+    /// po odeslání už ne. Vyřízení („Vyřídit“) odtud zmizelo – expedice má vlastní stránku /Admin/Fulfilment.
+    /// </summary>
     public Task<IActionResult> OnPostCancelAsync(int id, CancellationToken cancellationToken) =>
         ExecuteAsync(async () =>
         {
@@ -80,9 +69,9 @@ public sealed class IndexModel(
             await action();
             return RedirectToPage();
         }
-        catch (Exception ex) when (ex is DomainException or NotFoundException)
+        catch (Exception ex) when (ex is DomainException or NotFoundException or ConcurrencyConflictException)   // e-shop krok 6: souběh s expedicí
         {
-            ModelState.AddModelError(string.Empty, ex.Message);
+            ModelState.AddModelError(string.Empty, ex is ConcurrencyConflictException ? ConcurrencyMessage : ex.Message);
             await LoadAsync(cancellationToken);
             return Page();
         }
@@ -106,22 +95,6 @@ public sealed class IndexModel(
     /// <summary>Krok 9: dokud nějaká objednávka čeká na sklad, stránka se sama obnovuje (jednoduchý polling).</summary>
     public bool HasPendingOrders => Orders.Any(o => o.Status == "Pending");
 
-    public static string StatusBadge(string status) => status switch
-    {
-        "Pending" => "bg-warning text-dark",
-        "Confirmed" => "bg-primary",
-        "Rejected" => "bg-danger",
-        "Completed" => "bg-success",
-        _ => "bg-secondary"
-    };
-
-    public static string StatusText(string status) => status switch
-    {
-        "Pending" => "Ověřujeme sklad…",
-        "Confirmed" => "Potvrzená",
-        "Rejected" => "Zamítnutá",
-        "Completed" => "Vyřízená",
-        "Cancelled" => "Zrušená",
-        _ => status
-    };
+    /// <summary>E-shop krok 6: souběh – objednávku mezitím změnil někdo jiný (admin ji odeslal, zákazník zrušil).</summary>
+    public const string ConcurrencyMessage = "Objednávka se mezitím změnila (například ji sklad právě odeslal). Podívejte se na její aktuální stav.";
 }

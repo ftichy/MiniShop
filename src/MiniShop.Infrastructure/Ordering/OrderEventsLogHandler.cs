@@ -13,7 +13,9 @@ public sealed class OrderEventsLogHandler(ILogger<OrderEventsLogHandler> logger)
     IDomainEventHandler<OrderConfirmed>,
     IDomainEventHandler<OrderRejected>,
     IDomainEventHandler<OrderCompleted>,
-    IDomainEventHandler<OrderCancelled>
+    IDomainEventHandler<OrderCancelled>,
+    IDomainEventHandler<OrderPackingStarted>,
+    IDomainEventHandler<OrderShipped>
 {
     public Task HandleAsync(OrderPlaced domainEvent, CancellationToken cancellationToken)
     {
@@ -45,6 +47,19 @@ public sealed class OrderEventsLogHandler(ILogger<OrderEventsLogHandler> logger)
     public Task HandleAsync(OrderCancelled domainEvent, CancellationToken cancellationToken)
     {
         logger.LogInformation("[Událost] OrderCancelled: objednávka {OrderId}", domainEvent.Order.Id);
+        return Task.CompletedTask;
+    }
+
+    public Task HandleAsync(OrderPackingStarted domainEvent, CancellationToken cancellationToken)
+    {
+        logger.LogInformation("[Událost] OrderPackingStarted: objednávka {OrderId}", domainEvent.Order.Id);
+        return Task.CompletedTask;
+    }
+
+    public Task HandleAsync(OrderShipped domainEvent, CancellationToken cancellationToken)
+    {
+        logger.LogInformation("[Událost] OrderShipped: objednávka {OrderId}, dopravce {Carrier}",
+            domainEvent.Order.Id, domainEvent.Order.Carrier);
         return Task.CompletedTask;
     }
 }

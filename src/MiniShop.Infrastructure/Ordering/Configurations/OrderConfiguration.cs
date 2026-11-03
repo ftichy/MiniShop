@@ -31,6 +31,13 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(o => o.ShippingMethod).HasConversion<string>().HasMaxLength(20);
         builder.Property(o => o.ShippingPrice).HasPrecision(18, 2);
 
+        // E-shop krok 6: expedice. Version = concurrency token – UPDATE … WHERE Version = původní; když objednávku
+        // mezitím změnil někdo jiný (admin odeslal × zákazník zrušil), EF vyhodí výjimku a ModuleDbContext ji převede
+        // na ConcurrencyConflictException (409 / hláška na stránce).
+        builder.Property(o => o.Carrier).HasMaxLength(50);
+        builder.Property(o => o.TrackingNumber).HasMaxLength(50);
+        builder.Property(o => o.Version).IsConcurrencyToken();
+
         // Hodnotový objekt = sloupce v tabulce Orders (žádná vlastní tabulka ani ID). Bez adresy = všechny NULL.
         builder.OwnsOne(o => o.DeliveryAddress, address =>
         {

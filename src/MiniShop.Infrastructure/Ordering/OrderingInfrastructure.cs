@@ -38,6 +38,8 @@ public static class OrderingInfrastructure
         services.AddDomainEventHandler<OrderRejected, OrderEventsLogHandler>();
         services.AddDomainEventHandler<OrderCompleted, OrderEventsLogHandler>();
         services.AddDomainEventHandler<OrderCancelled, OrderEventsLogHandler>();
+        services.AddDomainEventHandler<OrderPackingStarted, OrderEventsLogHandler>();   // e-shop krok 6
+        services.AddDomainEventHandler<OrderShipped, OrderEventsLogHandler>();
 
         // Outbox modulu (kroky 4 a 5): pošťák je singleton a pro každou zprávu si otevře vlastní scope.
         services.AddSingleton<IOutboxProcessor, OutboxProcessor<OrderingDbContext>>();

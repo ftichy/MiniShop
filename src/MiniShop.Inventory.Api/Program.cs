@@ -1,6 +1,7 @@
 using MiniShop.Application;
 using MiniShop.Application.Inventory;
 using MiniShop.Contracts.Inventory;
+using MiniShop.Contracts.Orders;
 using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Hosting;
 using MiniShop.Infrastructure.Inventory;
@@ -43,6 +44,8 @@ try
     builder.Services.AddScoped<ICategoryService, CategoryService>();
     builder.Services.AddIntegrationMessageHandler<ReserveStockV1, ReserveStockHandler>(IntegrationModules.Inventory);
     builder.Services.AddIntegrationMessageHandler<ReleaseStockV1, ReleaseStockHandler>(IntegrationModules.Inventory);
+    // E-shop krok 6: událost (ne příkaz) – objednávka odešla, rezervace se mění na výdej.
+    builder.Services.AddIntegrationMessageHandler<OrderShippedV1, FulfilReservationHandler>(IntegrationModules.Inventory);
     builder.Services.AddIntegrationMessageHandler<SyncCatalogV1, SyncCatalogHandler>(IntegrationModules.Inventory);
     builder.Services.AddInfrastructureCore();
     builder.Services.AddInventoryInfrastructure(connectionString);

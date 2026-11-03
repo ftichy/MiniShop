@@ -46,6 +46,15 @@ public sealed class OrderRepository(OrderingDbContext db) : IOrderRepository
             .AsSplitQuery()
             .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
 
+    // E-shop krok 6: fronty expedice – WHERE Status IN (…), nejstarší objednávka první (kdo dřív objednal, dřív dostane).
+    public async Task<IReadOnlyList<Order>> GetByStatusesAsync(IReadOnlyCollection<OrderStatus> statuses,
+        CancellationToken cancellationToken = default) =>
+        await db.Orders
+            .Include(o => o.Items)
+            .Where(o => statuses.Contains(o.Status))
+            .OrderBy(o => o.Id)
+            .ToListAsync(cancellationToken);
+
     public Task<Order?> GetByCheckoutIdAsync(string customerId, Guid checkoutId, CancellationToken cancellationToken = default) =>
         db.Orders
             .Include(o => o.Items)

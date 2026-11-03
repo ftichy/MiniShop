@@ -5,7 +5,7 @@ order: 6
 ---
 
 > **V jedné větě:** Objednávka i sága jsou **stavové automaty** – mají pevně dané stavy a přechody mezi nimi.
-> Nepovolený přechod (vyřídit zamítnutou objednávku) doména odmítne.
+> Nepovolený přechod (odeslat zamítnutou objednávku, zrušit odeslanou) doména odmítne.
 
 ## Objednávka (`Order`)
 
@@ -14,8 +14,11 @@ stateDiagram-v2
     [*] --> Pending : zákazník odeslal formulář
     Pending --> Confirmed : sklad zarezervoval (sága)
     Pending --> Rejected : nedostatek zboží / sklad neodpověděl včas
-    Confirmed --> Completed : obsluha vyřídila
-    Confirmed --> Cancelled : obsluha zrušila → sága vrátí zboží
+    Confirmed --> Packing : admin začal balit
+    Packing --> Shipped : admin odeslal (kurýr: dopravce + číslo zásilky)
+    Shipped --> Completed : doručeno / vyzvednuto
+    Confirmed --> Cancelled : zrušeno → sága vrátí zboží
+    Packing --> Cancelled : zrušeno → sága vrátí zboží
     Rejected --> [*]
     Completed --> [*]
     Cancelled --> [*]
@@ -26,12 +29,20 @@ stateDiagram-v2
 | `Pending` | Přijatá, čeká na rezervaci skladu | `OrderPlaced` |
 | `Confirmed` | Zboží zarezervované | `OrderConfirmed` |
 | `Rejected` | Zamítnutá, důvod v `RejectionReason` | `OrderRejected` |
-| `Completed` | Vyřízená | `OrderCompleted` |
+| `Packing` | Balí se (osobní odběr: připravuje se) – e-shop krok 6 | `OrderPackingStarted` |
+| `Shipped` | Odeslaná, `Carrier` + `TrackingNumber` (osobní odběr: připravená k vyzvednutí); **zrušit už nejde** – e-shop krok 6 | `OrderShipped` → `OrderShippedV1` |
+| `Completed` | Doručená / vyzvednutá (do e-shop kroku 6 „vyřízená“ rovnou z `Confirmed`) | `OrderCompleted` |
 | `Cancelled` | Zrušená | `OrderCancelled` |
 
 Pravidla hlídá přímo entita [Order](code:src/MiniShop.Domain/Orders/Order.cs) – metody `Confirm`, `Reject`,
-`Complete`, `Cancel` nejdřív zkontrolují stav (`EnsureStatus`) a při chybě vyhodí `DomainException`.
-O `Confirmed`/`Rejected` **nerozhoduje uživatel**, ale [sága](../eda/saga.md).
+`StartPacking`, `Ship`, `MarkDelivered`, `Cancel` nejdřív zkontrolují stav (`EnsureStatus`) a při chybě vyhodí
+`DomainException`. O `Confirmed`/`Rejected` **nerozhoduje uživatel**, ale [sága](../eda/saga.md); o expedici admin
+na stránce **Expedice** (`/Admin/Fulfilment`) – viz [Expedice](../toky/expedice.md).
+
+**Souběh (e-shop krok 6):** objednávka má `Version` (*concurrency token*, zvýší ho každá změna stavu). Když admin
+odesílá a zákazník ve stejné chvíli ruší, oba načtou stejnou verzi; kdo uloží druhý, narazí na
+`UPDATE … WHERE Version = původní`, který nezmění žádný řádek → `ConcurrencyConflictException` (API 409, na stránce
+hláška „Objednávka se mezitím změnila“). Vyhraje jen jeden a data zůstanou v pořádku.
 
 ### Historie stavů (e-shop krok 5)
 
@@ -54,8 +65,9 @@ stateDiagram-v2
     AwaitingReservation --> Rejected : StockReservationFailedV1 → zamítne
     AwaitingReservation --> Rejected : timeout (30 s) → zamítne
     Rejected --> ReleasingStock : StockReservedV1 pozdě → pošle ReleaseStockV1
-    Reserved --> Completed : OrderCompleted
-    Reserved --> ReleasingStock : OrderCancelled → pošle ReleaseStockV1
+    Reserved --> Shipped : OrderShipped (sklad vydá rezervaci sám z OrderShippedV1)
+    Shipped --> Completed : OrderCompleted (doručeno)
+    Reserved --> ReleasingStock : OrderCancelled (i během balení) → pošle ReleaseStockV1
     ReleasingStock --> Released : StockReleasedV1
     Completed --> [*]
     Released --> [*]

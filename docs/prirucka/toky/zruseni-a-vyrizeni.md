@@ -1,11 +1,12 @@
 ---
-title: Zrušení a vyřízení objednávky
-summary: Potvrzenou objednávku jde vyřídit (konec ságy) nebo zrušit – pak sága vrátí zboží na sklad.
+title: Zrušení objednávky
+summary: Potvrzenou nebo balenou objednávku jde zrušit – sága pak vrátí zboží na sklad (kompenzace). Doručení viz Expedice.
 order: 4
 ---
 
-> **Shrnutí:** Obsluha u potvrzené objednávky klikne na *Vyřídit* nebo *Zrušit*. Vyřízení ságu jen uzavře
-> (zboží zůstává prodané). Zrušení spustí **kompenzaci** – příkaz `ReleaseStockV1`.
+> **Shrnutí:** Zákazník (nebo admin) zruší potvrzenou objednávku – od e-shop kroku 6 i během balení, po odeslání
+> už ne. Zrušení spustí **kompenzaci** – příkaz `ReleaseStockV1`. Balení, odeslání a doručení (dřív „Vyřídit“)
+> popisuje [Expedice](expedice.md).
 
 ## Zrušení
 
@@ -22,7 +23,7 @@ sequenceDiagram
     participant I as Inventory.Api
 
     O->>S: CancelAsync(id)
-    S->>S: order.Cancel() – jen z Confirmed → OrderCancelled
+    S->>S: order.Cancel() – z Confirmed nebo Packing → OrderCancelled
     S->>ODB: COMMIT: Order Cancelled + Outbox[OrderCancelled]
     S-->>O: zrušeno
     OW->>SG: OrderCancelled
@@ -37,30 +38,12 @@ sequenceDiagram
     SG->>SG: saga → Released
 ```
 
-## Vyřízení
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor O as Obsluha
-    participant S as OrderService
-    participant OW as OutboxWorker
-    participant SG as OrderSagaOrchestrator
-    participant H as Handlery
-
-    O->>S: CompleteAsync(id)
-    S->>S: order.Complete() – jen z Confirmed → OrderCompleted
-    S-->>O: vyřízeno
-    OW->>SG: OrderCompleted
-    SG->>SG: saga Reserved → Completed (žádná akce)
-    OW->>H: oznámení + OrderCompletedV1
-```
-
 ## Co si všimnout
 
 - `OrderService.CancelAsync` **o skladu neví** – jen změní stav. Vrácení zboží je reakce ságy na událost.
 - Sklad vrací zboží podle **svých rezervací**, ne podle položek objednávky – pracuje jen s tím, co sám zná.
-- Zrušit jde jen potvrzenou objednávku; `Pending` čeká na rozhodnutí ságy (pravidlo hlídá entita `Order`).
+- Zrušit jde potvrzenou nebo balenou objednávku; `Pending` čeká na rozhodnutí ságy, `Shipped` je už na cestě
+  (pravidlo hlídá entita `Order`). Souběh se současným odesláním řeší `Order.Version` – viz [Expedice](expedice.md).
 
 ## Kód
 

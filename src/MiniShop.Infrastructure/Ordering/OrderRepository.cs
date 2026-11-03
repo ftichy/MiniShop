@@ -37,9 +37,13 @@ public sealed class OrderRepository(OrderingDbContext db) : IOrderRepository
             .ToList();
     }
 
+    // E-shop krok 5: jedna objednávka i s historií stavů (detail). Seznam historii nenačítá – nepotřebuje ji
+    // a nový řádek historie EF uloží i bez načtení starých.
     public Task<Order?> GetByIdAsync(int id, CancellationToken cancellationToken = default) =>
         db.Orders
             .Include(o => o.Items)
+            .Include(o => o.StatusHistory)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
 
     public Task<Order?> GetByCheckoutIdAsync(string customerId, Guid checkoutId, CancellationToken cancellationToken = default) =>

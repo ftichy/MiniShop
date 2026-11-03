@@ -66,7 +66,8 @@ else if (Model.NeedsEmailConfirmation)
     <div class="card mb-3">
         <div class="card-header d-flex justify-content-between align-items-center">
             <span>
-                <strong>Objednávka č. @order.Id</strong> –
+                @* E-shop krok 5: detail s historií stavů. *@
+                <a asp-page="/Orders/Detail" asp-route-id="@order.Id" class="fw-bold" data-track="order-detail-link">Objednávka č. @order.Id</a> –
                 @order.CustomerName (@order.CustomerEmail),
                 @order.CreatedAtUtc.ToLocalTime().ToString("g")
             </span>

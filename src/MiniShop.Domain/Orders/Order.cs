@@ -7,7 +7,7 @@ namespace MiniShop.Domain.Orders;
 /// <summary>
 /// Objednávka zákazníka. Položky lze přidávat jen přes <see cref="AddItem"/>,
 /// stav se mění jen přes <see cref="Confirm"/>, <see cref="Reject"/>, <see cref="Complete"/> a <see cref="Cancel"/>.
-/// Každá změna stavu vyvolá doménovou událost.
+/// Každá změna stavu vyvolá doménovou událost a přidá řádek do <see cref="StatusHistory"/> (e-shop krok 5).
 /// </summary>
 /// <remarks>
 /// Od kroku 9 objednávka vzniká jako Pending a o potvrzení rozhoduje sága (OrderSaga) podle odpovědi skladu.
@@ -16,6 +16,7 @@ namespace MiniShop.Domain.Orders;
 public class Order : Entity
 {
     private readonly List<OrderItem> _items = new();
+    private readonly List<OrderStatusChange> _statusHistory = new();
 
     // Konstruktor pro EF Core. EF při načítání z DB volá tento (bezparametrický) konstruktor,
     // takže se při načtení objednávky událost OrderPlaced znovu nevyvolá.
@@ -53,7 +54,7 @@ public class Order : Entity
         CustomerEmail = customerEmail.Trim();
         CreatedAtUtc = createdAtUtc;
         CheckoutId = checkoutId;
-        Status = OrderStatus.Pending;
+        ChangeStatus(OrderStatus.Pending, createdAtUtc);
 
         // Položky se přidají až po konstruktoru, ale událost drží odkaz na objednávku,
         // takže handler (krok 2) uvidí objednávku i s položkami.
@@ -77,6 +78,12 @@ public class Order : Entity
     public string? RejectionReason { get; private set; }
 
     public IReadOnlyCollection<OrderItem> Items => _items.AsReadOnly();
+
+    /// <summary>
+    /// E-shop krok 5: historie stavů v pořadí, jak nastaly (první = Pending při vzniku). Zvenku jen ke čtení –
+    /// řádek přidá jen změna stavu.
+    /// </summary>
+    public IReadOnlyCollection<OrderStatusChange> StatusHistory => _statusHistory.AsReadOnly();
 
     /// <summary>E-shop krok 4: ID odeslání z pokladny – idempotence (dvojklik, F5 nevytvoří druhou objednávku).</summary>
     public Guid? CheckoutId { get; private set; }
@@ -139,7 +146,7 @@ public class Order : Entity
     public void Confirm(DateTime confirmedAtUtc)
     {
         EnsureStatus(OrderStatus.Pending, "Potvrdit lze jen čekající objednávku.");
-        Status = OrderStatus.Confirmed;
+        ChangeStatus(OrderStatus.Confirmed, confirmedAtUtc);
         Raise(new OrderConfirmed(this, confirmedAtUtc));
     }
 
@@ -152,15 +159,15 @@ public class Order : Entity
             throw new DomainException("Důvod zamítnutí je povinný.");
         }
 
-        Status = OrderStatus.Rejected;
         RejectionReason = reason.Trim();
+        ChangeStatus(OrderStatus.Rejected, rejectedAtUtc, RejectionReason);
         Raise(new OrderRejected(this, rejectedAtUtc));
     }
 
     public void Complete(DateTime completedAtUtc)
     {
         EnsureStatus(OrderStatus.Confirmed, "Vyřídit lze jen potvrzenou objednávku.");
-        Status = OrderStatus.Completed;
+        ChangeStatus(OrderStatus.Completed, completedAtUtc);
         Raise(new OrderCompleted(this, completedAtUtc));
     }
 
@@ -168,7 +175,7 @@ public class Order : Entity
     public void Cancel(DateTime cancelledAtUtc)
     {
         EnsureStatus(OrderStatus.Confirmed, "Zrušit lze jen potvrzenou objednávku.");
-        Status = OrderStatus.Cancelled;
+        ChangeStatus(OrderStatus.Cancelled, cancelledAtUtc);
         Raise(new OrderCancelled(this, cancelledAtUtc));
     }
 
@@ -193,6 +200,13 @@ public class Order : Entity
         CustomerName = AnonymizedCustomerName;
         CustomerEmail = string.Empty;
         DeliveryAddress = null;   // e-shop krok 4: adresa je osobní údaj
+    }
+
+    /// <summary>E-shop krok 5: jediné místo, kde se mění stav – nový stav a řádek historie vždy spolu.</summary>
+    private void ChangeStatus(OrderStatus status, DateTime changedAtUtc, string? note = null)
+    {
+        Status = status;
+        _statusHistory.Add(new OrderStatusChange(status, changedAtUtc, note));
     }
 
     private void EnsureStatus(OrderStatus expected, string message)

@@ -46,6 +46,28 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
             .HasForeignKey(i => i.OrderId)
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(o => o.Items).UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        // E-shop krok 5: historie stavů – vlastní tabulka, stejně jako položky přes privátní pole.
+        builder.HasMany(o => o.StatusHistory)
+            .WithOne()
+            .HasForeignKey(c => c.OrderId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(o => o.StatusHistory).UsePropertyAccessMode(PropertyAccessMode.Field);
+    }
+}
+
+internal sealed class OrderStatusChangeConfiguration : IEntityTypeConfiguration<OrderStatusChange>
+{
+    public void Configure(EntityTypeBuilder<OrderStatusChange> builder)
+    {
+        builder.ToTable("OrderStatusChanges");
+        builder.HasKey(c => c.Id);
+        builder.Property(c => c.Status).HasConversion<string>().HasMaxLength(20);
+        builder.Property(c => c.Note).HasMaxLength(500);
+
+        // SQLite neukládá DateTimeKind – při načtení čas označíme jako UTC (null = starší objednávka bez známého času).
+        builder.Property(c => c.ChangedAtUtc)
+            .HasConversion(v => v, v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
     }
 }
 

@@ -72,6 +72,39 @@ public sealed class OrderOwnershipTests(MiniShopWebFactory web) : IAsyncLifetime
         Assert.Equal("Pending", petras!.Status);
     }
 
+    /// <summary>E-shop krok 5: stránka detailu – vlastní objednávka s historií, cizí 404 (číslo v adrese nic neprozradí).</summary>
+    [Fact]
+    public async Task DetailNaStrance_VlastniSHistorii_CiziNenajde()
+    {
+        var jan = await web.LoginAsync(_janEmail, Password);
+
+        var own = await jan.GetAsync($"/Orders/{_janOrder}");
+        var foreign = await jan.GetAsync($"/Orders/{_petraOrder}");
+        var missing = await jan.GetAsync("/Orders/999999");
+
+        Assert.Equal(HttpStatusCode.OK, own.StatusCode);
+        var html = WebUtility.HtmlDecode(await own.Content.ReadAsStringAsync());
+        Assert.Contains($"Objednávka č. {_janOrder}", html);
+        Assert.Contains("Objednávka přijata, ověřujeme sklad", html);
+        Assert.DoesNotContain("Průběh zadání", html);   // Journeys jen pro admina
+        Assert.Equal(HttpStatusCode.NotFound, foreign.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);   // cizí a neexistující vypadají stejně
+
+        var list = WebUtility.HtmlDecode(await jan.GetStringAsync("/Orders"));
+        Assert.Contains($"href=\"/Orders/{_janOrder}\"", list);
+    }
+
+    [Fact]
+    public async Task DetailNaStrance_AdminVidiCiziIPrubeh()
+    {
+        var admin = await web.LoginAsync(MiniShopWebFactory.AdminEmail, MiniShopWebFactory.AdminPassword);
+
+        var html = WebUtility.HtmlDecode(await admin.GetStringAsync($"/Orders/{_petraOrder}"));
+
+        Assert.Contains($"Objednávka č. {_petraOrder}", html);
+        Assert.Contains("Průběh zadání", html);
+    }
+
     [Fact]
     public async Task Admin_VidiVsechnyObjednavky()
     {

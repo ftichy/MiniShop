@@ -12,7 +12,7 @@ order: 1
 ```mermaid
 flowchart TB
     subgraph entry["Vstupy"]
-        ui["Razor Page Orders/Index<br/>OrdersController (REST)"]
+        ui["Razor Pages Orders/Index, Orders/Detail<br/>OrdersController (REST)"]
         shop["Razor Page Shop/Index<br/>výloha"]
         cartUi["Razor Page Cart/Index<br/>košík + odznak v hlavičce"]
         checkoutUi["Razor Page Checkout/Index<br/>pokladna"]
@@ -36,7 +36,7 @@ flowchart TB
     end
 
     subgraph domain["Domain/Orders"]
-        order["Order + OrderItem"]
+        order["Order + OrderItem<br/>+ OrderStatusChange (historie)"]
         sagaState["OrderSaga<br/>stavový automat"]
         catProd["CatalogProduct"]
         cart["Cart + CartLine<br/>agregát s invarianty"]
@@ -97,7 +97,7 @@ později, v jiném scope, případně i opakovaně.
 | Komponenta | K čemu slouží | Kód |
 | --- | --- | --- |
 | **OrderService** | Use-casy: založit, vyřídit, zrušit objednávku, číst katalog. O skladu ani notifikacích neví – jen uloží objednávku a ta vyvolá událost. | [OrderService.cs](code:src/MiniShop.Application/Ordering/OrderService.cs) |
-| **Order** | Entita s business pravidly (potvrdit jde jen čekající objednávku…). Každá změna stavu vyvolá [doménovou událost](../../eda/domenove-udalosti.md). Patří zákazníkovi (`CustomerId`), jméno a e-mail jsou kopie z doby objednání. E-shop krok 4: doprava (`ShippingMethod`, `ShippingPrice` – snímek jako ceny položek), doručovací adresa (hodnotový objekt `DeliveryAddress`, jen kurýr) a `CheckoutId` (unikátní – idempotence). `TotalPrice` = položky + doprava. | [Order.cs](code:src/MiniShop.Domain/Orders/Order.cs) |
+| **Order** | Entita s business pravidly (potvrdit jde jen čekající objednávku…). Každá změna stavu vyvolá [doménovou událost](../../eda/domenove-udalosti.md). Patří zákazníkovi (`CustomerId`), jméno a e-mail jsou kopie z doby objednání. E-shop krok 4: doprava (`ShippingMethod`, `ShippingPrice` – snímek jako ceny položek), doručovací adresa (hodnotový objekt `DeliveryAddress`, jen kurýr) a `CheckoutId` (unikátní – idempotence). `TotalPrice` = položky + doprava. E-shop krok 5: každá změna stavu přidá řádek historie `OrderStatusChange` (stav, čas, u zamítnutí důvod) – viz [Stavové diagramy](../stavove-diagramy.md). | [Order.cs](code:src/MiniShop.Domain/Orders/Order.cs), [OrderStatusChange.cs](code:src/MiniShop.Domain/Orders/OrderStatusChange.cs) |
 | **OrderAccess**, **OrderCustomer** | Kdo se ptá (zákazník = jen své objednávky, správce = všechny) a kdo objednává. `OrderService` je dostává parametrem – o přihlášení neví; z cookie je skládá Web. | [OrderAccess.cs](code:src/MiniShop.Application/Ordering/OrderAccess.cs), [OrderAccessExtensions.cs](code:src/MiniShop.Web/Accounts/OrderAccessExtensions.cs) |
 | **OrderSagaOrchestrator** | „Dirigent“: na `OrderPlaced` založí ságu a pošle `ReserveStockV1`; na odpověď skladu objednávku potvrdí/zamítne; na zrušení pošle `ReleaseStockV1`. | [OrderSagaOrchestrator.cs](code:src/MiniShop.Application/Ordering/Saga/OrderSagaOrchestrator.cs) |
 | **OrderSaga** | Stavový automat ságy – jen rozhoduje, co dál, nic neprovádí. | [OrderSaga.cs](code:src/MiniShop.Domain/Orders/Saga/OrderSaga.cs) |
@@ -128,7 +128,8 @@ později, v jiném scope, případně i opakovaně.
 - UI: **výloha** (`/Shop`, veřejná – e-shop krok 2; obrázky ze skladu přes
   `/media/products/{soubor}` – krok 2B; tlačítko **Do košíku** – krok 3, od kroku 4B jediná cesta k objednávce),
   **košík** (`/Cart`, jen zákazník s potvrzeným e-mailem – admin neobjednává), **pokladna** (`/Checkout` – krok 4),
-  stránka **Objednávky** (`/Orders` – přehled, od kroku 4B bez formuláře), detail průběhu (`/Orders/Journey/{id}`), přehrání (`/Orders/Replay/{id}`).
+  stránka **Objednávky** (`/Orders` – přehled, od kroku 4B bez formuláře), **detail objednávky** (`/Orders/{id}` –
+  krok 5: položky, doprava, adresa a časová osa stavů; zákazník jen svou, cizí = 404; sem vede pokladna po odeslání), průběh zadání (`/Orders/Journey/{id}`), přehrání (`/Orders/Replay/{id}`).
 - REST: `GET/POST /api/orders` (`POST` s volitelným `checkoutId` – opakovaný požadavek vrátí stejnou objednávku, krok 4), `POST /api/orders/{id}/complete`, `POST /api/orders/{id}/cancel`.
   `POST` vrací **202 Accepted** – objednávka je přijatá, ale o potvrzení teprve rozhodne sága.
 - **Vlastník (účty krok 3):** zákazník vidí a ruší jen své objednávky – seznam se filtruje přímo v SQL dotazu

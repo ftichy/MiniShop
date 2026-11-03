@@ -84,6 +84,41 @@ public sealed class DatabaseMigrationTests
         }
     }
 
+    /// <summary>
+    /// E-shop krok 5: existující objednávky dostanou historii – vznik se známým časem a aktuální stav bez času
+    /// (kdy nastal, se už nezjistí). Čekající objednávka má jen vznik.
+    /// </summary>
+    [Fact]
+    public async Task Ordering_StareObjednavky_DostanouHistoriiStavu()
+    {
+        using var database = new InMemoryDatabase();
+        await using (var db = CreateDbContext<OrderingDbContext>(database))
+        {
+            await CreateOldDatabaseAsync(db);
+            await db.Database.ExecuteSqlRawAsync(
+                "INSERT INTO Orders (Id, CustomerId, CustomerName, CustomerEmail, CreatedAtUtc, Status, RejectionReason) VALUES " +
+                "(1, 'u1', 'Jan', 'jan@example.com', '2026-10-30 12:00:00', 'Completed', NULL), " +
+                "(2, 'u1', 'Jan', 'jan@example.com', '2026-10-30 13:00:00', 'Rejected', 'Nedostatek zboží'), " +
+                "(3, 'u1', 'Jan', 'jan@example.com', '2026-10-30 14:00:00', 'Pending', NULL)");
+        }
+
+        await using (var db = CreateDbContext<OrderingDbContext>(database))
+        {
+            await OrderingDatabaseInitializer.MigrateAsync(db);
+
+            var history = (await db.Orders.Include(o => o.StatusHistory).AsNoTracking().OrderBy(o => o.Id).ToListAsync())
+                .ToDictionary(o => o.Id, o => o.StatusHistory.OrderBy(c => c.Id).Select(c => (c.Status, c.ChangedAtUtc, c.Note)).ToList());
+
+            Assert.Equal(
+                [(OrderStatus.Pending, (DateTime?)Now, (string?)null), (OrderStatus.Completed, null, null)],
+                history[1]);
+            Assert.Equal(
+                [(OrderStatus.Pending, (DateTime?)Now.AddHours(1), (string?)null), (OrderStatus.Rejected, null, "Nedostatek zboží")],
+                history[2]);
+            Assert.Equal([(OrderStatus.Pending, (DateTime?)Now.AddHours(2), (string?)null)], history[3]);
+        }
+    }
+
     [Fact]
     public async Task Inventory_StaraDatabaze_ProjdeMigraci_DataZustanou()
     {

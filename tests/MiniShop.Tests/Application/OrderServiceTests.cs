@@ -274,6 +274,36 @@ public sealed class OrderServiceTests : IDisposable
         Assert.Equal("Confirmed", await StatusAsync(petras.Id));   // nic se nezměnilo
         var own = await Orders(s => s.CancelAsync(petras.Id, OrderAccess.Customer(Petra.CustomerId)));
         Assert.Equal("Cancelled", own.Status);
+        await Assert.ThrowsAsync<NotFoundException>(() => Orders(s => s.GetDetailAsync(petras.Id, asJan)));   // e-shop krok 5
+    }
+
+    // ---------- E-shop krok 5: historie stavů ----------
+
+    [Fact]
+    public async Task Detail_HistorieCeleCestyPresSaguAZruseni()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await PlaceConfirmedOrderAsync(product.Id, quantity: 1);   // sága potvrdí přes outbox
+        await Orders(s => s.CancelAsync(order.Id, OrderAccess.AllOrders));
+
+        var detail = await Orders(s => s.GetDetailAsync(order.Id, OrderAccess.Customer(Jan.CustomerId)));
+
+        Assert.Equal(order.Id, detail.Order.Id);
+        Assert.Equal(["Pending", "Confirmed", "Cancelled"], detail.History.Select(h => h.Status));
+        Assert.All(detail.History, h => Assert.Equal(DateTimeKind.Utc, h.ChangedAtUtc!.Value.Kind));
+    }
+
+    [Fact]
+    public async Task Detail_ZamitnutaObjednavka_HistorieMaDuvod()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 2);
+        var order = await Orders(s => PlaceAsJan(s, CreateRequest((product.Id, 3))));
+        await ProcessOutboxAsync();
+
+        var detail = await Orders(s => s.GetDetailAsync(order.Id, OrderAccess.AllOrders));
+
+        Assert.Equal(["Pending", "Rejected"], detail.History.Select(h => h.Status));
+        Assert.Contains("požadováno 3 ks, skladem 2 ks", detail.History[1].Note);
     }
 
     // ---------- Zrušení a vyřízení ----------

@@ -98,6 +98,9 @@ public class Order : Entity
     /// <summary>E-shop krok 4: doručovací adresa – jen u kurýra. Osobní údaj: smaže ji <see cref="Anonymize"/>.</summary>
     public DeliveryAddress? DeliveryAddress { get; private set; }
 
+    /// <summary>E-shop krok 8: způsob platby (None = objednávka bez pokladny, bez platby).</summary>
+    public PaymentMethod PaymentMethod { get; private set; }
+
     /// <summary>E-shop krok 6: dopravce (jen kurýr; vyplní <see cref="Ship"/>).</summary>
     public string? Carrier { get; private set; }
 
@@ -155,18 +158,58 @@ public class Order : Entity
         _items.Add(new OrderItem(product.Id, product.Name, product.Price, quantity, discount));
     }
 
-    /// <summary>Sklad zboží zarezervoval (krok 9).</summary>
+    /// <summary>E-shop krok 8: způsob platby z pokladny (kartou / dobírka). Jen u nové objednávky.</summary>
+    public void SetPayment(PaymentMethod method)
+    {
+        EnsureStatus(OrderStatus.Pending, "Platbu lze zvolit jen u nové objednávky.");
+        if (method == PaymentMethod.None)
+        {
+            throw new DomainException("Vyberte způsob platby.");
+        }
+
+        PaymentMethod = method;
+    }
+
+    /// <summary>Platí se kartou přes bránu – sága po rezervaci čeká na platbu (e-shop krok 8).</summary>
+    public bool RequiresOnlinePayment => PaymentMethod == PaymentMethod.Card;
+
+    /// <summary>E-shop krok 8: zboží je zarezervované, čeká se na platbu kartou (rozhoduje sága).</summary>
+    public void AwaitPayment(DateTime atUtc)
+    {
+        EnsureStatus(OrderStatus.Pending, "Na platbu může čekat jen nová objednávka.");
+        if (!RequiresOnlinePayment)
+        {
+            throw new DomainException("Objednávka se neplatí kartou.");
+        }
+
+        ChangeStatus(OrderStatus.AwaitingPayment, atUtc);
+        Raise(new OrderAwaitingPayment(this, atUtc));
+    }
+
+    /// <summary>
+    /// Sklad zboží zarezervoval (krok 9) – u platby kartou až po zaplacení (e-shop krok 8: z AwaitingPayment).
+    /// </summary>
     public void Confirm(DateTime confirmedAtUtc)
     {
-        EnsureStatus(OrderStatus.Pending, "Potvrdit lze jen čekající objednávku.");
+        var allowed = RequiresOnlinePayment ? OrderStatus.AwaitingPayment : OrderStatus.Pending;
+        EnsureStatus(allowed, RequiresOnlinePayment
+            ? "Potvrdit lze jen zaplacenou objednávku."
+            : "Potvrdit lze jen čekající objednávku.");
         ChangeStatus(OrderStatus.Confirmed, confirmedAtUtc);
         Raise(new OrderConfirmed(this, confirmedAtUtc));
     }
 
-    /// <summary>Sklad zboží nezarezervoval nebo neodpověděl včas (krok 9).</summary>
+    /// <summary>
+    /// Sklad zboží nezarezervoval nebo neodpověděl včas (krok 9). E-shop krok 8: i když platba neproběhla
+    /// (z AwaitingPayment) – „systém ji nemohl vyřídit“, ne „někdo ji zrušil“.
+    /// </summary>
     public void Reject(string reason, DateTime rejectedAtUtc)
     {
-        EnsureStatus(OrderStatus.Pending, "Zamítnout lze jen čekající objednávku.");
+        if (Status is not (OrderStatus.Pending or OrderStatus.AwaitingPayment))
+        {
+            throw new DomainException("Zamítnout lze jen čekající objednávku.");
+        }
+
         if (string.IsNullOrWhiteSpace(reason))
         {
             throw new DomainException("Důvod zamítnutí je povinný.");
@@ -242,7 +285,8 @@ public class Order : Entity
     public const string AnonymizedCustomerName = "Smazaný zákazník";
 
     /// <summary>Je objednávka rozpracovaná (čeká na sklad, balí se nebo je na cestě)?</summary>
-    public bool IsActive => Status is OrderStatus.Pending or OrderStatus.Confirmed or OrderStatus.Packing or OrderStatus.Shipped;
+    public bool IsActive => Status is OrderStatus.Pending or OrderStatus.AwaitingPayment or OrderStatus.Confirmed
+        or OrderStatus.Packing or OrderStatus.Shipped;
 
     /// <summary>
     /// Účty krok 9: zákazník smazal účet – objednávka zůstane (položky, ceny, stav pro účetnictví a statistiky),

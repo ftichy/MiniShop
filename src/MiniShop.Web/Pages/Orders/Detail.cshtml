@@ -18,6 +18,18 @@
     @* Krok 9: sklad objednávku ověřuje na pozadí (sága) – stránka se za 2 s sama obnoví. *@
     <p class="text-muted small" data-reload-when-idle>Čekáme na potvrzení skladu, stránka se sama obnoví…</p>
 }
+else if (order.Status == "AwaitingPayment")
+{
+    @* E-shop krok 8: zboží drží rezervace, zákazník má na zaplacení omezený čas (pak sága objednávku zamítne).
+       Stránka se obnovuje – po zaplacení (třeba v jiné záložce) se ukáže potvrzení. *@
+    <div class="alert alert-warning d-flex justify-content-between align-items-center" data-reload-when-idle>
+        <span>Zboží máme rezervované. Zaplaťte prosím kartou do @Model.PaymentMinutes minut od rezervace, jinak objednávku zrušíme.</span>
+        @if (!Model.CanManageOrders)
+        {
+            <a asp-page="/Pay/Index" asp-route-orderId="@order.Id" class="btn btn-primary" data-track="order-pay">Zaplatit @order.TotalPrice.ToString("N2") Kč</a>
+        }
+    </div>
+}
 
 <p class="text-muted">
     @order.CustomerName@(string.IsNullOrEmpty(order.CustomerEmail) ? "" : $" ({order.CustomerEmail})"),
@@ -67,6 +79,12 @@
             <h2 class="h5">Doručovací adresa</h2>
             @* Účty krok 9: po smazání účtu je adresa anonymizovaná (null). *@
             <p>@(order.DeliveryAddress ?? "adresa byla smazána")</p>
+        }
+        @if (order.PaymentMethod != "None")
+        {
+            @* E-shop krok 8 *@
+            <h2 class="h5">Platba</h2>
+            <p>@(order.PaymentMethod == "Card" ? "Kartou online" : "Dobírka – platba při převzetí")</p>
         }
         @if (order.Carrier is not null)
         {

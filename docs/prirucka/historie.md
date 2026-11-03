@@ -82,6 +82,7 @@ Plán (výloha, košík, pokladna, expedice, platba, notifikace): [docs/Eshop-ro
 | 5 | Detail objednávky `/Orders/{id}` s časovou osou stavů – historie `OrderStatusChange` přímo v agregátu (jedna transakce se stavem), migrace doplnila historii starým objednávkám bez vymyšlených časů | [eshop-05](code:docs/kroky-eshop/krok-05-detail-objednavky.md) |
 | 6 | Expedice – balení, odeslání (dopravce + číslo zásilky), doručení na stránce `/Admin/Fulfilment`; `OrderShippedV1` jako událost (choreografie) → sklad vydá rezervaci; `Order.Version` proti souběhu odeslat × zrušit | [eshop-06](code:docs/kroky-eshop/krok-06-expedice.md) |
 | 7 | Notifikace jako samostatný modul – Ordering jen oznamuje fakta (`OrderPlacedV2`, `OrderConfirmedV1`, `OrderRejectedV1`…), modul Notifications si drží kopii příjemce a posílá e-maily; zprávy mimo pořadí, `CustomerAnonymizedV1` (zapomenout zákazníka) | [eshop-07](code:docs/kroky-eshop/krok-07-notifikace.md) |
+| 8 | Platba kartou – modul Payments jako druhý účastník ságy (`RequestPaymentV1` → `PaymentSucceededV1`/`FailedV1`), simulovaná brána a podepsaný webhook (HMAC), termín platby s kompenzací, vrácení pozdní platby, dobírka | [eshop-08](code:docs/kroky-eshop/krok-08-platba.md) |
 
 ## Proč po krocích
 

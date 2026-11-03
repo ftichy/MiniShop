@@ -135,6 +135,7 @@ public sealed partial class CheckoutPageTests(MiniShopWebFactory web)
         ["__RequestVerificationToken"] = token,
         ["Input.CheckoutId"] = checkoutId.ToString(),
         ["Input.ShippingMethod"] = "Courier",
+        ["Input.PaymentMethod"] = "CashOnDelivery",   // e-shop krok 8
         ["Input.Street"] = "Dlouhá 5",
         ["Input.City"] = "Praha",
         ["Input.PostalCode"] = "110 00"

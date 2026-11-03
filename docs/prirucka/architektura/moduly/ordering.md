@@ -116,9 +116,9 @@ později, v jiném scope, případně i opakovaně.
 
 | Směr | Zprávy |
 | --- | --- |
-| posílá (příkazy skladu) | `ReserveStockV1`, `ReleaseStockV1`, `SyncCatalogV1` |
+| posílá (příkazy) | skladu `ReserveStockV1`, `ReleaseStockV1`, `SyncCatalogV1`; od e-shop kroku 8 modulu [Payments](payments.md) `RequestPaymentV1`, `RefundPaymentV1` |
 | posílá (události pro kohokoli) | `OrderPlacedV1`, `OrderPlacedV2`, `OrderConfirmedV1`, `OrderRejectedV1` (e-shop krok 7), `OrderShippedV1` (e-shop krok 6), `OrderCompletedV1` (= doručeno), `OrderCancelledV1`, `CustomerAnonymizedV1` (e-shop krok 7) |
-| přijímá (fronta `minishop.ordering`) | `StockReservedV1`, `StockReservationFailedV1`, `StockReleasedV1`, `ProductUpdatedV1`, `ProductUpdatedV2`, `StockAvailabilityChangedV1`, `ProductRemovedV1` |
+| přijímá (fronta `minishop.ordering`) | `StockReservedV1`, `StockReservationFailedV1`, `StockReleasedV1`, `PaymentSucceededV1`, `PaymentFailedV1` (e-shop krok 8), `ProductUpdatedV1`, `ProductUpdatedV2`, `StockAvailabilityChangedV1`, `ProductRemovedV1` |
 
 ## Rozhraní navenek
 

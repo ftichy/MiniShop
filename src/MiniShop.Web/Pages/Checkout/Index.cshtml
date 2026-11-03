@@ -82,7 +82,8 @@
     <input type="hidden" name="JourneyId" value="@Model.JourneyId" />
     <input type="hidden" name="JourneyOffsetMs" value="@Model.JourneyOffsetMs" />
 
-    <fieldset class="col-md-5">
+    <div class="col-md-5">
+    <fieldset>
         <legend class="h5">Doprava</legend>
         @foreach (var option in Model.Summary.ShippingOptions)
         {
@@ -99,6 +100,23 @@
             </div>
         }
     </fieldset>
+
+    @* E-shop krok 8: platba – kartou přes bránu (objednávka pak čeká na zaplacení), nebo dobírka.
+       Vlastní fieldset: sledování průběhu bere popisek přepínače z legendy (Doprava × Platba). *@
+    <fieldset class="mt-3">
+        <legend class="h5">Platba</legend>
+        @foreach (var method in IndexModel.PaymentMethods)
+        {
+            var id = $"payment-{method}";
+            <div class="form-check">
+                <input type="radio" id="@id" name="Input.PaymentMethod" value="@method" class="form-check-input"
+                       checked="@(Model.Input.PaymentMethod == method)"
+                       data-track-value="@IndexModel.PaymentName(method)" />
+                <label for="@id" class="form-check-label">@IndexModel.PaymentName(method)</label>
+            </div>
+        }
+    </fieldset>
+    </div>
 
     <fieldset class="col-md-7">
         <legend class="h5">Doručovací adresa <span class="text-muted fs-6">(jen pro kurýra)</span></legend>

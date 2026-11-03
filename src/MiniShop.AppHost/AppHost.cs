@@ -13,6 +13,10 @@ var messaging = builder.AddRabbitMQ("messaging")
 var inventoryApiKey = builder.AddParameter("inventory-api-key",
     new GenerateParameterDefault { MinLength = 64, Special = false }, secret: true, persist: true);
 
+// E-shop krok 8: sdílené tajemství s platební bránou (podpis webhooku HMAC). Simulace brány i ověření běží ve Webu.
+var paymentsWebhookSecret = builder.AddParameter("payments-webhook-secret",
+    new GenerateParameterDefault { MinLength = 64, Special = false }, secret: true, persist: true);
+
 // Služba skladu: vlastní proces, vlastní inventory.db, fronta minishop.inventory.
 var inventoryApi = builder.AddProject<Projects.MiniShop_Inventory_Api>("inventory-api")
     .WithReference(messaging)
@@ -32,6 +36,7 @@ builder.AddProject<Projects.MiniShop_Web>("web")
     .WithReference(messaging)
     .WithReference(inventoryApi)
     .WithEnvironment("InventoryApi__ApiKey", inventoryApiKey)
+    .WithEnvironment("Payments__WebhookSecret", paymentsWebhookSecret)
     .WithEnvironment("Email__Host", mailpitSmtp.Property(EndpointProperty.Host))
     .WithEnvironment("Email__Port", mailpitSmtp.Property(EndpointProperty.Port))
     .WithEnvironment("Email__UseTls", "false")

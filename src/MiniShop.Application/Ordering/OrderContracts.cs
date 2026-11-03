@@ -15,6 +15,7 @@ public sealed record OrderItemDto(
 /// <param name="DeliveryAddress">E-shop krok 4: adresa jedním řádkem (jen kurýr).</param>
 /// <param name="Carrier">E-shop krok 6: dopravce (jen odeslaná objednávka kurýrem).</param>
 /// <param name="TrackingNumber">E-shop krok 6: číslo zásilky u dopravce.</param>
+/// <param name="PaymentMethod">E-shop krok 8: <c>None</c> (bez pokladny), <c>Card</c>, <c>CashOnDelivery</c>.</param>
 public sealed record OrderDto(
     int Id,
     string CustomerName,
@@ -28,7 +29,8 @@ public sealed record OrderDto(
     decimal ShippingPrice = 0m,
     string? DeliveryAddress = null,
     string? Carrier = null,
-    string? TrackingNumber = null);
+    string? TrackingNumber = null,
+    string PaymentMethod = "None");
 
 /// <summary>E-shop krok 5: jeden řádek historie stavů. <paramref name="ChangedAtUtc"/> = null u objednávek starších než krok 5.</summary>
 public sealed record OrderStatusChangeDto(string Status, DateTime? ChangedAtUtc, string? Note);

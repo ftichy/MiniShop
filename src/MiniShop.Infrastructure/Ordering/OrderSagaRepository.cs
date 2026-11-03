@@ -11,7 +11,8 @@ public sealed class OrderSagaRepository(OrderingDbContext db) : IOrderSagaReposi
 
     public async Task<IReadOnlyList<int>> GetExpiredOrderIdsAsync(DateTime nowUtc, CancellationToken cancellationToken = default) =>
         await db.OrderSagas
-            .Where(s => s.State == OrderSagaState.AwaitingReservation && s.ReservationDeadlineUtc <= nowUtc)
+            .Where(s => (s.State == OrderSagaState.AwaitingReservation && s.ReservationDeadlineUtc <= nowUtc)
+                || (s.State == OrderSagaState.AwaitingPayment && s.PaymentDeadlineUtc <= nowUtc))   // e-shop krok 8
             .Select(s => s.OrderId)
             .ToListAsync(cancellationToken);
 

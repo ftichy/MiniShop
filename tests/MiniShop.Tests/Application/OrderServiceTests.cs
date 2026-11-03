@@ -12,6 +12,7 @@ using MiniShop.Application.Ordering.Carts;
 using MiniShop.Application.Ordering.Catalog;
 using MiniShop.Application.Ordering.Checkout;
 using MiniShop.Application.Notifications;
+using MiniShop.Application.Payments;
 using MiniShop.Application.Ordering.IntegrationEvents;
 using MiniShop.Application.Ordering.Saga;
 using MiniShop.Application.Ordering.Pricing;
@@ -19,6 +20,7 @@ using MiniShop.Contracts;
 using MiniShop.Contracts.Customers;
 using MiniShop.Contracts.Inventory;
 using MiniShop.Contracts.Orders;
+using MiniShop.Contracts.Payments;
 using MiniShop.Domain.Common;
 using MiniShop.Domain.Exceptions;
 using MiniShop.Domain.Orders;
@@ -30,6 +32,7 @@ using MiniShop.Infrastructure.Integration;
 using MiniShop.Infrastructure.Outbox;
 using MiniShop.Infrastructure.Inventory;
 using MiniShop.Infrastructure.Notifications;
+using MiniShop.Infrastructure.Payments;
 using MiniShop.Infrastructure.Ordering;
 using MiniShop.Tests.TestDoubles;
 
@@ -49,11 +52,14 @@ public sealed class OrderServiceTests : IDisposable
     private const int UncategorizedId = 1;
 
     private static readonly TimeSpan ReservationTimeout = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan PaymentTimeout = TimeSpan.FromMinutes(30);   // e-shop krok 8
+    private const string WebhookSecret = "testovaci-tajemstvi-webhooku-plateb-0123456789";
 
     private readonly InMemoryDatabase _orderingDatabase = new();
     private readonly InMemoryDatabase _inventoryDatabase = new();
     private readonly FixedTimeProvider _time = new(Now);
     private readonly InMemoryDatabase _notificationsDatabase = new();   // e-shop krok 7: modul Notifications
+    private readonly InMemoryDatabase _paymentsDatabase = new();        // e-shop krok 8: modul Payments
     private readonly RecordingEmailSender _emails = new();
     private readonly InMemoryProductImageStore _images = new();   // e-shop krok 2B
     private readonly List<IDomainEvent> _dispatched = new();
@@ -78,7 +84,7 @@ public sealed class OrderServiceTests : IDisposable
         services.AddDomainEventHandler<OrderCancelled, PublishOrderIntegrationEventsHandler>();
 
         // Sága (orchestrátor), kopie katalogu (krok 10) a modul Inventory.
-        services.AddSingleton(new OrderSagaSettings(ReservationTimeout));
+        services.AddSingleton(new OrderSagaSettings(ReservationTimeout, PaymentTimeout));
         services.AddDomainEventHandler<OrderPlaced, OrderSagaOrchestrator>();
         services.AddDomainEventHandler<OrderShipped, OrderSagaOrchestrator>();
         services.AddDomainEventHandler<OrderCompleted, OrderSagaOrchestrator>();
@@ -86,6 +92,8 @@ public sealed class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<StockReservedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<StockReservationFailedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<StockReleasedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
+        services.AddIntegrationMessageHandler<PaymentSucceededV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);   // e-shop krok 8
+        services.AddIntegrationMessageHandler<PaymentFailedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<ProductUpdatedV1, CatalogProjectionHandler>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<ProductUpdatedV2, CatalogProjectionHandler>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<StockAvailabilityChangedV1, CatalogProjectionHandler>(IntegrationModules.Ordering);
@@ -115,6 +123,12 @@ public sealed class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<OrderCompletedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<OrderCancelledV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<CustomerAnonymizedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<PaymentRefundedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
+
+        // E-shop krok 8: modul Payments (účastník ságy) – jako AddPaymentsModule + AddPaymentsInfrastructure ve Webu.
+        services.AddPaymentsInfrastructure(_paymentsDatabase.ConnectionString, WebhookSecret);
+        services.AddIntegrationMessageHandler<RequestPaymentV1, PaymentCommandHandlers>(IntegrationModules.Payments);
+        services.AddIntegrationMessageHandler<RefundPaymentV1, PaymentCommandHandlers>(IntegrationModules.Payments);
 
         // Testovací náhrady: notifikace do seznamu, "broker" si zprávy zapamatuje a doručí je v procesu,
         // skutečný dispatcher obalený záznamníkem.
@@ -129,6 +143,7 @@ public sealed class OrderServiceTests : IDisposable
         _bus = (RecordingIntegrationBus)_services.GetRequiredService<IIntegrationBus>();
         OrderingDatabaseInitializer.InitializeAsync(_services).GetAwaiter().GetResult();
         NotificationsDatabaseInitializer.InitializeAsync(_services).GetAwaiter().GetResult();
+        PaymentsDatabaseInitializer.InitializeAsync(_services).GetAwaiter().GetResult();
         InventoryDb(async db => { await InventoryDatabaseInitializer.MigrateAsync(db); return true; }).GetAwaiter().GetResult();
     }
 
@@ -479,6 +494,100 @@ public sealed class OrderServiceTests : IDisposable
         Assert.Single(NotifierEvents, e => e == $"cancelled:{order.Id}");
         var message = await OrderingDb(db => db.OutboxMessages.SingleAsync(m => m.Type == nameof(OrderCancelledV1)));
         Assert.NotNull(message.ProcessedAtUtc);   // napodruhé doručeno
+    }
+
+    // ---------- E-shop krok 8: platba kartou ----------
+
+    [Fact]
+    public async Task Platba_Zaplaceno_ObjednavkaPotvrzena()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await PlaceCardOrderAsync(product.Id, quantity: 2);
+
+        await ProcessOutboxAsync();   // rezervace → RequestPaymentV1 → Payments založí platbu
+        Assert.Equal("AwaitingPayment", await StatusAsync(order.Id));
+        Assert.Equal(3, await StockAsync());   // zboží drží rezervace
+        var request = Assert.Single(_bus.Published.OfType<RequestPaymentV1>());
+        Assert.Equal((order.TotalPrice, Now.UtcDateTime + PaymentTimeout), (request.Amount, request.ExpiresAtUtc));
+
+        Assert.Equal(PaymentWebhookResult.Accepted, await SimulateGatewayAsync(order.Id, paid: true));
+        await ProcessOutboxAsync();   // PaymentSucceededV1 → sága potvrdí
+
+        Assert.Equal("Confirmed", await StatusAsync(order.Id));
+        Assert.Equal(OrderSagaState.Reserved, (await SagaAsync(order.Id)).State);
+        Assert.Equal(3, await StockAsync());
+        var detail = await Orders(s => s.GetDetailAsync(order.Id, OrderAccess.AllOrders));
+        Assert.Equal(["Pending", "AwaitingPayment", "Confirmed"], detail.History.Select(h => h.Status));
+    }
+
+    [Fact]
+    public async Task Platba_Zamitnuta_ObjednavkaZamitnutaAZboziZpet()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await PlaceCardOrderAsync(product.Id, quantity: 2);
+        await ProcessOutboxAsync();
+
+        await SimulateGatewayAsync(order.Id, paid: false);
+        await ProcessOutboxAsync();   // PaymentFailedV1 → zamítnout + ReleaseStockV1
+
+        var rejected = await Orders(s => s.GetByIdAsync(order.Id, OrderAccess.AllOrders));
+        Assert.Equal("Rejected", rejected.Status);
+        Assert.Contains("zamítli", rejected.RejectionReason);
+        Assert.Equal(5, await StockAsync());
+        Assert.Equal(OrderSagaState.Released, (await SagaAsync(order.Id)).State);
+        Assert.Contains($"rejected:{order.Id}", NotifierEvents);
+    }
+
+    [Fact]
+    public async Task Platba_Nezaplaceno_PoTerminuZamitnutaAPozdniPlatbaSeVrati()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await PlaceCardOrderAsync(product.Id, quantity: 2);
+        await ProcessOutboxAsync();
+
+        _time.Advance(PaymentTimeout);
+        Assert.Equal([order.Id], await ExpiredSagasAsync());
+        Assert.True(await Saga(s => s.TimeOutAsync(order.Id, CancellationToken.None)));
+        await ProcessOutboxAsync();
+
+        Assert.Equal("Rejected", await StatusAsync(order.Id));
+        Assert.Equal(5, await StockAsync());
+
+        // Brána platbu přesto potvrdí (zákazník zaplatil v poslední vteřině) → sága pošle vrátit peníze.
+        await SimulateGatewayAsync(order.Id, paid: true, ignoreExpiry: true);
+        await ProcessOutboxAsync();
+
+        Assert.Single(_bus.Published.OfType<RefundPaymentV1>());
+        Assert.Single(_bus.Published.OfType<PaymentRefundedV1>());
+        Assert.Equal("Rejected", await StatusAsync(order.Id));   // objednávka zůstala zamítnutá
+        Assert.Contains(_emails.Sent, e => e.Subject.Contains("vracíme"));
+    }
+
+    [Fact]
+    public async Task Platba_Dobirka_SagaPlatbuPreskoci()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await PlaceCardOrderAsync(product.Id, quantity: 1, PaymentMethod.CashOnDelivery);
+
+        await ProcessOutboxAsync();
+
+        Assert.Equal("Confirmed", await StatusAsync(order.Id));
+        Assert.Empty(_bus.Published.OfType<RequestPaymentV1>());
+    }
+
+    [Fact]
+    public async Task Platba_OpakovanyWebhook_NicNezdvoji()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await PlaceCardOrderAsync(product.Id, quantity: 1);
+        await ProcessOutboxAsync();
+
+        await SimulateGatewayAsync(order.Id, paid: true);
+        await SimulateGatewayAsync(order.Id, paid: true);   // brána neviděla odpověď a poslala znovu
+        await ProcessOutboxAsync();
+
+        Assert.Single(_bus.Published.OfType<PaymentSucceededV1>());
+        Assert.Single(NotifierEvents, e => e == $"confirmed:{order.Id}");
     }
 
     // ---------- E-shop krok 7: Notifications ----------
@@ -1339,7 +1448,7 @@ public sealed class OrderServiceTests : IDisposable
         var checkout = await Checkout(s => s.GetAsync(Jan.CustomerId));
         Assert.Equal(0m, checkout.ShippingOptions.Single(o => o.Method == ShippingMethod.Courier).Price);
 
-        var noAddress = new CheckoutRequest { CheckoutId = checkout.CheckoutId, ShippingMethod = ShippingMethod.Courier };
+        var noAddress = new CheckoutRequest { CheckoutId = checkout.CheckoutId, ShippingMethod = ShippingMethod.Courier, PaymentMethod = PaymentMethod.CashOnDelivery };
         await Assert.ThrowsAsync<DomainException>(() => Checkout(s => s.PlaceOrderAsync(noAddress, Jan)));
         Assert.False((await Cart(s => s.GetAsync(Jan.CustomerId))).IsEmpty);   // košík zůstal
 
@@ -1430,6 +1539,30 @@ public sealed class OrderServiceTests : IDisposable
 
     private async Task<int> OutboxCountAsync() =>
         await OrderingDb(db => db.OutboxMessages.CountAsync()) + await InventoryDb(db => db.OutboxMessages.CountAsync());
+
+    /// <summary>E-shop krok 8: objednávka z pokladny (osobní odběr) s platbou kartou (nebo jinou).</summary>
+    private async Task<OrderDto> PlaceCardOrderAsync(int productId, int quantity, PaymentMethod payment = PaymentMethod.Card)
+    {
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, productId, quantity));
+        var checkout = await Checkout(s => s.GetAsync(Jan.CustomerId));
+        var request = Pickup(checkout.CheckoutId);
+        request.PaymentMethod = payment;
+        return await Checkout(s => s.PlaceOrderAsync(request, Jan));
+    }
+
+    /// <summary>
+    /// E-shop krok 8: zákazník na stránce simulované brány klikl Zaplatit / Zamítnout. <paramref name="ignoreExpiry"/>
+    /// = webhook skutečné brány, který přišel po termínu (simulace by po termínu zaplatit nepustila).
+    /// </summary>
+    private async Task<PaymentWebhookResult> SimulateGatewayAsync(int orderId, bool paid, bool ignoreExpiry = false)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        var payment = await scope.ServiceProvider.GetRequiredService<IPaymentRepository>().GetByOrderIdAsync(orderId)
+            ?? throw new InvalidOperationException($"Platba objednávky {orderId} nevznikla.");
+        Assert.True(ignoreExpiry || !payment.IsExpired(_time.GetUtcNow().UtcDateTime), "Platba už vypršela.");
+        var gateway = scope.ServiceProvider.GetRequiredService<FakePaymentGatewaySimulator>();
+        return paid ? await gateway.PayAsync(payment.Id) : await gateway.DeclineAsync(payment.Id);
+    }
 
     /// <summary>E-shop krok 6: zabalit a odeslat (kurýr PPL) – každý krok jako samostatný požadavek admina.</summary>
     private async Task ShipAsync(int orderId)
@@ -1557,12 +1690,13 @@ public sealed class OrderServiceTests : IDisposable
     }
 
     private static CheckoutRequest Pickup(Guid checkoutId) =>
-        new() { CheckoutId = checkoutId, ShippingMethod = ShippingMethod.Pickup };
+        new() { CheckoutId = checkoutId, ShippingMethod = ShippingMethod.Pickup, PaymentMethod = PaymentMethod.CashOnDelivery };
 
     private static CheckoutRequest Courier(Guid checkoutId) => new()
     {
         CheckoutId = checkoutId,
         ShippingMethod = ShippingMethod.Courier,
+        PaymentMethod = PaymentMethod.CashOnDelivery,   // e-shop krok 8: dobírka – sága platbu přeskočí (jako dřív)
         Street = "Dlouhá 5",
         City = "Praha",
         PostalCode = "110 00"
@@ -1614,5 +1748,6 @@ public sealed class OrderServiceTests : IDisposable
         _orderingDatabase.Dispose();
         _inventoryDatabase.Dispose();
         _notificationsDatabase.Dispose();
+        _paymentsDatabase.Dispose();
     }
 }

@@ -58,6 +58,7 @@ public sealed class IndexModel(ICheckoutService checkout, IJourneyService journe
 
         // Předvyplnit z poslední objednávky kurýrem – kdo jednou dal adresu, nejspíš chce znovu stejnou.
         Input.ShippingMethod = Summary.LastAddress is null ? ShippingMethod.Pickup : ShippingMethod.Courier;
+        Input.PaymentMethod = PaymentMethod.Card;   // e-shop krok 8: výchozí platba kartou
         Input.Street = Summary.LastAddress?.Street;
         Input.City = Summary.LastAddress?.City;
         Input.PostalCode = Summary.LastAddress?.PostalCode;
@@ -133,6 +134,16 @@ public sealed class IndexModel(ICheckoutService checkout, IJourneyService journe
             logger.LogWarning(ex, "Průběh pokladny (proud {JourneyId}) se nepodařilo zapsat", JourneyId);
         }
     }
+
+    /// <summary>E-shop krok 8: nabídka plateb v pokladně (v pořadí na stránce).</summary>
+    public static readonly IReadOnlyList<PaymentMethod> PaymentMethods = [PaymentMethod.Card, PaymentMethod.CashOnDelivery];
+
+    public static string PaymentName(PaymentMethod method) => method switch
+    {
+        PaymentMethod.Card => "Kartou online (platební brána)",
+        PaymentMethod.CashOnDelivery => "Dobírka – platba při převzetí",
+        _ => "Nezadáno"
+    };
 
     public static string ShippingName(ShippingMethod method) => method switch
     {

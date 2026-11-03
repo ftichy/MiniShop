@@ -94,6 +94,7 @@ public sealed class CheckoutService(
         }
 
         order.SetShipping(request.ShippingMethod, shipping.Calculate(request.ShippingMethod, order.ItemsTotal), address);
+        order.SetPayment(request.PaymentMethod);   // e-shop krok 8: kartou → sága po rezervaci počká na platbu
         orders.Add(order);
 
         // 3. Jedna transakce: nová objednávka + vyprázdněný košík + OrderPlaced v outboxu – všechno, nebo nic.

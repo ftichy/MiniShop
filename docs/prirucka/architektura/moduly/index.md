@@ -1,6 +1,6 @@
 ---
 title: Moduly
-summary: Ordering, Inventory, Journeys, Accounts a Notifications – business oblasti s vlastními daty, které se navzájem neznají.
+summary: Ordering, Inventory, Journeys, Accounts, Notifications a Payments – business oblasti s vlastními daty, které se navzájem neznají.
 order: 3
 ---
 
@@ -35,6 +35,11 @@ flowchart LR
     subgraph ntf["Notifications (služba Web)"]
         n1[E-maily zákazníkovi]
     end
+    subgraph pay["Payments (služba Web)"]
+        p1[Platby kartou]
+    end
+    o2 -->|"RequestPaymentV1, RefundPaymentV1"| p1
+    p1 -->|"PaymentSucceededV1, PaymentFailedV1"| o2
     o1 -->|"OrderPlacedV2, OrderConfirmedV1, …, CustomerAnonymizedV1"| n1
 
     jou -.-|"spojené jen číslem objednávky (zapíše UI)"| ord
@@ -48,6 +53,7 @@ flowchart LR
     click j2 "/Docs/architektura/moduly/journeys"
     click a1 "/Docs/architektura/moduly/accounts"
     click n1 "/Docs/architektura/moduly/notifications"
+    click p1 "/Docs/architektura/moduly/payments"
 ```
 
 | Modul | Odpovídá za | Databáze | Kde v kódu |
@@ -57,6 +63,7 @@ flowchart LR
 | [Journeys](journeys.md) | co uživatel dělal ve formuláři objednávky | `journeys.db` | `Domain/Journeys`, `Application/Journeys`, `Infrastructure/Journeys` |
 | [Accounts](accounts.md) | uživatelské účty, registrace a přihlášení (ASP.NET Core Identity) | `users.db` | `Infrastructure/Accounts`, stránky `Pages/Account` ve Webu |
 | [Notifications](notifications.md) | e-maily zákazníkovi podle událostí objednávky (e-shop krok 7) – jen poslouchá | `notifications.db` | `Domain/Notifications`, `Application/Notifications`, `Infrastructure/Notifications` |
+| [Payments](payments.md) | platby kartou přes bránu – účastník ságy, podepsaný webhook, vrácení peněz (e-shop krok 8) | `payments.db` | `Domain/Payments`, `Application/Payments`, `Infrastructure/Payments` |
 
 ## Pravidla hranic
 

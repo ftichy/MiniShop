@@ -26,6 +26,7 @@ public sealed class ModuleBoundariesTests
     private const string Journeys = "Journeys";
     private const string Accounts = "Accounts";
     private const string Notifications = "Notifications";
+    private const string Payments = "Payments";
 
     /// <summary>Namespace modulu v každé vrstvě (Domain používá "Orders"; Accounts je zatím jen v Infrastructure).</summary>
     private static readonly IReadOnlyDictionary<string, string[]> ModuleNamespaces = new Dictionary<string, string[]>
@@ -34,7 +35,8 @@ public sealed class ModuleBoundariesTests
         [Inventory] = ["MiniShop.Domain.Inventory", "MiniShop.Application.Inventory", "MiniShop.Infrastructure.Inventory"],
         [Journeys] = ["MiniShop.Domain.Journeys", "MiniShop.Application.Journeys", "MiniShop.Infrastructure.Journeys"],
         [Accounts] = ["MiniShop.Infrastructure.Accounts"],
-        [Notifications] = ["MiniShop.Domain.Notifications", "MiniShop.Application.Notifications", "MiniShop.Infrastructure.Notifications"]
+        [Notifications] = ["MiniShop.Domain.Notifications", "MiniShop.Application.Notifications", "MiniShop.Infrastructure.Notifications"],
+        [Payments] = ["MiniShop.Domain.Payments", "MiniShop.Application.Payments", "MiniShop.Infrastructure.Payments"]
     };
 
     [Theory]
@@ -55,6 +57,11 @@ public sealed class ModuleBoundariesTests
     [InlineData(Notifications, Inventory)]
     [InlineData(Notifications, Accounts)]
     [InlineData(Notifications, Journeys)]
+    [InlineData(Payments, Ordering)]        // e-shop krok 8: platby znají objednávku jen z příkazu (Contracts)
+    [InlineData(Ordering, Payments)]        // … a sága platby jen ze zpráv
+    [InlineData(Payments, Notifications)]
+    [InlineData(Notifications, Payments)]
+    [InlineData(Payments, Inventory)]
     public void Modul_NezavisiNaJinemModulu(string module, string forbiddenModule)
     {
         foreach (var moduleNamespace in ModuleNamespaces[module])

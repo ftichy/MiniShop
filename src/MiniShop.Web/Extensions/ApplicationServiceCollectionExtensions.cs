@@ -6,12 +6,14 @@ using MiniShop.Application.Ordering.Carts;
 using MiniShop.Application.Ordering.Catalog;
 using MiniShop.Application.Ordering.Checkout;
 using MiniShop.Application.Notifications;
+using MiniShop.Application.Payments;
 using MiniShop.Application.Ordering.IntegrationEvents;
 using MiniShop.Application.Ordering.Pricing;
 using MiniShop.Application.Ordering.Saga;
 using MiniShop.Contracts.Customers;
 using MiniShop.Contracts.Inventory;
 using MiniShop.Contracts.Orders;
+using MiniShop.Contracts.Payments;
 using MiniShop.Domain.Orders.Events;
 using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Ordering;
@@ -33,8 +35,20 @@ public static class ApplicationServiceCollectionExtensions
         services.AddOrderingModule(configuration);
         services.AddJourneysModule();
         services.AddNotificationsModule(configuration);
+        services.AddPaymentsModule();
         services.AddInventoryApiClient(configuration);
 
+        return services;
+    }
+
+    /// <summary>
+    /// E-shop krok 8: modul Payments – účastník ságy objednávky (příkazy RequestPaymentV1, RefundPaymentV1). Databázi,
+    /// bránu a tajemství webhooku registruje AddPaymentsInfrastructure.
+    /// </summary>
+    public static IServiceCollection AddPaymentsModule(this IServiceCollection services)
+    {
+        services.AddIntegrationMessageHandler<RequestPaymentV1, PaymentCommandHandlers>(IntegrationModules.Payments);
+        services.AddIntegrationMessageHandler<RefundPaymentV1, PaymentCommandHandlers>(IntegrationModules.Payments);
         return services;
     }
 
@@ -55,6 +69,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddIntegrationMessageHandler<OrderCompletedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<OrderCancelledV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<CustomerAnonymizedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<PaymentRefundedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);   // e-shop krok 8
         return services;
     }
 
@@ -88,7 +103,8 @@ public static class ApplicationServiceCollectionExtensions
         // Sága objednávky (krok 9, orchestrace): orchestrátor poslouchá události objednávky (doménové)
         // a odpovědi skladu (integrační).
         var timeoutSeconds = configuration.GetValue("Sagas:ReservationTimeoutSeconds", 30);
-        services.AddSingleton(new OrderSagaSettings(TimeSpan.FromSeconds(timeoutSeconds)));
+        var paymentMinutes = configuration.GetValue("Sagas:PaymentTimeoutMinutes", 30);   // e-shop krok 8
+        services.AddSingleton(new OrderSagaSettings(TimeSpan.FromSeconds(timeoutSeconds), TimeSpan.FromMinutes(paymentMinutes)));
         services.AddDomainEventHandler<OrderPlaced, OrderSagaOrchestrator>();
         services.AddDomainEventHandler<OrderShipped, OrderSagaOrchestrator>();   // e-shop krok 6
         services.AddDomainEventHandler<OrderCompleted, OrderSagaOrchestrator>();
@@ -96,6 +112,9 @@ public static class ApplicationServiceCollectionExtensions
         services.AddIntegrationMessageHandler<StockReservedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<StockReservationFailedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<StockReleasedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
+        // E-shop krok 8: výsledek platby z modulu Payments (druhý účastník ságy).
+        services.AddIntegrationMessageHandler<PaymentSucceededV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
+        services.AddIntegrationMessageHandler<PaymentFailedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
 
         // Kopie katalogu (krok 10): produkty ze skladu, bez přístupu do jeho databáze. E-shop krok 2: V2 (popis, kategorie,
         // dostupnost) a změny dostupnosti; V1 zatím zůstává (expand → contract).

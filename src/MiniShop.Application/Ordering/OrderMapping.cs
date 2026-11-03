@@ -23,7 +23,8 @@ public static class OrderMapping
             order.ShippingPrice,
             order.DeliveryAddress?.ToString(),
             order.Carrier,
-            order.TrackingNumber);
+            order.TrackingNumber,
+            order.PaymentMethod.ToString());
 
     /// <summary>E-shop krok 5: objednávka s historií stavů v pořadí, jak nastaly (podle Id – pořadí zápisu).</summary>
     public static OrderDetailDto ToDetailDto(this Order order) =>

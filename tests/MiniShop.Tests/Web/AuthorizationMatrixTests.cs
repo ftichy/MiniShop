@@ -64,6 +64,9 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Anonymous, "/Checkout", Expect.Login },                  // e-shop krok 4: pokladna
         { Who.User, "/Checkout", Expect.Allowed },
         { Who.Admin, "/Checkout", Expect.Denied },
+        { Who.Anonymous, "/Pay/1", Expect.Login },                       // e-shop krok 8: stránka brány – jen zákazník
+        { Who.User, "/Pay/1", Expect.Allowed },
+        { Who.Admin, "/Pay/1", Expect.Denied },
 
         { Who.Anonymous, "/Account/ChangePassword", Expect.Login },
         { Who.User, "/Account/ChangePassword", Expect.Allowed },
@@ -108,6 +111,12 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Anonymous, "/Checkout", Expect.Login },
         { Who.User, "/Checkout", Expect.Allowed },
         { Who.Admin, "/Checkout", Expect.Denied },
+        { Who.Anonymous, "/Pay/1", Expect.Login },                       // e-shop krok 8: stránka brány – jen zákazník
+        { Who.User, "/Pay/1", Expect.Allowed },
+        { Who.Admin, "/Pay/1", Expect.Denied },
+        { Who.User, "/Pay/1?handler=Pay", Expect.Allowed },              // e-shop krok 8 (cizí/neexistující = 404)
+        { Who.Admin, "/Pay/1?handler=Pay", Expect.Denied },
+        { Who.User, "/Pay/1?handler=Decline", Expect.Allowed },
         { Who.User, "/Checkout?handler=AcceptPrices", Expect.Allowed },
         { Who.Admin, "/Checkout?handler=AcceptPrices", Expect.Denied },
 
@@ -190,6 +199,10 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Admin, "GET", "/api/journeys/orders/1", Expect.Allowed },
         { Who.User, "GET", "/api/journeys/orders/1/replay", Expect.Forbidden },
         { Who.Admin, "GET", "/api/journeys/orders/1/replay", Expect.Allowed },
+
+        // E-shop krok 8: webhook brány je bez přihlášení (brána účet nemá) – chrání ho podpis HMAC: bez něj 401.
+        { Who.Anonymous, "POST", "/api/payments/webhook", Expect.Unauthorized },
+        { Who.User, "POST", "/api/payments/webhook", Expect.Unauthorized },
     };
 
     [Theory]

@@ -120,7 +120,7 @@ else if (order.Status == "AwaitingPayment")
             }
         </ol>
 
-        @* E-shop krok 6: zrušit jde i během balení, po odeslání už ne. Handler i kontrola práv jsou na stránce
+        @* E-shop krok 6 a 9: zrušit jde kdykoli před odesláním (i během čekání na sklad nebo platbu). Handler i kontrola práv jsou na stránce
            Objednávky (zákazník ruší jen svou); balení a odeslání má admin na stránce Expedice. *@
         @if (OrderStatusLabels.CanCancel(order.Status))
         {

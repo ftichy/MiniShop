@@ -21,6 +21,12 @@ namespace MiniShop.Domain.Orders.Saga;
 ///                                            └─PaymentFailed / timeout platby──► ReleasingStock (+ zamítnout objednávku)
 /// Rejected / ReleasingStock / Released ──PaymentSucceeded (pozdě!)──► vrátit peníze (RefundPayment)
 /// </code>
+/// E-shop krok 9: zrušit jde kdykoli před odesláním. Sága zrušení zaznamená a pozdní odpovědi dožene kompenzací:
+/// <code>
+/// AwaitingReservation ──OrderCancelled──► Cancelled ──StockReserved (pozdě!)──► ReleasingStock
+/// AwaitingPayment ─────OrderCancelled──► ReleasingStock (pozdní PaymentSucceeded → RefundPayment)
+/// Reserved (zaplaceno kartou) ──OrderCancelled──► ReleasingStock + vrátit peníze
+/// </code>
 /// Zpráva, která do aktuálního stavu nepatří (duplicita, zpoždění), vrátí <see cref="OrderSagaAction.None"/> – nic se nestane.
 /// Sága nezná RabbitMQ ani kontrakty, jen rozhoduje. Provedení (poslat příkaz, potvrdit objednávku) je na orchestrátoru.
 /// </remarks>
@@ -87,8 +93,9 @@ public sealed class OrderSaga
         OrderSagaState.AwaitingReservation when RequiresPayment => AwaitPayment(nowUtc, paymentTimeout),
         OrderSagaState.AwaitingReservation => MoveTo(OrderSagaState.Reserved, nowUtc, OrderSagaAction.ConfirmOrder),
 
-        // Rezervace dorazila až po timeoutu – objednávka je už zamítnutá, zboží musí zpátky (kompenzace).
-        OrderSagaState.Rejected => MoveTo(OrderSagaState.ReleasingStock, nowUtc, OrderSagaAction.ReleaseStock),
+        // Rezervace dorazila až po timeoutu (nebo po zrušení – e-shop krok 9) – objednávka už neplatí, zboží musí zpátky.
+        OrderSagaState.Rejected or OrderSagaState.Cancelled
+            => MoveTo(OrderSagaState.ReleasingStock, nowUtc, OrderSagaAction.ReleaseStock),
 
         _ => OrderSagaAction.None
     };
@@ -126,10 +133,35 @@ public sealed class OrderSaga
         ? MoveTo(OrderSagaState.Completed, nowUtc, OrderSagaAction.None)
         : OrderSagaAction.None;
 
-    /// <summary>Zákazník zrušil potvrzenou objednávku – rezervaci je třeba uvolnit (kompenzace).</summary>
-    public OrderSagaAction OrderCancelled(DateTime nowUtc) => State == OrderSagaState.Reserved
-        ? MoveTo(OrderSagaState.ReleasingStock, nowUtc, OrderSagaAction.ReleaseStock)
-        : OrderSagaAction.None;
+    /// <summary>
+    /// Zákazník (nebo admin) objednávku zrušil – vrátit, co už je zarezervované nebo zaplacené (kompenzace).
+    /// E-shop krok 9: i když sklad nebo brána ještě neodpověděli – pozdní odpověď dožene <see cref="StockReserved"/>
+    /// a <see cref="PaymentSucceeded"/>.
+    /// </summary>
+    public OrderSagaAction OrderCancelled(DateTime nowUtc)
+    {
+        switch (State)
+        {
+            case OrderSagaState.AwaitingReservation:
+                // Sklad ještě nic nepotvrdil – není co vracet. Zapsat si zrušení; pozdní rezervaci uvolníme.
+                return MoveTo(OrderSagaState.Cancelled, nowUtc, OrderSagaAction.None);
+
+            case OrderSagaState.AwaitingPayment:
+                // Zboží zpět. Kdyby zákazník přesto zaplatil, PaymentSucceeded peníze vrátí (ReleasingStock/Released).
+                return MoveTo(OrderSagaState.ReleasingStock, nowUtc, OrderSagaAction.ReleaseStock);
+
+            case OrderSagaState.Reserved when RequiresPayment:
+                // Kartou se do Reserved dostane jen zaplacená objednávka – vrátit zboží i peníze (jen jednou).
+                RefundRequested = true;
+                return MoveTo(OrderSagaState.ReleasingStock, nowUtc, OrderSagaAction.ReleaseStockAndRefundPayment);
+
+            case OrderSagaState.Reserved:
+                return MoveTo(OrderSagaState.ReleasingStock, nowUtc, OrderSagaAction.ReleaseStock);
+
+            default:
+                return OrderSagaAction.None;
+        }
+    }
 
     public OrderSagaAction StockReleased(DateTime nowUtc) => State == OrderSagaState.ReleasingStock
         ? MoveTo(OrderSagaState.Released, nowUtc, OrderSagaAction.None)
@@ -229,7 +261,12 @@ public enum OrderSagaState
     Shipped,
 
     /// <summary>E-shop krok 8: zboží zarezervované, příkaz RequestPayment odešel, čeká se na platbu (s termínem).</summary>
-    AwaitingPayment
+    AwaitingPayment,
+
+    /// <summary>
+    /// E-shop krok 9: zrušeno dřív, než sklad odpověděl – nic se nevrací. Pozdní rezervace se ještě uvolní (ReleasingStock).
+    /// </summary>
+    Cancelled
 }
 
 /// <summary>Co má orchestrátor udělat po přechodu ságy.</summary>
@@ -247,5 +284,8 @@ public enum OrderSagaAction
     RejectOrderAndReleaseStock,
 
     /// <summary>E-shop krok 8: platba přišla pozdě – vrátit peníze (RefundPaymentV1).</summary>
-    RefundPayment
+    RefundPayment,
+
+    /// <summary>E-shop krok 9: zrušená zaplacená objednávka – vrátit zboží (ReleaseStockV1) i peníze (RefundPaymentV1).</summary>
+    ReleaseStockAndRefundPayment
 }

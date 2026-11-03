@@ -32,7 +32,7 @@ sequenceDiagram
         C-->>U: 401 – zadejte heslo (basic auth, vždy)
     else cokoli jiného (účty krok 9: bez hesla)
         C->>W: reverse proxy + X-Forwarded-*
-        W-->>U: stránka; přihlášení a role řeší aplikace (Accounts)
+        W-->>U: stránka – přihlášení a role řeší aplikace (Accounts)
     end
 ```
 

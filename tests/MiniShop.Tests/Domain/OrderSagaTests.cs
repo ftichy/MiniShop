@@ -200,6 +200,96 @@ public class OrderSagaTests
         Assert.Equal(OrderSagaState.Released, saga.State);
     }
 
+    // --- E-shop krok 9: zrušení kdykoli před odesláním (stav × zpráva) ---
+
+    [Fact]
+    public void Zruseni_PredRezervaci_NicNevraci_PozdniRezervaciUvolni()
+    {
+        var saga = NewSaga();
+
+        Assert.Equal(OrderSagaAction.None, saga.OrderCancelled(Start));          // sklad ještě nic nedržel
+        Assert.Equal(OrderSagaState.Cancelled, saga.State);
+
+        Assert.Equal(OrderSagaAction.ReleaseStock, saga.StockReserved(Start));    // pozdní rezervace → zpět na sklad
+        Assert.Equal(OrderSagaAction.None, saga.StockReleased(Start));
+        Assert.Equal(OrderSagaState.Released, saga.State);
+    }
+
+    [Fact]
+    public void Zruseni_PredRezervaci_PozdniOdmitnutiITimeoutNicNedelaji()
+    {
+        var saga = NewSaga();
+        saga.OrderCancelled(Start);
+
+        Assert.Equal(OrderSagaAction.None, saga.StockReservationFailed("Nedostatek zboží", Start));
+        Assert.Equal(OrderSagaAction.None, saga.TimedOut(Start + Timeout));       // zrušenou už nezamítáme
+        Assert.Equal((OrderSagaState.Cancelled, (string?)null), (saga.State, saga.RejectionReason));
+    }
+
+    [Fact]
+    public void Zruseni_KartouPredRezervaci_PlatbuNikdyNechce()
+    {
+        var saga = OrderSaga.Start(orderId: 42, Start, Timeout, requiresPayment: true);
+        saga.OrderCancelled(Start);
+
+        Assert.Equal(OrderSagaAction.ReleaseStock, saga.StockReserved(Start, PaymentTimeout));   // ne RequestPayment
+        Assert.Null(saga.PaymentDeadlineUtc);
+    }
+
+    [Fact]
+    public void Zruseni_BehemCekaniNaPlatbu_VratitZbozi_PozdniPlatbuVratitJednou()
+    {
+        var saga = CardSaga();
+
+        Assert.Equal(OrderSagaAction.ReleaseStock, saga.OrderCancelled(Start));
+        Assert.Equal(OrderSagaState.ReleasingStock, saga.State);
+        Assert.Equal(OrderSagaAction.None, saga.TimedOut(Start + PaymentTimeout));   // termín platby už neběží
+
+        Assert.Equal(OrderSagaAction.RefundPayment, saga.PaymentSucceeded(Start));   // zákazník přesto zaplatil
+        Assert.Equal(OrderSagaAction.None, saga.PaymentSucceeded(Start));
+        Assert.Equal(OrderSagaAction.None, saga.PaymentFailed("pozdě", Start));
+    }
+
+    [Fact]
+    public void Zruseni_ZaplaceneObjednavky_VratitZboziIPenize_JenJednou()
+    {
+        var saga = CardSaga();
+        saga.PaymentSucceeded(Start);
+
+        Assert.Equal(OrderSagaAction.ReleaseStockAndRefundPayment, saga.OrderCancelled(Start));
+        Assert.True(saga.RefundRequested);
+        Assert.Equal(OrderSagaAction.None, saga.PaymentSucceeded(Start));   // duplicitní webhook – peníze už se vrací
+        Assert.Equal(OrderSagaAction.None, saga.OrderCancelled(Start));     // duplicitní zrušení
+    }
+
+    [Fact]
+    public void Zruseni_Dobirky_JenVratitZbozi()
+    {
+        var saga = NewSaga();
+        saga.StockReserved(Start);
+
+        Assert.Equal(OrderSagaAction.ReleaseStock, saga.OrderCancelled(Start));
+        Assert.False(saga.RefundRequested);
+    }
+
+    [Theory]
+    [InlineData(OrderSagaState.Rejected)]
+    [InlineData(OrderSagaState.Shipped)]
+    [InlineData(OrderSagaState.Released)]
+    public void Zruseni_VKoncovemStavuNicNedela(OrderSagaState state)
+    {
+        var saga = NewSaga();
+        switch (state)
+        {
+            case OrderSagaState.Rejected: saga.StockReservationFailed("Nedostatek zboží", Start); break;
+            case OrderSagaState.Shipped: saga.StockReserved(Start); saga.OrderShipped(Start); break;
+            case OrderSagaState.Released: saga.StockReserved(Start); saga.OrderCancelled(Start); saga.StockReleased(Start); break;
+        }
+
+        Assert.Equal(OrderSagaAction.None, saga.OrderCancelled(Start));
+        Assert.Equal(state, saga.State);
+    }
+
     [Fact]
     public void Platba_DobirkaPotvrdiHnedPoRezervaci()
     {

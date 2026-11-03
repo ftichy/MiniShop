@@ -12,16 +12,18 @@ order: 6
 ```mermaid
 stateDiagram-v2
     [*] --> Pending : zákazník odeslal formulář
-    Pending --> Confirmed : sklad zarezervoval (sága; dobírka, API)
+    Pending --> Confirmed : sklad zarezervoval (sága – dobírka, API)
     Pending --> AwaitingPayment : sklad zarezervoval, platba kartou (e-shop krok 8)
     AwaitingPayment --> Confirmed : zaplaceno (webhook brány)
     AwaitingPayment --> Rejected : zamítnuto na bráně / 30 min bez platby → zboží zpět
     Pending --> Rejected : nedostatek zboží / sklad neodpověděl včas
     Confirmed --> Packing : admin začal balit
-    Packing --> Shipped : admin odeslal (kurýr: dopravce + číslo zásilky)
+    Packing --> Shipped : admin odeslal (kurýr – dopravce + číslo zásilky)
     Shipped --> Completed : doručeno / vyzvednuto
     Confirmed --> Cancelled : zrušeno → sága vrátí zboží
     Packing --> Cancelled : zrušeno → sága vrátí zboží
+    Pending --> Cancelled : zrušeno před odpovědí skladu (e-shop krok 9)
+    AwaitingPayment --> Cancelled : zrušeno před zaplacením → zboží zpět
     Rejected --> [*]
     Completed --> [*]
     Cancelled --> [*]
@@ -36,7 +38,7 @@ stateDiagram-v2
 | `Packing` | Balí se (osobní odběr: připravuje se) – e-shop krok 6 | `OrderPackingStarted` |
 | `Shipped` | Odeslaná, `Carrier` + `TrackingNumber` (osobní odběr: připravená k vyzvednutí); **zrušit už nejde** – e-shop krok 6 | `OrderShipped` → `OrderShippedV1` |
 | `Completed` | Doručená / vyzvednutá (do e-shop kroku 6 „vyřízená“ rovnou z `Confirmed`) | `OrderCompleted` |
-| `Cancelled` | Zrušená | `OrderCancelled` |
+| `Cancelled` | Zrušená – od e-shop kroku 9 kdykoli před odesláním (i `Pending` a `AwaitingPayment`); co je potřeba vrátit, dožene sága | `OrderCancelled` |
 
 Pravidla hlídá přímo entita [Order](code:src/MiniShop.Domain/Orders/Order.cs) – metody `Confirm`, `Reject`,
 `StartPacking`, `Ship`, `MarkDelivered`, `Cancel` nejdřív zkontrolují stav (`EnsureStatus`) a při chybě vyhodí
@@ -75,7 +77,10 @@ stateDiagram-v2
     Released --> Released : PaymentSucceededV1 pozdě → RefundPaymentV1
     Reserved --> Shipped : OrderShipped (sklad vydá rezervaci sám z OrderShippedV1)
     Shipped --> Completed : OrderCompleted (doručeno)
-    Reserved --> ReleasingStock : OrderCancelled (i během balení) → pošle ReleaseStockV1
+    Reserved --> ReleasingStock : OrderCancelled (i během balení) → ReleaseStockV1, zaplacené kartou i RefundPaymentV1
+    AwaitingReservation --> Cancelled : OrderCancelled (e-shop krok 9) → nic nevrací
+    Cancelled --> ReleasingStock : StockReservedV1 pozdě → pošle ReleaseStockV1
+    AwaitingPayment --> ReleasingStock : OrderCancelled → pošle ReleaseStockV1
     ReleasingStock --> Released : StockReleasedV1
     Completed --> [*]
     Released --> [*]
@@ -93,6 +98,10 @@ Sága je „deník“ procesu: z tabulky `OrderSagas` je hned vidět, kde objedn
   [Timeout a kompenzace](../toky/timeout-a-kompenzace.md).
 - **Souběh.** Timeout a odpověď skladu můžou přijít naráz. Sága má `Version` (*concurrency token*) – druhý zápis
   selže a zkusí se znovu nad aktuálním stavem.
+- **Zrušení předběhlo ságu (e-shop krok 9).** Událost `OrderCancelled` jde přes outbox, takže odpověď skladu nebo
+  brány může k ságe dorazit dřív. Orchestrátor proto před každým krokem zkontroluje objednávku: je-li zrušená,
+  nejdřív dožene `OrderCancelled` a teprve pak zpracuje odpověď – zrušenou objednávku nikdy nepotvrdí. Viz
+  [Zrušení objednávky](../toky/zruseni-a-vyrizeni.md).
 
 ## Na internetu
 

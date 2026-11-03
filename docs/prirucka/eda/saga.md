@@ -61,7 +61,9 @@ Stavy a přechody: [Stavové diagramy](../architektura/stavove-diagramy.md).
 
 Kompenzace je **sémantické vrácení** – nová akce, která ruší účinek předchozí:
 
-- zákazník zruší potvrzenou objednávku → `ReleaseStockV1` → sklad vrátí zboží,
+- zákazník zruší objednávku → `ReleaseStockV1` → sklad vrátí zboží (zaplacenou i `RefundPaymentV1`),
+- zákazník zrušil dřív, než sklad nebo brána odpověděli (e-shop krok 9) → sága si zrušení zapíše a pozdní
+  rezervaci uvolní, pozdní platbu vrátí,
 - sklad zarezervoval **až po timeoutu** (objednávka už je zamítnutá) → `ReleaseStockV1`.
 
 Podrobně: [Timeout a kompenzace](../toky/timeout-a-kompenzace.md), [Zrušení](../toky/zruseni-a-vyrizeni.md), [Expedice](../toky/expedice.md).

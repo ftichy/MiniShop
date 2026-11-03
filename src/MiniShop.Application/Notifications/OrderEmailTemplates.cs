@@ -62,7 +62,27 @@ public sealed class OrderEmailTemplates(NotificationSettings settings)
     /// </summary>
     public EmailMessage Refunded(OrderMailRecipient to, decimal amount) =>
         Build(to, $"Platbu za objednávku č. {to.OrderId} vracíme",
-            string.Format(Czech, "objednávku nevyřídíme (byla zrušená nebo platba přišla až po termínu), proto vám platbu {0:N2} Kč vracíme.", amount));
+            string.Format(Czech, "platbu {0:N2} Kč vám vracíme na kartu (zrušená nebo vrácená objednávka, případně platba po termínu).", amount));
+
+    /// <summary>E-shop krok 12: žádost o vrácení přijata – kam a do kdy poslat zboží.</summary>
+    public EmailMessage ReturnRequested(OrderMailRecipient to, DateTime sendByUtc) =>
+        Build(to, $"Vrácení objednávky č. {to.OrderId} – pošlete nám zboží",
+            string.Format(Czech, "žádost o vrácení jsme přijali. Zboží pošlete do {0:d. M. yyyy} na adresu MiniShop, " +
+                "Skladová 1, 110 00 Praha. Jakmile ho převezmeme, vrátíme vám peníze.", ToCzech(sendByUtc)),
+            withSummary: true);
+
+    /// <summary>E-shop krok 12: vrácení neprošlo (admin zamítl, nebo zboží nedorazilo včas).</summary>
+    public EmailMessage ReturnRejected(OrderMailRecipient to, string reason) =>
+        Build(to, $"Vrácení objednávky č. {to.OrderId} nebylo přijato",
+            $"omlouváme se, vrácení jsme nepřijali: {reason}");
+
+    /// <summary>E-shop krok 12: zboží je zpět na skladu. Kartou vrací Payments (zvláštní e-mail), dobírku admin převodem.</summary>
+    public EmailMessage ReturnCompleted(OrderMailRecipient to, decimal amount, bool refundedByCard) =>
+        Build(to, $"Objednávka č. {to.OrderId} je vrácená",
+            refundedByCard
+                ? string.Format(Czech, "vrácené zboží jsme převzali. Částku {0:N2} Kč vám vracíme na kartu.", amount)
+                : string.Format(Czech, "vrácené zboží jsme převzali. Částku {0:N2} Kč vám pošleme převodem – " +
+                    "odpovězte prosím na tento e-mail s číslem účtu.", amount));
 
     public EmailMessage Cancelled(OrderMailRecipient to) =>
         Build(to, $"Objednávka č. {to.OrderId} je zrušená", "objednávka byla zrušena, rezervované zboží se vrací na sklad.");
@@ -131,4 +151,18 @@ public sealed class OrderEmailTemplates(NotificationSettings settings)
     }
 
     private static string Encode(string value) => WebUtility.HtmlEncode(value);
+
+    /// <summary>Datum v e-mailu v českém čase (handler neběží v HTTP požadavku, časovou zónu prohlížeče nezná).</summary>
+    private static DateTime ToCzech(DateTime utc)
+    {
+        try
+        {
+            return TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc),
+                TimeZoneInfo.FindSystemTimeZoneById("Europe/Prague"));
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            return utc;
+        }
+    }
 }

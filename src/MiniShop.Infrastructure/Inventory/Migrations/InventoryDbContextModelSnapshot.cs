@@ -102,6 +102,9 @@ namespace MiniShop.Infrastructure.Inventory.Migrations
                     b.Property<DateTime>("ReservedAtUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("ReturnedAtUtc")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("OrderId");

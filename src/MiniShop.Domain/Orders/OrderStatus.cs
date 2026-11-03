@@ -31,5 +31,14 @@ public enum OrderStatus
     Shipped = 6,
 
     /// <summary>E-shop krok 8: zboží zarezervované, čeká se na platbu kartou (sága má termín, pak zamítne).</summary>
-    AwaitingPayment = 7
+    AwaitingPayment = 7,
+
+    /// <summary>
+    /// E-shop krok 12: zákazník chce doručenou objednávku vrátit, čeká se na zboží (sága vratky má termín).
+    /// Zamítnutí nebo vypršení vrátí objednávku do Completed.
+    /// </summary>
+    ReturnRequested = 8,
+
+    /// <summary>E-shop krok 12: vrácená – zboží je zpět na skladu, peníze vrácené (kartou) nebo vrací admin ručně (dobírka).</summary>
+    Returned = 9
 }

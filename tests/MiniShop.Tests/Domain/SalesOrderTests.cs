@@ -15,6 +15,8 @@ public class SalesOrderTests
     [InlineData(SalesOrderStatus.Cancelled, SalesOrderStatus.Confirmed, SalesOrderStatus.Cancelled)]   // pozdní potvrzení
     [InlineData(SalesOrderStatus.Completed, SalesOrderStatus.Cancelled, SalesOrderStatus.Completed)]   // konečný zůstává
     [InlineData(SalesOrderStatus.Confirmed, SalesOrderStatus.Completed, SalesOrderStatus.Completed)]   // dopředu ano
+    [InlineData(SalesOrderStatus.Completed, SalesOrderStatus.Returned, SalesOrderStatus.Returned)]     // e-shop krok 12: vratka
+    [InlineData(SalesOrderStatus.Returned, SalesOrderStatus.Completed, SalesOrderStatus.Returned)]     // pozdní „doručeno“
     public void Stav_JenDopredu(SalesOrderStatus first, SalesOrderStatus second, SalesOrderStatus expected)
     {
         var order = SalesOrder.Create(1, Now);

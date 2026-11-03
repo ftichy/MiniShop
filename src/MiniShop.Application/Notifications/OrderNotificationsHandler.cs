@@ -35,7 +35,10 @@ public sealed class OrderNotificationsHandler(
     IIntegrationMessageHandler<OrderCompletedV1>,
     IIntegrationMessageHandler<OrderCancelledV1>,
     IIntegrationMessageHandler<CustomerAnonymizedV1>,
-    IIntegrationMessageHandler<PaymentRefundedV1>
+    IIntegrationMessageHandler<PaymentRefundedV1>,
+    IIntegrationMessageHandler<ReturnRequestedV1>,
+    IIntegrationMessageHandler<ReturnRejectedV1>,
+    IIntegrationMessageHandler<ReturnCompletedV1>
 {
     /// <summary>Jak dlouho čekat, než dorazí OrderPlacedV2 (zpráva mimo pořadí), u potvrzení a zamítnutí.</summary>
     public static readonly TimeSpan MaxWaitForPlacedOrder = TimeSpan.FromMinutes(5);
@@ -96,6 +99,19 @@ public sealed class OrderNotificationsHandler(
         var recipient = await RequireRecipientAsync(message.OrderId, message.OccurredAtUtc, cancellationToken);
         await SendAsync(recipient, to => templates.Refunded(to, message.Amount), cancellationToken);
     }
+
+    /// <summary>E-shop krok 12: žádost o vrácení – kam a do kdy poslat zboží.</summary>
+    public async Task HandleAsync(ReturnRequestedV1 message, CancellationToken cancellationToken) =>
+        await SendAsync(await RecipientOrFallbackAsync(message.OrderId, message.CustomerEmail, cancellationToken),
+            to => templates.ReturnRequested(to, message.SendByUtc), cancellationToken);
+
+    public async Task HandleAsync(ReturnRejectedV1 message, CancellationToken cancellationToken) =>
+        await SendAsync(await RecipientOrFallbackAsync(message.OrderId, message.CustomerEmail, cancellationToken),
+            to => templates.ReturnRejected(to, message.Reason), cancellationToken);
+
+    public async Task HandleAsync(ReturnCompletedV1 message, CancellationToken cancellationToken) =>
+        await SendAsync(await RecipientOrFallbackAsync(message.OrderId, message.CustomerEmail, cancellationToken),
+            to => templates.ReturnCompleted(to, message.Amount, message.RefundedByCard), cancellationToken);
 
     /// <summary>Zákazník smazal účet → zapomenout jeho jméno, e-mail, adresu i souhrny objednávek.</summary>
     public async Task HandleAsync(CustomerAnonymizedV1 message, CancellationToken cancellationToken)

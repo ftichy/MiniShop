@@ -44,8 +44,33 @@ public sealed class StockReservation
     /// </summary>
     public DateTime? FulfilledAtUtc { get; private set; }
 
+    /// <summary>
+    /// E-shop krok 12: kdy se vydané zboží vrátilo na sklad (vratka zákazníka); null = nevrácené.
+    /// Vrátit jde jen vydanou rezervaci a jen jednou.
+    /// </summary>
+    public DateTime? ReturnedAtUtc { get; private set; }
+
     /// <summary>Platí ještě (zboží „pod pultem“) – ani uvolněná, ani vydaná.</summary>
     public bool IsActive => ReleasedAtUtc is null && FulfilledAtUtc is null;
+
+    /// <summary>E-shop krok 12: zboží odešlo a ještě se nevrátilo – vratka ho smí naskladnit.</summary>
+    public bool CanBeReturned => FulfilledAtUtc is not null && ReturnedAtUtc is null;
+
+    /// <summary>
+    /// E-shop krok 12: vydané zboží se vrátilo (vratka). Kusy vrací na sklad volající (<c>Product.AddStock</c>) –
+    /// rezervace jen eviduje, že se to stalo, aby se nenaskladnilo dvakrát.
+    /// </summary>
+    public void MarkReturned(DateTime returnedAtUtc)
+    {
+        if (!CanBeReturned)
+        {
+            throw new DomainException(FulfilledAtUtc is null
+                ? "Vrátit lze jen vydané zboží."
+                : "Zboží z této rezervace už je zpět na skladu.");
+        }
+
+        ReturnedAtUtc = returnedAtUtc;
+    }
 
     public void Release(DateTime releasedAtUtc)
     {

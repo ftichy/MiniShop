@@ -397,7 +397,7 @@ Nereagujeme na událost, ale na to, že po `CartItemAdded` do 24 hodin nepřiše
 - **Slevové kódy** – další `IDiscountPolicy` (strategie), uplatnění v pokladně, limit použití (souběžnost!).
 - ~~**Kategorie, vyhledávání a filtrování** ve výloze; obrázky produktů~~ – hotovo v krocích 2A a 2B.
 - **Skutečná platební brána** (Stripe test mode, GoPay sandbox) – jen nová implementace `IPaymentGateway`.
-- **Vrácení zboží / reklamace** – nový proces (sága) po doručení: žádost → přijetí na sklad → refundace.
+- ~~**Vrácení zboží / reklamace**~~ – **hotovo jako krok 12** ([souhrn](kroky-eshop/krok-12-vraceni-zbozi.md)): druhá sága `ReturnSaga`, převzetí adminem, naskladnění, refundace.
 - **Faktura PDF** po zaplacení (QuestPDF – ověřit licenci) jako příloha e-mailu.
 - **Hodnocení produktů** jen od zákazníků, kteří produkt koupili (dotaz na doručené objednávky).
 - **Event sourcing košíku** – stav košíku jako fold nad událostmi (Journeys už ten vzor ukazuje),

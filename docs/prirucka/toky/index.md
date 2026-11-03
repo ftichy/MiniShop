@@ -25,6 +25,7 @@ order: 30
 | [Průběh formuláře](prubeh-formulare.md) | sledování a přehrání pokladny (staré proudy: formulář objednávky) |
 | [Pokladna](pokladna.md) | košík → objednávka v jedné transakci; dvojí odeslání, souběh, změna ceny |
 | [Opuštěný košík](opusteny-kosik.md) | reakce na „ticho“: worker → `CartAbandonedV1` → připomínka jen se souhlasem |
+| [Vrácení zboží](vraceni-zbozi.md) | druhá sága: žádost → převzetí adminem → naskladnění → vrácení peněz; zamítnutí a vypršení |
 
 Diagramy v Markdownu jsou psané v [Mermaidu](https://mermaid.js.org/syntax/sequenceDiagram.html). Velký diagram
 zvětšíte tlačítkem **Plná velikost** v jeho pravém horním rohu.

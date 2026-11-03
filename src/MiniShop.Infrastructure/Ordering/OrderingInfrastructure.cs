@@ -25,6 +25,7 @@ public static class OrderingInfrastructure
 
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<IOrderSagaRepository, OrderSagaRepository>();
+        services.AddScoped<IReturnSagaRepository, ReturnSagaRepository>();   // e-shop krok 12
         services.AddScoped<ICatalogProductRepository, CatalogProductRepository>();
         services.AddScoped<ICartRepository, CartRepository>();   // e-shop krok 3
 

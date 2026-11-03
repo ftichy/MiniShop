@@ -24,9 +24,13 @@ stateDiagram-v2
     Packing --> Cancelled : zrušeno → sága vrátí zboží
     Pending --> Cancelled : zrušeno před odpovědí skladu (e-shop krok 9)
     AwaitingPayment --> Cancelled : zrušeno před zaplacením → zboží zpět
+    Completed --> ReturnRequested : zákazník chce vrátit (do 14 dní, e-shop krok 12)
+    ReturnRequested --> Returned : zboží převzato a naskladněno, peníze zpět
+    ReturnRequested --> Completed : vrácení zamítnuto nebo vypršelo
     Rejected --> [*]
     Completed --> [*]
     Cancelled --> [*]
+    Returned --> [*]
 ```
 
 | Stav | Význam | Událost při vstupu |
@@ -39,6 +43,8 @@ stateDiagram-v2
 | `Shipped` | Odeslaná, `Carrier` + `TrackingNumber` (osobní odběr: připravená k vyzvednutí); **zrušit už nejde** – e-shop krok 6 | `OrderShipped` → `OrderShippedV1` |
 | `Completed` | Doručená / vyzvednutá (do e-shop kroku 6 „vyřízená“ rovnou z `Confirmed`) | `OrderCompleted` |
 | `Cancelled` | Zrušená – od e-shop kroku 9 kdykoli před odesláním (i `Pending` a `AwaitingPayment`); co je potřeba vrátit, dožene sága | `OrderCancelled` |
+| `ReturnRequested` | Zákazník chce doručenou objednávku vrátit, čeká se na zboží (sága vratky) – e-shop krok 12; zamítnutí nebo vypršení vrátí `Completed` (`OrderReturnRejected`) | `OrderReturnRequested` |
+| `Returned` | Vrácená – zboží zpět na skladu, peníze vrácené (dobírku vrací admin ručně) – e-shop krok 12 | `OrderReturned` |
 
 Pravidla hlídá přímo entita [Order](code:src/MiniShop.Domain/Orders/Order.cs) – metody `Confirm`, `Reject`,
 `StartPacking`, `Ship`, `MarkDelivered`, `Cancel` nejdřív zkontrolují stav (`EnsureStatus`) a při chybě vyhodí
@@ -102,6 +108,26 @@ Sága je „deník“ procesu: z tabulky `OrderSagas` je hned vidět, kde objedn
   brány může k ságe dorazit dřív. Orchestrátor proto před každým krokem zkontroluje objednávku: je-li zrušená,
   nejdřív dožene `OrderCancelled` a teprve pak zpracuje odpověď – zrušenou objednávku nikdy nepotvrdí. Viz
   [Zrušení objednávky](../toky/zruseni-a-vyrizeni.md).
+
+## Sága vratky (`ReturnSaga`, e-shop krok 12)
+
+```mermaid
+stateDiagram-v2
+    [*] --> AwaitingGoods : OrderReturnRequested → termín 14 dní
+    AwaitingGoods --> Restocking : admin Přijato → pošle RestockReturnedGoodsV1
+    AwaitingGoods --> Rejected : admin Zamítnout → objednávka zpět Completed
+    AwaitingGoods --> Expired : zboží nedorazilo včas → objednávka zpět Completed
+    Restocking --> Refunding : ReturnedGoodsRestockedV1 + kartou → pošle RefundPaymentV1
+    Restocking --> Completed : ReturnedGoodsRestockedV1 + dobírka (peníze vrací admin ručně)
+    Refunding --> Completed : PaymentRefundedV1 → objednávka Returned
+    Completed --> [*]
+    Rejected --> [*]
+    Expired --> [*]
+```
+
+Druhá sága – stejné stavební kameny jako `OrderSaga` (deník v `ReturnSagas`, akce pro orchestrátor, `Version`
+proti souběhu, termín v timeout workeru), jen s krokem člověka uprostřed. Kód:
+[ReturnSaga.cs](code:src/MiniShop.Domain/Orders/Saga/ReturnSaga.cs), tok: [Vrácení zboží](../toky/vraceni-zbozi.md).
 
 ## Na internetu
 

@@ -166,6 +166,14 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ReturnReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReturnRejectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ShippingMethod")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -306,6 +314,43 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
                     b.HasIndex("State", "ReservationDeadlineUtc");
 
                     b.ToTable("OrderSagas", (string)null);
+                });
+
+            modelBuilder.Entity("MiniShop.Domain.Orders.Saga.ReturnSaga", b =>
+                {
+                    b.Property<int>("OrderId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("GoodsDeadlineUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("RequiresRefund")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("StartedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("OrderId");
+
+                    b.HasIndex("State", "GoodsDeadlineUtc");
+
+                    b.ToTable("ReturnSagas", (string)null);
                 });
 
             modelBuilder.Entity("MiniShop.Infrastructure.Inbox.ProcessedMessage", b =>

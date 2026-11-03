@@ -22,6 +22,9 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
 {
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderSaga> OrderSagas => Set<OrderSaga>();
+
+    /// <summary>E-shop krok 12: ságy vrácení zboží.</summary>
+    public DbSet<ReturnSaga> ReturnSagas => Set<ReturnSaga>();
     public DbSet<CatalogProduct> CatalogProducts => Set<CatalogProduct>();
     public DbSet<Cart> Carts => Set<Cart>();
 

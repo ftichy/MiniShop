@@ -12,7 +12,7 @@ Cíl: postupně ho převést na EDA podle plánu v `docs/EDA-roadmap.md`.
 
 ```
 src/MiniShop.Contracts       integrační zprávy – události (OrderPlacedV1, StockReservedV1, …) a příkazy (ReserveStockV1, …), žádné závislosti
-src/MiniShop.Domain          Common/ (Entity, IDomainEvent), Orders/ (Order, CatalogProduct, CatalogSearchText, Carts/Cart, Saga/OrderSaga), Inventory/ (Product, Category, StockAvailability, StockReservation),
+src/MiniShop.Domain          Common/ (Entity, IDomainEvent), Orders/ (Order, CatalogProduct, CatalogSearchText, Carts/Cart, Saga/OrderSaga + ReturnSaga), Inventory/ (Product, Category, StockAvailability, StockReservation),
                              Journeys/ (JourneyEvent, JourneyEventType), Notifications/ (OrderRecipient), Payments/ (Payment), Reporting/ (SalesOrder – čtecí model)
 src/MiniShop.Application     Abstractions/ (sdílené: IUnitOfWork, IDomainEvent*, IIntegrationMessage*, TraceTags),
                              Ordering/ (OrderService, DTO, Saga, Catalog projekce + CatalogQueryService, Carts/CartService, Checkout/CheckoutService, IntegrationEvents (překladač), Pricing), Inventory/ (ProductService, CategoryService, Reserve/ReleaseStock),
@@ -147,7 +147,7 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   Serilog: `ClearProviders()` + `writeToProviders: true` (logy i do OTLP, na konzoli jednou).
 - Objednávka: Pending → Confirmed/Rejected (rozhoduje sága), pak expedice (e-shop krok 6) Confirmed → Packing → Shipped
   → Completed (= doručeno; `MarkDelivered`, událost dál `OrderCompleted`/`OrderCompletedV1`). Zrušit kdykoli před odesláním
-  (Pending, AwaitingPayment, Confirmed, Packing – e-shop krok 9), po odeslání ne. Nové hodnoty `OrderStatus`/`OrderSagaState` jen na konec (ukládá se text). `POST /api/orders` vrací 202.
+  (Pending, AwaitingPayment, Confirmed, Packing – e-shop krok 9), po odeslání ne; doručenou jde vrátit (e-shop krok 12: Completed → ReturnRequested → Returned). Nové hodnoty `OrderStatus`/`OrderSagaState` jen na konec (ukládá se text). `POST /api/orders` vrací 202.
   **Historie stavů (e-shop krok 5):** stav měnit jen přes privátní `Order.ChangeStatus` (nastaví `Status` + přidá
   `OrderStatusChange`, tabulka `OrderStatusChanges`, pořadí podle `Id`, zvýší `Version`) – **nový stav/přechod = přes `ChangeStatus`**.
   Detail `/Orders/{id}` (`GetDetailAsync`, cizí = 404), pokladna sem přesměruje; Zrušit postuje na `Orders/Index`.
@@ -197,6 +197,14 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   tlačítko na `/Admin/Sales`, automaticky nad prázdnou DB – `SalesReportOnStartupWorker`): smazat + `RebuildSalesReportV1` →
   Ordering `RebuildSalesReportHandler` → `OrderSnapshotV1` pro každou objednávku (**ne** `OrderPlacedV2` – rozeslalo by e-maily).
   **Nový údaj v přehledu = projekce + `RebuildSalesReportHandler`/snímek, pak Přestavět.** Součty v paměti, dny v `Europe/Prague`.
+- **Vrácení zboží (e-shop krok 12):** druhá sága `ReturnSaga` (tabulka `ReturnSagas`, klíč = `OrderId` → jedna vratka na objednávku)
+  + `ReturnSagaOrchestrator`. `Order.RequestReturn` jen z `Completed`, do `Returns:WindowDays` (14) od `DeliveredAtUtc` (první Completed
+  v historii) a jen jednou → `OrderReturnRequested` → sága `AwaitingGoods` (termín `Returns:SendWindowDays`) + `ReturnRequestedV1`.
+  Admin `/Admin/Returns` volá orchestrátor přímo (krok člověka): Přijato → `RestockReturnedGoodsV1` (sklad podle **vydaných** rezervací,
+  `StockReservation.MarkReturned`) → `ReturnedGoodsRestockedV1` → kartou `RefundPaymentV1` (Payments beze změny) → `PaymentRefundedV1`
+  (bez ságy vratky ignoruje) → `Order.CompleteReturn` → `ReturnCompletedV1`; dobírka bez refundu (peníze ručně, `RefundedByCard=false`).
+  Zamítnutí/timeout (`OrderSagaTimeoutWorker`) → `Order.RejectReturn` → zpět `Completed` + `ReturnRejectedV1`. Reporting: `Returned` se
+  nepočítá do tržby (`SalesOrder` z `Completed` jen na `Returned`). Testy: `DeliveredOrderAsync`, `Returns(…)`.
 - **Průběh objednávky (krok 12):** modul Journeys (`…Journeys` ve všech vrstvách, hostuje ho Web, vlastní `journeys.db`,
   bez zpráv → `JourneysDbContext` nedědí z `ModuleDbContext`). Proud `JourneyEvents` = jen INSERT, idempotence přes unikátní `EventId`
   z prohlížeče, řazení podle `OffsetMs` (čas od otevření formuláře). `ValidationFailed`/`OrderSubmitted` zapisuje jen server
@@ -338,7 +346,7 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
 | 8. CD – automatické nasazení (`deploy.yml`, Tailscale, uživatel `deploy` s vynuceným příkazem, rollback) | hotovo | `docs/kroky-cloud/krok-08-cd.md` |
 | 9. Infrastruktura jako kód (OpenTofu `infra/`: síť, VM, cloud-init, import reserved IP, state v OCI bucketu) | hotovo (ruční VM/VCN smazané, vše z `tofu apply`) | `docs/kroky-cloud/krok-09-iac.md` |
 | 10. Secrets a konfigurace (secrets jen v GitHub `production` → stdin → `deploy.sh`, `production.env`, rotace RabbitMQ, registr `docs/secrets.md`, secret scanning, Dependabot) | hotovo (heslo RabbitMQ vyměněno pipeline, ověřeno objednávkou) | `docs/kroky-cloud/krok-10-secrets.md` |
-| 11. Monitoring a logy v cloudu (Aspire dashboard v Compose, `/health` pro UptimeRobot, alarmy OCI v `infra/monitoring.tf`) | kód hotový, čeká na provedení (PR, UptimeRobot, alarmy, zkouška výpadku) | `docs/kroky-cloud/krok-11-monitoring.md` |
+| 11. Monitoring a logy v cloudu (Aspire dashboard v Compose, `/health` pro UptimeRobot, alarmy OCI v `infra/monitoring.tf`) | hotovo (UptimeRobot na `/health` a `/health/inventory`, alarmy OCI, zkouška výpadku – potvrzeno 3. 11. 2026) | `docs/kroky-cloud/krok-11-monitoring.md` |
 | 12. Zálohy a obnova po havárii (noční online backup SQLite → OCI bucket přes instance principal, `restore.sh`, healthchecks.io, cvičná havárie) | hotovo (cvičná havárie: VM smazaná → tofu apply → Deploy → `restore.sh latest`, objednávky zpět) | `docs/kroky-cloud/krok-12-zalohy.md` |
 | 13. Vlastní doména (`minishop-tichy.cz` u Wedosu, DNS A `@` + `dashboard`, `LEGACY_DOMAIN` → 301 ze staré DuckDNS adresy, smoke test) | hotovo (nasazeno 3. 11. 2026, smoke test vč. 301 ze staré adresy, UptimeRobot na nové doméně) | `docs/kroky-cloud/krok-13-vlastni-domena.md` |
 
@@ -411,7 +419,8 @@ nové moduly Notifications (odběratel událostí) a Payments (účastník ságy
 | 8. Platba – simulovaná brána (modul Payments, `payments.db`, `RequestPaymentV1`/`RefundPaymentV1`, webhook s HMAC, `AwaitingPayment` + timeout 30 min, vrácení pozdní platby, dobírka) | hotovo (nasazeno 3. 11. 2026, platba kartou, zamítnutí na bráně i dobírka ověřeny v produkci) | `docs/kroky-eshop/krok-08-platba.md` |
 | 9. Zrušení kdykoli před odesláním (i `Pending`/`AwaitingPayment`, stav ságy `Cancelled`, orchestrátor dožene zrušení, zrušená zaplacená = `ReleaseStockAndRefundPayment`, `/Pay` u zrušené nepustí platit) | hotovo (nasazeno 3. 11. 2026, zrušení před platbou, po platbě i dobírky ověřeno v produkci) | `docs/kroky-eshop/krok-09-zruseni.md` |
 | 10. Opuštěný košík (`CartReminderWorker`, `CartAbandonedV1`, `Cart.ReminderSentAtUtc`, souhlas `CartRemindersConsent` ověřený až při odeslání přes `ICustomerContacts`, `/Account/EmailPreferences`) | hotovo (nasazeno 3. 11. 2026, nastavení souhlasu ověřeno v produkci; e-mail po 24 h) | `docs/kroky-eshop/krok-10-opusteny-kosik.md` |
-| 11. Přehled tržeb pro admina – CQRS (modul Reporting, `reporting.db`, projekce se stavem jen dopředu, `/Admin/Sales`, přestavění `RebuildSalesReportV1` → `OrderSnapshotV1`) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-11-prehled-trzeb.md` |
+| 11. Přehled tržeb pro admina – CQRS (modul Reporting, `reporting.db`, projekce se stavem jen dopředu, `/Admin/Sales`, přestavění `RebuildSalesReportV1` → `OrderSnapshotV1`) | hotovo (nasazeno 3. 11. 2026, přehled se po startu postavil ze snímků, přestavění ověřeno v produkci) | `docs/kroky-eshop/krok-11-prehled-trzeb.md` |
+| 12. Vrácení zboží (druhá sága `ReturnSaga`, `/Admin/Returns`, `RestockReturnedGoodsV1` → `ReturnedGoodsRestockedV1`, `RefundPaymentV1`, `ReturnRequested/Rejected/CompletedV1`, dobírka ručně) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-12-vraceni-zbozi.md` |
 
 ## Postup práce na dalším kroku EDA
 1. Nejdřív **shrň**, co se bude přidávat/měnit a **proč** (teorie + konkrétní případ v MiniShopu),

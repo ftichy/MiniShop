@@ -6,7 +6,7 @@ order: 6
 
 > **V jedné větě:** Payments je druhý **účastník ságy** objednávky. Na příkaz `RequestPaymentV1` založí platbu
 > u brány, výsledek z brány přijme **podepsaným webhookem** a oznámí ho událostí `PaymentSucceededV1` /
-> `PaymentFailedV1`. Na `RefundPaymentV1` vrátí peníze. Běží ve službě **Web**, data má v `payments.db`.
+> `PaymentFailedV1`. Na `RefundPaymentV1` vrátí peníze (pozdní platba, zrušení, od e-shop kroku 12 i vratka – Payments neví proč). Běží ve službě **Web**, data má v `payments.db`.
 
 ## Komponentní diagram
 

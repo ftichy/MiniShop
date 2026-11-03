@@ -45,7 +45,8 @@ public sealed class SalesOrder
     public IReadOnlyCollection<SalesOrderLine> Lines => _lines.AsReadOnly();
 
     /// <summary>Do tržby patří objednávky, o kterých známe detaily a které nejsou zamítnuté ani zrušené.</summary>
-    public bool CountsAsRevenue => PlacedAtUtc is not null && Status is not (SalesOrderStatus.Rejected or SalesOrderStatus.Cancelled);
+    public bool CountsAsRevenue => PlacedAtUtc is not null
+        && Status is not (SalesOrderStatus.Rejected or SalesOrderStatus.Cancelled or SalesOrderStatus.Returned);
 
     public static SalesOrder Create(int orderId, DateTime nowUtc) =>
         new() { OrderId = orderId, Status = SalesOrderStatus.Placed, UpdatedAtUtc = nowUtc };
@@ -68,7 +69,11 @@ public sealed class SalesOrder
     /// </summary>
     public bool ApplyStatus(SalesOrderStatus status, DateTime nowUtc)
     {
-        if (IsFinal(Status) || Rank(status) <= Rank(Status))
+        // E-shop krok 12: z doručené jde už jen „vrácená“ (vratka) – jiný pozdní stav ji nepřepíše.
+        var allowed = Status == SalesOrderStatus.Completed
+            ? status == SalesOrderStatus.Returned
+            : !IsFinal(Status) && Rank(status) > Rank(Status);
+        if (!allowed)
         {
             return false;
         }
@@ -85,13 +90,14 @@ public sealed class SalesOrder
     }
 
     private static bool IsFinal(SalesOrderStatus status) =>
-        status is SalesOrderStatus.Completed or SalesOrderStatus.Rejected or SalesOrderStatus.Cancelled;
+        status is SalesOrderStatus.Rejected or SalesOrderStatus.Cancelled or SalesOrderStatus.Returned;
 
     private static int Rank(SalesOrderStatus status) => status switch
     {
         SalesOrderStatus.Placed => 0,
         SalesOrderStatus.Confirmed => 1,
-        _ => 2   // konečné stavy
+        SalesOrderStatus.Completed => 2,
+        _ => 3   // konečné stavy
     };
 }
 
@@ -110,7 +116,10 @@ public enum SalesOrderStatus
 
     Rejected,
 
-    Cancelled
+    Cancelled,
+
+    /// <summary>E-shop krok 12: vrácená (zboží zpět, peníze vrácené) – do tržby se nepočítá.</summary>
+    Returned
 }
 
 /// <summary>Řádek objednávky v přehledu – název a cena z doby objednání.</summary>

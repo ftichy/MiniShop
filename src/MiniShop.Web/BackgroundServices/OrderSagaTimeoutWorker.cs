@@ -6,7 +6,7 @@ using MiniShop.Infrastructure.Observability;
 namespace MiniShop.Web.BackgroundServices;
 
 /// <summary>
-/// Hlídač termínů ságy (krok 9): každých 5 s najde objednávky, na které sklad neodpověděl včas,
+/// Hlídač termínů ságy (krok 9; e-shop krok 12 i vratek): každých 5 s najde objednávky, na které sklad neodpověděl včas,
 /// a nechá orchestrátor je zamítnout. Kdyby rezervace dorazila později, orchestrátor ji uvolní (kompenzace).
 /// </summary>
 /// <remarks>
@@ -66,6 +66,40 @@ public sealed class OrderSagaTimeoutWorker(
             {
                 activity.RecordError(ex);
                 logger.LogWarning("[Sága] Timeout objednávky {OrderId} se nepodařilo zpracovat, zkusí se znovu: {Error}",
+                    orderId, ex.Message);
+            }
+        }
+
+        await CheckReturnTimeoutsAsync(cancellationToken);
+    }
+
+    /// <summary>E-shop krok 12: vratky, kde zboží nedorazilo do termínu → vrácení vyprší (objednávka zůstane doručená).</summary>
+    private async Task CheckReturnTimeoutsAsync(CancellationToken cancellationToken)
+    {
+        IReadOnlyList<int> expired;
+        await using (var scope = scopeFactory.CreateAsyncScope())
+        {
+            expired = await scope.ServiceProvider.GetRequiredService<IReturnSagaRepository>()
+                .GetExpiredOrderIdsAsync(timeProvider.GetUtcNow().UtcDateTime, cancellationToken);
+        }
+
+        foreach (var orderId in expired)
+        {
+            using var activity = MessagingTelemetry.ActivitySource.StartActivity("return timeout");
+            activity?.SetTag(TraceTags.OrderId, orderId);
+
+            try
+            {
+                await using var scope = scopeFactory.CreateAsyncScope();
+                if (await scope.ServiceProvider.GetRequiredService<ReturnSagaOrchestrator>().TimeOutAsync(orderId, cancellationToken))
+                {
+                    logger.LogWarning("[Vratka] Objednávka {OrderId}: vrácené zboží nedorazilo včas, vrácení vypršelo", orderId);
+                }
+            }
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                activity.RecordError(ex);
+                logger.LogWarning("[Vratka] Timeout vratky {OrderId} se nepodařilo zpracovat, zkusí se znovu: {Error}",
                     orderId, ex.Message);
             }
         }

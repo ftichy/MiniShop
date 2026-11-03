@@ -23,6 +23,15 @@ public static class OrderMapping
             order.ShippingPrice,
             order.DeliveryAddress?.ToString());
 
+    /// <summary>E-shop krok 5: objednávka s historií stavů v pořadí, jak nastaly (podle Id – pořadí zápisu).</summary>
+    public static OrderDetailDto ToDetailDto(this Order order) =>
+        new(
+            order.ToDto(),
+            order.StatusHistory
+                .OrderBy(c => c.Id)
+                .Select(c => new OrderStatusChangeDto(c.Status.ToString(), c.ChangedAtUtc, c.Note))
+                .ToList());
+
     /// <summary>E-shop krok 2: produkt z kopie katalogu pro výlohu i formulář objednávky.</summary>
     public static CatalogItemDto ToCatalogItemDto(this CatalogProduct product) =>
         new(product.Id, product.Name, product.Description, product.Price, product.CategoryId, product.CategoryName,

@@ -140,6 +140,10 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   Číslo objednávky na span dává `TraceTags.TagOrder` (`Application/Abstractions`, tag `minishop.order.id`) – volá se tam, kde se pracuje s objednávkou.
   Serilog: `ClearProviders()` + `writeToProviders: true` (logy i do OTLP, na konzoli jednou).
 - Objednávka: Pending → Confirmed/Rejected (rozhoduje sága), z Confirmed → Completed/Cancelled. `POST /api/orders` vrací 202.
+  **Historie stavů (e-shop krok 5):** stav měnit jen přes privátní `Order.ChangeStatus` (nastaví `Status` + přidá
+  `OrderStatusChange`, tabulka `OrderStatusChanges`, pořadí podle `Id`) – **nový stav/přechod = přes `ChangeStatus`**.
+  Detail `/Orders/{id}` (`GetDetailAsync`, cizí = 404), pokladna sem přesměruje; Zrušit/Vyřídit postují na `Orders/Index`.
+  Staré objednávky mají u posledního stavu `ChangedAtUtc = NULL` (migrace čas nevymýšlí).
 - **Průběh objednávky (krok 12):** modul Journeys (`…Journeys` ve všech vrstvách, hostuje ho Web, vlastní `journeys.db`,
   bez zpráv → `JourneysDbContext` nedědí z `ModuleDbContext`). Proud `JourneyEvents` = jen INSERT, idempotence přes unikátní `EventId`
   z prohlížeče, řazení podle `OffsetMs` (čas od otevření formuláře). `ValidationFailed`/`OrderSubmitted` zapisuje jen server
@@ -348,7 +352,7 @@ nové moduly Notifications (odběratel událostí) a Payments (účastník ságy
 | 3. Košík (agregát `Cart` v Orderingu s invarianty, `/Cart`, odznak v hlavičce, ceny z kopie katalogu, bez zpráv) | hotovo (nasazeno 1. 11. 2026; oprava: `asp-append-version` – starý CSS z cache) | `docs/kroky-eshop/krok-03-kosik.md` |
 | 4A. Pokladna (`/Checkout`, `CheckoutService`, `CheckoutId` = verze košíku + concurrency token, žádné tiché zdražení, `DeliveryAddress`, `IShippingPriceCalculator`, `checkoutId` v API) | hotovo (nasazeno 2. 11. 2026, ověřeno objednávkou v produkci) | `docs/kroky-eshop/krok-04a-pokladna.md` |
 | 4B. Journeys na pokladnu (sledování a přehrání pokladny, `OrderJourneyDto.Form`, staré proudy beze změny, odstranění starého formuláře objednávky a „Objednat“ ve výloze) | hotovo (nasazeno 3. 11. 2026, přehrání pokladny ověřeno v produkci) | `docs/kroky-eshop/krok-04b-journeys-pokladna.md` |
-| 5. Detail objednávky a historie stavů (`/Orders/{id}`) | plán | — |
+| 5. Detail objednávky a historie stavů (`/Orders/{id}`, `OrderStatusChange` v agregátu, migrace doplní historii starým objednávkám) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-05-detail-objednavky.md` |
 | 6. Expedice (Packing → Shipped → Completed, `OrderShippedV1`, odepsání rezervace, `Order.Version`) | plán | — |
 | 7. Notifikace jako samostatný odběratel (modul Notifications, šablony, `CustomerAnonymizedV1`) | plán | — |
 | 8. Platba – simulovaná brána (modul Payments, webhook s HMAC, timeout platby, dobírka) | plán | — |

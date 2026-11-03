@@ -14,6 +14,9 @@ public interface IOrderService
     Task<IReadOnlyList<CustomerOrderSummaryDto>> GetCustomerSummariesAsync(CancellationToken cancellationToken = default);
 
     Task<OrderDto> GetByIdAsync(int id, OrderAccess access, CancellationToken cancellationToken = default);
+
+    /// <summary>E-shop krok 5: detail s historií stavů. Cizí objednávka = NotFoundException jako u <see cref="GetByIdAsync"/>.</summary>
+    Task<OrderDetailDto> GetDetailAsync(int id, OrderAccess access, CancellationToken cancellationToken = default);
     Task<OrderDto> PlaceOrderAsync(CreateOrderRequest request, OrderCustomer customer, CancellationToken cancellationToken = default);
     Task<OrderDto> CompleteAsync(int id, CancellationToken cancellationToken = default);
     Task<OrderDto> CancelAsync(int id, OrderAccess access, CancellationToken cancellationToken = default);

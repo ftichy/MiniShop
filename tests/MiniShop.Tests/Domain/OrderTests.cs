@@ -94,6 +94,52 @@ public class OrderTests
         Assert.Throws<DomainException>(() => order.AddItem(new CatalogProduct(1, "A", 100m, Now), 1, 0m));
     }
 
+    // --- E-shop krok 5: historie stavů ---
+
+    [Fact]
+    public void Historie_KazdyPrechodPridaRadekSCasem()
+    {
+        var order = CreateOrder();
+        order.Confirm(Now.AddSeconds(4));
+        order.Complete(Now.AddDays(1));
+
+        Assert.Equal(
+            [(OrderStatus.Pending, Now), (OrderStatus.Confirmed, Now.AddSeconds(4)), (OrderStatus.Completed, Now.AddDays(1))],
+            order.StatusHistory.Select(c => (c.Status, c.ChangedAtUtc!.Value)));
+    }
+
+    [Fact]
+    public void Historie_ZamitnutiNeseDuvod()
+    {
+        var order = CreateOrder();
+
+        order.Reject(" Nedostatek zboží ", Now);
+
+        var last = order.StatusHistory.Last();
+        Assert.Equal((OrderStatus.Rejected, "Nedostatek zboží"), (last.Status, last.Note));
+    }
+
+    [Fact]
+    public void Historie_NepovolenyPrechodNicNepridaNiNezmeni()
+    {
+        var order = CreateOrder();
+
+        Assert.Throws<DomainException>(() => order.Complete(Now));
+
+        Assert.Equal([OrderStatus.Pending], order.StatusHistory.Select(c => c.Status));
+    }
+
+    [Fact]
+    public void Historie_AnonymizacePoznamkyNemaze()
+    {
+        var order = CreateOrder();
+        order.Reject("Nedostatek zboží", Now);
+
+        order.Anonymize();
+
+        Assert.Equal("Nedostatek zboží", order.StatusHistory.Last().Note);   // důvod není osobní údaj
+    }
+
     // --- Účty krok 9: anonymizace po smazání účtu ---
 
     [Fact]

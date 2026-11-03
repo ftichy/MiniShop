@@ -215,6 +215,34 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
                     b.ToTable("OrderItems", (string)null);
                 });
 
+            modelBuilder.Entity("MiniShop.Domain.Orders.OrderStatusChange", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ChangedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("OrderId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId");
+
+                    b.ToTable("OrderStatusChanges", (string)null);
+                });
+
             modelBuilder.Entity("MiniShop.Domain.Orders.Saga.OrderSaga", b =>
                 {
                     b.Property<int>("OrderId")
@@ -364,6 +392,15 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("MiniShop.Domain.Orders.OrderStatusChange", b =>
+                {
+                    b.HasOne("MiniShop.Domain.Orders.Order", null)
+                        .WithMany("StatusHistory")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("MiniShop.Domain.Orders.Carts.Cart", b =>
                 {
                     b.Navigation("Lines");
@@ -372,6 +409,8 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
             modelBuilder.Entity("MiniShop.Domain.Orders.Order", b =>
                 {
                     b.Navigation("Items");
+
+                    b.Navigation("StatusHistory");
                 });
 #pragma warning restore 612, 618
         }

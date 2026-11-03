@@ -50,6 +50,12 @@ public sealed class OrderService(
         return order.ToDto();
     }
 
+    public async Task<OrderDetailDto> GetDetailAsync(int id, OrderAccess access, CancellationToken cancellationToken = default)
+    {
+        var order = await GetOrderAsync(id, access, cancellationToken);
+        return order.ToDetailDto();
+    }
+
     public async Task<OrderDto> PlaceOrderAsync(CreateOrderRequest request, OrderCustomer customer,
         CancellationToken cancellationToken = default)
     {

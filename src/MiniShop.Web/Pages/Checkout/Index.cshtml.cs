@@ -76,7 +76,7 @@ public sealed class IndexModel(ICheckoutService checkout, IJourneyService journe
                 var order = await checkout.PlaceOrderAsync(Input, User.ToOrderCustomer(), cancellationToken);
                 StatusMessage = $"Objednávka č. {order.Id} přijata (celkem {order.TotalPrice:N2} Kč), ověřujeme sklad…";
                 await TrackAsync(() => journeys.RecordOrderSubmittedAsync(JourneyId, serverOffsetMs, order.Id, cancellationToken));
-                return RedirectToPage("/Orders/Index");
+                return RedirectToPage("/Orders/Detail", new { id = order.Id });   // e-shop krok 5: rovnou detail
             }
             catch (Exception ex) when (ex is DomainException or ConcurrencyConflictException)
             {

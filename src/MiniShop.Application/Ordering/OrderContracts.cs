@@ -26,6 +26,12 @@ public sealed record OrderDto(
     decimal ShippingPrice = 0m,
     string? DeliveryAddress = null);
 
+/// <summary>E-shop krok 5: jeden řádek historie stavů. <paramref name="ChangedAtUtc"/> = null u objednávek starších než krok 5.</summary>
+public sealed record OrderStatusChangeDto(string Status, DateTime? ChangedAtUtc, string? Note);
+
+/// <summary>E-shop krok 5: detail objednávky (stránka /Orders/{id}) – objednávka a časová osa jejích stavů.</summary>
+public sealed record OrderDetailDto(OrderDto Order, IReadOnlyList<OrderStatusChangeDto> History);
+
 /// <summary>
 /// Produkt v nabídce – z kopie katalogu (krok 10), bez přesné zásoby (ta patří skladu).
 /// E-shop krok 2: i popis, kategorie a dostupnost (<c>Unknown</c>, <c>InStock</c>, <c>LowStock</c>, <c>OutOfStock</c>),

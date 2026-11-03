@@ -16,7 +16,7 @@ namespace MiniShop.Tests.Web;
 public sealed partial class CheckoutPageTests(MiniShopWebFactory web)
 {
     [Fact]
-    public async Task Objednani_PresmerujeNaObjednavky_DruheOdeslaniNezalozi()
+    public async Task Objednani_PresmerujeNaDetail_DruheOdeslaniNezalozi()
     {
         await web.EnsureCatalogProductAsync(401, "Pokladní myš", 250m);
         var client = await CustomerAsync("pokladna-1@example.com");
@@ -27,11 +27,15 @@ public sealed partial class CheckoutPageTests(MiniShopWebFactory web)
         var first = await client.PostAsync("/Checkout", new FormUrlEncodedContent(fields));
         var second = await client.PostAsync("/Checkout", new FormUrlEncodedContent(fields));   // dvojklik / F5
 
-        Assert.Equal(("/Orders", "/Orders"), (first.Headers.Location?.OriginalString, second.Headers.Location?.OriginalString));
+        // E-shop krok 5: obě odeslání vedou na detail téže objednávky.
+        var location = first.Headers.Location?.OriginalString;
+        Assert.Matches("^/Orders/[0-9]+$", location);
+        Assert.Equal(location, second.Headers.Location?.OriginalString);
         Assert.Equal(1, await OrdersWithCheckoutIdAsync(checkoutId));
-        var orders = WebUtility.HtmlDecode(await client.GetStringAsync("/Orders"));
-        Assert.Contains("přijata", orders);
-        Assert.Contains("Dlouhá 5, 110 00 Praha", orders);
+        var detail = WebUtility.HtmlDecode(await client.GetStringAsync(location));
+        Assert.Contains("přijata (celkem", detail);                       // hláška z pokladny
+        Assert.Contains("Dlouhá 5, 110 00 Praha", detail);
+        Assert.Contains("Objednávka přijata, ověřujeme sklad", detail);   // první řádek historie
     }
 
     [Fact]

@@ -33,6 +33,18 @@ Pravidla hlídá přímo entita [Order](code:src/MiniShop.Domain/Orders/Order.cs
 `Complete`, `Cancel` nejdřív zkontrolují stav (`EnsureStatus`) a při chybě vyhodí `DomainException`.
 O `Confirmed`/`Rejected` **nerozhoduje uživatel**, ale [sága](../eda/saga.md).
 
+### Historie stavů (e-shop krok 5)
+
+Každý přechod (i vznik jako `Pending`) zapíše řádek `OrderStatusChange` – stav, čas a u zamítnutí důvod.
+Dělá to jediná privátní metoda `ChangeStatus`, takže stav a historie se mění **vždy spolu** a uloží se v jedné
+transakci (tabulka `OrderStatusChanges` v `ordering.db`). Zákazník ji vidí na detailu objednávky `/Orders/{id}`
+jako časovou osu – podobně jako sledování zásilky u přepravce.
+
+Proč ne projekce z proudu událostí (jako [Journeys](moduly/journeys.md))? Události objednávky se trvale neukládají
+– outbox je jen „pošta“, ne archiv. Záznam přímo v agregátu je nejjednodušší a nemůže se rozejít se stavem.
+Objednávky starší než e-shop krok 5 dostaly v migraci vznik (známý čas) a aktuální stav **bez času** – kdy nastal,
+se zpětně nezjistí.
+
 ## Sága objednávky (`OrderSaga`)
 
 ```mermaid

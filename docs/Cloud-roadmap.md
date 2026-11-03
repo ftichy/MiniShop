@@ -132,6 +132,7 @@ Fáze C ji zautomatizuje, fáze D z ní udělá něco, co se dá provozovat.
 | 10. Secrets a konfigurace | D – provoz | Žádné heslo v gitu, rotace hesel | GitHub Secrets, `.env` | 0 |
 | 11. Monitoring a logy v cloudu | D | Trasy a logy jako v Aspire, upozornění při výpadku | Aspire Dashboard, uptime monitor | 0 |
 | 12. Zálohy a obnova po havárii | D | Data přežijí smazání VM, nacvičená obnova | Object Storage, `sqlite3 .backup` | 0 |
+| 13. Vlastní doména | D | `https://minishop-tichy.cz`, stará adresa přesměruje, antiviry web neblokují | Wedos (registrace + DNS) | roční poplatek za doménu |
 
 Volitelné pokračování na konci dokumentu (migrace databáze, Aspire publish, Kubernetes, Azure).
 
@@ -373,6 +374,21 @@ dočasné a outbox je v SQLite.
 **Hotovo, když:** proběhne **cvičná havárie**: `tofu destroy` → `tofu apply` → pipeline → `restore.sh`
 a objednávky jsou zpět. Změříte si svoje RTO.
 
+## Krok 13: Vlastní doména
+
+**Teorie.** Antiviry, firemní filtry a prohlížeče hodnotí adresy podle **reputace domény**. Sdílené domény
+zdarma (DuckDNS, No-IP) zneužívají i podvodníci, a proto bývá podezřelá celá `duckdns.org`, ne jen jedna
+poddoména. Vlastní doména druhého řádu má vlastní (zpočátku neutrální) pověst. Přechod nesmí rozbít staré
+odkazy: stará adresa trvale (**301**) přesměruje na novou.
+
+**V MiniShopu:** `minishop-tichy.cz` u Wedosu (DNS u Wedosu zdarma). Dva záznamy A (`@`, `dashboard`) na reserved IP,
+výchozí parkovací A/AAAA smazat. `DOMAIN` a nové `LEGACY_DOMAIN` v `production.env`, Caddy přesměruje starou
+adresu i s cestou (odkazy z dřívějších e-mailů dál fungují), smoke test v `deploy.yml` hlídá obojí.
+Kód nasadit **až po ověření DNS** – jinak Caddy nezíská certifikát.
+
+**Hotovo, když:** `https://minishop-tichy.cz` má platný certifikát, `https://minishop-tichy.duckdns.org/…`
+vrací 301 na stejnou cestu na nové doméně a UptimeRobot hlídá novou adresu.
+
 ---
 
 ## Volitelně: kam dál
@@ -392,12 +408,12 @@ a objednávky jsou zpět. Změříte si svoje RTO.
 | --- | --- | --- |
 | VM 2 OCPU / 12 GB, 50–200 GB disk | OCI Always Free | 0 Kč |
 | Zálohy (≤ 20 GB) | OCI Object Storage | 0 Kč |
-| Doména | DuckDNS | 0 Kč |
+| Doména | `minishop-tichy.cz` u Wedosu (od kroku 13; dřív DuckDNS zdarma) | roční poplatek, řádově desítky Kč měsíčně |
 | Certifikát | Let's Encrypt | 0 Kč |
 | CI/CD | GitHub Actions (≤ 2 000 min/měsíc) | 0 Kč |
 | Registry | GHCR | 0 Kč |
 | Monitoring | Aspire Dashboard, UptimeRobot | 0 Kč |
-| **Celkem** | | **0 Kč** (rozpočet 100 Kč hlídá OCI Budget) |
+| **Celkem** | | **jen doména** (rozpočet 100 Kč/měsíc; útratu v cloudu hlídá OCI Budget) |
 
 Ceny ověřeny 18. 10. 2026; free limity se mění (Oracle je v 2026 snižoval) – před krokem 3 je zkontrolujte.
 

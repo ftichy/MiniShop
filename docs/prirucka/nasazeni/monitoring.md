@@ -30,7 +30,7 @@ flowchart LR
 
 | Hlídač | Co sleduje | Kdy se ozve |
 | --- | --- | --- |
-| **Aspire dashboard** | trasy, strukturované logy, metriky obou služeb | nic neposílá – díváte se do něj (https://dashboard.minishop-tichy.duckdns.org) |
+| **Aspire dashboard** | trasy, strukturované logy, metriky obou služeb | nic neposílá – díváte se do něj (https://dashboard.minishop-tichy.cz) |
 | **Health checky** `/health` | připravenost služby + [outbox](../eda/outbox.md) (zpráva visí > 5 min → *Degraded*) | využívá je Compose (`up --wait`), Deploy i UptimeRobot |
 | **UptimeRobot** | zvenku `/health` a `/health/inventory`, hledá přesný text `Healthy` | služba neodpovídá nebo není *Healthy* |
 | **Alarmy OCI** ([monitoring.tf](code:infra/monitoring.tf)) | CPU > 80 %, paměť > 90 %, metriky přestaly chodit | podmínka platí 15 min v kuse; připomenutí každé 4 h |

@@ -85,7 +85,7 @@ data "oci_core_private_ips" "vm" {
   vnic_id = data.oci_core_vnic_attachments.vm.vnic_attachments[0].vnic_id
 }
 
-# Reserved IP z kroku 5 – na ni ukazuje DNS (minishop-tichy.duckdns.org). Vznikla ručně, do OpenTofu se
+# Reserved IP z kroku 5 – na ni ukazuje DNS (minishop-tichy.cz, krok 13). Vznikla ručně, do OpenTofu se
 # jednou převezme příkazem tofu import (viz návod). Nikdy se nemaže: nová IP = změna DNS a nový certifikát.
 resource "oci_core_public_ip" "reserved" {
   compartment_id = var.compartment_ocid

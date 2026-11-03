@@ -4,7 +4,7 @@ summary: Deník kroků od první doménové události po zálohy v cloudu, s odk
 order: 85
 ---
 
-> **V jedné větě:** MiniShop nevznikl naráz – začal jako obyčejná vrstvená aplikace a ve 13 krocích EDA a 12 krocích
+> **V jedné větě:** MiniShop nevznikl naráz – začal jako obyčejná vrstvená aplikace a ve 13 krocích EDA a 13 krocích
 > nasazení se z něj stal systém řízený událostmi, běžící v cloudu. Každý krok má v repozitáři podrobný souhrn.
 
 Souhrny odkazované níže jsou **návody a záznamy rozhodnutí** – co se v kroku měnilo, proč, a jak to vyzkoušet.
@@ -49,6 +49,7 @@ Plán (včetně výběru cloudu a rozpočtu): [docs/Cloud-roadmap.md](code:docs/
 | 10 | Secrets jen v GitHubu, rotace hesel | [cloud-10](code:docs/kroky-cloud/krok-10-secrets.md) |
 | 11 | Monitoring, Aspire dashboard v cloudu, alarmy | [cloud-11](code:docs/kroky-cloud/krok-11-monitoring.md) |
 | 12 | Zálohy a obnova, cvičná havárie | [cloud-12](code:docs/kroky-cloud/krok-12-zalohy.md) |
+| 13 | Vlastní doména `minishop-tichy.cz`, přesměrování ze staré adresy | [cloud-13](code:docs/kroky-cloud/krok-13-vlastni-domena.md) |
 
 ## Uživatelské účty a role
 

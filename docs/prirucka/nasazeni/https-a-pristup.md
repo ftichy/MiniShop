@@ -1,11 +1,12 @@
 ---
 title: Doména, HTTPS a přístup
-summary: DuckDNS, Caddy s certifikátem Let's Encrypt, heslo před aplikací a SSH jen přes Tailscale.
+summary: Vlastní doména minishop-tichy.cz, Caddy s certifikátem Let's Encrypt, heslo před dashboardem a SSH jen přes Tailscale.
 order: 4
 ---
 
-> **V jedné větě:** Na adresu `minishop-tichy.duckdns.org` odpovídá **Caddy**, který sám získá certifikát
-> **Let's Encrypt**, pustí dál jen s heslem a předá požadavek Webu. Správce se na server dostane jen přes **Tailscale**.
+> **V jedné větě:** Na adresu `minishop-tichy.cz` odpovídá **Caddy**, který sám získá certifikát
+> **Let's Encrypt** a předá požadavek Webu (dashboard jen s heslem). Původní adresa `minishop-tichy.duckdns.org`
+> trvale přesměruje na novou. Správce se na server dostane jen přes **Tailscale**.
 
 ## Cesta požadavku
 
@@ -13,17 +14,19 @@ order: 4
 sequenceDiagram
     autonumber
     actor U as Uživatel
-    participant D as DuckDNS
+    participant D as WEDOS DNS
     participant SL as Security list OCI
     participant C as Caddy
     participant W as web:8080
 
-    U->>D: minishop-tichy.duckdns.org?
+    U->>D: minishop-tichy.cz?
     D-->>U: 141.144.255.238 (reserved IP)
     U->>SL: HTTPS :443
     SL->>C: povoleno (80, 443)
     C->>C: TLS certifikát Let's Encrypt
-    alt /health nebo /health/inventory
+    alt stará adresa minishop-tichy.duckdns.org
+        C-->>U: 301 → https://minishop-tichy.cz + stejná cesta
+    else /health nebo /health/inventory
         C->>W: bez hesla (jen Healthy / Degraded / Unhealthy)
     else dashboard.…
         C-->>U: 401 – zadejte heslo (basic auth, vždy)
@@ -37,7 +40,8 @@ sequenceDiagram
 
 | Část | Co dělá | Proč |
 | --- | --- | --- |
-| **DuckDNS** | zdarma doména třetího řádu `minishop-tichy.duckdns.org` (i `*.minishop-tichy…`) | 0 Kč, hotové za minutu. Vlastní doména jde doplnit později (DNS záznam + `DOMAIN`). |
+| **Doména `minishop-tichy.cz`** (Wedos) | vlastní doména druhého řádu; DNS hostuje Wedos zdarma – dva záznamy A (`@` a `dashboard`) na reserved IP, TTL 300, bez AAAA | sdílené domény zdarma (DuckDNS) mají u antivirů a firemních filtrů špatnou pověst – stejnou adresu zneužívají i podvodníci. Vlastní doména `.cz` stojí řádově stovky Kč ročně. |
+| **DuckDNS** (dřívější) | původní adresa `minishop-tichy.duckdns.org` – Caddy z ní trvale (301) přesměruje na novou doménu i s cestou | staré záložky a odkazy z e-mailů (potvrzení účtu, reset hesla) dál fungují. Záznam u DuckDNS musí dál ukazovat na reserved IP. |
 | **Reserved IP** | pevná veřejná adresa | DNS na ni ukazuje; nová VM ji převezme |
 | **Caddy** | reverse proxy: HTTPS, obnova certifikátu, přesměrování http → https, basic auth (dashboard), komprese, skrytí hlaviček `Server` a `Via` | certifikát bez jediného řádku konfigurace navíc (oproti Nginx + certbot) |
 | **Let's Encrypt** | bezplatné certifikáty, ověření přes port 80 (HTTP-01) | standard; Caddy se o obnovu stará sám |
@@ -49,7 +53,8 @@ Kód: [Caddyfile](code:deploy/Caddyfile), [compose.cloud.yaml](code:deploy/compo
 ## Co se nastavilo
 
 - **Caddyfile** – dva weby: `{$DOMAIN}` (aplikace) a `dashboard.{$DOMAIN}` (Aspire dashboard, **vždy** s heslem –
-  logy obsahují údaje z objednávek). Proměnné doplní Caddy z prostředí ještě před čtením souboru.
+  logy obsahují údaje z objednávek) a přesměrování `{$LEGACY_DOMAIN}` (+ `dashboard.`) → 301 na novou doménu
+  (cloud krok 13). Proměnné (`production.env` → `compose.cloud.yaml`) doplní Caddy z prostředí ještě před čtením souboru.
 - **Jen HTTP/1.1 a HTTP/2** – HTTP/3 by potřeboval UDP 443 v security listu i ve firewallu VM.
 - **Heslo jako bcrypt otisk** (`caddy hash-password`) – samotné heslo nikde neleží; otisk je secret
   `BASIC_AUTH_HASH` v GitHubu ([Secrets](../github/secrets.md)).
@@ -70,5 +75,6 @@ Kód: [Caddyfile](code:deploy/Caddyfile), [compose.cloud.yaml](code:deploy/compo
 - [Caddy – dokumentace](https://caddyserver.com/docs/)
 - [Caddy: Automatic HTTPS](https://caddyserver.com/docs/automatic-https)
 - [Let's Encrypt: Jak to funguje](https://letsencrypt.org/how-it-works/)
+- [Wedos – znalostní báze (DNS)](https://kb.wedos.com/)
 - [DuckDNS](https://www.duckdns.org/)
 - [Tailscale: Jak funguje](https://tailscale.com/blog/how-tailscale-works)

@@ -22,7 +22,9 @@ services:
       - "80:80"     # Let's Encrypt ověření + přesměrování na https
       - "443:443"
     environment:
-      DOMAIN: ${DOMAIN:?chybí DOMAIN v .env (např. minishop-xx.duckdns.org)}
+      DOMAIN: ${DOMAIN:?chybí DOMAIN v .env (např. minishop-tichy.cz)}
+      # Krok 13: stará adresa, ze které Caddy přesměruje na DOMAIN.
+      LEGACY_DOMAIN: ${LEGACY_DOMAIN:?chybí LEGACY_DOMAIN v .env (např. minishop-tichy.duckdns.org)}
       BASIC_AUTH: ${BASIC_AUTH:-on}
       BASIC_AUTH_USER: ${BASIC_AUTH_USER:-}
       BASIC_AUTH_HASH: ${BASIC_AUTH_HASH:-}

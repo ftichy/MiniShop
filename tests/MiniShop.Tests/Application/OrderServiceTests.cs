@@ -60,6 +60,7 @@ public sealed class OrderServiceTests : IDisposable
     private static readonly TimeSpan ReservationTimeout = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan PaymentTimeout = TimeSpan.FromMinutes(30);   // e-shop krok 8
     private static readonly TimeSpan CartAbandonedAfter = TimeSpan.FromHours(24);   // e-shop krok 10
+    private static readonly TimeSpan ReturnWindow = TimeSpan.FromDays(14);           // e-shop krok 12
     private const string WebhookSecret = "testovaci-tajemstvi-webhooku-plateb-0123456789";
 
     private readonly InMemoryDatabase _orderingDatabase = new();
@@ -103,6 +104,16 @@ public sealed class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<StockReleasedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<PaymentSucceededV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);   // e-shop krok 8
         services.AddIntegrationMessageHandler<PaymentFailedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
+
+        // E-shop krok 12: vrácení zboží (sága vratky, překlad událostí vratky) – jako AddOrderingModule ve Webu.
+        services.AddSingleton(new ReturnSettings(ReturnWindow, ReturnWindow));
+        services.AddScoped<ReturnSagaOrchestrator>();
+        services.AddDomainEventHandler<OrderReturnRequested, PublishOrderIntegrationEventsHandler>();
+        services.AddDomainEventHandler<OrderReturnRejected, PublishOrderIntegrationEventsHandler>();
+        services.AddDomainEventHandler<OrderReturned, PublishOrderIntegrationEventsHandler>();
+        services.AddDomainEventHandler<OrderReturnRequested, ReturnSagaOrchestrator>();
+        services.AddIntegrationMessageHandler<ReturnedGoodsRestockedV1, ReturnSagaOrchestrator>(IntegrationModules.Ordering);
+        services.AddIntegrationMessageHandler<PaymentRefundedV1, ReturnSagaOrchestrator>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<ProductUpdatedV1, CatalogProjectionHandler>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<ProductUpdatedV2, CatalogProjectionHandler>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<StockAvailabilityChangedV1, CatalogProjectionHandler>(IntegrationModules.Ordering);
@@ -117,6 +128,7 @@ public sealed class OrderServiceTests : IDisposable
         services.AddSingleton<IShippingPriceCalculator>(new StandardShippingPriceCalculator(courierPrice: 99m, freeFrom: 1_000m));
         services.AddIntegrationMessageHandler<ReserveStockV1, ReserveStockHandler>(IntegrationModules.Inventory);
         services.AddIntegrationMessageHandler<ReleaseStockV1, ReleaseStockHandler>(IntegrationModules.Inventory);
+        services.AddIntegrationMessageHandler<RestockReturnedGoodsV1, RestockReturnedGoodsHandler>(IntegrationModules.Inventory);   // e-shop krok 12
         services.AddIntegrationMessageHandler<OrderShippedV1, FulfilReservationHandler>(IntegrationModules.Inventory);
         services.AddIntegrationMessageHandler<SyncCatalogV1, SyncCatalogHandler>(IntegrationModules.Inventory);
         services.AddScoped<CatalogSyncService>();
@@ -133,6 +145,9 @@ public sealed class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<OrderCancelledV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<CustomerAnonymizedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<PaymentRefundedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<ReturnRequestedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);   // e-shop krok 12
+        services.AddIntegrationMessageHandler<ReturnRejectedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<ReturnCompletedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
 
         // E-shop krok 10: opuštěný košík – služba v Orderingu, připomínka v Notifications, kontakty místo účtů v paměti.
         services.AddSingleton(new CartReminderSettings(CartAbandonedAfter, TimeSpan.FromMinutes(15)));
@@ -157,6 +172,7 @@ public sealed class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<OrderCompletedV1, SalesProjectionHandler>(IntegrationModules.Reporting);
         services.AddIntegrationMessageHandler<PaymentRefundedV1, SalesProjectionHandler>(IntegrationModules.Reporting);
         services.AddIntegrationMessageHandler<OrderSnapshotV1, SalesProjectionHandler>(IntegrationModules.Reporting);
+        services.AddIntegrationMessageHandler<ReturnCompletedV1, SalesProjectionHandler>(IntegrationModules.Reporting);   // e-shop krok 12
         services.AddIntegrationMessageHandler<RebuildSalesReportV1, RebuildSalesReportHandler>(IntegrationModules.Ordering);
 
         // Testovací náhrady: notifikace do seznamu, "broker" si zprávy zapamatuje a doručí je v procesu,
@@ -802,6 +818,127 @@ public sealed class OrderServiceTests : IDisposable
 
         Assert.Equal(2, _bus.Published.OfType<CartAbandonedV1>().Count());
         Assert.Equal(2, _emails.Sent.Count(e => e.Subject.Contains("košíku")));
+    }
+
+    // ---------- E-shop krok 12: vrácení zboží ----------
+
+    [Fact]
+    public async Task Vratka_Kartou_ZboziZpetPenizeZpetPrehledOdecte()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await DeliveredOrderAsync(product.Id, quantity: 2, PaymentMethod.Card);
+        Assert.Equal(3, await StockAsync());
+
+        await Orders(s => s.RequestReturnAsync(order.Id, OrderAccess.Customer(Jan.CustomerId), "Nesedí velikost"));
+        await ProcessOutboxAsync();   // OrderReturnRequested → sága vratky + ReturnRequestedV1 → e-mail „pošlete zboží“
+        Assert.Equal(ReturnSagaState.AwaitingGoods, (await ReturnSagaAsync(order.Id)).State);
+        Assert.Contains(_emails.Sent, e => e.Subject.Contains("pošlete nám zboží"));
+
+        Assert.True(await Returns(r => r.AcceptGoodsAsync(order.Id)));   // admin převzal zásilku
+        await ProcessOutboxAsync();   // RestockReturnedGoodsV1 → sklad → RefundPaymentV1 → Payments → PaymentRefundedV1 → konec
+
+        Assert.Equal("Returned", await StatusAsync(order.Id));
+        Assert.Equal(5, await StockAsync());
+        Assert.Equal(ReturnSagaState.Completed, (await ReturnSagaAsync(order.Id)).State);
+        Assert.Equal(PaymentStatus.Refunded, await PaymentStatusAsync(order.Id));
+        var completed = Assert.Single(_bus.Published.OfType<ReturnCompletedV1>());
+        Assert.True(completed.RefundedByCard);
+        Assert.Contains(_emails.Sent, e => e.Subject.Contains("je vrácená"));
+
+        var report = await Report(s => s.GetAsync());   // CQRS přehled: vrácená se do tržby nepočítá
+        Assert.Equal((1, 0m), (report.StatusCounts[SalesOrderStatus.Returned], report.Today.Revenue));
+    }
+
+    [Fact]
+    public async Task Vratka_Dobirka_PenizeVraciAdminRucne()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await DeliveredOrderAsync(product.Id, quantity: 1, PaymentMethod.CashOnDelivery);
+
+        await Orders(s => s.RequestReturnAsync(order.Id, OrderAccess.Customer(Jan.CustomerId), "Nelíbí se mi"));
+        await ProcessOutboxAsync();
+        await Returns(r => r.AcceptGoodsAsync(order.Id));
+        await ProcessOutboxAsync();
+
+        Assert.Equal("Returned", await StatusAsync(order.Id));
+        Assert.Equal(5, await StockAsync());
+        Assert.Empty(_bus.Published.OfType<RefundPaymentV1>());
+        Assert.False(Assert.Single(_bus.Published.OfType<ReturnCompletedV1>()).RefundedByCard);
+        Assert.Contains(_emails.Sent, e => e.TextBody.Contains("převodem"));
+    }
+
+    [Fact]
+    public async Task Vratka_Zamitnuta_ZboziNeNaskladnenoPodruheNejde()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await DeliveredOrderAsync(product.Id, quantity: 2, PaymentMethod.Card);
+        await Orders(s => s.RequestReturnAsync(order.Id, OrderAccess.Customer(Jan.CustomerId), "Nesedí velikost"));
+        await ProcessOutboxAsync();
+
+        Assert.True(await Returns(r => r.RejectAsync(order.Id, "Zboží je poškozené")));
+        await ProcessOutboxAsync();
+
+        var detail = await Orders(s => s.GetDetailAsync(order.Id, OrderAccess.AllOrders));
+        Assert.Equal(("Completed", "Zboží je poškozené"), (detail.Order.Status, detail.ReturnRejectionReason));
+        Assert.Null(detail.ReturnableUntilUtc);   // jen jednou
+        Assert.Equal(3, await StockAsync());
+        Assert.Empty(_bus.Published.OfType<RefundPaymentV1>());
+        Assert.Equal("Zboží je poškozené", Assert.Single(_bus.Published.OfType<ReturnRejectedV1>()).Reason);
+        await Assert.ThrowsAsync<DomainException>(() =>
+            Orders(s => s.RequestReturnAsync(order.Id, OrderAccess.Customer(Jan.CustomerId), "Ještě jednou")));
+    }
+
+    [Fact]
+    public async Task Vratka_ZboziNedoraziloVcas_Vyprsi()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await DeliveredOrderAsync(product.Id, quantity: 1, PaymentMethod.Card);
+        await Orders(s => s.RequestReturnAsync(order.Id, OrderAccess.Customer(Jan.CustomerId), "Nesedí velikost"));
+        await ProcessOutboxAsync();
+
+        _time.Advance(ReturnWindow);
+        Assert.Equal([order.Id], await ExpiredReturnsAsync());
+        Assert.True(await Returns(r => r.TimeOutAsync(order.Id)));
+        await ProcessOutboxAsync();
+
+        Assert.Equal("Completed", await StatusAsync(order.Id));
+        Assert.Equal(ReturnSaga.ExpiredReason, Assert.Single(_bus.Published.OfType<ReturnRejectedV1>()).Reason);
+        Assert.False(await Returns(r => r.AcceptGoodsAsync(order.Id)));   // zásilka po termínu – admin už nic nepřijme
+    }
+
+    [Fact]
+    public async Task Vratka_PoTerminuNeboCiziNejde()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await DeliveredOrderAsync(product.Id, quantity: 1, PaymentMethod.Card);
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            Orders(s => s.RequestReturnAsync(order.Id, OrderAccess.Customer(Petra.CustomerId), "Cizí")));
+
+        Assert.NotNull((await Orders(s => s.GetDetailAsync(order.Id, OrderAccess.AllOrders))).ReturnableUntilUtc);
+        _time.Advance(ReturnWindow + TimeSpan.FromMinutes(1));
+        Assert.Null((await Orders(s => s.GetDetailAsync(order.Id, OrderAccess.AllOrders))).ReturnableUntilUtc);
+        await Assert.ThrowsAsync<DomainException>(() =>
+            Orders(s => s.RequestReturnAsync(order.Id, OrderAccess.Customer(Jan.CustomerId), "Pozdě")));
+    }
+
+    [Fact]
+    public async Task Vratka_OpakovanyPrikazSkladu_NenaskladniDvakrat()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await DeliveredOrderAsync(product.Id, quantity: 2, PaymentMethod.CashOnDelivery);
+        await Orders(s => s.RequestReturnAsync(order.Id, OrderAccess.Customer(Jan.CustomerId), "Nesedí velikost"));
+        await ProcessOutboxAsync();
+        await Returns(r => r.AcceptGoodsAsync(order.Id));
+        await ProcessOutboxAsync();
+
+        // Stejný příkaz s jiným ID (inbox ho nepozná) – zachytí ho evidence vrácených rezervací.
+        await RedeliverAsync(new RestockReturnedGoodsV1(Guid.NewGuid(), Now.UtcDateTime, order.Id), IntegrationModules.Inventory);
+        await ProcessOutboxAsync();
+
+        Assert.Equal(5, await StockAsync());
+        Assert.Equal(0, _bus.Published.OfType<ReturnedGoodsRestockedV1>().Last().Quantity);
+        Assert.Single(_bus.Published.OfType<ReturnCompletedV1>());   // sága druhou odpověď ignoruje
     }
 
     // ---------- E-shop krok 11: přehled tržeb (CQRS) ----------
@@ -1945,6 +2082,40 @@ public sealed class OrderServiceTests : IDisposable
         {
             await Reminders(s => s.RemindAsync(cartId));
         }
+    }
+
+    /// <summary>E-shop krok 12: doručená objednávka z pokladny (kartou zaplacená) – podklad pro vratku.</summary>
+    private async Task<OrderDto> DeliveredOrderAsync(int productId, int quantity, PaymentMethod payment)
+    {
+        var order = await PlaceCardOrderAsync(productId, quantity, payment);
+        await ProcessOutboxAsync();
+        if (payment == PaymentMethod.Card)
+        {
+            await SimulateGatewayAsync(order.Id, paid: true);
+            await ProcessOutboxAsync();
+        }
+
+        await ShipAsync(order.Id);
+        await Orders(s => s.CompleteAsync(order.Id));
+        await ProcessOutboxAsync();
+        Assert.Equal("Completed", await StatusAsync(order.Id));
+        return order;
+    }
+
+    /// <summary>E-shop krok 12: orchestrátor vratky ve vlastním scope – jako stránka Vratky nebo timeout worker.</summary>
+    private async Task<T> Returns<T>(Func<ReturnSagaOrchestrator, Task<T>> action)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await action(scope.ServiceProvider.GetRequiredService<ReturnSagaOrchestrator>());
+    }
+
+    private Task<ReturnSaga> ReturnSagaAsync(int orderId) => OrderingDb(db => db.ReturnSagas.SingleAsync(s => s.OrderId == orderId));
+
+    private async Task<IReadOnlyList<int>> ExpiredReturnsAsync()
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<IReturnSagaRepository>()
+            .GetExpiredOrderIdsAsync(_time.GetUtcNow().UtcDateTime);
     }
 
     /// <summary>E-shop krok 11: přehled tržeb (čtecí strana modulu Reporting) ve vlastním scope.</summary>

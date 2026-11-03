@@ -1,0 +1,59 @@
+@page
+@model MiniShop.Web.Pages.Admin.Returns.IndexModel
+@using MiniShop.Domain.Orders.Saga
+@{
+    ViewData["Title"] = "Vratky";
+}
+<h1>Vratky</h1>
+<p class="text-muted">
+    Vrácení řídí sága: <strong>čeká na zboží → naskladní se → vrátí se peníze</strong>. Až zásilka dorazí, zkontrolujte ji
+    a klikněte <em>Přijato</em> (nebo <em>Zamítnout</em> s důvodem pro zákazníka). Kartou vrací peníze Payments,
+    u dobírky je pošlete převodem ručně.
+</p>
+
+<partial name="_StatusMessage" model="Model.StatusMessage" />
+@if (Model.ErrorMessage is not null)
+{
+    <div class="alert alert-danger">@Model.ErrorMessage</div>
+}
+
+@if (Model.Rows.Count == 0)
+{
+    <p class="text-muted">Žádná vratka nečeká.</p>
+}
+else
+{
+    <div class="list-group" data-reload-when-idle>
+        @foreach (var row in Model.Rows)
+        {
+            var order = row.Order;
+            <div class="list-group-item">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <div>
+                        <a asp-page="/Orders/Detail" asp-route-id="@order.Id"><strong>č. @order.Id</strong></a>
+                        · @order.CustomerName · @order.TotalPrice.ToString("N2") Kč
+                        · @(order.PaymentMethod == "Card" ? "kartou" : "dobírka – peníze vrátit převodem")
+                    </div>
+                    <span class="badge bg-warning text-dark" data-track="return-state">@IndexModel.StateText(row.Saga.State)</span>
+                </div>
+                @if (row.Saga.State == ReturnSagaState.AwaitingGoods)
+                {
+                    <div class="small text-muted mt-1">Zboží musí dorazit do @row.Saga.GoodsDeadlineUtc.ToLocalTime().ToString("g").</div>
+                    <div class="d-flex flex-wrap gap-2 mt-2">
+                        <form method="post" asp-page-handler="Accept" asp-route-id="@order.Id">
+                            <button type="submit" class="btn btn-success btn-sm" data-track="return-accept">Přijato v pořádku</button>
+                        </form>
+                        <form method="post" asp-page-handler="Reject" asp-route-id="@order.Id" class="d-flex gap-2">
+                            <input name="reason" class="form-control form-control-sm" placeholder="Důvod zamítnutí" maxlength="500" required />
+                            <button type="submit" class="btn btn-outline-danger btn-sm" data-track="return-reject">Zamítnout</button>
+                        </form>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+
+@section Scripts {
+    <script src="~/js/orders-reload.js" asp-append-version="true"></script>
+}

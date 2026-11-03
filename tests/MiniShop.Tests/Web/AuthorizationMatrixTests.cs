@@ -75,6 +75,9 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Admin, "/Account/EmailPreferences", Expect.Denied },
 
         // Jen admin
+        { Who.Anonymous, "/Admin/Returns", Expect.Login },                // e-shop krok 12: vratky (příjem zboží)
+        { Who.User, "/Admin/Returns", Expect.Denied },
+        { Who.Admin, "/Admin/Returns", Expect.Allowed },
         { Who.Anonymous, "/Admin/Sales", Expect.Login },                  // e-shop krok 11: přehled tržeb (CQRS)
         { Who.User, "/Admin/Sales", Expect.Denied },
         { Who.Admin, "/Admin/Sales", Expect.Allowed },
@@ -134,6 +137,17 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Admin, "/Admin/Fulfilment?handler=Ship&id=999", Expect.Allowed },
         { Who.User, "/Admin/Fulfilment?handler=Deliver&id=999", Expect.Denied },
         { Who.Admin, "/Admin/Fulfilment?handler=Deliver&id=999", Expect.Allowed },
+
+        // E-shop krok 12: vratky – převzetí a zamítnutí jen admin (neexistující vratka: projde autorizací, hláška na stránce);
+        // žádost o vrácení na detailu jen zákazník (cizí/neexistující = 404, admin = odepřeno)
+        { Who.Anonymous, "/Admin/Returns?handler=Accept&id=999", Expect.Login },
+        { Who.User, "/Admin/Returns?handler=Accept&id=999", Expect.Denied },
+        { Who.Admin, "/Admin/Returns?handler=Accept&id=999", Expect.Allowed },
+        { Who.User, "/Admin/Returns?handler=Reject&id=999", Expect.Denied },
+        { Who.Admin, "/Admin/Returns?handler=Reject&id=999", Expect.Allowed },
+        { Who.Anonymous, "/Orders/999?handler=Return", Expect.Login },
+        { Who.User, "/Orders/999?handler=Return", Expect.Allowed },
+        { Who.Admin, "/Orders/999?handler=Return", Expect.Denied },
 
         // Obnovit katalog: jen admin
         { Who.User, "/Orders?handler=SyncCatalog", Expect.Denied },

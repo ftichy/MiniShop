@@ -30,6 +30,29 @@ else if (order.Status == "AwaitingPayment")
         }
     </div>
 }
+else if (order.Status == "ReturnRequested")
+{
+    @* E-shop krok 12: sága vratky čeká na zboží – pak sklad naskladní a Payments vrátí peníze (stránka se obnovuje). *@
+    <div class="alert alert-info" data-reload-when-idle data-track="order-return-pending">
+        Čekáme na vrácené zboží – pošlete ho na adresu <strong>MiniShop, Skladová 1, 110 00 Praha</strong>
+        (termín najdete v e-mailu). Peníze vrátíme, jakmile zásilku převezmeme.
+        @if (Model.Detail.ReturnReason is not null)
+        {
+            <div class="small mt-1">Důvod vrácení: @Model.Detail.ReturnReason</div>
+        }
+    </div>
+}
+else if (order.Status == "Returned")
+{
+    <div class="alert alert-secondary">
+        Objednávka je vrácená – zboží jsme převzali.
+        @(order.PaymentMethod == "Card" ? "Peníze jsme vrátili na kartu." : "Peníze posíláme převodem.")
+    </div>
+}
+else if (order.Status == "Completed" && Model.Detail.ReturnRejectionReason is not null)
+{
+    <div class="alert alert-secondary">Vrácení nebylo přijato: @Model.Detail.ReturnRejectionReason</div>
+}
 
 <p class="text-muted">
     @order.CustomerName@(string.IsNullOrEmpty(order.CustomerEmail) ? "" : $" ({order.CustomerEmail})"),
@@ -127,6 +150,25 @@ else if (order.Status == "AwaitingPayment")
             <form method="post" asp-page="/Orders/Index" asp-page-handler="Cancel" asp-route-id="@order.Id">
                 <button type="submit" class="btn btn-outline-danger btn-sm">Zrušit objednávku</button>
             </form>
+        }
+
+        @if (Model.Detail.ReturnableUntilUtc is { } returnableUntil && !Model.CanManageOrders)
+        {
+            @* E-shop krok 12: vrátit jde doručenou objednávku do 14 dní a jen jednou (pravidlo hlídá Order.RequestReturn). *@
+            <details class="mt-3" data-track="order-return">
+                <summary class="btn btn-outline-secondary btn-sm">Vrátit zboží</summary>
+                <form method="post" asp-page-handler="Return" asp-route-id="@order.Id" class="mt-2">
+                    <div asp-validation-summary="ModelOnly" class="text-danger small"></div>
+                    <label for="returnReason" class="form-label small">Proč zboží vracíte?</label>
+                    <textarea id="returnReason" name="reason" class="form-control form-control-sm mb-2" rows="2"
+                              maxlength="500" required data-track="order-return-reason"></textarea>
+                    <div class="form-text mb-2">
+                        Vrátit můžete do @returnableUntil.ToLocalTime().ToString("d. M. yyyy"). Celou objednávku, peníze vrátíme
+                        po převzetí zboží.
+                    </div>
+                    <button type="submit" class="btn btn-secondary btn-sm" data-track="order-return-submit">Požádat o vrácení</button>
+                </form>
+            </details>
         }
 
         @if (Model.CanManageOrders)

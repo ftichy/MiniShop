@@ -86,6 +86,7 @@ Plán (výloha, košík, pokladna, expedice, platba, notifikace): [docs/Eshop-ro
 | 9 | Zrušení kdykoli před odesláním – sága zrušení zapíše a pozdní odpověď skladu/brány dožene kompenzací (uvolnit zboží, vrátit peníze); orchestrátor dožene zrušení, které předběhla odpověď; zrušená zaplacená objednávka vrací peníze | [eshop-09](code:docs/kroky-eshop/krok-09-zruseni.md) |
 | 10 | Opuštěný košík – reakce na „ticho“ (worker hledá košíky nezměněné 24 h), `CartAbandonedV1` bez osobních údajů, připomínka jen se souhlasem ověřeným až při odeslání, nejvýš jedna na nákup | [eshop-10](code:docs/kroky-eshop/krok-10-opusteny-kosik.md) |
 | 11 | Přehled tržeb pro admina (CQRS) – modul Reporting jako nový odběratel existujících událostí, čtecí model se stavem jen dopředu (zprávy mimo pořadí), přestavění ze snímků `OrderSnapshotV1` | [eshop-11](code:docs/kroky-eshop/krok-11-prehled-trzeb.md) |
+| 12 | Vrácení zboží – druhá sága (`ReturnSaga`) s krokem člověka uprostřed: žádost do 14 dní, převzetí adminem, naskladnění podle vydaných rezervací, vrácení peněz stávajícím `RefundPaymentV1`, zamítnutí a vypršení; přehled tržeb vratku odečte | [eshop-12](code:docs/kroky-eshop/krok-12-vraceni-zbozi.md) |
 
 ## Proč po krocích
 

@@ -44,6 +44,7 @@ try
     builder.Services.AddScoped<ICategoryService, CategoryService>();
     builder.Services.AddIntegrationMessageHandler<ReserveStockV1, ReserveStockHandler>(IntegrationModules.Inventory);
     builder.Services.AddIntegrationMessageHandler<ReleaseStockV1, ReleaseStockHandler>(IntegrationModules.Inventory);
+    builder.Services.AddIntegrationMessageHandler<RestockReturnedGoodsV1, RestockReturnedGoodsHandler>(IntegrationModules.Inventory);   // e-shop krok 12: vratky
     // E-shop krok 6: událost (ne příkaz) – objednávka odešla, rezervace se mění na výdej.
     builder.Services.AddIntegrationMessageHandler<OrderShippedV1, FulfilReservationHandler>(IntegrationModules.Inventory);
     builder.Services.AddIntegrationMessageHandler<SyncCatalogV1, SyncCatalogHandler>(IntegrationModules.Inventory);

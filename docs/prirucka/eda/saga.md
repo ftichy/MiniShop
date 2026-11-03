@@ -68,6 +68,17 @@ Kompenzace je **sémantické vrácení** – nová akce, která ruší účinek 
 
 Podrobně: [Timeout a kompenzace](../toky/timeout-a-kompenzace.md), [Zrušení](../toky/zruseni-a-vyrizeni.md), [Expedice](../toky/expedice.md).
 
+## Druhá sága: vrácení zboží (e-shop krok 12)
+
+Ságu nemá jen objednávka. Vrácení zboží je samostatný dlouhý proces (dny) se třemi účastníky – adminem, skladem
+a Payments – a vlastním deníkem `ReturnSaga` + `ReturnSagaOrchestrator`. Liší se dvěma věcmi:
+
+- **krok člověka uprostřed** – sága čeká, až admin převezme zásilku (stránka Vratky volá orchestrátor přímo),
+- **vrací nákup, který se povedl** – `RestockReturnedGoodsV1` naskladní vydané zboží, `RefundPaymentV1` (stejný
+  příkaz jako u pozdní platby) vrátí peníze. Nic nového v Payments – opětovné použití kontraktu.
+
+Podrobně: [Vrácení zboží](../toky/vraceni-zbozi.md), stavy v [Stavových diagramech](../architektura/stavove-diagramy.md).
+
 ## Proč takhle
 
 - Objednávka se přijme **hned** (HTTP 202), i když sklad zrovna neběží – rozhodne se za pár sekund.

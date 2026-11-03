@@ -3,6 +3,7 @@ using MiniShop.Contracts.Customers;
 using MiniShop.Application.Exceptions;
 using MiniShop.Application.Ordering.Carts;
 using MiniShop.Application.Ordering.Pricing;
+using MiniShop.Application.Ordering.Saga;
 using MiniShop.Domain.Exceptions;
 using MiniShop.Domain.Orders;
 
@@ -28,6 +29,7 @@ public sealed class OrderService(
     IOrderingUnitOfWork unitOfWork,
     IOrderingMessagePublisher publisher,
     IEnumerable<IDiscountPolicy> discountPolicies,
+    ReturnSettings returnSettings,
     TimeProvider timeProvider) : IOrderService
 {
     public async Task<IReadOnlyList<OrderDto>> GetAllAsync(OrderAccess access, CancellationToken cancellationToken = default)
@@ -55,7 +57,13 @@ public sealed class OrderService(
     public async Task<OrderDetailDto> GetDetailAsync(int id, OrderAccess access, CancellationToken cancellationToken = default)
     {
         var order = await GetOrderAsync(id, access, cancellationToken);
-        return order.ToDetailDto();
+        return order.ToDetailDto() with
+        {
+            // E-shop krok 12: tlačítko Vrátit zboží jen do 14 dní od doručení a jen jednou (rozhoduje Order).
+            ReturnableUntilUtc = order.CanRequestReturn(UtcNow, returnSettings.Window) ? order.DeliveredAtUtc + returnSettings.Window : null,
+            ReturnReason = order.ReturnReason,
+            ReturnRejectionReason = order.ReturnRejectionReason
+        };
     }
 
     public async Task<OrderDto> PlaceOrderAsync(CreateOrderRequest request, OrderCustomer customer,
@@ -160,6 +168,22 @@ public sealed class OrderService(
 
         return order.ToDto();
     }
+
+    public async Task<OrderDto> RequestReturnAsync(int id, OrderAccess access, string reason,
+        CancellationToken cancellationToken = default)
+    {
+        var order = await GetOrderAsync(id, access, cancellationToken);
+        order.RequestReturn(reason, UtcNow, returnSettings.Window);   // vyvolá OrderReturnRequested → sága vratky
+
+        // Dál (převzetí zboží, naskladnění, peníze) řídí ReturnSagaOrchestrator; e-mail „pošlete zboží“ Notifications.
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return order.ToDto();
+    }
+
+    /// <summary>E-shop krok 12: objednávky čekající na vrácení (stránka Vratky) – jen admin, hlídá Web.</summary>
+    public async Task<IReadOnlyList<OrderDto>> GetReturnQueueAsync(CancellationToken cancellationToken = default) =>
+        (await orders.GetByStatusesAsync([OrderStatus.ReturnRequested], cancellationToken)).Select(o => o.ToDto()).ToList();
 
     public async Task<int> AnonymizeCustomerAsync(string customerId, CancellationToken cancellationToken = default)
     {

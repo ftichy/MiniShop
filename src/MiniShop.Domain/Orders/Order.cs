@@ -282,12 +282,73 @@ public class Order : Entity
         Raise(new OrderCancelled(this, cancelledAtUtc));
     }
 
+    public const int ReturnReasonMaxLength = 500;
+
+    /// <summary>E-shop krok 12: proč zákazník vrací (z formuláře), nebo null.</summary>
+    public string? ReturnReason { get; private set; }
+
+    /// <summary>E-shop krok 12: proč vrácení neprošlo (admin zamítl, zboží nedorazilo včas), nebo null.</summary>
+    public string? ReturnRejectionReason { get; private set; }
+
+    /// <summary>E-shop krok 12: kdy byla objednávka doručena (první přechod do Completed), nebo null.</summary>
+    public DateTime? DeliveredAtUtc => _statusHistory
+        .Where(h => h.Status == OrderStatus.Completed && h.ChangedAtUtc is not null)
+        .Min(h => h.ChangedAtUtc);
+
+    /// <summary>
+    /// E-shop krok 12: jde objednávku ještě vrátit? Jen doručenou, do <paramref name="window"/> od doručení a jen jednou
+    /// (zamítnutá nebo vypršelá žádost se neopakuje). Starší objednávky bez času doručení ne.
+    /// </summary>
+    public bool CanRequestReturn(DateTime nowUtc, TimeSpan window) =>
+        Status == OrderStatus.Completed
+        && DeliveredAtUtc is { } delivered && nowUtc <= delivered + window
+        && _statusHistory.All(h => h.Status != OrderStatus.ReturnRequested);
+
+    /// <summary>
+    /// E-shop krok 12: zákazník chce zboží vrátit. Objednávka čeká na zboží; co dál (naskladnění, peníze), řídí sága vratky.
+    /// </summary>
+    public void RequestReturn(string reason, DateTime requestedAtUtc, TimeSpan window)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new DomainException("Napište prosím, proč zboží vracíte.");
+        }
+
+        if (!CanRequestReturn(requestedAtUtc, window))
+        {
+            throw new DomainException(Status == OrderStatus.Completed
+                ? $"Vrátit lze jen jednou a do {window.TotalDays:0} dní od doručení."
+                : "Vrátit lze jen doručenou objednávku.");
+        }
+
+        ReturnReason = reason.Trim()[..Math.Min(reason.Trim().Length, ReturnReasonMaxLength)];
+        ChangeStatus(OrderStatus.ReturnRequested, requestedAtUtc, ReturnReason);
+        Raise(new OrderReturnRequested(this, requestedAtUtc));
+    }
+
+    /// <summary>E-shop krok 12: vrácení neprošlo (admin zamítl, zboží nedorazilo včas) – objednávka zůstává doručená.</summary>
+    public void RejectReturn(string reason, DateTime rejectedAtUtc)
+    {
+        EnsureStatus(OrderStatus.ReturnRequested, "Zamítnout lze jen čekající vrácení.");
+        ReturnRejectionReason = reason;
+        ChangeStatus(OrderStatus.Completed, rejectedAtUtc, reason);
+        Raise(new OrderReturnRejected(this, rejectedAtUtc));
+    }
+
+    /// <summary>E-shop krok 12: zboží je zpět na skladu (a peníze vrácené) – objednávka je vrácená.</summary>
+    public void CompleteReturn(DateTime returnedAtUtc)
+    {
+        EnsureStatus(OrderStatus.ReturnRequested, "Dokončit lze jen čekající vrácení.");
+        ChangeStatus(OrderStatus.Returned, returnedAtUtc);
+        Raise(new OrderReturned(this, returnedAtUtc));
+    }
+
     /// <summary>Jméno smazaného zákazníka na jeho objednávkách (účty krok 9).</summary>
     public const string AnonymizedCustomerName = "Smazaný zákazník";
 
-    /// <summary>Je objednávka rozpracovaná (čeká na sklad, balí se nebo je na cestě)?</summary>
+    /// <summary>Je objednávka rozpracovaná (čeká na sklad, balí se, je na cestě nebo se vrací)?</summary>
     public bool IsActive => Status is OrderStatus.Pending or OrderStatus.AwaitingPayment or OrderStatus.Confirmed
-        or OrderStatus.Packing or OrderStatus.Shipped;
+        or OrderStatus.Packing or OrderStatus.Shipped or OrderStatus.ReturnRequested;
 
     /// <summary>
     /// Účty krok 9: zákazník smazal účet – objednávka zůstane (položky, ceny, stav pro účetnictví a statistiky),

@@ -51,6 +51,7 @@ public sealed class IndexModel(SalesReportService reports) : PageModel
         SalesOrderStatus.Completed => "Doručené",
         SalesOrderStatus.Rejected => "Zamítnuté",
         SalesOrderStatus.Cancelled => "Zrušené",
+        SalesOrderStatus.Returned => "Vrácené",
         _ => status.ToString()
     };
 }

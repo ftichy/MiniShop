@@ -31,6 +31,12 @@ public interface IOrderService
     Task<OrderDto> CompleteAsync(int id, CancellationToken cancellationToken = default);
     Task<OrderDto> CancelAsync(int id, OrderAccess access, CancellationToken cancellationToken = default);
 
+    /// <summary>E-shop krok 12: zákazník chce doručenou objednávku vrátit (do 14 dní, jednou). Cizí = 404.</summary>
+    Task<OrderDto> RequestReturnAsync(int id, OrderAccess access, string reason, CancellationToken cancellationToken = default);
+
+    /// <summary>E-shop krok 12: objednávky čekající na vrácení (stránka Vratky). Jen admin.</summary>
+    Task<IReadOnlyList<OrderDto>> GetReturnQueueAsync(CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Účty krok 9: zákazník maže účet – jeho objednávky přijdou o jméno a e-mail (zůstanou položky a ceny).
     /// S nevyřízenou objednávkou (Pending, Confirmed) DomainException a nic se nezmění. Vrací počet objednávek.

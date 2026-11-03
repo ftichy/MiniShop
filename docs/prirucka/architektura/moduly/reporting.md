@@ -25,7 +25,7 @@ Princip a diagramy: [CQRS – přehled tržeb](../../eda/cqrs.md).
 
 | Směr | Zprávy |
 | --- | --- |
-| poslouchá (fronta `minishop.reporting`) | `OrderPlacedV2`, `OrderConfirmedV1`, `OrderRejectedV1`, `OrderCancelledV1`, `OrderCompletedV1`, `PaymentRefundedV1`, `OrderSnapshotV1` |
+| poslouchá (fronta `minishop.reporting`) | `OrderPlacedV2`, `OrderConfirmedV1`, `OrderRejectedV1`, `OrderCancelledV1`, `OrderCompletedV1`, `PaymentRefundedV1`, `OrderSnapshotV1`, `ReturnCompletedV1` (e-shop krok 12 – vrácená se do tržby nepočítá) |
 | posílá (příkaz pro Ordering) | `RebuildSalesReportV1` → Ordering odpoví `OrderSnapshotV1` pro každou objednávku |
 
 ## Co přehled počítá

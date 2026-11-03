@@ -27,7 +27,8 @@ public sealed class SalesProjectionHandler(
     IIntegrationMessageHandler<OrderCancelledV1>,
     IIntegrationMessageHandler<OrderCompletedV1>,
     IIntegrationMessageHandler<PaymentRefundedV1>,
-    IIntegrationMessageHandler<OrderSnapshotV1>
+    IIntegrationMessageHandler<OrderSnapshotV1>,
+    IIntegrationMessageHandler<ReturnCompletedV1>
 {
     public Task HandleAsync(OrderPlacedV2 message, CancellationToken cancellationToken) =>
         ChangeAsync(message.OrderId, order => order.ApplyPlaced(message.OccurredAtUtc, message.TotalPrice,
@@ -44,6 +45,10 @@ public sealed class SalesProjectionHandler(
 
     public Task HandleAsync(OrderCompletedV1 message, CancellationToken cancellationToken) =>
         ChangeAsync(message.OrderId, order => order.ApplyStatus(SalesOrderStatus.Completed, UtcNow), cancellationToken);
+
+    /// <summary>E-shop krok 12: vrácená objednávka – z tržby zmizí (dobírka i karta).</summary>
+    public Task HandleAsync(ReturnCompletedV1 message, CancellationToken cancellationToken) =>
+        ChangeAsync(message.OrderId, order => order.ApplyStatus(SalesOrderStatus.Returned, UtcNow), cancellationToken);
 
     /// <summary>Vrácené peníze (pozdní platba, zrušená zaplacená objednávka) – posílá je modul Payments.</summary>
     public Task HandleAsync(PaymentRefundedV1 message, CancellationToken cancellationToken) =>
@@ -64,6 +69,8 @@ public sealed class SalesProjectionHandler(
         "Completed" => SalesOrderStatus.Completed,
         "Rejected" => SalesOrderStatus.Rejected,
         "Cancelled" => SalesOrderStatus.Cancelled,
+        "Returned" => SalesOrderStatus.Returned,             // e-shop krok 12
+        "ReturnRequested" => SalesOrderStatus.Completed,     // vrácení teprve probíhá – tržba zatím platí
         _ => SalesOrderStatus.Placed   // Pending, AwaitingPayment
     };
 

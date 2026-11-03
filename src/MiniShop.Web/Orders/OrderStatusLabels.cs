@@ -15,6 +15,8 @@ public static class OrderStatusLabels
         "Shipped" => "bg-primary",
         "Rejected" => "bg-danger",
         "Completed" => "bg-success",
+        "ReturnRequested" => "bg-warning text-dark",   // e-shop krok 12
+        "Returned" => "bg-secondary",
         _ => "bg-secondary"
     };
 
@@ -32,6 +34,8 @@ public static class OrderStatusLabels
         ("Completed", false) => "Doručená",
         ("Completed", true) => "Vyzvednutá",
         ("Cancelled", _) => "Zrušená",
+        ("ReturnRequested", _) => "Vrací se",
+        ("Returned", _) => "Vrácená",
         _ => status
     };
 
@@ -49,6 +53,8 @@ public static class OrderStatusLabels
         ("Completed", false) => "Objednávka doručena",
         ("Completed", true) => "Objednávka vyzvednuta",
         ("Cancelled", _) => "Objednávka zrušena",
+        ("ReturnRequested", _) => "Zákazník požádal o vrácení – čekáme na zboží",
+        ("Returned", _) => "Zboží je zpět na skladu – objednávka vrácená",
         _ => status
     };
 

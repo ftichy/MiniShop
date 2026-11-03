@@ -60,6 +60,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddIntegrationMessageHandler<OrderCompletedV1, SalesProjectionHandler>(IntegrationModules.Reporting);
         services.AddIntegrationMessageHandler<PaymentRefundedV1, SalesProjectionHandler>(IntegrationModules.Reporting);
         services.AddIntegrationMessageHandler<OrderSnapshotV1, SalesProjectionHandler>(IntegrationModules.Reporting);
+        services.AddIntegrationMessageHandler<ReturnCompletedV1, SalesProjectionHandler>(IntegrationModules.Reporting);   // e-shop krok 12
         return services;
     }
 
@@ -92,6 +93,9 @@ public static class ApplicationServiceCollectionExtensions
         services.AddIntegrationMessageHandler<OrderCancelledV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<CustomerAnonymizedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<PaymentRefundedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);   // e-shop krok 8
+        services.AddIntegrationMessageHandler<ReturnRequestedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);   // e-shop krok 12
+        services.AddIntegrationMessageHandler<ReturnRejectedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<ReturnCompletedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
 
         // E-shop krok 10: připomínka opuštěného košíku – kontakt a souhlas až při odeslání (z účtů, přes Web).
         services.AddSingleton<CartEmailTemplates>();
@@ -142,6 +146,18 @@ public static class ApplicationServiceCollectionExtensions
         // E-shop krok 8: výsledek platby z modulu Payments (druhý účastník ságy).
         services.AddIntegrationMessageHandler<PaymentSucceededV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<PaymentFailedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
+
+        // E-shop krok 12: vrácení zboží – druhá sága (zákazník → admin převezme → sklad naskladní → Payments vrátí peníze).
+        services.AddSingleton(new ReturnSettings(
+            TimeSpan.FromDays(configuration.GetValue("Returns:WindowDays", 14)),
+            TimeSpan.FromDays(configuration.GetValue("Returns:SendWindowDays", 14))));
+        services.AddScoped<ReturnSagaOrchestrator>();
+        services.AddDomainEventHandler<OrderReturnRequested, PublishOrderIntegrationEventsHandler>();
+        services.AddDomainEventHandler<OrderReturnRejected, PublishOrderIntegrationEventsHandler>();
+        services.AddDomainEventHandler<OrderReturned, PublishOrderIntegrationEventsHandler>();
+        services.AddDomainEventHandler<OrderReturnRequested, ReturnSagaOrchestrator>();
+        services.AddIntegrationMessageHandler<ReturnedGoodsRestockedV1, ReturnSagaOrchestrator>(IntegrationModules.Ordering);
+        services.AddIntegrationMessageHandler<PaymentRefundedV1, ReturnSagaOrchestrator>(IntegrationModules.Ordering);
 
         // Kopie katalogu (krok 10): produkty ze skladu, bez přístupu do jeho databáze. E-shop krok 2: V2 (popis, kategorie,
         // dostupnost) a změny dostupnosti; V1 zatím zůstává (expand → contract).

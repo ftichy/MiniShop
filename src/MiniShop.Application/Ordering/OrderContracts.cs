@@ -36,7 +36,13 @@ public sealed record OrderDto(
 public sealed record OrderStatusChangeDto(string Status, DateTime? ChangedAtUtc, string? Note);
 
 /// <summary>E-shop krok 5: detail objednávky (stránka /Orders/{id}) – objednávka a časová osa jejích stavů.</summary>
-public sealed record OrderDetailDto(OrderDto Order, IReadOnlyList<OrderStatusChangeDto> History);
+/// <param name="ReturnableUntilUtc">E-shop krok 12: do kdy jde objednávku vrátit; null = vrátit nejde (nedoručená, po termínu, už jednou).</param>
+public sealed record OrderDetailDto(
+    OrderDto Order,
+    IReadOnlyList<OrderStatusChangeDto> History,
+    DateTime? ReturnableUntilUtc = null,
+    string? ReturnReason = null,
+    string? ReturnRejectionReason = null);
 
 /// <summary>
 /// Produkt v nabídce – z kopie katalogu (krok 10), bez přesné zásoby (ta patří skladu).

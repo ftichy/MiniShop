@@ -1,6 +1,7 @@
 using MiniShop.Application.Abstractions;
 using MiniShop.Contracts;
 using MiniShop.Contracts.Orders;
+using MiniShop.Application.Ordering.Saga;
 using MiniShop.Domain.Orders;
 using MiniShop.Domain.Orders.Events;
 
@@ -16,13 +17,19 @@ namespace MiniShop.Application.Ordering.IntegrationEvents;
 /// v inboxu, takže se při opakovaném doručení doménové události integrační událost nepublikuje dvakrát.
 /// E-shop krok 7: Ordering už zákazníkovi nepíše – jen oznamuje fakta, e-maily si podle nich posílá modul Notifications.
 /// </remarks>
-public sealed class PublishOrderIntegrationEventsHandler(IOrderingMessagePublisher publisher, IOrderingUnitOfWork unitOfWork) :
+public sealed class PublishOrderIntegrationEventsHandler(
+    IOrderingMessagePublisher publisher,
+    IOrderingUnitOfWork unitOfWork,
+    ReturnSettings returnSettings) :
     IDomainEventHandler<OrderPlaced>,
     IDomainEventHandler<OrderConfirmed>,
     IDomainEventHandler<OrderRejected>,
     IDomainEventHandler<OrderShipped>,
     IDomainEventHandler<OrderCompleted>,
-    IDomainEventHandler<OrderCancelled>
+    IDomainEventHandler<OrderCancelled>,
+    IDomainEventHandler<OrderReturnRequested>,
+    IDomainEventHandler<OrderReturnRejected>,
+    IDomainEventHandler<OrderReturned>
 {
     /// <summary>
     /// Vznik objednávky ve dvou verzích (e-shop krok 7, expand → contract): V1 pro stávající odběratele,
@@ -81,6 +88,34 @@ public sealed class PublishOrderIntegrationEventsHandler(IOrderingMessagePublish
             domainEvent.Order.Id,
             domainEvent.Order.CustomerEmail,
             ToLines(domainEvent.Order)));
+
+    /// <summary>E-shop krok 12: zákazník chce vrátit – fakt pro Notifications (s termínem, do kdy poslat zboží).</summary>
+    public Task HandleAsync(OrderReturnRequested domainEvent, CancellationToken cancellationToken) =>
+        PublishAsync(cancellationToken, new ReturnRequestedV1(
+            Guid.NewGuid(),
+            domainEvent.OccurredAtUtc,
+            domainEvent.Order.Id,
+            domainEvent.Order.CustomerEmail,
+            domainEvent.Order.ReturnReason ?? string.Empty,
+            domainEvent.OccurredAtUtc + returnSettings.SendWindow));   // stejný termín jako v ReturnSaga
+
+    public Task HandleAsync(OrderReturnRejected domainEvent, CancellationToken cancellationToken) =>
+        PublishAsync(cancellationToken, new ReturnRejectedV1(
+            Guid.NewGuid(),
+            domainEvent.OccurredAtUtc,
+            domainEvent.Order.Id,
+            domainEvent.Order.CustomerEmail,
+            domainEvent.Order.ReturnRejectionReason ?? string.Empty));
+
+    /// <summary>E-shop krok 12: vráceno – Notifications napíše zákazníkovi, Reporting odečte z tržby.</summary>
+    public Task HandleAsync(OrderReturned domainEvent, CancellationToken cancellationToken) =>
+        PublishAsync(cancellationToken, new ReturnCompletedV1(
+            Guid.NewGuid(),
+            domainEvent.OccurredAtUtc,
+            domainEvent.Order.Id,
+            domainEvent.Order.CustomerEmail,
+            domainEvent.Order.TotalPrice,
+            RefundedByCard: domainEvent.Order.PaymentMethod == PaymentMethod.Card));
 
     private async Task PublishAsync(CancellationToken cancellationToken, params IIntegrationEvent[] integrationEvents)
     {

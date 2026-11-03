@@ -11,7 +11,8 @@ namespace MiniShop.Domain.Orders.Carts;
 /// Košík neblokuje zboží – rezervace vzniká až u pokladny (krok 4). Cena v košíku je jen orientační:
 /// zobrazuje se vždy aktuální z kopie katalogu, <see cref="CartLine.PriceWhenAdded"/> slouží jen k upozornění na změnu.
 /// Košík žije v modulu Ordering (stejná DB jako objednávka) – pokladna tak bude jedna transakce.
-/// Doménové události zatím nevyvolává: nikdo by je neposlouchal (připraví je krok 10 – opuštěný košík).
+/// Doménové události nevyvolává. E-shop krok 10: opuštěný košík (<see cref="IsAbandoned"/>) hlídá worker a integrační
+/// událost CartAbandonedV1 posílá aplikační vrstva rovnou – v Orderingu na opuštění nikdo nereaguje.
 /// </remarks>
 public sealed class Cart
 {
@@ -42,8 +43,14 @@ public sealed class Cart
 
     public string CustomerId { get; private set; } = string.Empty;
 
-    /// <summary>Kdy se košík naposledy změnil (pro krok 10 – opuštěný košík).</summary>
+    /// <summary>Kdy se košík naposledy změnil (e-shop krok 10: od té doby se počítá „ticho“ opuštěného košíku).</summary>
     public DateTime UpdatedAtUtc { get; private set; }
+
+    /// <summary>
+    /// E-shop krok 10: kdy odešla připomínka opuštěného košíku. Vynuluje se, až se košík vyprázdní (objednávka,
+    /// vyprázdnění) – nejvýš jedna připomínka na jeden nákup.
+    /// </summary>
+    public DateTime? ReminderSentAtUtc { get; private set; }
 
     public IReadOnlyCollection<CartLine> Lines => _lines.AsReadOnly();
 
@@ -180,11 +187,36 @@ public sealed class Cart
         return result;
     }
 
+    /// <summary>
+    /// E-shop krok 10: košík je opuštěný – něco v něm je, <paramref name="after"/> se nezměnil a připomínka ještě nešla.
+    /// Reagujeme na „ticho“: ne na událost, ale na to, že žádná (změna, objednávka) nepřišla.
+    /// </summary>
+    public bool IsAbandoned(DateTime nowUtc, TimeSpan after) =>
+        _lines.Count > 0 && ReminderSentAtUtc is null && nowUtc - UpdatedAtUtc >= after;
+
+    /// <summary>
+    /// E-shop krok 10: zapamatovat si, že připomínka odešla. Obsah ani verze pro pokladnu se nemění – otevřená
+    /// pokladna dál platí, a „ticho“ se nepočítá znovu od začátku.
+    /// </summary>
+    public void MarkReminderSent(DateTime nowUtc, TimeSpan after)
+    {
+        if (!IsAbandoned(nowUtc, after))
+        {
+            throw new DomainException("Košík není opuštěný nebo připomínka už odešla.");
+        }
+
+        ReminderSentAtUtc = nowUtc;
+    }
+
     /// <summary>Každá změna obsahu = nová verze pro pokladnu (starý formulář pokladny už neprojde).</summary>
     private void Changed(DateTime nowUtc)
     {
         UpdatedAtUtc = nowUtc;
         CheckoutId = Guid.NewGuid();
+        if (_lines.Count == 0)
+        {
+            ReminderSentAtUtc = null;   // nákup skončil (objednávka / vyprázdnění) – příští košík smí dostat připomínku
+        }
     }
 
     private CartLine? FindLine(int productId) => _lines.FirstOrDefault(l => l.ProductId == productId);

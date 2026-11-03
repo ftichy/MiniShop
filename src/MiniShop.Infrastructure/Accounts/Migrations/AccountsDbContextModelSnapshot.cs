@@ -15,7 +15,7 @@ namespace MiniShop.Infrastructure.Accounts.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.13");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.14");
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
                 {
@@ -192,6 +192,9 @@ namespace MiniShop.Infrastructure.Accounts.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<int>("AccessFailedCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("CartRemindersConsent")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("ConcurrencyStamp")

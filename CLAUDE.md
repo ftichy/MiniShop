@@ -17,7 +17,7 @@ src/MiniShop.Domain          Common/ (Entity, IDomainEvent), Orders/ (Order, Cat
 src/MiniShop.Application     Abstractions/ (sdílené: IUnitOfWork, IDomainEvent*, IIntegrationMessage*, TraceTags),
                              Ordering/ (OrderService, DTO, Saga, Catalog projekce + CatalogQueryService, Carts/CartService, Checkout/CheckoutService, IntegrationEvents (překladač), Pricing), Inventory/ (ProductService, CategoryService, Reserve/ReleaseStock),
                              Journeys/ (JourneyService, OrderJourneyProjection, JourneyReplayProjection, DTO),
-                             Notifications/ (OrderNotificationsHandler, OrderEmailTemplates, NotificationSettings),
+                             Notifications/ (OrderNotificationsHandler, OrderEmailTemplates, NotificationSettings, CartReminderHandler, ICustomerContacts),
                              Payments/ (PaymentCommandHandlers, PaymentWebhookProcessor, WebhookSignature, IPaymentGateway)
 src/MiniShop.Infrastructure  sdílené: Persistence/ModuleDbContext, Outbox, Inbox (InboxGuard), Integration (bus, routing, dispatcher, RabbitMq/), Events,
                              Observability/ (MessagingTelemetry – ActivitySource + Meter, OutboxHealthCheck),
@@ -90,7 +90,7 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
 - **Košík (e-shop krok 3):** agregát `Cart` + `CartLine` v Orderingu (`ordering.db`, unikátní `CustomerId` a `CartId+ProductId`),
   invarianty jen v metodách `Cart` (20 řádků, 1–100 ks, ne vyprodaný/stažený). Ukládá jen ID produktu, množství
   a `PriceWhenAdded` (upozornění na změnu); název/cenu/dostupnost bere `CartService` vždy z kopie katalogu.
-  Zboží neblokuje, žádné zprávy ani doménové události (ty až krok 10). Jen `RequireCustomer`; přidání z výlohy =
+  Zboží neblokuje, žádné doménové události (zprávu `CartAbandonedV1` posílá až připomínka, e-shop krok 10). Jen `RequireCustomer`; přidání z výlohy =
   POST `/Cart?handler=Add` s `returnUrl` (jen lokální). Odznak v hlavičce `CartBadgeViewComponent`.
   Smazání účtu (`AnonymizeCustomerAsync`) smaže i košík.
 - **Pokladna (e-shop krok 4A):** `CheckoutService` (`Application/Ordering/Checkout`) – objednávka z košíku a vyprázdnění
@@ -181,6 +181,13 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   načte objednávku a je-li `Cancelled`, nejdřív dožene `saga.OrderCancelled`** (odpověď může předběhnout `OrderCancelled`
   z outboxu) – nový krok ságy tím projde automaticky. Žádný kontrakt „zruš platbu“: `/Pay` u zrušené objednávky nepustí
   zaplatit (`CanPay`), platbu, která přesto projde, vrátí sága.
+- **Opuštěný košík (e-shop krok 10):** `CartReminderWorker` (Web, `Carts:ReminderCheckMinutes` 15) → `CartReminderService`
+  (Ordering): `Cart.IsAbandoned` (obsah, `Carts:AbandonedAfterHours` 24 beze změny, `ReminderSentAtUtc` null) →
+  `MarkReminderSent` + `CartAbandonedV1` (jen ID účtu + položky) v jedné transakci; vyprázdnění košíku značku maže
+  (jedna připomínka na nákup), `CheckoutId` se nemění. Bez doménové události. Notifications `CartReminderHandler` ověří
+  **až při odeslání** přes `ICustomerContacts` (implementace `Web/Accounts/IdentityCustomerContacts` nad `users.db`)
+  potvrzený e-mail a `ApplicationUser.CartRemindersConsent` (výchozí false, stránka `/Account/EmailPreferences`).
+  Šablona `CartEmailTemplates`. Testy: `InMemoryCustomerContacts`, `RunCartReminderWorkerAsync`.
 - **Průběh objednávky (krok 12):** modul Journeys (`…Journeys` ve všech vrstvách, hostuje ho Web, vlastní `journeys.db`,
   bez zpráv → `JourneysDbContext` nedědí z `ModuleDbContext`). Proud `JourneyEvents` = jen INSERT, idempotence přes unikátní `EventId`
   z prohlížeče, řazení podle `OffsetMs` (čas od otevření formuláře). `ValidationFailed`/`OrderSubmitted` zapisuje jen server
@@ -392,9 +399,9 @@ nové moduly Notifications (odběratel událostí) a Payments (účastník ságy
 | 5. Detail objednávky a historie stavů (`/Orders/{id}`, `OrderStatusChange` v agregátu, migrace doplní historii starým objednávkám) | hotovo (nasazeno 3. 11. 2026, detail a historie ověřeny v produkci) | `docs/kroky-eshop/krok-05-detail-objednavky.md` |
 | 6. Expedice (Packing → Shipped → Completed, `/Admin/Fulfilment`, `OrderShippedV1` → sklad vydá rezervaci, `Order.Version` proti souběhu, e-mail s číslem zásilky) | hotovo (nasazeno 3. 11. 2026, celá expedice ověřena v produkci) | `docs/kroky-eshop/krok-06-expedice.md` |
 | 7. Notifikace jako samostatný odběratel (modul Notifications, `notifications.db`, `OrderPlacedV2` + `OrderConfirmedV1`/`OrderRejectedV1`, `CustomerAnonymizedV1`, šablony s odkazem; Ordering bez e-mailů) | hotovo (nasazeno 3. 11. 2026, e-maily ověřeny v produkci) | `docs/kroky-eshop/krok-07-notifikace.md` |
-| 8. Platba – simulovaná brána (modul Payments, `payments.db`, `RequestPaymentV1`/`RefundPaymentV1`, webhook s HMAC, `AwaitingPayment` + timeout 30 min, vrácení pozdní platby, dobírka) | kód hotový, čeká na nasazení (secret `PAYMENTS_WEBHOOK_SECRET`, reinstalace `deploy.sh`) | `docs/kroky-eshop/krok-08-platba.md` |
-| 9. Zrušení kdykoli před odesláním (i `Pending`/`AwaitingPayment`, stav ságy `Cancelled`, orchestrátor dožene zrušení, zrušená zaplacená = `ReleaseStockAndRefundPayment`, `/Pay` u zrušené nepustí platit) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-09-zruseni.md` |
-| 10. Opuštěný košík (volitelně) | plán | — |
+| 8. Platba – simulovaná brána (modul Payments, `payments.db`, `RequestPaymentV1`/`RefundPaymentV1`, webhook s HMAC, `AwaitingPayment` + timeout 30 min, vrácení pozdní platby, dobírka) | hotovo (nasazeno 3. 11. 2026, platba kartou, zamítnutí na bráně i dobírka ověřeny v produkci) | `docs/kroky-eshop/krok-08-platba.md` |
+| 9. Zrušení kdykoli před odesláním (i `Pending`/`AwaitingPayment`, stav ságy `Cancelled`, orchestrátor dožene zrušení, zrušená zaplacená = `ReleaseStockAndRefundPayment`, `/Pay` u zrušené nepustí platit) | hotovo (nasazeno 3. 11. 2026, zrušení před platbou, po platbě i dobírky ověřeno v produkci) | `docs/kroky-eshop/krok-09-zruseni.md` |
+| 10. Opuštěný košík (`CartReminderWorker`, `CartAbandonedV1`, `Cart.ReminderSentAtUtc`, souhlas `CartRemindersConsent` ověřený až při odeslání přes `ICustomerContacts`, `/Account/EmailPreferences`) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-10-opusteny-kosik.md` |
 
 ## Postup práce na dalším kroku EDA
 1. Nejdřív **shrň**, co se bude přidávat/měnit a **proč** (teorie + konkrétní případ v MiniShopu),

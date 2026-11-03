@@ -16,4 +16,10 @@ public sealed class ApplicationUser : IdentityUser
 
     /// <summary>Jméno, které se ukazuje v hlavičce a předvyplní se do objednávky.</summary>
     public string DisplayName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// E-shop krok 10: souhlas s připomínkou opuštěného košíku (e-mail). Výchozí ne – zapíná si ho zákazník sám
+    /// na stránce Nastavení e-mailů; Notifications ho čte až při odeslání.
+    /// </summary>
+    public bool CartRemindersConsent { get; set; }
 }

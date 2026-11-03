@@ -39,6 +39,7 @@ flowchart TB
 | Komponenta | K čemu slouží | Kód |
 | --- | --- | --- |
 | **OrderNotificationsHandler** | Odběratel integračních událostí. `OrderPlacedV2` → uloží příjemce a pošle „přijali jsme“; ostatní události → najde příjemce podle čísla objednávky a pošle e-mail. `CustomerAnonymizedV1` → smaže všechny řádky zákazníka. | [OrderNotificationsHandler.cs](code:src/MiniShop.Application/Notifications/OrderNotificationsHandler.cs) |
+| **CartReminderHandler** + **CartEmailTemplates** | E-shop krok 10: připomínka opuštěného košíku z `CartAbandonedV1`. Kontakt a souhlas nekopíruje, ptá se přes `ICustomerContacts` (implementace `IdentityCustomerContacts` ve Webu) až při odeslání. | [CartReminderHandler.cs](code:src/MiniShop.Application/Notifications/CartReminderHandler.cs) |
 | **OrderEmailTemplates** | Texty e-mailů: prostý text a jednoduché HTML (vše kódované), souhrn položek, číslo zásilky, odkaz na detail. Osobní odběr má vlastní texty. | [OrderEmailTemplates.cs](code:src/MiniShop.Application/Notifications/OrderEmailTemplates.cs) |
 | **OrderRecipient** | Komu a o čem psát u jedné objednávky: jméno, e-mail, položky, doprava, adresa – kopie z `OrderPlacedV2`. | [OrderRecipient.cs](code:src/MiniShop.Domain/Notifications/OrderRecipient.cs) |
 | **NotificationsDbContext** | `notifications.db`: tabulky `OrderRecipients`, `OrderRecipientItems` a inbox. Outbox má (dědí z `ModuleDbContext`), ale nepoužívá – modul nic neposílá. | [NotificationsDbContext.cs](code:src/MiniShop.Infrastructure/Notifications/NotificationsDbContext.cs) |
@@ -55,7 +56,8 @@ flowchart TB
 | `OrderCompletedV1` | „Doručená“ (osobní odběr: „vyzvednutá“) |
 | `OrderCancelledV1` | „Zrušená“ |
 | `CustomerAnonymizedV1` | žádný – smaže jméno, e-mail, adresu a souhrny zákazníka |
-| `PaymentRefundedV1` | „Platbu vracíme“ – pozdní platba (e-shop krok 8, zprávu posílá modul Payments) |
+| `PaymentRefundedV1` | „Platbu vracíme“ – pozdní platba nebo zrušená zaplacená objednávka (e-shop krok 8 a 9, zprávu posílá modul Payments) |
+| `CartAbandonedV1` | „Ve vašem košíku zůstalo zboží“ – jen se souhlasem a potvrzeným e-mailem, které `CartReminderHandler` ověří přes `ICustomerContacts` až při odeslání (e-shop krok 10, [opuštěný košík](../../toky/opusteny-kosik.md)) |
 
 Neposílá nic. Ordering o modulu neví – hlídají to
 [ModuleBoundariesTests](code:tests/MiniShop.Tests/Architecture/ModuleBoundariesTests.cs) (včetně pravidla, že Ordering

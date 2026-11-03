@@ -15,7 +15,7 @@ order: 30
 | [Vytvoření objednávky](vytvoreni-objednavky.md) | hlavní tok: formulář → sága → sklad → potvrzení |
 | [Zamítnutí objednávky](zamitnuti-objednavky.md) | sklad nemá dost zboží |
 | [Timeout a kompenzace](timeout-a-kompenzace.md) | sklad neodpověděl včas; pozdní rezervace se vrací |
-| [Zrušení objednávky](zruseni-a-vyrizeni.md) | kompenzace po zrušení potvrzené nebo balené objednávky |
+| [Zrušení objednávky](zruseni-a-vyrizeni.md) | zrušení kdykoli před odesláním; sága dožene pozdní rezervaci i platbu |
 | [Expedice](expedice.md) | balení → odeslání (`OrderShippedV1`, sklad vydá rezervaci) → doručení; souběh odeslat × zrušit |
 | [Platba kartou](platba.md) | čekání na platbu, podepsaný webhook, zamítnutí a timeout, vrácení pozdní platby |
 | [Změna produktu](zmena-produktu.md) | sklad → kopie katalogu v Orderingu |
@@ -24,6 +24,7 @@ order: 30
 | [Cesta jedné zprávy](cesta-zpravy.md) | outbox → RabbitMQ → inbox, včetně chyb |
 | [Průběh formuláře](prubeh-formulare.md) | sledování a přehrání pokladny (staré proudy: formulář objednávky) |
 | [Pokladna](pokladna.md) | košík → objednávka v jedné transakci; dvojí odeslání, souběh, změna ceny |
+| [Opuštěný košík](opusteny-kosik.md) | reakce na „ticho“: worker → `CartAbandonedV1` → připomínka jen se souhlasem |
 
 Diagramy v Markdownu jsou psané v [Mermaidu](https://mermaid.js.org/syntax/sequenceDiagram.html). Velký diagram
 zvětšíte tlačítkem **Plná velikost** v jeho pravém horním rohu.

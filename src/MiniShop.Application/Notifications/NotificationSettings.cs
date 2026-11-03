@@ -8,6 +8,14 @@ namespace MiniShop.Application.Notifications;
 public sealed record NotificationSettings(string? PublicBaseUrl)
 {
     /// <summary>Odkaz na detail objednávky, nebo null.</summary>
-    public string? OrderLink(int orderId) =>
-        string.IsNullOrWhiteSpace(PublicBaseUrl) ? null : $"{PublicBaseUrl.TrimEnd('/')}/Orders/{orderId}";
+    public string? OrderLink(int orderId) => Link($"/Orders/{orderId}");
+
+    /// <summary>E-shop krok 10: odkaz na košík, nebo null.</summary>
+    public string? CartLink() => Link("/Cart");
+
+    /// <summary>E-shop krok 10: odkaz na nastavení e-mailů (vypnout připomínky), nebo null.</summary>
+    public string? EmailPreferencesLink() => Link("/Account/EmailPreferences");
+
+    private string? Link(string path) =>
+        string.IsNullOrWhiteSpace(PublicBaseUrl) ? null : $"{PublicBaseUrl.TrimEnd('/')}{path}";
 }

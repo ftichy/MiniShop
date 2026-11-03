@@ -128,6 +128,57 @@ public class CartTests
         Assert.Throws<DomainException>(() => new Cart(" ", Now));
     }
 
+    // --- E-shop krok 10: opuštěný košík ---
+
+    private static readonly TimeSpan AbandonedAfter = TimeSpan.FromHours(24);
+
+    [Fact]
+    public void Opusteny_AzPoTichuAJenSObsahem()
+    {
+        var empty = NewCart();
+        Assert.False(empty.IsAbandoned(Now.AddDays(2), AbandonedAfter));   // prázdný košík nic nepřipomíná
+
+        var cart = NewCart();
+        cart.AddItem(Product(1), 1, Now);
+        Assert.False(cart.IsAbandoned(Now.AddHours(23), AbandonedAfter));
+        Assert.True(cart.IsAbandoned(Now.AddHours(24), AbandonedAfter));
+
+        cart.ChangeQuantity(1, 2, Now.AddHours(23));   // změna = „ticho“ se počítá znovu
+        Assert.False(cart.IsAbandoned(Now.AddHours(24), AbandonedAfter));
+    }
+
+    [Fact]
+    public void Pripominka_JenJednou_NemeniVerziProPokladnu()
+    {
+        var cart = NewCart();
+        cart.AddItem(Product(1), 1, Now);
+        var checkoutId = cart.CheckoutId;
+
+        cart.MarkReminderSent(Now.AddHours(24), AbandonedAfter);
+
+        Assert.Equal(checkoutId, cart.CheckoutId);   // otevřená pokladna dál platí
+        Assert.Equal(Now, cart.UpdatedAtUtc);
+        Assert.False(cart.IsAbandoned(Now.AddDays(5), AbandonedAfter));
+        Assert.Throws<DomainException>(() => cart.MarkReminderSent(Now.AddDays(5), AbandonedAfter));
+
+        cart.AddItem(Product(2), 1, Now.AddDays(5));   // přidat po připomínce = stejný nákup, druhá nepřijde
+        Assert.False(cart.IsAbandoned(Now.AddDays(7), AbandonedAfter));
+    }
+
+    [Fact]
+    public void Pripominka_PoVyprazdneniSmiPrijitZnovu()
+    {
+        var cart = NewCart();
+        cart.AddItem(Product(1), 1, Now);
+        cart.MarkReminderSent(Now.AddHours(24), AbandonedAfter);
+
+        cart.Clear(Now.AddDays(2));                 // objednávka nebo vyprázdnění = konec nákupu
+        Assert.Null(cart.ReminderSentAtUtc);
+        cart.AddItem(Product(1), 1, Now.AddDays(3));
+
+        Assert.True(cart.IsAbandoned(Now.AddDays(4), AbandonedAfter));
+    }
+
     private static Cart NewCart() => new("zakaznik-jan", Now);
 
     private static CatalogProduct Product(int id, decimal price = 100m)

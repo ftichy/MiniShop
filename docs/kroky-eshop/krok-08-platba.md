@@ -75,7 +75,7 @@ Kdo zaplatí až po 30 minutách, zboží už je zpátky v regálu – peníze m
 
 ## Známá omezení
 
-- Zrušit objednávku čekající na platbu zatím nejde (e-shop krok 9) – jen nechat vypršet nebo zamítnout na bráně.
+- Zrušit objednávku čekající na platbu zatím nejde – jen nechat vypršet nebo zamítnout na bráně (vyřešeno v [e-shop kroku 9](krok-09-zruseni.md)).
 - Simulace nevrací peníze „doopravdy“ – `Refund` jen změní stav a pošle `PaymentRefundedV1`.
 - Detail objednávky ukazuje délku termínu, ne přesný čas vypršení (ten zná sága).
 - Skutečná brána by potřebovala ověřit i částku a měnu z webhooku proti platbě – simulace posílá jen ID a výsledek.

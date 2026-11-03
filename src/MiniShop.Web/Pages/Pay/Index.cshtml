@@ -23,7 +23,16 @@
             <p class="mb-1">Objednávka č. <strong>@payment.OrderId</strong></p>
             <p class="fs-3 fw-bold mb-3" data-track="pay-amount">@payment.Amount.ToString("N2") Kč</p>
 
-            @if (payment.Status == "Pending" && !payment.IsExpired)
+            @if (Model.OrderCancelled)
+            {
+                @* E-shop krok 9: zrušeno – zboží (a zaplacené peníze) vrací sága. *@
+                <div class="alert alert-secondary">
+                    @(payment.Status is "Succeeded" or "Refunded"
+                        ? "Objednávka je zrušená – zaplacené peníze vracíme."
+                        : "Objednávka je zrušená – platit už nic nemusíte.")
+                </div>
+            }
+            else if (Model.CanPay)
             {
                 <p class="text-muted small">Zaplatit můžete do @payment.ExpiresAtUtc.ToLocalTime().ToString("g").</p>
                 <div class="d-flex gap-2">

@@ -58,10 +58,11 @@ public sealed class PaymentPageTests(MiniShopWebFactory web)
         const string email = "platba-1@example.com";
         await web.CreateUserAsync(email, MiniShopWebFactory.UserPassword);
         var customer = await web.LoginAsync(email, MiniShopWebFactory.UserPassword);
-        await CreatePaymentAsync(orderId: 9003, customerId: await UserIdAsync(email));
+        var orderId = await web.CreateOrderForAsync(email);
+        await CreatePaymentAsync(orderId, customerId: await UserIdAsync(email));
         await CreatePaymentAsync(orderId: 9004, customerId: "nekdo-jiny");
 
-        var own = WebUtility.HtmlDecode(await customer.GetStringAsync("/Pay/9003"));
+        var own = WebUtility.HtmlDecode(await customer.GetStringAsync($"/Pay/{orderId}"));
         var foreign = await customer.GetAsync("/Pay/9004");
 
         Assert.Contains("data-track=\"pay-confirm\"", own);
@@ -75,14 +76,36 @@ public sealed class PaymentPageTests(MiniShopWebFactory web)
         const string email = "platba-2@example.com";
         await web.CreateUserAsync(email, MiniShopWebFactory.UserPassword);
         var customer = await web.LoginAsync(email, MiniShopWebFactory.UserPassword);
-        var payment = await CreatePaymentAsync(orderId: 9005, customerId: await UserIdAsync(email));
-        var token = await MiniShopWebFactory.GetAntiforgeryTokenAsync(customer, "/Pay/9005");
+        var orderId = await web.CreateOrderForAsync(email);
+        var payment = await CreatePaymentAsync(orderId, customerId: await UserIdAsync(email));
+        var token = await MiniShopWebFactory.GetAntiforgeryTokenAsync(customer, $"/Pay/{orderId}");
 
-        var response = await customer.PostAsync("/Pay/9005?handler=Pay", new FormUrlEncodedContent(
+        var response = await customer.PostAsync($"/Pay/{orderId}?handler=Pay", new FormUrlEncodedContent(
             new Dictionary<string, string> { ["__RequestVerificationToken"] = token }));
 
-        Assert.Equal("/Orders/9005", response.Headers.Location?.OriginalString);
+        Assert.Equal($"/Orders/{orderId}", response.Headers.Location?.OriginalString);
         Assert.Equal(PaymentStatus.Succeeded, await StatusAsync(payment));
+    }
+
+    [Fact]
+    public async Task StrankaBrany_ZrusenaObjednavka_BezTlacitekAZaplatitNejde()
+    {
+        // E-shop krok 9: zákazník zrušil objednávku, která čekala na platbu – stránka brány už platit nedovolí.
+        const string email = "platba-3@example.com";
+        await web.CreateUserAsync(email, MiniShopWebFactory.UserPassword);
+        var customer = await web.LoginAsync(email, MiniShopWebFactory.UserPassword);
+        var orderId = await web.CreateOrderForAsync(email, cancelled: true);
+        var payment = await CreatePaymentAsync(orderId, customerId: await UserIdAsync(email));
+
+        var page = WebUtility.HtmlDecode(await customer.GetStringAsync($"/Pay/{orderId}"));
+        Assert.Contains("Objednávka je zrušená", page);
+        Assert.DoesNotContain("data-track=\"pay-confirm\"", page);
+
+        var token = await MiniShopWebFactory.GetAntiforgeryTokenAsync(customer, $"/Pay/{orderId}");
+        await customer.PostAsync($"/Pay/{orderId}?handler=Pay", new FormUrlEncodedContent(
+            new Dictionary<string, string> { ["__RequestVerificationToken"] = token }));   // ručně poslaný formulář
+
+        Assert.Equal(PaymentStatus.Pending, await StatusAsync(payment));
     }
 
     private async Task<Guid> CreatePaymentAsync(int orderId, string customerId)

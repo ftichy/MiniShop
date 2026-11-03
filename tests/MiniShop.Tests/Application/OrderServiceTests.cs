@@ -26,6 +26,7 @@ using MiniShop.Domain.Exceptions;
 using MiniShop.Domain.Orders;
 using MiniShop.Domain.Orders.Events;
 using MiniShop.Domain.Orders.Saga;
+using MiniShop.Domain.Payments;
 using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Events;
 using MiniShop.Infrastructure.Integration;
@@ -361,14 +362,6 @@ public sealed class OrderServiceTests : IDisposable
         Assert.All(await InventoryDb(db => db.StockReservations.ToListAsync()), r => Assert.NotNull(r.ReleasedAtUtc));
     }
 
-    [Fact]
-    public async Task Cancel_CekajiciObjednavku_VyhodiDomainException()
-    {
-        var product = await AddProductAsync(price: 100m, stock: 5);
-        var order = await Orders(s => PlaceAsJan(s, CreateRequest((product.Id, 1))));
-
-        await Assert.ThrowsAsync<DomainException>(() => Orders(s => s.CancelAsync(order.Id, OrderAccess.AllOrders)));
-    }
 
     [Fact]
     public async Task Cancel_OdeslanouObjednavku_VyhodiDomainException()
@@ -588,6 +581,105 @@ public sealed class OrderServiceTests : IDisposable
 
         Assert.Single(_bus.Published.OfType<PaymentSucceededV1>());
         Assert.Single(NotifierEvents, e => e == $"confirmed:{order.Id}");
+    }
+
+    // ---------- E-shop krok 9: zrušení kdykoli před odesláním ----------
+
+    [Fact]
+    public async Task Zruseni_PredOdpovediSkladu_PozdniRezervaceSeUvolni()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await Orders(s => PlaceAsJan(s, CreateRequest((product.Id, 2))));
+        await ProcessOneRoundAsync();   // sága založena, ReserveStockV1 čeká v outboxu – sklad ještě nic neví
+
+        await Orders(s => s.CancelAsync(order.Id, OrderAccess.Customer(Jan.CustomerId)));
+        await ProcessOutboxAsync();     // sklad zarezervuje → sága ví o zrušení → ReleaseStockV1
+
+        Assert.Equal("Cancelled", await StatusAsync(order.Id));
+        Assert.Single(_bus.Published.OfType<StockReservedV1>());
+        Assert.Single(_bus.Published.OfType<ReleaseStockV1>());
+        Assert.Equal(5, await StockAsync());
+        Assert.Equal(OrderSagaState.Released, (await SagaAsync(order.Id)).State);
+        Assert.Contains($"cancelled:{order.Id}", NotifierEvents);
+        Assert.DoesNotContain($"confirmed:{order.Id}", NotifierEvents);
+    }
+
+    [Fact]
+    public async Task Zruseni_BehemCekaniNaPlatbu_ZboziZpet_PlatbaZustaneNezaplacena()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await PlaceCardOrderAsync(product.Id, quantity: 2);
+        await ProcessOutboxAsync();
+        Assert.Equal("AwaitingPayment", await StatusAsync(order.Id));
+
+        await Orders(s => s.CancelAsync(order.Id, OrderAccess.Customer(Jan.CustomerId)));
+        await ProcessOutboxAsync();
+
+        Assert.Equal("Cancelled", await StatusAsync(order.Id));
+        Assert.Equal(5, await StockAsync());
+        Assert.Equal(OrderSagaState.Released, (await SagaAsync(order.Id)).State);
+        Assert.Empty(_bus.Published.OfType<RefundPaymentV1>());   // nic se nezaplatilo
+        Assert.Equal(PaymentStatus.Pending, await PaymentStatusAsync(order.Id));
+
+        _time.Advance(PaymentTimeout);
+        Assert.Empty(await ExpiredSagasAsync());                  // termín platby u zrušené už neběží
+    }
+
+    [Fact]
+    public async Task Zruseni_PlatbaPredbehlaZruseni_SagaZruseniDozeneAPenizeVrati()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await PlaceCardOrderAsync(product.Id, quantity: 2);
+        await ProcessOutboxAsync();
+
+        // Zákazník zruší a skoro zároveň zaplatí: OrderCancelled ještě čeká v outboxu, když sága dostane platbu.
+        await Orders(s => s.CancelAsync(order.Id, OrderAccess.Customer(Jan.CustomerId)));
+        await SimulateGatewayAsync(order.Id, paid: true);
+        await RedeliverAsync(new PaymentSucceededV1(Guid.NewGuid(), Now.UtcDateTime, order.Id, order.TotalPrice),
+            IntegrationModules.Ordering);   // sága nesmí potvrdit zrušenou objednávku – dožene zrušení a peníze vrátí
+        await ProcessOutboxAsync();
+
+        Assert.Equal("Cancelled", await StatusAsync(order.Id));
+        Assert.Equal(5, await StockAsync());
+        Assert.Single(_bus.Published.OfType<RefundPaymentV1>());   // i když PaymentSucceededV1 přišla dvakrát
+        Assert.Equal(PaymentStatus.Refunded, await PaymentStatusAsync(order.Id));
+        Assert.DoesNotContain($"confirmed:{order.Id}", NotifierEvents);
+        Assert.Contains(_emails.Sent, e => e.Subject.Contains("vracíme"));
+    }
+
+    [Fact]
+    public async Task Zruseni_ZaplaceneObjednavky_VratiZboziIPenize()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await PlaceCardOrderAsync(product.Id, quantity: 2);
+        await ProcessOutboxAsync();
+        await SimulateGatewayAsync(order.Id, paid: true);
+        await ProcessOutboxAsync();
+        Assert.Equal("Confirmed", await StatusAsync(order.Id));
+
+        await Orders(s => s.CancelAsync(order.Id, OrderAccess.Customer(Jan.CustomerId)));
+        await ProcessOutboxAsync();
+
+        Assert.Equal(5, await StockAsync());
+        Assert.Single(_bus.Published.OfType<RefundPaymentV1>());
+        Assert.Single(_bus.Published.OfType<PaymentRefundedV1>());
+        Assert.Equal(PaymentStatus.Refunded, await PaymentStatusAsync(order.Id));
+        Assert.Contains($"cancelled:{order.Id}", NotifierEvents);
+        Assert.Contains(_emails.Sent, e => e.Subject.Contains("vracíme"));
+    }
+
+    [Fact]
+    public async Task Zruseni_PotvrzeneDobirky_PenizeNevraci()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await PlaceCardOrderAsync(product.Id, quantity: 2, PaymentMethod.CashOnDelivery);
+        await ProcessOutboxAsync();
+
+        await Orders(s => s.CancelAsync(order.Id, OrderAccess.Customer(Jan.CustomerId)));
+        await ProcessOutboxAsync();
+
+        Assert.Equal(5, await StockAsync());
+        Assert.Empty(_bus.Published.OfType<RefundPaymentV1>());
     }
 
     // ---------- E-shop krok 7: Notifications ----------
@@ -1644,6 +1736,14 @@ public sealed class OrderServiceTests : IDisposable
     private async Task<string> StatusAsync(int orderId) => (await Orders(s => s.GetByIdAsync(orderId, OrderAccess.AllOrders))).Status;
 
     private Task<OrderSaga> SagaAsync(int orderId) => OrderingDb(db => db.OrderSagas.SingleAsync(s => s.OrderId == orderId));
+
+    /// <summary>E-shop krok 9: stav platby v modulu Payments (čerstvý scope).</summary>
+    private async Task<PaymentStatus> PaymentStatusAsync(int orderId)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        var payment = await scope.ServiceProvider.GetRequiredService<IPaymentRepository>().GetByOrderIdAsync(orderId);
+        return payment!.Status;
+    }
 
     private Task<int> StockAsync() => InventoryDb(async db => (await db.Products.SingleAsync()).StockQuantity);
 

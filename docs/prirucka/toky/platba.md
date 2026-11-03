@@ -67,7 +67,8 @@ by mohla.
 - **Webhook bez přihlášení, ale s podpisem.** Brána účet nemá; kdo nezná tajemství, podpis nespočítá
   (401). Opakovaný webhook vrátí 200 a nic nezdvojí – brány posílají znovu, dokud nedostanou 2xx.
 - **Zamítnutí, ne zrušení.** Nezaplacená objednávka je `Rejected` („systém ji nemohl vyřídit“) – `Cancelled`
-  znamená „zrušil člověk“.
+  znamená „zrušil člověk“. Zrušit jde i objednávku, která na platbu čeká (e-shop krok 9) – stránka brány pak
+  platit nedovolí a zaplacenou objednávku sága při zrušení vrátí (`RefundPaymentV1`), viz [Zrušení](zruseni-a-vyrizeni.md).
 - **Zboží drží rezervace** po celou dobu čekání na platbu – proto termín.
 - Zákazník po pokladně skončí na detailu objednávky s tlačítkem **Zaplatit**; detail se obnovuje, dokud se
   na platbu čeká.

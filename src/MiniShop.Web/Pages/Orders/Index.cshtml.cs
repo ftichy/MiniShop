@@ -59,7 +59,8 @@ public sealed class IndexModel(
         ExecuteAsync(async () =>
         {
             await orderService.CancelAsync(id, User.ToOrderAccess(), cancellationToken);
-            StatusMessage = $"Objednávka č. {id} byla zrušena, zboží se za chvilku vrátí na sklad.";
+            // E-shop krok 9: co už je zarezervované nebo zaplacené, vrátí sága (asynchronně, i když sklad/brána odpoví později).
+            StatusMessage = $"Objednávka č. {id} byla zrušena. Rezervované zboží i případnou platbu vrátíme během pár sekund.";
         }, cancellationToken);
 
     private async Task<IActionResult> ExecuteAsync(Func<Task> action, CancellationToken cancellationToken)

@@ -30,7 +30,7 @@ sequenceDiagram
     S->>ODB: COMMIT: Order Packing (+ historie, Version+1) + Outbox[OrderPackingStarted]
     A->>P: Odeslat (dopravce, číslo zásilky)
     P->>S: ShipAsync(id, carrier, trackingNumber)
-    S->>S: order.Ship() – jen z Packing; kurýr bez čísla zásilky = DomainException
+    S->>S: order.Ship() – jen z Packing, kurýr bez čísla zásilky = DomainException
     S->>ODB: COMMIT: Order Shipped + Outbox[OrderShipped]
     OW->>SG: OrderShipped
     SG->>SG: saga Reserved → Shipped (žádný příkaz)

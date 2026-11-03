@@ -34,7 +34,10 @@ public sealed class PaymentCommandHandlers(
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
-    /// <summary>Kompenzace pozdní platby – vrátit peníze (u skutečné brány API „refund“; simulace jen změní stav).</summary>
+    /// <summary>
+    /// Kompenzace pozdní platby nebo zrušené zaplacené objednávky (e-shop krok 9) – vrátit peníze
+    /// (u skutečné brány API „refund“; simulace jen změní stav).
+    /// </summary>
     public async Task HandleAsync(RefundPaymentV1 command, CancellationToken cancellationToken)
     {
         TraceTags.TagOrder(command.OrderId);

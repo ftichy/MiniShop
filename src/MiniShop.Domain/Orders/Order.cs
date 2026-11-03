@@ -265,16 +265,17 @@ public class Order : Entity
     }
 
     /// <summary>
-    /// Zrušení potvrzené nebo balené objednávky – sága pak uvolní rezervaci skladu (kompenzace).
+    /// Zrušení kdykoli před odesláním – e-shop krok 9: i objednávky, která čeká na sklad nebo na platbu. Co je potřeba
+    /// vrátit (zboží, peníze), dožene sága – i když odpověď skladu nebo brány teprve přijde (kompenzace).
     /// E-shop krok 6: po odeslání už ne (zboží je na cestě).
     /// </summary>
     public void Cancel(DateTime cancelledAtUtc)
     {
-        if (Status is not (OrderStatus.Confirmed or OrderStatus.Packing))
+        if (Status is not (OrderStatus.Pending or OrderStatus.AwaitingPayment or OrderStatus.Confirmed or OrderStatus.Packing))
         {
-            throw new DomainException(Status == OrderStatus.Shipped
+            throw new DomainException(Status is OrderStatus.Shipped or OrderStatus.Completed
                 ? "Odeslanou objednávku už zrušit nejde."
-                : "Zrušit lze jen potvrzenou objednávku, která ještě neodešla.");
+                : "Tuto objednávku už zrušit nejde.");
         }
 
         ChangeStatus(OrderStatus.Cancelled, cancelledAtUtc);

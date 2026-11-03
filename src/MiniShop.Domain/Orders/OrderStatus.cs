@@ -5,7 +5,7 @@ namespace MiniShop.Domain.Orders;
 /// Pending → Confirmed (sklad zarezervoval) nebo Rejected (nezarezervoval / neodpověděl včas).
 /// E-shop krok 8: platba kartou – Pending → AwaitingPayment → Confirmed (zaplaceno) / Rejected (nezaplaceno).
 /// E-shop krok 6 (expedice): Confirmed → Packing → Shipped → Completed (= doručeno);
-/// zrušit (Cancelled) jde z Confirmed a Packing, po odeslání už ne.
+/// zrušit (Cancelled) jde kdykoli před odesláním – e-shop krok 9 i z Pending a AwaitingPayment.
 /// </summary>
 /// <remarks>Ukládá se jako text – nové hodnoty jen na konec (čísla se tak nikdy neposunou).</remarks>
 public enum OrderStatus

@@ -52,8 +52,10 @@ public static class OrderStatusLabels
         _ => status
     };
 
-    /// <summary>Zrušit jde potvrzenou a balenou objednávku (e-shop krok 6), po odeslání už ne – stejné pravidlo jako Order.Cancel.</summary>
-    public static bool CanCancel(string status) => status is "Confirmed" or "Packing";
+    /// <summary>
+    /// Zrušit jde kdykoli před odesláním (e-shop krok 9: i čekající na sklad nebo na platbu) – stejné pravidlo jako Order.Cancel.
+    /// </summary>
+    public static bool CanCancel(string status) => status is "Pending" or "AwaitingPayment" or "Confirmed" or "Packing";
 
     private static bool IsPickup(string shippingMethod) => shippingMethod == "Pickup";
 }

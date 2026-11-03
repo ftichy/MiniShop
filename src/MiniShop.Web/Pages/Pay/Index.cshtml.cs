@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using MiniShop.Application.Exceptions;
+using MiniShop.Application.Ordering;
 using MiniShop.Application.Payments;
 using MiniShop.Infrastructure.Payments;
 using MiniShop.Web.Accounts;
@@ -15,13 +16,21 @@ namespace MiniShop.Web.Pages.Pay;
 /// </summary>
 /// <remarks>Jen zákazník (admin neobjednává) a jen svou platbu – cizí se tváří jako neexistující (404).</remarks>
 [Authorize(Policy = AuthorizationPolicies.RequireCustomer)]
-public sealed class IndexModel(PaymentQueryService payments, FakePaymentGatewaySimulator gateway) : PageModel
+public sealed class IndexModel(PaymentQueryService payments, FakePaymentGatewaySimulator gateway, IOrderService orders) : PageModel
 {
     [BindProperty(SupportsGet = true)]
     public int OrderId { get; set; }
 
     /// <summary>Null = platba ještě nevznikla (sága rezervuje zboží) – stránka se za chvíli obnoví.</summary>
     public PaymentDto? Payment { get; private set; }
+
+    /// <summary>
+    /// E-shop krok 9: zákazník objednávku zrušil – platit už nejde. (Kdyby platba přesto prošla, peníze vrátí sága.)
+    /// </summary>
+    public bool OrderCancelled { get; private set; }
+
+    /// <summary>Zaplatit/zamítnout jde jen čekající, nevypršelou platbu nezrušené objednávky.</summary>
+    public bool CanPay => Payment is { Status: "Pending", IsExpired: false } && !OrderCancelled;
 
     [TempData]
     public string? StatusMessage { get; set; }
@@ -42,9 +51,9 @@ public sealed class IndexModel(PaymentQueryService payments, FakePaymentGatewayS
             return NotFound();
         }
 
-        if (Payment is not { Status: "Pending", IsExpired: false } payment)
+        if (!CanPay || Payment is not { } payment)
         {
-            return Page();   // nic k placení (už zaplaceno, zamítnuto nebo vypršelo) – stránka to vypíše
+            return Page();   // nic k placení (už zaplaceno, zamítnuto, vypršelo nebo zrušeno) – stránka to vypíše
         }
 
         var result = paid
@@ -64,6 +73,8 @@ public sealed class IndexModel(PaymentQueryService payments, FakePaymentGatewayS
         try
         {
             Payment = await payments.GetForCustomerAsync(OrderId, User.ToCustomerId(), cancellationToken);
+            OrderCancelled = (await orders.GetByIdAsync(OrderId, User.ToOrderAccess(), cancellationToken)).Status
+                == "Cancelled";
             return true;
         }
         catch (NotFoundException)

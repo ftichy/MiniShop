@@ -69,12 +69,23 @@ public class OrderTests
     }
 
     [Fact]
-    public void CekajiciObjednavku_NelzeZrusitAniVyridit()
+    public void CekajiciObjednavku_JdeZrusit_AleNeDorucit()
     {
         var order = CreateOrder();
 
-        Assert.Throws<DomainException>(() => order.Cancel(Now));
         Assert.Throws<DomainException>(() => order.MarkDelivered(Now));
+        order.Cancel(Now);   // e-shop krok 9: zrušit jde i před odpovědí skladu
+
+        Assert.Equal(OrderStatus.Cancelled, order.Status);
+    }
+
+    [Fact]
+    public void ZamitnutouObjednavku_NelzeZrusit()
+    {
+        var order = CreateOrder();
+        order.Reject("Nedostatek zboží", Now);
+
+        Assert.Throws<DomainException>(() => order.Cancel(Now));
     }
 
     [Fact]

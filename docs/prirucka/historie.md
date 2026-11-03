@@ -83,6 +83,7 @@ Plán (výloha, košík, pokladna, expedice, platba, notifikace): [docs/Eshop-ro
 | 6 | Expedice – balení, odeslání (dopravce + číslo zásilky), doručení na stránce `/Admin/Fulfilment`; `OrderShippedV1` jako událost (choreografie) → sklad vydá rezervaci; `Order.Version` proti souběhu odeslat × zrušit | [eshop-06](code:docs/kroky-eshop/krok-06-expedice.md) |
 | 7 | Notifikace jako samostatný modul – Ordering jen oznamuje fakta (`OrderPlacedV2`, `OrderConfirmedV1`, `OrderRejectedV1`…), modul Notifications si drží kopii příjemce a posílá e-maily; zprávy mimo pořadí, `CustomerAnonymizedV1` (zapomenout zákazníka) | [eshop-07](code:docs/kroky-eshop/krok-07-notifikace.md) |
 | 8 | Platba kartou – modul Payments jako druhý účastník ságy (`RequestPaymentV1` → `PaymentSucceededV1`/`FailedV1`), simulovaná brána a podepsaný webhook (HMAC), termín platby s kompenzací, vrácení pozdní platby, dobírka | [eshop-08](code:docs/kroky-eshop/krok-08-platba.md) |
+| 9 | Zrušení kdykoli před odesláním – sága zrušení zapíše a pozdní odpověď skladu/brány dožene kompenzací (uvolnit zboží, vrátit peníze); orchestrátor dožene zrušení, které předběhla odpověď; zrušená zaplacená objednávka vrací peníze | [eshop-09](code:docs/kroky-eshop/krok-09-zruseni.md) |
 
 ## Proč po krocích
 

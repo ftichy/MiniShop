@@ -144,8 +144,8 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   Číslo objednávky na span dává `TraceTags.TagOrder` (`Application/Abstractions`, tag `minishop.order.id`) – volá se tam, kde se pracuje s objednávkou.
   Serilog: `ClearProviders()` + `writeToProviders: true` (logy i do OTLP, na konzoli jednou).
 - Objednávka: Pending → Confirmed/Rejected (rozhoduje sága), pak expedice (e-shop krok 6) Confirmed → Packing → Shipped
-  → Completed (= doručeno; `MarkDelivered`, událost dál `OrderCompleted`/`OrderCompletedV1`). Zrušit z Confirmed a Packing,
-  po odeslání ne. Nové hodnoty `OrderStatus`/`OrderSagaState` jen na konec (ukládá se text). `POST /api/orders` vrací 202.
+  → Completed (= doručeno; `MarkDelivered`, událost dál `OrderCompleted`/`OrderCompletedV1`). Zrušit kdykoli před odesláním
+  (Pending, AwaitingPayment, Confirmed, Packing – e-shop krok 9), po odeslání ne. Nové hodnoty `OrderStatus`/`OrderSagaState` jen na konec (ukládá se text). `POST /api/orders` vrací 202.
   **Historie stavů (e-shop krok 5):** stav měnit jen přes privátní `Order.ChangeStatus` (nastaví `Status` + přidá
   `OrderStatusChange`, tabulka `OrderStatusChanges`, pořadí podle `Id`, zvýší `Version`) – **nový stav/přechod = přes `ChangeStatus`**.
   Detail `/Orders/{id}` (`GetDetailAsync`, cizí = 404), pokladna sem přesměruje; Zrušit postuje na `Orders/Index`.
@@ -175,6 +175,12 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   jinak se Web **nespustí**): Aspire parametr `payments-webhook-secret`, dev `appsettings.Development.json`, Compose
   `PAYMENTS_WEBHOOK_SECRET` (povinný), produkce secret → `deploy.yml` → `deploy.sh`. Testy: `MiniShopWebFactory.WebhookSecret`,
   `OrderServiceTests` mají modul Payments (`SimulateGatewayAsync`).
+- **Zrušení (e-shop krok 9):** sága zrušení zaznamená a pozdní odpovědi dožene kompenzací: `AwaitingReservation` →
+  `OrderSagaState.Cancelled` (pozdní `StockReserved` → `ReleaseStock`), `AwaitingPayment` → `ReleaseStock` (pozdní platba →
+  `RefundPayment`), `Reserved` kartou → `ReleaseStockAndRefundPayment`. **`OrderSagaOrchestrator.StepAsync` před každým krokem
+  načte objednávku a je-li `Cancelled`, nejdřív dožene `saga.OrderCancelled`** (odpověď může předběhnout `OrderCancelled`
+  z outboxu) – nový krok ságy tím projde automaticky. Žádný kontrakt „zruš platbu“: `/Pay` u zrušené objednávky nepustí
+  zaplatit (`CanPay`), platbu, která přesto projde, vrátí sága.
 - **Průběh objednávky (krok 12):** modul Journeys (`…Journeys` ve všech vrstvách, hostuje ho Web, vlastní `journeys.db`,
   bez zpráv → `JourneysDbContext` nedědí z `ModuleDbContext`). Proud `JourneyEvents` = jen INSERT, idempotence přes unikátní `EventId`
   z prohlížeče, řazení podle `OffsetMs` (čas od otevření formuláře). `ValidationFailed`/`OrderSubmitted` zapisuje jen server
@@ -363,7 +369,7 @@ Modul Accounts (ASP.NET Core Identity, `users.db`). Souhrny kroků do `docs/krok
 | 1. Účty, registrace, přihlášení (modul Accounts, Identity, `users.db`) | hotovo | `docs/kroky-ucty/krok-01-ucty.md` |
 | 2. Role a první admin (policies, fallback policy, `create-admin` / `AdminBootstrap` ve vývoji, matice oprávnění) | hotovo | `docs/kroky-ucty/krok-02-role.md` |
 | 3. Vlastník objednávky (`CustomerId`, `OrderAccess`/`OrderCustomer`, filtr v SQL, cizí = 404, jméno a e-mail z účtu) | hotovo | `docs/kroky-ucty/krok-03-vlastnik-objednavky.md` |
-| 4. Zrušení objednávky i ve stavu Pending (nový přechod ságy, kompenzace) | odloženo (analýza souběhu: dohnat zrušení v orchestrátoru, `Status` jako concurrency token) | — |
+| 4. Zrušení objednávky i ve stavu Pending (nový přechod ságy, kompenzace) | přesunuto – hotovo jako e-shop krok 9 | `docs/kroky-eshop/krok-09-zruseni.md` |
 | 5. Skutečné e-maily (MailKit, Mailpit lokálně, Gmail SMTP v cloudu, potvrzení e-mailu, reset hesla) | hotovo | `docs/kroky-ucty/krok-05-emaily.md` |
 | 6. Administrace uživatelů (přehled, povýšení, blokace, poslední admin, audit, EF migrace `users.db`) | hotovo | `docs/kroky-ucty/krok-06-sprava-uzivatelu.md` |
 | 7. Zabezpečení skladu (servisní klíč `X-Api-Key` pro celé `/api` Inventory.Api, secret `INVENTORY_API_KEY`, fail fast; JWT odloženo) | hotovo | `docs/kroky-ucty/krok-07-zabezpeceni-skladu.md` |
@@ -387,7 +393,7 @@ nové moduly Notifications (odběratel událostí) a Payments (účastník ságy
 | 6. Expedice (Packing → Shipped → Completed, `/Admin/Fulfilment`, `OrderShippedV1` → sklad vydá rezervaci, `Order.Version` proti souběhu, e-mail s číslem zásilky) | hotovo (nasazeno 3. 11. 2026, celá expedice ověřena v produkci) | `docs/kroky-eshop/krok-06-expedice.md` |
 | 7. Notifikace jako samostatný odběratel (modul Notifications, `notifications.db`, `OrderPlacedV2` + `OrderConfirmedV1`/`OrderRejectedV1`, `CustomerAnonymizedV1`, šablony s odkazem; Ordering bez e-mailů) | hotovo (nasazeno 3. 11. 2026, e-maily ověřeny v produkci) | `docs/kroky-eshop/krok-07-notifikace.md` |
 | 8. Platba – simulovaná brána (modul Payments, `payments.db`, `RequestPaymentV1`/`RefundPaymentV1`, webhook s HMAC, `AwaitingPayment` + timeout 30 min, vrácení pozdní platby, dobírka) | kód hotový, čeká na nasazení (secret `PAYMENTS_WEBHOOK_SECRET`, reinstalace `deploy.sh`) | `docs/kroky-eshop/krok-08-platba.md` |
-| 9. Zrušení kdykoli před odesláním (navazuje na účty krok 4) | plán | — |
+| 9. Zrušení kdykoli před odesláním (i `Pending`/`AwaitingPayment`, stav ságy `Cancelled`, orchestrátor dožene zrušení, zrušená zaplacená = `ReleaseStockAndRefundPayment`, `/Pay` u zrušené nepustí platit) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-09-zruseni.md` |
 | 10. Opuštěný košík (volitelně) | plán | — |
 
 ## Postup práce na dalším kroku EDA

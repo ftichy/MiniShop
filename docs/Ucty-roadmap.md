@@ -99,7 +99,7 @@ a posilovnu, ne kancelář ředitele (autorizace). Recepce kartu vydá jednou, d
 | 1. Účty, registrace, přihlášení | A – základ | Uživatel se zaregistruje a přihlásí, `users.db` | ASP.NET Core Identity | 0 |
 | 2. Role a první admin | A | Role User/Admin, policies, bootstrap admina, zamčené admin akce | policies, `WebApplicationFactory` | 0 |
 | 3. Vlastník objednávky | A | User vidí jen své objednávky, admin neobjednává | resource-based authorization | 0 |
-| 4. Zrušení objednávky (i Pending) – **odloženo** | B – EDA | Zrušení během rezervace, kompenzace ságou | – | 0 |
+| 4. Zrušení objednávky (i Pending) – **přesunuto do e-shop kroku 9** | B – EDA | Zrušení během rezervace, kompenzace ságou | – | 0 |
 | 5. Skutečné e-maily | B | Potvrzení e-mailu, reset hesla, e-mail o objednávce | MailKit, Mailpit, SMTP | 0 |
 | 6. Administrace uživatelů | C – správa | Přehled uživatelů, povýšení, blokace, audit | – | 0 |
 | 7. Zabezpečení skladu | C | Inventory.Api přijme zápis jen od Webu | servisní klíč | 0 |
@@ -167,7 +167,9 @@ a vidí Produkty, běžný uživatel ne.
 
 ## Krok 4: Zrušení objednávky (i ve stavu Pending) – odloženo
 
-*Odloženo 30. 10. 2026 – na dalších krocích nezávisí. Zrušit jde zatím jen potvrzenou objednávku.
+*Odloženo 30. 10. 2026, hotovo jako [e-shop krok 9](kroky-eshop/krok-09-zruseni.md) (zrušení i během čekání na sklad a platbu).*
+
+*Původní poznámka: zrušit šlo jen potvrzenou objednávku.
 Rozbor souběhu (dohnat zrušení v orchestrátoru před odpovědí skladu, `Status` objednávky jako concurrency
 token, 409 při souběžném zápisu) je v `CLAUDE.md` a v tomto plánu níže.*
 

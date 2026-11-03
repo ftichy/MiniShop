@@ -95,45 +95,64 @@ public sealed class OrderSagaOrchestrator(
         TraceTags.TagOrder(orderId);   // span "process StockReservedV1", "dispatch OrderCancelled", "saga timeout"…
         var saga = await sagas.GetAsync(orderId, cancellationToken)
             ?? throw new InvalidOperationException($"Sága objednávky {orderId} neexistuje.");
+        var order = await GetOrderAsync(orderId, cancellationToken);
+
+        // E-shop krok 9: zákazník mohl zrušit dřív, než sága dostala událost OrderCancelled (ta jde přes outbox) –
+        // odpověď skladu/brány pak přijde první. Zrušení se nejdřív dožene, teprve pak se zpracuje odpověď,
+        // takže sága nikdy nepotvrdí zrušenou objednávku. Pozdější OrderCancelled už nic neudělá (stav se změnil).
+        if (order.Status == OrderStatus.Cancelled)
+        {
+            Execute(saga, order, saga.OrderCancelled(UtcNow));
+        }
 
         var action = transition(saga);
+        Execute(saga, order, action);
+
+        // Souběh se zákazníkem (zrušil mezi načtením a uložením) = ConcurrencyConflictException na Order.Version →
+        // zpráva se zopakuje a napodruhé už sága uvidí zrušenou objednávku.
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return action;
+    }
+
+    private void Execute(OrderSaga saga, Order order, OrderSagaAction action)
+    {
         switch (action)
         {
             case OrderSagaAction.ConfirmOrder:
-                (await GetOrderAsync(orderId, cancellationToken)).Confirm(UtcNow);          // → OrderConfirmed → potvrzení zákazníkovi
+                order.Confirm(UtcNow);                                                      // → OrderConfirmed → potvrzení zákazníkovi
                 break;
 
             case OrderSagaAction.RejectOrder:
-                (await GetOrderAsync(orderId, cancellationToken)).Reject(saga.RejectionReason!, UtcNow);   // → OrderRejected → omluva
+                order.Reject(saga.RejectionReason!, UtcNow);                                // → OrderRejected → omluva
                 break;
 
             case OrderSagaAction.ReleaseStock:
-                publisher.Send(new ReleaseStockV1(Guid.NewGuid(), UtcNow, orderId));       // kompenzace
+                publisher.Send(new ReleaseStockV1(Guid.NewGuid(), UtcNow, order.Id));       // kompenzace
                 break;
 
             case OrderSagaAction.RequestPayment:
-            {
                 // E-shop krok 8: zboží drží rezervace, Payments připraví platbu (stránka brány) s termínem ságy.
-                var order = await GetOrderAsync(orderId, cancellationToken);
-                order.AwaitPayment(UtcNow);                                                   // → OrderAwaitingPayment
+                order.AwaitPayment(UtcNow);                                                 // → OrderAwaitingPayment
                 publisher.Send(new RequestPaymentV1(
-                    Guid.NewGuid(), UtcNow, orderId, order.CustomerId, order.TotalPrice, saga.PaymentDeadlineUtc!.Value));
+                    Guid.NewGuid(), UtcNow, order.Id, order.CustomerId, order.TotalPrice, saga.PaymentDeadlineUtc!.Value));
                 break;
-            }
 
             case OrderSagaAction.RejectOrderAndReleaseStock:
                 // E-shop krok 8: nezaplaceno – objednávku zamítnout a zboží vrátit, v jedné transakci (outbox).
-                (await GetOrderAsync(orderId, cancellationToken)).Reject(saga.RejectionReason!, UtcNow);
-                publisher.Send(new ReleaseStockV1(Guid.NewGuid(), UtcNow, orderId));
+                order.Reject(saga.RejectionReason!, UtcNow);
+                publisher.Send(new ReleaseStockV1(Guid.NewGuid(), UtcNow, order.Id));
                 break;
 
             case OrderSagaAction.RefundPayment:
-                publisher.Send(new RefundPaymentV1(Guid.NewGuid(), UtcNow, orderId));     // kompenzace pozdní platby
+                publisher.Send(new RefundPaymentV1(Guid.NewGuid(), UtcNow, order.Id));      // kompenzace pozdní platby
+                break;
+
+            case OrderSagaAction.ReleaseStockAndRefundPayment:
+                // E-shop krok 9: zrušená zaplacená objednávka – zboží i peníze zpět, oba příkazy v jedné transakci.
+                publisher.Send(new ReleaseStockV1(Guid.NewGuid(), UtcNow, order.Id));
+                publisher.Send(new RefundPaymentV1(Guid.NewGuid(), UtcNow, order.Id));
                 break;
         }
-
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-        return action;
     }
 
     private async Task<Order> GetOrderAsync(int orderId, CancellationToken cancellationToken) =>

@@ -66,6 +66,33 @@ public sealed partial class DocumentationTests
         Assert.True(broken.Count == 0, "Odkazy na neexistující stránky:\n" + string.Join('\n', broken));
     }
 
+    /// <summary>
+    /// Pasti Mermaidu, které v prohlížeči skončí „Syntax error in text“: v sekvenčním diagramu je <c>;</c> konec příkazu
+    /// (zbytek zprávy je pak nesmysl), ve stavovém diagramu smí být v popisku přechodu jen jedna dvojtečka.
+    /// </summary>
+    [Fact]
+    public void DiagramyMermaid_NemajiZnamePastiSyntaxe()
+    {
+        var broken = new List<string>();
+        foreach (var page in Store.All())
+        {
+            foreach (Match block in MermaidBlockPattern().Matches(page.Markdown))
+            {
+                var lines = block.Groups[1].Value.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+                var isSequence = lines[0].StartsWith("sequenceDiagram", StringComparison.Ordinal);
+                var isState = lines[0].StartsWith("stateDiagram", StringComparison.Ordinal);
+
+                broken.AddRange(lines
+                    .Where(line => (isSequence && line.Contains(';'))
+                        || (isState && line.Contains("-->", StringComparison.Ordinal) && line.Count(c => c == ':') > 1))
+                    .Select(line => $"{FileOf(page)}: {line}"));
+            }
+        }
+
+        Assert.True(broken.Count == 0, "Řádky diagramů, které Mermaid nevykreslí (; v sekvenčním, : v popisku stavového):\n"
+            + string.Join('\n', broken));
+    }
+
     [Fact]
     public void OdkazyDoKodu_VedouNaExistujiciSoubory()
     {
@@ -264,6 +291,9 @@ public sealed partial class DocumentationTests
     /// <summary>click uzel "/Docs/eda/saga" v diagramu Mermaid.</summary>
     [GeneratedRegex("""click\s+\S+\s+(?:href\s+)?"/Docs(/[^"#]*)?["#]""")]
     private static partial Regex MermaidClickPattern();
+
+    [GeneratedRegex(@"```mermaid\r?\n([\s\S]*?)```")]
+    private static partial Regex MermaidBlockPattern();
 
     [GeneratedRegex(@"\]\(code:([^)\s#]+)\)")]
     private static partial Regex CodeLinkPattern();

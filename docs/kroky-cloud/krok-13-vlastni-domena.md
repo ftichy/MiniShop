@@ -53,12 +53,12 @@ by certifikát nevydal.
 
 **C. Kód (PR, nasazení až po B4)**
 
-- [ ] **C1.** PR s touto změnou → zelené CI → sloučit. Deploy nastaví `DOMAIN` a `LEGACY_DOMAIN`, Caddy po `caddy reload`
+- [x] **C1.** PR s touto změnou → zelené CI → sloučit. Deploy nastaví `DOMAIN` a `LEGACY_DOMAIN`, Caddy po `caddy reload`
       získá certifikáty pro nová jména, smoke test kontroluje novou doménu i přesměrování ze staré.
 
 **D. Po nasazení (uživatel)**
 
-- [ ] **D1.** UptimeRobot: v obou monitorech změnit URL na `https://minishop-tichy.cz/health` a `…/health/inventory`
+- [x] **D1.** UptimeRobot: v obou monitorech změnit URL na `https://minishop-tichy.cz/health` a `…/health/inventory`
       (přesměrování by sice sledovaly, ale výpadek staré adresy by hlásil zbytečně).
 - [ ] **D2.** Přihlásit se znovu – cookie přihlášení patří k jménu domény, na nové adrese je uživatel odhlášený.
 - [ ] **D3.** Záložky, odkaz v profilu na GitHubu apod. přepsat na novou adresu.

@@ -283,7 +283,7 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
 | 10. Secrets a konfigurace (secrets jen v GitHub `production` → stdin → `deploy.sh`, `production.env`, rotace RabbitMQ, registr `docs/secrets.md`, secret scanning, Dependabot) | hotovo (heslo RabbitMQ vyměněno pipeline, ověřeno objednávkou) | `docs/kroky-cloud/krok-10-secrets.md` |
 | 11. Monitoring a logy v cloudu (Aspire dashboard v Compose, `/health` pro UptimeRobot, alarmy OCI v `infra/monitoring.tf`) | kód hotový, čeká na provedení (PR, UptimeRobot, alarmy, zkouška výpadku) | `docs/kroky-cloud/krok-11-monitoring.md` |
 | 12. Zálohy a obnova po havárii (noční online backup SQLite → OCI bucket přes instance principal, `restore.sh`, healthchecks.io, cvičná havárie) | hotovo (cvičná havárie: VM smazaná → tofu apply → Deploy → `restore.sh latest`, objednávky zpět) | `docs/kroky-cloud/krok-12-zalohy.md` |
-| 13. Vlastní doména (`minishop-tichy.cz` u Wedosu, DNS A `@` + `dashboard`, `LEGACY_DOMAIN` → 301 ze staré DuckDNS adresy, smoke test) | kód hotový, čeká na nasazení (po ověření DNS), pak UptimeRobot na novou adresu | `docs/kroky-cloud/krok-13-vlastni-domena.md` |
+| 13. Vlastní doména (`minishop-tichy.cz` u Wedosu, DNS A `@` + `dashboard`, `LEGACY_DOMAIN` → 301 ze staré DuckDNS adresy, smoke test) | hotovo (nasazeno 3. 11. 2026, smoke test vč. 301 ze staré adresy, UptimeRobot na nové doméně) | `docs/kroky-cloud/krok-13-vlastni-domena.md` |
 
 ## Stav uživatelských účtů (viz `docs/Ucty-roadmap.md`)
 Role User (objednává, vidí a ruší jen své) a Admin (sklad, produkty, vyřízení, všechny objednávky a uživatelé, neobjednává).
@@ -347,7 +347,7 @@ nové moduly Notifications (odběratel událostí) a Payments (účastník ságy
 | 2B. Obrázky produktů (upload do skladu, typ podle bajtů, `/media/products/…` přes Web s immutable cache, `backup.py` `DIRECTORIES`) | hotovo (nasazeno 1. 11. 2026, obrázky ve výloze, noční záloha obsahuje `images/`) | `docs/kroky-eshop/krok-02b-obrazky.md` |
 | 3. Košík (agregát `Cart` v Orderingu s invarianty, `/Cart`, odznak v hlavičce, ceny z kopie katalogu, bez zpráv) | hotovo (nasazeno 1. 11. 2026; oprava: `asp-append-version` – starý CSS z cache) | `docs/kroky-eshop/krok-03-kosik.md` |
 | 4A. Pokladna (`/Checkout`, `CheckoutService`, `CheckoutId` = verze košíku + concurrency token, žádné tiché zdražení, `DeliveryAddress`, `IShippingPriceCalculator`, `checkoutId` v API) | hotovo (nasazeno 2. 11. 2026, ověřeno objednávkou v produkci) | `docs/kroky-eshop/krok-04a-pokladna.md` |
-| 4B. Journeys na pokladnu (sledování a přehrání pokladny, `OrderJourneyDto.Form`, staré proudy beze změny, odstranění starého formuláře objednávky a „Objednat“ ve výloze) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-04b-journeys-pokladna.md` |
+| 4B. Journeys na pokladnu (sledování a přehrání pokladny, `OrderJourneyDto.Form`, staré proudy beze změny, odstranění starého formuláře objednávky a „Objednat“ ve výloze) | hotovo (nasazeno 3. 11. 2026, přehrání pokladny ověřeno v produkci) | `docs/kroky-eshop/krok-04b-journeys-pokladna.md` |
 | 5. Detail objednávky a historie stavů (`/Orders/{id}`) | plán | — |
 | 6. Expedice (Packing → Shipped → Completed, `OrderShippedV1`, odepsání rezervace, `Order.Version`) | plán | — |
 | 7. Notifikace jako samostatný odběratel (modul Notifications, šablony, `CustomerAnonymizedV1`) | plán | — |

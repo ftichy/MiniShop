@@ -227,7 +227,11 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   Port 22 je z internetu zavřený – SSH jen přes Tailscale. Nouzově: pravidlo 22 v security listu vrátit.
   Secrets/proměnné jen v environmentu `production`: `TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`, `DEPLOY_SSH_KEY`,
   `RABBITMQ_PASSWORD`, `BASIC_AUTH_HASH` (krok 10), `SMTP_PASSWORD` (účty krok 5), `INVENTORY_API_KEY` (účty krok 7), `DEPLOY_HOST`, `DEPLOY_KNOWN_HOSTS`.
-- HTTPS (krok 5): `https://minishop-tichy.duckdns.org` (reserved IP `141.144.255.238`), Caddy z `deploy/compose.cloud.yaml`
+- Doména (krok 13): `https://minishop-tichy.cz` (Wedos: registrace + DNS, záznamy A `@` a `dashboard` → reserved IP, TTL 300,
+  žádné AAAA – zadává uživatel ručně v client.wedos.com, pak *Aplikovat změny*). `DOMAIN` + `LEGACY_DOMAIN` v `production.env`;
+  stará `minishop-tichy.duckdns.org` (i `dashboard.`) = 301 na novou doménu (Caddyfile), smoke test hlídá obojí (doména
+  natvrdo v `deploy.yml`). Nové jméno = nejdřív DNS, pak nasazení (jinak Caddy nezíská certifikát).
+- HTTPS (krok 5): dřív `https://minishop-tichy.duckdns.org` (reserved IP `141.144.255.238`), Caddy z `deploy/compose.cloud.yaml`
   + `deploy/Caddyfile`, na VM zapnuté přes `COMPOSE_FILE=compose.yaml:compose.cloud.yaml` v `.env`. Web není publikovaný ven.
   Basic auth (uživatel `minishop`, heslo zná jen uživatel – změna = secret `BASIC_AUTH_HASH`, viz `docs/secrets.md` R2):
   od účtů kroku 9 `BASIC_AUTH=off` v `deploy/production.env` → web veřejný, zámek jen před dashboardem.
@@ -248,7 +252,7 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   Změněné heslo RabbitMQ `deploy.sh` vymění i v běžícím RabbitMQ (`rabbitmqctl change_password`). OpenTofu nemá secrets aplikace.
   Secret scanning + push protection a Dependabot (`.github/dependabot.yml`) zapnuté; historie ověřená gitleaks.
 - Monitoring (krok 11): služba `aspire-dashboard` v `compose.yaml` (OTLP `aspire-dashboard:18889` přes `OTEL_EXPORTER_OTLP_ENDPOINT`
-  + `OTEL_SERVICE_NAME`, telemetrie jen v paměti; lokálně http://localhost:18888, v cloudu https://dashboard.minishop-tichy.duckdns.org
+  + `OTEL_SERVICE_NAME`, telemetrie jen v paměti; lokálně http://localhost:18888, v cloudu https://dashboard.minishop-tichy.cz
   přes Caddy vždy s basic auth). Caddy pouští bez hesla jen `/health` (web) a `/health/inventory` (sklad) – hlídá je UptimeRobot
   (keyword `Healthy`, case sensitive). Smoke test v `deploy.yml` kontroluje obě na `Healthy`. Nová služba s telemetrií =
   `<<: *otel-env` + `OTEL_SERVICE_NAME` v compose. Alarmy VM (CPU, paměť, chybějící metriky) + e-mail v `infra/monitoring.tf`
@@ -279,6 +283,7 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
 | 10. Secrets a konfigurace (secrets jen v GitHub `production` → stdin → `deploy.sh`, `production.env`, rotace RabbitMQ, registr `docs/secrets.md`, secret scanning, Dependabot) | hotovo (heslo RabbitMQ vyměněno pipeline, ověřeno objednávkou) | `docs/kroky-cloud/krok-10-secrets.md` |
 | 11. Monitoring a logy v cloudu (Aspire dashboard v Compose, `/health` pro UptimeRobot, alarmy OCI v `infra/monitoring.tf`) | kód hotový, čeká na provedení (PR, UptimeRobot, alarmy, zkouška výpadku) | `docs/kroky-cloud/krok-11-monitoring.md` |
 | 12. Zálohy a obnova po havárii (noční online backup SQLite → OCI bucket přes instance principal, `restore.sh`, healthchecks.io, cvičná havárie) | hotovo (cvičná havárie: VM smazaná → tofu apply → Deploy → `restore.sh latest`, objednávky zpět) | `docs/kroky-cloud/krok-12-zalohy.md` |
+| 13. Vlastní doména (`minishop-tichy.cz` u Wedosu, DNS A `@` + `dashboard`, `LEGACY_DOMAIN` → 301 ze staré DuckDNS adresy, smoke test) | kód hotový, čeká na nasazení (po ověření DNS), pak UptimeRobot na novou adresu | `docs/kroky-cloud/krok-13-vlastni-domena.md` |
 
 ## Stav uživatelských účtů (viz `docs/Ucty-roadmap.md`)
 Role User (objednává, vidí a ruší jen své) a Admin (sklad, produkty, vyřízení, všechny objednávky a uživatelé, neobjednává).

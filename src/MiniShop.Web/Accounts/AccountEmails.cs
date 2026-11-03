@@ -11,7 +11,7 @@ namespace MiniShop.Web.Accounts;
 /// Účty krok 5: e-maily účtu – potvrzení adresy a zapomenuté heslo. Každý nese odkaz s jednorázovým tokenem.
 /// </summary>
 /// <remarks>
-/// Adresa odkazu se skládá z aktuálního požadavku (v produkci https://minishop-tichy.duckdns.org – Caddy předá
+/// Adresa odkazu se skládá z aktuálního požadavku (v produkci https://minishop-tichy.cz – Caddy předá
 /// správné hlavičky). Accounts nemá outbox, e-mail se posílá hned během požadavku; chybu řeší volající stránka.
 /// </remarks>
 public sealed class AccountEmails(UserManager<ApplicationUser> userManager, IEmailSender emailSender, LinkGenerator links)

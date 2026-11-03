@@ -53,7 +53,7 @@
 	}
 }
 
-# Krok 11: Aspire dashboard (trasy, logy, metriky) na subdoméně – DuckDNS ji obslouží sám (*.minishop-tichy…),
+# Krok 11: Aspire dashboard (trasy, logy, metriky) na subdoméně – v DNS má vlastní záznam A (krok 13),
 # certifikát získá Caddy stejně jako pro hlavní doménu. Pod cestou (/dashboard) dashboard běžet neumí.
 # Vždy se zámkem (i při BASIC_AUTH=off) – logy obsahují údaje z objednávek.
 dashboard.{$DOMAIN} {
@@ -61,4 +61,16 @@ dashboard.{$DOMAIN} {
 	import hide-server
 
 	reverse_proxy aspire-dashboard:18888
+}
+
+# Krok 13: původní adresa (DuckDNS) trvale (301) přesměruje na vlastní doménu i s cestou a parametry –
+# záložky, odkazy z e-mailů (potvrzení účtu, reset hesla) i hlídače dál fungují. Caddy pro ni drží certifikát dál.
+{$LEGACY_DOMAIN} {
+	import hide-server
+	redir https://{$DOMAIN}{uri} permanent
+}
+
+dashboard.{$LEGACY_DOMAIN} {
+	import hide-server
+	redir https://dashboard.{$DOMAIN}{uri} permanent
 }

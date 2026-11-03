@@ -31,7 +31,7 @@ jobs:
     # Environment = vlastní secrets a proměnné pro produkci (Settings → Environments → production).
     environment:
       name: production
-      url: https://minishop-tichy.duckdns.org
+      url: https://minishop-tichy.cz
     # Nikdy dvě nasazení najednou a rozběhnuté nasazení se nepřerušuje (čeká se na něj).
     concurrency:
       group: production
@@ -87,20 +87,28 @@ jobs:
 
       # Zvenku přes internet: platný certifikát (curl bez -k) a Caddy odpovídá.
       # Účty krok 9: web je veřejný (úvod = 200), Aspire dashboard musí zůstat zamčený (401).
+      # Krok 13: vlastní doména (DOMAIN v deploy/production.env); původní DuckDNS adresa musí přesměrovat.
       - name: Smoke test zvenku
+        env:
+          DOMAIN: minishop-tichy.cz
+          LEGACY_DOMAIN: minishop-tichy.duckdns.org
         run: |
-          code=$(curl -s -o /dev/null -w '%{http_code}' --retry 5 --retry-all-errors --retry-delay 5 https://minishop-tichy.duckdns.org/)
+          code=$(curl -s -o /dev/null -w '%{http_code}' --retry 5 --retry-all-errors --retry-delay 5 "https://$DOMAIN/")
           echo "HTTPS → $code"
           [[ "$code" == "200" ]] || { echo "::error::Úvodní stránka vrací $code (čekám 200)"; exit 1; }
-          code=$(curl -s -o /dev/null -w '%{http_code}' --retry 5 --retry-all-errors --retry-delay 5 https://dashboard.minishop-tichy.duckdns.org/)
+          code=$(curl -s -o /dev/null -w '%{http_code}' --retry 5 --retry-all-errors --retry-delay 5 "https://dashboard.$DOMAIN/")
           echo "Dashboard → $code"
           [[ "$code" == "401" ]] || { echo "::error::Aspire dashboard vrací $code – musí být zamčený (401)"; exit 1; }
           # Krok 11: zdraví obou služeb je zvenku bez hesla (pro UptimeRobot) – musí být přesně "Healthy".
           for path in /health /health/inventory; do
-            body=$(curl -s --retry 5 --retry-all-errors --retry-delay 5 "https://minishop-tichy.duckdns.org$path")
+            body=$(curl -s --retry 5 --retry-all-errors --retry-delay 5 "https://$DOMAIN$path")
             echo "$path → $body"
             [[ "$body" == "Healthy" ]] || { echo "::error::$path vrací '$body'"; exit 1; }
           done
+          # Krok 13: stará adresa → 301 na stejnou cestu na nové doméně.
+          location=$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' --retry 5 --retry-all-errors --retry-delay 5 "https://$LEGACY_DOMAIN/Shop?q=x")
+          echo "Stará adresa → $location"
+          [[ "$location" == "301 https://$DOMAIN/Shop?q=x" ]] || { echo "::error::$LEGACY_DOMAIN nepřesměrovává na $DOMAIN ($location)"; exit 1; }
 
       - name: Úklid klíče
         if: always()

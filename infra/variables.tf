@@ -84,5 +84,5 @@ variable "backup_retention_days" {
 variable "domain" {
   description = "Doména MiniShopu – jen pro výpis dalších kroků (Caddy ji bere z deploy/production.env)."
   type        = string
-  default     = "minishop-tichy.duckdns.org"
+  default     = "minishop-tichy.cz"
 }

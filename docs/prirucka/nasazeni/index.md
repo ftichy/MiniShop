@@ -29,8 +29,8 @@ flowchart LR
     end
 
     vm -->|"docker pull"| ghcr
-    user(["Uživatel<br/>prohlížeč"]) -->|"HTTPS minishop-tichy.duckdns.org"| caddy
-    duck["DuckDNS<br/>doména"] -.-> caddy
+    user(["Uživatel<br/>prohlížeč"]) -->|"HTTPS minishop-tichy.cz"| caddy
+    dns["WEDOS DNS<br/>doména .cz"] -.-> caddy
     le["Let's Encrypt<br/>certifikát"] -.-> caddy
     caddy --> web
     web --> inv
@@ -75,12 +75,12 @@ Celé to trvá několik minut a nikdo se nemusí přihlásit na server.
 | --- | --- | --- | --- |
 | Vývoj (PC) | `dotnet run --project src/MiniShop.AppHost` (Aspire) | psaní kódu, ladění, dashboard | [Lokální vývoj](lokalne.md) |
 | „Produkce na PC“ | `docker compose up` ve složce `deploy` | ověření kontejnerů bez cloudu | [Kontejnery](kontejnery.md) |
-| Produkce (cloud) | automaticky z `main` | https://minishop-tichy.duckdns.org | [Oracle Cloud](cloud-oci.md) |
+| Produkce (cloud) | automaticky z `main` | https://minishop-tichy.cz | [Oracle Cloud](cloud-oci.md) |
 
 ## Proč takhle
 
-- **Rozpočet 0 Kč** (limit byl 100 Kč/měsíc): Oracle Always Free, GitHub zdarma pro veřejný repozitář,
-  DuckDNS, Let's Encrypt, UptimeRobot a healthchecks.io ve free tarifech.
+- **Rozpočet téměř 0 Kč** (limit 100 Kč/měsíc): jediný výdaj je doména `.cz` u Wedosu (cloud krok 13); Oracle Always Free, GitHub zdarma pro veřejný repozitář,
+  Let's Encrypt, UptimeRobot a healthchecks.io ve free tarifech.
 - **Jedna VM + Docker Compose** místo Kubernetes – pro dvě malé služby a jednoho uživatele bohatě stačí a dá se
   pochopit celé. Kubernetes by přidal desítky nových pojmů bez užitku.
 - **Všechno je v kódu** – Dockerfile, Compose, OpenTofu, workflow. Smazaná VM se obnoví příkazem a zálohou

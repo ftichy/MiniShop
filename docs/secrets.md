@@ -48,8 +48,8 @@ Pravidla:
 | Data Protection klíče, certifikáty | volumes na VM (`web-data`, `caddy-data`) | spravuje je aplikace / Caddy samy (rotují se samy) |
 | `guest`/`guest` v `RabbitMqOptions` | kód | výchozí hodnota jen pro lokální vývoj; RabbitMQ pouští `guest` jen z localhostu |
 
-Účty (OCI administrátor, GitHub, Tailscale, DuckDNS) chrání vlastní heslo + MFA – nejsou v tomto registru.
-DuckDNS token se nikde neukládá (reserved IP se nemění).
+Účty (OCI administrátor, GitHub, Tailscale, Wedos, DuckDNS) chrání vlastní heslo + MFA – nejsou v tomto registru.
+DuckDNS token ani přístup k Wedosu se nikde neukládá (reserved IP se nemění, DNS záznamy jsou ruční).
 
 ## Postupy výměny
 
@@ -70,7 +70,7 @@ DuckDNS token se nikde neukládá (reserved IP se nemění).
 
 ### R2. Heslo do webu (basic auth)
 
-Od účtů kroku 9 chrání jen Aspire dashboard (`dashboard.minishop-tichy.duckdns.org`), web je veřejný.
+Od účtů kroku 9 chrání jen Aspire dashboard (`dashboard.minishop-tichy.cz`), web je veřejný.
 
 1. Otisk nového hesla: `docker run --rm -it caddy:2 caddy hash-password` (heslo 2×, vypíše `$2a$14$…`).
 2. GitHub → `production` → `BASIC_AUTH_HASH` → *Update* → otisk (bez uvozovek).

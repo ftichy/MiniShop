@@ -66,7 +66,7 @@ try
 
     // Účty krok 8: zpevnění – limit odeslání formulářů účtu z jedné IP a HSTS (prohlížeč pak chodí jen přes HTTPS).
     builder.Services.AddAccountRateLimiting(builder.Configuration);
-    // Bez preload a bez subdomén: doména duckdns.org není naše, preload by šel špatně vrátit.
+    // Bez preload a bez subdomén: preload jde jen velmi pomalu vrátit (cloud krok 13: vlastní doména minishop-tichy.cz).
     builder.Services.AddHsts(options => options.MaxAge = TimeSpan.FromDays(365));
 
     // Účty krok 5: e-maily přes SMTP (sekce "Email"). Bez Email:Host jen do logu.

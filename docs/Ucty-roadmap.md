@@ -256,7 +256,7 @@ Heslo k Googlu MiniShop nikdy nevidí.
 
 **V MiniShopu:**
 
-- OAuth klient v Google Cloud Console (zdarma), redirect `https://minishop-tichy.duckdns.org/signin-google`.
+- OAuth klient v Google Cloud Console (zdarma), redirect `https://minishop-tichy.cz/signin-google`.
 - `AddGoogle`; párování na existující účet jen přes ověřený e-mail; účet bez hesla je v pořádku.
 - Secrets `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
 

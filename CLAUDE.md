@@ -139,11 +139,18 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   má otevřít vlastní span (jako `OrderSagaTimeoutWorker`), jinak zprávy nemají trasu. SQL spany jen s rodičem (filtr v EF instrumentaci).
   Číslo objednávky na span dává `TraceTags.TagOrder` (`Application/Abstractions`, tag `minishop.order.id`) – volá se tam, kde se pracuje s objednávkou.
   Serilog: `ClearProviders()` + `writeToProviders: true` (logy i do OTLP, na konzoli jednou).
-- Objednávka: Pending → Confirmed/Rejected (rozhoduje sága), z Confirmed → Completed/Cancelled. `POST /api/orders` vrací 202.
+- Objednávka: Pending → Confirmed/Rejected (rozhoduje sága), pak expedice (e-shop krok 6) Confirmed → Packing → Shipped
+  → Completed (= doručeno; `MarkDelivered`, událost dál `OrderCompleted`/`OrderCompletedV1`). Zrušit z Confirmed a Packing,
+  po odeslání ne. Nové hodnoty `OrderStatus`/`OrderSagaState` jen na konec (ukládá se text). `POST /api/orders` vrací 202.
   **Historie stavů (e-shop krok 5):** stav měnit jen přes privátní `Order.ChangeStatus` (nastaví `Status` + přidá
-  `OrderStatusChange`, tabulka `OrderStatusChanges`, pořadí podle `Id`) – **nový stav/přechod = přes `ChangeStatus`**.
-  Detail `/Orders/{id}` (`GetDetailAsync`, cizí = 404), pokladna sem přesměruje; Zrušit/Vyřídit postují na `Orders/Index`.
+  `OrderStatusChange`, tabulka `OrderStatusChanges`, pořadí podle `Id`, zvýší `Version`) – **nový stav/přechod = přes `ChangeStatus`**.
+  Detail `/Orders/{id}` (`GetDetailAsync`, cizí = 404), pokladna sem přesměruje; Zrušit postuje na `Orders/Index`.
   Staré objednávky mají u posledního stavu `ChangedAtUtc = NULL` (migrace čas nevymýšlí).
+  **Expedice (e-shop krok 6):** `/Admin/Fulfilment` (jen admin; fronty Confirmed/Packing/Shipped, hromadné balení, Doručeno =
+  simulace dopravce). Kurýr: `Ship` vyžaduje `Carrier` + `TrackingNumber`, osobní odběr je nemá (texty v `Web/Orders/OrderStatusLabels`).
+  `Order.Version` = concurrency token → `ConcurrencyConflictException` (stránky: `Orders.IndexModel.ConcurrencyMessage`, API 409).
+  `OrderShippedV1` = **událost** (choreografie): sklad `FulfilReservationHandler` → `StockReservation.Fulfil()`; sága jen
+  `Reserved → Shipped → Completed`, nic neposílá. Aktivní rezervace = ani uvolněná, ani vydaná.
 - **Průběh objednávky (krok 12):** modul Journeys (`…Journeys` ve všech vrstvách, hostuje ho Web, vlastní `journeys.db`,
   bez zpráv → `JourneysDbContext` nedědí z `ModuleDbContext`). Proud `JourneyEvents` = jen INSERT, idempotence přes unikátní `EventId`
   z prohlížeče, řazení podle `OffsetMs` (čas od otevření formuláře). `ValidationFailed`/`OrderSubmitted` zapisuje jen server
@@ -352,8 +359,8 @@ nové moduly Notifications (odběratel událostí) a Payments (účastník ságy
 | 3. Košík (agregát `Cart` v Orderingu s invarianty, `/Cart`, odznak v hlavičce, ceny z kopie katalogu, bez zpráv) | hotovo (nasazeno 1. 11. 2026; oprava: `asp-append-version` – starý CSS z cache) | `docs/kroky-eshop/krok-03-kosik.md` |
 | 4A. Pokladna (`/Checkout`, `CheckoutService`, `CheckoutId` = verze košíku + concurrency token, žádné tiché zdražení, `DeliveryAddress`, `IShippingPriceCalculator`, `checkoutId` v API) | hotovo (nasazeno 2. 11. 2026, ověřeno objednávkou v produkci) | `docs/kroky-eshop/krok-04a-pokladna.md` |
 | 4B. Journeys na pokladnu (sledování a přehrání pokladny, `OrderJourneyDto.Form`, staré proudy beze změny, odstranění starého formuláře objednávky a „Objednat“ ve výloze) | hotovo (nasazeno 3. 11. 2026, přehrání pokladny ověřeno v produkci) | `docs/kroky-eshop/krok-04b-journeys-pokladna.md` |
-| 5. Detail objednávky a historie stavů (`/Orders/{id}`, `OrderStatusChange` v agregátu, migrace doplní historii starým objednávkám) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-05-detail-objednavky.md` |
-| 6. Expedice (Packing → Shipped → Completed, `OrderShippedV1`, odepsání rezervace, `Order.Version`) | plán | — |
+| 5. Detail objednávky a historie stavů (`/Orders/{id}`, `OrderStatusChange` v agregátu, migrace doplní historii starým objednávkám) | hotovo (nasazeno 3. 11. 2026, detail a historie ověřeny v produkci) | `docs/kroky-eshop/krok-05-detail-objednavky.md` |
+| 6. Expedice (Packing → Shipped → Completed, `/Admin/Fulfilment`, `OrderShippedV1` → sklad vydá rezervaci, `Order.Version` proti souběhu, e-mail s číslem zásilky) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-06-expedice.md` |
 | 7. Notifikace jako samostatný odběratel (modul Notifications, šablony, `CustomerAnonymizedV1`) | plán | — |
 | 8. Platba – simulovaná brána (modul Payments, webhook s HMAC, timeout platby, dobírka) | plán | — |
 | 9. Zrušení kdykoli před odesláním (navazuje na účty krok 4) | plán | — |

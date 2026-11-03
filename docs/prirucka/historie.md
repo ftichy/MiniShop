@@ -80,6 +80,7 @@ Plán (výloha, košík, pokladna, expedice, platba, notifikace): [docs/Eshop-ro
 | 4A | Pokladna `/Checkout` – objednávka s více položkami z košíku v jedné transakci, idempotentní příkaz (`CheckoutId` = verze košíku + concurrency token), žádné tiché zdražení, doprava (strategie) a adresa (hodnotový objekt) | [eshop-04a](code:docs/kroky-eshop/krok-04a-pokladna.md) |
 | 4B | Sledování průběhu (Journeys) přesunuto na pokladnu – stejné typy událostí, projekce pozná formulář, přehrávač má kopii pokladny i původního formuláře pro staré proudy; starý formulář objednávky a „Objednat“ ve výloze odstraněny | [eshop-04b](code:docs/kroky-eshop/krok-04b-journeys-pokladna.md) |
 | 5 | Detail objednávky `/Orders/{id}` s časovou osou stavů – historie `OrderStatusChange` přímo v agregátu (jedna transakce se stavem), migrace doplnila historii starým objednávkám bez vymyšlených časů | [eshop-05](code:docs/kroky-eshop/krok-05-detail-objednavky.md) |
+| 6 | Expedice – balení, odeslání (dopravce + číslo zásilky), doručení na stránce `/Admin/Fulfilment`; `OrderShippedV1` jako událost (choreografie) → sklad vydá rezervaci; `Order.Version` proti souběhu odeslat × zrušit | [eshop-06](code:docs/kroky-eshop/krok-06-expedice.md) |
 
 ## Proč po krocích
 

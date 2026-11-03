@@ -31,6 +31,10 @@ public sealed class OrderingDomainEventReader(IOrderRepository orders) : IDomain
                 { EventId = message.Id },
             nameof(OrderCancelled) => new OrderCancelled(await LoadOrderAsync(message, cancellationToken), message.OccurredAtUtc)
                 { EventId = message.Id },
+            nameof(OrderPackingStarted) => new OrderPackingStarted(await LoadOrderAsync(message, cancellationToken), message.OccurredAtUtc)
+                { EventId = message.Id },   // e-shop krok 6
+            nameof(OrderShipped) => new OrderShipped(await LoadOrderAsync(message, cancellationToken), message.OccurredAtUtc)
+                { EventId = message.Id },
             _ => throw new InvalidOperationException($"Neznámý typ zprávy v outboxu: {message.Type}.")
         };
 

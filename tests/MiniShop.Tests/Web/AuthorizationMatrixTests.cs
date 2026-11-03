@@ -86,6 +86,11 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Admin, "/Admin/Users", Expect.Allowed },
         { Who.User, "/Admin/Users/Detail/neexistuje", Expect.Denied },
         { Who.Admin, "/Admin/Users/Detail/neexistuje", Expect.Allowed },
+
+        // E-shop krok 6: expedice – jen admin
+        { Who.Anonymous, "/Admin/Fulfilment", Expect.Login },
+        { Who.User, "/Admin/Fulfilment", Expect.Denied },
+        { Who.Admin, "/Admin/Fulfilment", Expect.Allowed },
     };
 
     public static TheoryData<Who, string, Expect> PageActions() => new()
@@ -106,9 +111,16 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.User, "/Checkout?handler=AcceptPrices", Expect.Allowed },
         { Who.Admin, "/Checkout?handler=AcceptPrices", Expect.Denied },
 
-        // Vyřídit, obnovit katalog: jen admin
-        { Who.User, "/Orders?handler=Complete&id=999", Expect.Denied },
-        { Who.Admin, "/Orders?handler=Complete&id=999", Expect.Allowed },
+        // E-shop krok 6: expedice (místo „Vyřídit“ na stránce Objednávky) – jen admin
+        { Who.Anonymous, "/Admin/Fulfilment?handler=StartPacking", Expect.Login },
+        { Who.User, "/Admin/Fulfilment?handler=StartPacking", Expect.Denied },
+        { Who.Admin, "/Admin/Fulfilment?handler=StartPacking", Expect.Allowed },
+        { Who.User, "/Admin/Fulfilment?handler=Ship&id=999", Expect.Denied },
+        { Who.Admin, "/Admin/Fulfilment?handler=Ship&id=999", Expect.Allowed },
+        { Who.User, "/Admin/Fulfilment?handler=Deliver&id=999", Expect.Denied },
+        { Who.Admin, "/Admin/Fulfilment?handler=Deliver&id=999", Expect.Allowed },
+
+        // Obnovit katalog: jen admin
         { Who.User, "/Orders?handler=SyncCatalog", Expect.Denied },
         { Who.Admin, "/Orders?handler=SyncCatalog", Expect.Allowed },
 
@@ -229,6 +241,8 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         Assert.Contains("data-track=\"nav-products\"", adminHtml);
         Assert.DoesNotContain("data-track=\"nav-users\"", userHtml);   // účty krok 6
         Assert.Contains("data-track=\"nav-users\"", adminHtml);
+        Assert.DoesNotContain("data-track=\"nav-fulfilment\"", userHtml);   // e-shop krok 6
+        Assert.Contains("data-track=\"nav-fulfilment\"", adminHtml);
     }
 
     [Fact]

@@ -6,7 +6,8 @@ namespace MiniShop.Domain.Orders;
 
 /// <summary>
 /// Objednávka zákazníka. Položky lze přidávat jen přes <see cref="AddItem"/>,
-/// stav se mění jen přes <see cref="Confirm"/>, <see cref="Reject"/>, <see cref="Complete"/> a <see cref="Cancel"/>.
+/// stav se mění jen přes <see cref="Confirm"/>, <see cref="Reject"/>, <see cref="StartPacking"/>, <see cref="Ship"/>,
+/// <see cref="MarkDelivered"/> a <see cref="Cancel"/>.
 /// Každá změna stavu vyvolá doménovou událost a přidá řádek do <see cref="StatusHistory"/> (e-shop krok 5).
 /// </summary>
 /// <remarks>
@@ -97,6 +98,18 @@ public class Order : Entity
     /// <summary>E-shop krok 4: doručovací adresa – jen u kurýra. Osobní údaj: smaže ji <see cref="Anonymize"/>.</summary>
     public DeliveryAddress? DeliveryAddress { get; private set; }
 
+    /// <summary>E-shop krok 6: dopravce (jen kurýr; vyplní <see cref="Ship"/>).</summary>
+    public string? Carrier { get; private set; }
+
+    /// <summary>E-shop krok 6: číslo zásilky u dopravce (jen kurýr).</summary>
+    public string? TrackingNumber { get; private set; }
+
+    /// <summary>
+    /// E-shop krok 6: pojistka proti souběhu (concurrency token) – každá změna stavu ji zvýší. Admin odesílá a zákazník
+    /// ruší ve stejné chvíli → druhý zápis (UPDATE … WHERE Version = původní) selže a nic se nepřepíše.
+    /// </summary>
+    public int Version { get; private set; }
+
     /// <summary>Součet položek po slevách (bez dopravy).</summary>
     public decimal ItemsTotal => _items.Sum(i => i.LineTotal);
 
@@ -164,17 +177,63 @@ public class Order : Entity
         Raise(new OrderRejected(this, rejectedAtUtc));
     }
 
-    public void Complete(DateTime completedAtUtc)
+    /// <summary>E-shop krok 6: sklad začal objednávku balit (osobní odběr: připravovat).</summary>
+    public void StartPacking(DateTime startedAtUtc)
     {
-        EnsureStatus(OrderStatus.Confirmed, "Vyřídit lze jen potvrzenou objednávku.");
-        ChangeStatus(OrderStatus.Completed, completedAtUtc);
-        Raise(new OrderCompleted(this, completedAtUtc));
+        EnsureStatus(OrderStatus.Confirmed, "Balit lze jen potvrzenou objednávku.");
+        ChangeStatus(OrderStatus.Packing, startedAtUtc);
+        Raise(new OrderPackingStarted(this, startedAtUtc));
     }
 
-    /// <summary>Zrušení potvrzené objednávky – sága pak uvolní rezervaci skladu (kompenzace).</summary>
+    /// <summary>
+    /// E-shop krok 6: odeslání. Kurýr potřebuje dopravce a číslo zásilky; osobní odběr = „připraveno k vyzvednutí“
+    /// (dopravce ani číslo nemá). Od této chvíle objednávku zrušit nejde.
+    /// </summary>
+    public void Ship(string? carrier, string? trackingNumber, DateTime shippedAtUtc)
+    {
+        EnsureStatus(OrderStatus.Packing, "Odeslat lze jen zabalenou objednávku.");
+        if (ShippingMethod == ShippingMethod.Pickup)
+        {
+            carrier = null;
+            trackingNumber = null;
+        }
+        else if (ShippingMethod == ShippingMethod.Courier
+            && (string.IsNullOrWhiteSpace(carrier) || string.IsNullOrWhiteSpace(trackingNumber)))
+        {
+            throw new DomainException("Pro odeslání kurýrem vyplňte dopravce a číslo zásilky.");
+        }
+
+        Carrier = string.IsNullOrWhiteSpace(carrier) ? null : carrier.Trim();
+        TrackingNumber = string.IsNullOrWhiteSpace(trackingNumber) ? null : trackingNumber.Trim();
+        ChangeStatus(OrderStatus.Shipped, shippedAtUtc,
+            Carrier is null ? null : $"{Carrier}{(TrackingNumber is null ? "" : $", zásilka {TrackingNumber}")}");
+        Raise(new OrderShipped(this, shippedAtUtc));
+    }
+
+    /// <summary>
+    /// E-shop krok 6: zásilka doručena (osobní odběr: vyzvednuta). Dřív „Complete“ přímo z Confirmed – teď až po odeslání.
+    /// Událost zůstává <see cref="OrderCompleted"/> kvůli kontraktu OrderCompletedV1.
+    /// </summary>
+    public void MarkDelivered(DateTime deliveredAtUtc)
+    {
+        EnsureStatus(OrderStatus.Shipped, "Doručit lze jen odeslanou objednávku.");
+        ChangeStatus(OrderStatus.Completed, deliveredAtUtc);
+        Raise(new OrderCompleted(this, deliveredAtUtc));
+    }
+
+    /// <summary>
+    /// Zrušení potvrzené nebo balené objednávky – sága pak uvolní rezervaci skladu (kompenzace).
+    /// E-shop krok 6: po odeslání už ne (zboží je na cestě).
+    /// </summary>
     public void Cancel(DateTime cancelledAtUtc)
     {
-        EnsureStatus(OrderStatus.Confirmed, "Zrušit lze jen potvrzenou objednávku.");
+        if (Status is not (OrderStatus.Confirmed or OrderStatus.Packing))
+        {
+            throw new DomainException(Status == OrderStatus.Shipped
+                ? "Odeslanou objednávku už zrušit nejde."
+                : "Zrušit lze jen potvrzenou objednávku, která ještě neodešla.");
+        }
+
         ChangeStatus(OrderStatus.Cancelled, cancelledAtUtc);
         Raise(new OrderCancelled(this, cancelledAtUtc));
     }
@@ -182,8 +241,8 @@ public class Order : Entity
     /// <summary>Jméno smazaného zákazníka na jeho objednávkách (účty krok 9).</summary>
     public const string AnonymizedCustomerName = "Smazaný zákazník";
 
-    /// <summary>Čeká objednávka ještě na sklad nebo na vyřízení (Pending, Confirmed)?</summary>
-    public bool IsActive => Status is OrderStatus.Pending or OrderStatus.Confirmed;
+    /// <summary>Je objednávka rozpracovaná (čeká na sklad, balí se nebo je na cestě)?</summary>
+    public bool IsActive => Status is OrderStatus.Pending or OrderStatus.Confirmed or OrderStatus.Packing or OrderStatus.Shipped;
 
     /// <summary>
     /// Účty krok 9: zákazník smazal účet – objednávka zůstane (položky, ceny, stav pro účetnictví a statistiky),
@@ -207,6 +266,7 @@ public class Order : Entity
     {
         Status = status;
         _statusHistory.Add(new OrderStatusChange(status, changedAtUtc, note));
+        Version++;   // e-shop krok 6: souběžná změna stejné objednávky pak při uložení selže
     }
 
     private void EnsureStatus(OrderStatus expected, string message)

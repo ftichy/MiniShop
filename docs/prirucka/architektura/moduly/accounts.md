@@ -21,8 +21,8 @@ a 9 ([otevřený web](#otevřený-web-a-osobní-údaje)); krok 7 zabezpečil skl
 | Objednávky – seznam a detail | → přihlášení | jen své (cizí = 404) | všechny |
 | Objednávky – založit (stránka i `POST /api/orders`) | ❌ | ✅ jen s **potvrzeným e-mailem** (jméno a e-mail z účtu) | ❌ |
 | Smazat vlastní účet | ❌ | ✅ (bez nevyřízených objednávek) | ❌ (nejdřív vrátit na usera) |
-| Objednávky – zrušit | ❌ | jen svou | jakoukoli |
-| Objednávky – vyřídit, obnovit katalog | ❌ | ❌ | ✅ |
+| Objednávky – zrušit (potvrzenou nebo balenou, e-shop krok 6) | ❌ | jen svou | jakoukoli |
+| Expedice – balit, odeslat, doručeno (`/Admin/Fulfilment`, e-shop krok 6), obnovit katalog | ❌ | ❌ | ✅ |
 | Produkty – přidat, naskladnit, upravit, smazat | ❌ | ❌ | ✅ |
 | Průběh a přehrání objednávky (stránky i `GET /api/journeys/…`) | ❌ | ❌ | ✅ |
 | Změna hesla | ❌ | ✅ | ✅ |
@@ -56,7 +56,7 @@ flowchart TD
   je zamčená, i když na ni autor zapomene.
 - **Stránka Objednávky** má víc akcí (handlerů) s různými pravidly – Razor Pages umí `[Authorize]` jen na celou
   stránku, proto handlery volají `IAuthorizationService` se stejnými policies a bez oprávnění vrátí `Forbid()`.
-- **Skrytí v UI je jen pohodlí** (menu Produkty, košík a pokladna, tlačítko Vyřídit). Chrání server.
+- **Skrytí v UI je jen pohodlí** (menu Produkty a Expedice, košík a pokladna, tlačítko Zrušit). Chrání server.
 
 ## První admin
 

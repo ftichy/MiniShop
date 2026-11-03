@@ -64,7 +64,7 @@ Kompenzace je **sémantické vrácení** – nová akce, která ruší účinek 
 - zákazník zruší potvrzenou objednávku → `ReleaseStockV1` → sklad vrátí zboží,
 - sklad zarezervoval **až po timeoutu** (objednávka už je zamítnutá) → `ReleaseStockV1`.
 
-Podrobně: [Timeout a kompenzace](../toky/timeout-a-kompenzace.md), [Zrušení a vyřízení](../toky/zruseni-a-vyrizeni.md).
+Podrobně: [Timeout a kompenzace](../toky/timeout-a-kompenzace.md), [Zrušení](../toky/zruseni-a-vyrizeni.md), [Expedice](../toky/expedice.md).
 
 ## Proč takhle
 

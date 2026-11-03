@@ -8,11 +8,13 @@ namespace MiniShop.Domain.Orders.Saga;
 /// </summary>
 /// <remarks>
 /// <code>
-/// AwaitingReservation ──StockReserved──────► Reserved ──OrderCompleted──► Completed
+/// AwaitingReservation ──StockReserved──────► Reserved ──OrderShipped──► Shipped ──OrderCompleted──► Completed
 ///        │                                      │
 ///        ├─StockReservationFailed─┐             └─OrderCancelled──► ReleasingStock ──StockReleased──► Released
 ///        └─timeout────────────────┴► Rejected ──StockReserved (pozdě!)──┘
 /// </code>
+/// E-shop krok 6: balení ságu nezajímá (zrušit jde dál, kompenzace stejná). Odeslání ano – po něm už zboží
+/// nevracíme; sklad si rezervaci sám označí jako vydanou podle události OrderShippedV1 (sága nic neposílá).
 /// Zpráva, která do aktuálního stavu nepatří (duplicita, zpoždění), vrátí <see cref="OrderSagaAction.None"/> – nic se nestane.
 /// Sága nezná RabbitMQ ani kontrakty, jen rozhoduje. Provedení (poslat příkaz, potvrdit objednávku) je na orchestrátoru.
 /// </remarks>
@@ -92,7 +94,13 @@ public sealed class OrderSaga
         return MoveTo(OrderSagaState.Rejected, nowUtc, OrderSagaAction.RejectOrder);
     }
 
-    public OrderSagaAction OrderCompleted(DateTime nowUtc) => State == OrderSagaState.Reserved
+    /// <summary>E-shop krok 6: zboží odešlo – rezervace se už neuvolní.</summary>
+    public OrderSagaAction OrderShipped(DateTime nowUtc) => State == OrderSagaState.Reserved
+        ? MoveTo(OrderSagaState.Shipped, nowUtc, OrderSagaAction.None)
+        : OrderSagaAction.None;
+
+    /// <summary>Doručeno (e-shop krok 6 – dřív „vyřízeno“ rovnou z Reserved).</summary>
+    public OrderSagaAction OrderCompleted(DateTime nowUtc) => State == OrderSagaState.Shipped
         ? MoveTo(OrderSagaState.Completed, nowUtc, OrderSagaAction.None)
         : OrderSagaAction.None;
 
@@ -132,7 +140,10 @@ public enum OrderSagaState
     Completed,
 
     /// <summary>Konec: rezervace uvolněna, zboží je zpět na skladu.</summary>
-    Released
+    Released,
+
+    /// <summary>E-shop krok 6: zboží odešlo (rezervace je na skladě vydaná), čeká se na doručení.</summary>
+    Shipped
 }
 
 /// <summary>Co má orchestrátor udělat po přechodu ságy.</summary>

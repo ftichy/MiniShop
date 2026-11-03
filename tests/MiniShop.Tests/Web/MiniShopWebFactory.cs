@@ -133,6 +133,22 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
         return order.Id;
     }
 
+    /// <summary>E-shop krok 6: potvrzená objednávka s dopravou (bez ságy a skladu) – připravená pro expedici.</summary>
+    public async Task<int> CreateConfirmedOrderForAsync(string email, ShippingMethod shipping)
+    {
+        await using var scope = Services.CreateAsyncScope();
+        var user = await scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().FindByEmailAsync(email)
+            ?? throw new InvalidOperationException($"Uživatel {email} neexistuje.");
+        var db = scope.ServiceProvider.GetRequiredService<OrderingDbContext>();
+        var order = new Order(user.Id, user.DisplayName, email, DateTime.UtcNow);
+        order.SetShipping(shipping, 99m, shipping == ShippingMethod.Courier ? new DeliveryAddress("Dlouhá 5", "Praha", "11000") : null);
+        order.Confirm(DateTime.UtcNow);
+
+        db.Orders.Add(order);
+        await db.SaveChangesAsync();
+        return order.Id;
+    }
+
     /// <summary>E-shop krok 3: produkt rovnou v kopii katalogu (bez skladu a zpráv), skladem. Podruhé se nic nestane.</summary>
     public async Task EnsureCatalogProductAsync(int id, string name, decimal price, string? imageFileName = null)
     {

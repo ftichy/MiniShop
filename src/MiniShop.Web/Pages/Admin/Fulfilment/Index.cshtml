@@ -1,0 +1,137 @@
+@page
+@model MiniShop.Web.Pages.Admin.Fulfilment.IndexModel
+@{
+    ViewData["Title"] = "Expedice";
+}
+<h1>Expedice</h1>
+<p class="text-muted">
+    Objednávka jde postupně: <strong>potvrzená → balíme → odeslaná → doručená</strong>. Zrušit ji zákazník může do odeslání.
+    Odeslání sklad promítne do rezervace (zboží vydáno), zákazník dostane e-mail s číslem zásilky.
+</p>
+
+<partial name="_StatusMessage" model="Model.StatusMessage" />
+@if (Model.ErrorMessage is not null)
+{
+    <div class="alert alert-danger">@Model.ErrorMessage</div>
+}
+
+@* Fronta 1: potvrzené objednávky – hromadně začít balit (zaškrtnout a jedno tlačítko). *@
+<h2 class="h4 mt-4">K zabalení <span class="badge bg-primary">@Model.ToPack.Count</span></h2>
+@if (Model.ToPack.Count == 0)
+{
+    <p class="text-muted">Nic nečeká.</p>
+}
+else
+{
+    <form method="post" asp-page-handler="StartPacking">
+        <table class="table table-sm align-middle">
+            <thead>
+                <tr><th></th><th>Objednávka</th><th>Zákazník</th><th>Doprava</th><th>Položky</th><th class="num">Celkem</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var order in Model.ToPack)
+                {
+                    <tr>
+                        <td><input type="checkbox" name="ids" value="@order.Id" class="form-check-input" aria-label="Vybrat objednávku @order.Id" /></td>
+                        <td><a asp-page="/Orders/Detail" asp-route-id="@order.Id">č. @order.Id</a></td>
+                        <td>@order.CustomerName</td>
+                        <td>@ShippingText(order)</td>
+                        <td class="small">@string.Join(", ", order.Items.Select(i => $"{i.Quantity}× {i.ProductName}"))</td>
+                        <td class="num">@order.TotalPrice.ToString("N2") Kč</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <button type="submit" class="btn btn-primary btn-sm" data-track="fulfilment-start-packing">Začít balit vybrané</button>
+    </form>
+}
+
+@* Fronta 2: balí se – odeslat (kurýr: dopravce + číslo zásilky; osobní odběr: jen „připraveno k vyzvednutí“). *@
+<h2 class="h4 mt-5">K odeslání <span class="badge bg-info text-dark">@Model.ToShip.Count</span></h2>
+@if (Model.ToShip.Count == 0)
+{
+    <p class="text-muted">Nic se nebalí.</p>
+}
+<datalist id="carriers">
+    @foreach (var carrier in IndexModel.Carriers)
+    {
+        <option value="@carrier"></option>
+    }
+</datalist>
+<div class="list-group">
+    @foreach (var order in Model.ToShip)
+    {
+        <div class="list-group-item">
+            <form method="post" asp-page-handler="Ship" asp-route-id="@order.Id" class="row g-2 align-items-end">
+                <div class="col-md-4">
+                    <a asp-page="/Orders/Detail" asp-route-id="@order.Id" class="fw-bold">č. @order.Id</a> – @order.CustomerName
+                    <div class="small text-muted">@ShippingText(order)</div>
+                </div>
+                @if (order.ShippingMethod == "Pickup")
+                {
+                    <div class="col-md-8 text-md-end">
+                        <button type="submit" class="btn btn-success btn-sm" data-track="fulfilment-ship">Připraveno k vyzvednutí</button>
+                    </div>
+                }
+                else
+                {
+                    @* Kurýr: dopravce a číslo zásilky povinné (hlídá doména); objednávky bez dopravy (API) je mít nemusí. *@
+                    <div class="col-md-3">
+                        <label for="carrier-@order.Id" class="form-label small mb-0">Dopravce</label>
+                        <input id="carrier-@order.Id" name="carrier" list="carriers" maxlength="50" class="form-control form-control-sm"
+                               required="@(order.ShippingMethod == "Courier")" />
+                    </div>
+                    <div class="col-md-3">
+                        <label for="tracking-@order.Id" class="form-label small mb-0">Číslo zásilky</label>
+                        <input id="tracking-@order.Id" name="trackingNumber" maxlength="50" class="form-control form-control-sm"
+                               required="@(order.ShippingMethod == "Courier")" />
+                    </div>
+                    <div class="col-md-2 text-md-end">
+                        <button type="submit" class="btn btn-success btn-sm" data-track="fulfilment-ship">Odeslat</button>
+                    </div>
+                }
+            </form>
+        </div>
+    }
+</div>
+
+@* Fronta 3: na cestě – „Doručeno“ simuluje dopravce (skutečný by poslal webhook, e-shop krok 8). *@
+<h2 class="h4 mt-5">Na cestě <span class="badge bg-primary">@Model.InTransit.Count</span></h2>
+@if (Model.InTransit.Count == 0)
+{
+    <p class="text-muted">Nic není na cestě.</p>
+}
+else
+{
+    <table class="table table-sm align-middle">
+        <thead>
+            <tr><th>Objednávka</th><th>Zákazník</th><th>Zásilka</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var order in Model.InTransit)
+            {
+                <tr>
+                    <td><a asp-page="/Orders/Detail" asp-route-id="@order.Id">č. @order.Id</a></td>
+                    <td>@order.CustomerName</td>
+                    <td>@(order.ShippingMethod == "Pickup" ? "čeká na vyzvednutí" : $"{order.Carrier} {order.TrackingNumber}".Trim())</td>
+                    <td class="text-end">
+                        <form method="post" asp-page-handler="Deliver" asp-route-id="@order.Id" class="d-inline">
+                            <button type="submit" class="btn btn-outline-success btn-sm" data-track="fulfilment-deliver">
+                                @(order.ShippingMethod == "Pickup" ? "Vyzvednuto" : "Doručeno")
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@functions {
+    private static string ShippingText(OrderDto order) => order.ShippingMethod switch
+    {
+        "Courier" => $"kurýr – {order.DeliveryAddress}",
+        "Pickup" => "osobní odběr",
+        _ => "bez dopravy (API)"
+    };
+}

@@ -24,6 +24,7 @@ public sealed class OrderSagaOrchestrator(
     OrderSagaSettings settings,
     TimeProvider timeProvider) :
     IDomainEventHandler<OrderPlaced>,
+    IDomainEventHandler<OrderShipped>,
     IDomainEventHandler<OrderCompleted>,
     IDomainEventHandler<OrderCancelled>,
     IIntegrationMessageHandler<StockReservedV1>,
@@ -58,6 +59,10 @@ public sealed class OrderSagaOrchestrator(
 
     public Task HandleAsync(StockReleasedV1 message, CancellationToken cancellationToken) =>
         StepAsync(message.OrderId, saga => saga.StockReleased(UtcNow), cancellationToken);
+
+    /// <summary>E-shop krok 6: zboží odešlo – sága už ho při zrušení nevrací (zrušit stejně nejde).</summary>
+    public Task HandleAsync(OrderShipped domainEvent, CancellationToken cancellationToken) =>
+        StepAsync(domainEvent.Order.Id, saga => saga.OrderShipped(UtcNow), cancellationToken);
 
     public Task HandleAsync(OrderCompleted domainEvent, CancellationToken cancellationToken) =>
         StepAsync(domainEvent.Order.Id, saga => saga.OrderCompleted(UtcNow), cancellationToken);

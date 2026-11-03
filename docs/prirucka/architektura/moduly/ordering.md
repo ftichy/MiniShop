@@ -16,6 +16,7 @@ flowchart TB
         shop["Razor Page Shop/Index<br/>výloha"]
         cartUi["Razor Page Cart/Index<br/>košík + odznak v hlavičce"]
         checkoutUi["Razor Page Checkout/Index<br/>pokladna"]
+        fulfilUi["Razor Page Admin/Fulfilment<br/>expedice"]
         consumer["Consumer fronty<br/>minishop.ordering"]
         timeout["OrderSagaTimeoutWorker<br/>(každých 5 s)"]
         sync["CatalogSyncOnStartupWorker"]
@@ -60,6 +61,7 @@ flowchart TB
     cartSvc -->|"aktuální cena, dostupnost"| catProd
     cartSvc --> db
     checkoutUi --> checkoutSvc
+    fulfilUi --> svc
     checkoutSvc -->|"CheckOut"| cart
     checkoutSvc --> order
     checkoutSvc --> pricing
@@ -84,6 +86,7 @@ flowchart TB
     click catsync "/Docs/toky/obnova-katalogu"
     click cart "/Docs/architektura/vrstvy"
     click checkoutSvc "/Docs/toky/pokladna"
+    click fulfilUi "/Docs/toky/expedice"
     click db "/Docs/eda/outbox"
     click consumer "/Docs/eda/broker"
     click timeout "/Docs/toky/timeout-a-kompenzace"
@@ -96,13 +99,13 @@ později, v jiném scope, případně i opakovaně.
 
 | Komponenta | K čemu slouží | Kód |
 | --- | --- | --- |
-| **OrderService** | Use-casy: založit, vyřídit, zrušit objednávku, číst katalog. O skladu ani notifikacích neví – jen uloží objednávku a ta vyvolá událost. | [OrderService.cs](code:src/MiniShop.Application/Ordering/OrderService.cs) |
-| **Order** | Entita s business pravidly (potvrdit jde jen čekající objednávku…). Každá změna stavu vyvolá [doménovou událost](../../eda/domenove-udalosti.md). Patří zákazníkovi (`CustomerId`), jméno a e-mail jsou kopie z doby objednání. E-shop krok 4: doprava (`ShippingMethod`, `ShippingPrice` – snímek jako ceny položek), doručovací adresa (hodnotový objekt `DeliveryAddress`, jen kurýr) a `CheckoutId` (unikátní – idempotence). `TotalPrice` = položky + doprava. E-shop krok 5: každá změna stavu přidá řádek historie `OrderStatusChange` (stav, čas, u zamítnutí důvod) – viz [Stavové diagramy](../stavove-diagramy.md). | [Order.cs](code:src/MiniShop.Domain/Orders/Order.cs), [OrderStatusChange.cs](code:src/MiniShop.Domain/Orders/OrderStatusChange.cs) |
+| **OrderService** | Use-casy: založit, zrušit objednávku, expedice (balit, odeslat, doručeno – e-shop krok 6), číst katalog. O skladu ani notifikacích neví – jen uloží objednávku a ta vyvolá událost. | [OrderService.cs](code:src/MiniShop.Application/Ordering/OrderService.cs) |
+| **Order** | Entita s business pravidly (potvrdit jde jen čekající objednávku…). Každá změna stavu vyvolá [doménovou událost](../../eda/domenove-udalosti.md). Patří zákazníkovi (`CustomerId`), jméno a e-mail jsou kopie z doby objednání. E-shop krok 4: doprava (`ShippingMethod`, `ShippingPrice` – snímek jako ceny položek), doručovací adresa (hodnotový objekt `DeliveryAddress`, jen kurýr) a `CheckoutId` (unikátní – idempotence). `TotalPrice` = položky + doprava. E-shop krok 5: každá změna stavu přidá řádek historie `OrderStatusChange` (stav, čas, u zamítnutí důvod) – viz [Stavové diagramy](../stavove-diagramy.md). E-shop krok 6: expedice `StartPacking` → `Ship(dopravce, číslo zásilky)` → `MarkDelivered`, zrušit jen do odeslání, `Version` = concurrency token proti souběhu (odeslat × zrušit). | [Order.cs](code:src/MiniShop.Domain/Orders/Order.cs), [OrderStatusChange.cs](code:src/MiniShop.Domain/Orders/OrderStatusChange.cs) |
 | **OrderAccess**, **OrderCustomer** | Kdo se ptá (zákazník = jen své objednávky, správce = všechny) a kdo objednává. `OrderService` je dostává parametrem – o přihlášení neví; z cookie je skládá Web. | [OrderAccess.cs](code:src/MiniShop.Application/Ordering/OrderAccess.cs), [OrderAccessExtensions.cs](code:src/MiniShop.Web/Accounts/OrderAccessExtensions.cs) |
 | **OrderSagaOrchestrator** | „Dirigent“: na `OrderPlaced` založí ságu a pošle `ReserveStockV1`; na odpověď skladu objednávku potvrdí/zamítne; na zrušení pošle `ReleaseStockV1`. | [OrderSagaOrchestrator.cs](code:src/MiniShop.Application/Ordering/Saga/OrderSagaOrchestrator.cs) |
 | **OrderSaga** | Stavový automat ságy – jen rozhoduje, co dál, nic neprovádí. | [OrderSaga.cs](code:src/MiniShop.Domain/Orders/Saga/OrderSaga.cs) |
-| **PublishOrderIntegrationEventsHandler** | Překladač: z interních událostí vyrobí veřejné `OrderPlacedV1`, `OrderCompletedV1`, `OrderCancelledV1`. | [PublishOrderIntegrationEventsHandler.cs](code:src/MiniShop.Application/Ordering/IntegrationEvents/PublishOrderIntegrationEventsHandler.cs) |
-| **Send…Handler** | Čtyři malé handlery: potvrzení, omluva při zamítnutí, vyřízení, zrušení. Volají `IOrderNotifier`. | [EventHandlers/](code:src/MiniShop.Application/Ordering/EventHandlers/) |
+| **PublishOrderIntegrationEventsHandler** | Překladač: z interních událostí vyrobí veřejné `OrderPlacedV1`, `OrderShippedV1`, `OrderCompletedV1`, `OrderCancelledV1`. | [PublishOrderIntegrationEventsHandler.cs](code:src/MiniShop.Application/Ordering/IntegrationEvents/PublishOrderIntegrationEventsHandler.cs) |
+| **Send…Handler** | Malé handlery: potvrzení, omluva při zamítnutí, odeslání s číslem zásilky (e-shop krok 6), doručení, zrušení. Volají `IOrderNotifier`. | [EventHandlers/](code:src/MiniShop.Application/Ordering/EventHandlers/) |
 | **EmailOrderNotifier** | E-mail zákazníkovi při potvrzení, zamítnutí, vyřízení a zrušení (účty krok 5). Odesílá se z handlerů za outboxem – když SMTP nejde, opakuje se. Viz [E-maily](../emaily.md). | [EmailOrderNotifier.cs](code:src/MiniShop.Infrastructure/Ordering/EmailOrderNotifier.cs) |
 | **CatalogProjectionHandler** | Udržuje kopii katalogu z `ProductUpdatedV1`/`V2`, `StockAvailabilityChangedV1` a `ProductRemovedV1`. | [CatalogProjectionHandler.cs](code:src/MiniShop.Application/Ordering/Catalog/CatalogProjectionHandler.cs) |
 | **CatalogSyncService** | Požádá sklad o celý katalog (`SyncCatalogV1`) – po startu s prázdnou nebo neúplnou kopií, nebo tlačítkem. | [CatalogSyncService.cs](code:src/MiniShop.Application/Ordering/Catalog/CatalogSyncService.cs) |
@@ -120,7 +123,7 @@ později, v jiném scope, případně i opakovaně.
 | Směr | Zprávy |
 | --- | --- |
 | posílá (příkazy skladu) | `ReserveStockV1`, `ReleaseStockV1`, `SyncCatalogV1` |
-| posílá (události pro kohokoli) | `OrderPlacedV1`, `OrderCompletedV1`, `OrderCancelledV1` |
+| posílá (události pro kohokoli) | `OrderPlacedV1`, `OrderShippedV1` (e-shop krok 6), `OrderCompletedV1` (= doručeno), `OrderCancelledV1` |
 | přijímá (fronta `minishop.ordering`) | `StockReservedV1`, `StockReservationFailedV1`, `StockReleasedV1`, `ProductUpdatedV1`, `ProductUpdatedV2`, `StockAvailabilityChangedV1`, `ProductRemovedV1` |
 
 ## Rozhraní navenek
@@ -129,8 +132,8 @@ později, v jiném scope, případně i opakovaně.
   `/media/products/{soubor}` – krok 2B; tlačítko **Do košíku** – krok 3, od kroku 4B jediná cesta k objednávce),
   **košík** (`/Cart`, jen zákazník s potvrzeným e-mailem – admin neobjednává), **pokladna** (`/Checkout` – krok 4),
   stránka **Objednávky** (`/Orders` – přehled, od kroku 4B bez formuláře), **detail objednávky** (`/Orders/{id}` –
-  krok 5: položky, doprava, adresa a časová osa stavů; zákazník jen svou, cizí = 404; sem vede pokladna po odeslání), průběh zadání (`/Orders/Journey/{id}`), přehrání (`/Orders/Replay/{id}`).
-- REST: `GET/POST /api/orders` (`POST` s volitelným `checkoutId` – opakovaný požadavek vrátí stejnou objednávku, krok 4), `POST /api/orders/{id}/complete`, `POST /api/orders/{id}/cancel`.
+  krok 5: položky, doprava, adresa a časová osa stavů; zákazník jen svou, cizí = 404; sem vede pokladna po odeslání), průběh zadání; **Expedice** (`/Admin/Fulfilment` – e-shop krok 6, jen admin: fronty K zabalení, K odeslání, Na cestě; viz [Expedice](../../toky/expedice.md)); (`/Orders/Journey/{id}`), přehrání (`/Orders/Replay/{id}`).
+- REST: `GET/POST /api/orders` (`POST` s volitelným `checkoutId` – opakovaný požadavek vrátí stejnou objednávku, krok 4), `POST /api/orders/{id}/complete` (od e-shop kroku 6 = doručeno, jen po odeslání), `POST /api/orders/{id}/cancel`.
   `POST` vrací **202 Accepted** – objednávka je přijatá, ale o potvrzení teprve rozhodne sága.
 - **Vlastník (účty krok 3):** zákazník vidí a ruší jen své objednávky – seznam se filtruje přímo v SQL dotazu
   (`WHERE CustomerId = …`), cizí objednávka vrací **404** stejně jako neexistující (ochrana proti IDOR – zkoušení
@@ -154,5 +157,5 @@ cokoli koupili.
 
 ## Dál
 
-- Krok za krokem: [Vytvoření objednávky](../../toky/vytvoreni-objednavky.md), [Zrušení a vyřízení](../../toky/zruseni-a-vyrizeni.md)
+- Krok za krokem: [Vytvoření objednávky](../../toky/vytvoreni-objednavky.md), [Zrušení](../../toky/zruseni-a-vyrizeni.md), [Expedice](../../toky/expedice.md)
 - Stavy objednávky a ságy: [Stavové diagramy](../stavove-diagramy.md)

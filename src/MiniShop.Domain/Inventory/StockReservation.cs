@@ -35,18 +35,41 @@ public sealed class StockReservation
     public int Quantity { get; private set; }
     public DateTime ReservedAtUtc { get; private set; }
 
-    /// <summary>Kdy byla rezervace uvolněna; null = stále platí.</summary>
+    /// <summary>Kdy byla rezervace uvolněna (zboží zpět na sklad); null = neuvolněná.</summary>
     public DateTime? ReleasedAtUtc { get; private set; }
 
-    public bool IsActive => ReleasedAtUtc is null;
+    /// <summary>
+    /// E-shop krok 6: kdy zboží odešlo zákazníkovi – rezervace se změnila na definitivní výdej; null = ještě ne.
+    /// Zásoba se už při rezervaci odečetla, výdej ji nemění – jen uzavře evidenci.
+    /// </summary>
+    public DateTime? FulfilledAtUtc { get; private set; }
+
+    /// <summary>Platí ještě (zboží „pod pultem“) – ani uvolněná, ani vydaná.</summary>
+    public bool IsActive => ReleasedAtUtc is null && FulfilledAtUtc is null;
 
     public void Release(DateTime releasedAtUtc)
     {
-        if (!IsActive)
+        EnsureActive();
+        ReleasedAtUtc = releasedAtUtc;
+    }
+
+    /// <summary>E-shop krok 6: zboží odešlo – vydanou rezervaci už nejde uvolnit (nevrátí se na sklad).</summary>
+    public void Fulfil(DateTime fulfilledAtUtc)
+    {
+        EnsureActive();
+        FulfilledAtUtc = fulfilledAtUtc;
+    }
+
+    private void EnsureActive()
+    {
+        if (ReleasedAtUtc is not null)
         {
             throw new DomainException("Rezervace už byla uvolněna.");
         }
 
-        ReleasedAtUtc = releasedAtUtc;
+        if (FulfilledAtUtc is not null)
+        {
+            throw new DomainException("Rezervace už byla vydaná – zboží odešlo zákazníkovi.");
+        }
     }
 }

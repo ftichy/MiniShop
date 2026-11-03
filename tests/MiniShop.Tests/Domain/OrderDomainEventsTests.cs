@@ -67,13 +67,17 @@ public class OrderDomainEventsTests
     }
 
     [Fact]
-    public void Complete_VyvolaOrderCompleted()
+    public void Expedice_KazdyKrokVyvolaSvouUdalost()
     {
         var order = CreateConfirmedOrder();
 
-        order.Complete(Later);
+        order.StartPacking(Later);
+        order.Ship(null, null, Later);   // objednávka bez dopravy – dopravce nepovinný
+        order.MarkDelivered(Later);
 
-        Assert.IsType<OrderCompleted>(Assert.Single(order.DomainEvents));
+        // E-shop krok 6: doručení dál vyvolá OrderCompleted (kvůli kontraktu OrderCompletedV1).
+        Assert.Equal([typeof(OrderPackingStarted), typeof(OrderShipped), typeof(OrderCompleted)],
+            order.DomainEvents.Select(e => e.GetType()));
     }
 
     [Fact]

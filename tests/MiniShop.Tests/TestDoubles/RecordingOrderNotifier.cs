@@ -37,6 +37,12 @@ public sealed class RecordingOrderNotifier : IOrderNotifier
         return Task.CompletedTask;
     }
 
+    public Task OrderShippedAsync(Order order, CancellationToken cancellationToken = default)
+    {
+        Events.Add($"shipped:{order.Id}");
+        return Task.CompletedTask;
+    }
+
     public Task OrderCompletedAsync(Order order, CancellationToken cancellationToken = default)
     {
         Events.Add($"completed:{order.Id}");

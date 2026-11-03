@@ -78,7 +78,7 @@ else
                 <tr>
                     <td>@order.Id</td>
                     <td>@order.CreatedAtUtc.ToLocalTime().ToString("g")</td>
-                    <td><span class="badge @MiniShop.Web.Pages.Orders.IndexModel.StatusBadge(order.Status)">@MiniShop.Web.Pages.Orders.IndexModel.StatusText(order.Status)</span></td>
+                    <td><span class="badge @OrderStatusLabels.Badge(order.Status)">@OrderStatusLabels.Text(order.Status, order.ShippingMethod)</span></td>
                     <td class="num">@order.TotalPrice.ToString("N2") Kč</td>
                 </tr>
             }

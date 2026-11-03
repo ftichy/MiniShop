@@ -42,6 +42,19 @@ public sealed class IntegrationContractTests
             json);
     }
 
+    /// <summary>E-shop krok 6: odeslání objednávky – čte ho sklad (výdej rezervace) a v kroku 7 notifikace.</summary>
+    [Fact]
+    public void OrderShippedV1_TvarJsonuSeNezmenil()
+    {
+        var shipped = new OrderShippedV1(EventId, OccurredAtUtc, 42, "jan@example.com", "PPL", "ZAS-42");
+
+        var json = OutboxMessageFactory.Create(shipped).Payload;
+
+        Assert.Equal(
+            """{"EventId":"11111111-2222-3333-4444-555555555555","OccurredAtUtc":"2026-01-15T10:00:00Z","OrderId":42,"CustomerEmail":"jan@example.com","Carrier":"PPL","TrackingNumber":"ZAS-42"}""",
+            json);
+    }
+
     [Fact]
     public void Outbox_IntegracniUdalostUloziSNazvemKontraktuAVerzi()
     {
@@ -80,10 +93,10 @@ public sealed class IntegrationContractTests
     [Fact]
     public void Reader_NeznamyKontrakt_VyhodiVyjimku()
     {
-        var message = new OutboxMessage { Id = EventId, Kind = OutboxMessageKind.Integration, Type = "OrderShippedV1", Payload = "{}" };
+        var message = new OutboxMessage { Id = EventId, Kind = OutboxMessageKind.Integration, Type = "OrderTeleportedV1", Payload = "{}" };
 
         var ex = Assert.Throws<InvalidOperationException>(() => IntegrationMessageReader.Read(message));
-        Assert.Contains("OrderShippedV1", ex.Message);
+        Assert.Contains("OrderTeleportedV1", ex.Message);
     }
 
     /// <summary>Konvence: každý kontrakt nese verzi v názvu (…V1, …V2), aby šly verze publikovat vedle sebe.</summary>

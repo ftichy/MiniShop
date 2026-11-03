@@ -18,6 +18,16 @@ public interface IOrderService
     /// <summary>E-shop krok 5: detail s historií stavů. Cizí objednávka = NotFoundException jako u <see cref="GetByIdAsync"/>.</summary>
     Task<OrderDetailDto> GetDetailAsync(int id, OrderAccess access, CancellationToken cancellationToken = default);
     Task<OrderDto> PlaceOrderAsync(CreateOrderRequest request, OrderCustomer customer, CancellationToken cancellationToken = default);
+    /// <summary>E-shop krok 6: objednávky v expedici (Confirmed, Packing, Shipped) – jen pro admina (hlídá Web).</summary>
+    Task<IReadOnlyList<OrderDto>> GetFulfilmentQueueAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>E-shop krok 6: začít balit (Confirmed → Packing). Jen admin.</summary>
+    Task<OrderDto> StartPackingAsync(int id, CancellationToken cancellationToken = default);
+
+    /// <summary>E-shop krok 6: odeslat (Packing → Shipped); kurýr potřebuje dopravce a číslo zásilky. Jen admin.</summary>
+    Task<OrderDto> ShipAsync(int id, string? carrier, string? trackingNumber, CancellationToken cancellationToken = default);
+
+    /// <summary>Doručeno (Shipped → Completed). E-shop krok 6: dřív „vyřídit“ rovnou z Confirmed. Jen admin.</summary>
     Task<OrderDto> CompleteAsync(int id, CancellationToken cancellationToken = default);
     Task<OrderDto> CancelAsync(int id, OrderAccess access, CancellationToken cancellationToken = default);
 

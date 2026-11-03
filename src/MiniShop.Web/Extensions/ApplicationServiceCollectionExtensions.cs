@@ -5,11 +5,13 @@ using MiniShop.Application.Ordering;
 using MiniShop.Application.Ordering.Carts;
 using MiniShop.Application.Ordering.Catalog;
 using MiniShop.Application.Ordering.Checkout;
-using MiniShop.Application.Ordering.EventHandlers;
+using MiniShop.Application.Notifications;
 using MiniShop.Application.Ordering.IntegrationEvents;
 using MiniShop.Application.Ordering.Pricing;
 using MiniShop.Application.Ordering.Saga;
+using MiniShop.Contracts.Customers;
 using MiniShop.Contracts.Inventory;
+using MiniShop.Contracts.Orders;
 using MiniShop.Domain.Orders.Events;
 using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Ordering;
@@ -30,8 +32,29 @@ public static class ApplicationServiceCollectionExtensions
 
         services.AddOrderingModule(configuration);
         services.AddJourneysModule();
+        services.AddNotificationsModule(configuration);
         services.AddInventoryApiClient(configuration);
 
+        return services;
+    }
+
+    /// <summary>
+    /// E-shop krok 7: modul Notifications – e-maily zákazníkovi podle integračních událostí objednávky (pub/sub).
+    /// Vlastní fronta minishop.notifications; Ordering o něm neví. Příjemce si pamatuje z OrderPlacedV2.
+    /// </summary>
+    public static IServiceCollection AddNotificationsModule(this IServiceCollection services, IConfiguration configuration)
+    {
+        // Odkazy v e-mailech (/Orders/{id}) potřebují veřejnou adresu webu – handler běží bez HTTP požadavku.
+        services.AddSingleton(new NotificationSettings(configuration["Notifications:PublicBaseUrl"]));
+        services.AddSingleton<OrderEmailTemplates>();
+
+        services.AddIntegrationMessageHandler<OrderPlacedV2, OrderNotificationsHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<OrderConfirmedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<OrderRejectedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<OrderShippedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<OrderCompletedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<OrderCancelledV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<CustomerAnonymizedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
         return services;
     }
 
@@ -42,7 +65,7 @@ public static class ApplicationServiceCollectionExtensions
         return services;
     }
 
-    /// <summary>Modul Ordering: objednávky, sága, kopie katalogu, notifikace.</summary>
+    /// <summary>Modul Ordering: objednávky, sága, kopie katalogu, košík, pokladna, expedice.</summary>
     public static IServiceCollection AddOrderingModule(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddScoped<IOrderService, OrderService>();
@@ -50,16 +73,14 @@ public static class ApplicationServiceCollectionExtensions
         // Slevová pravidla – další stačí přidat sem (OrderService si vezme všechna).
         services.AddSingleton<IDiscountPolicy>(new QuantityDiscountPolicy(minimumQuantity: 10, percentage: 0.10m));
 
-        // Handlery doménových událostí (krok 3). Na jednu událost může poslouchat více handlerů.
-        // AddDomainEventHandler je obalí dekorátorem, který hlídá opakované doručení (krok 6).
-        services.AddDomainEventHandler<OrderConfirmed, SendOrderConfirmationHandler>();
-        services.AddDomainEventHandler<OrderRejected, SendRejectionNoticeHandler>();
-        services.AddDomainEventHandler<OrderShipped, SendShippingNoticeHandler>();   // e-shop krok 6: číslo zásilky
-        services.AddDomainEventHandler<OrderCompleted, SendCompletionNoticeHandler>();
-        services.AddDomainEventHandler<OrderCancelled, SendCancellationNoticeHandler>();
+        // Handlery doménových událostí (krok 3) obalí AddDomainEventHandler dekorátorem proti opakovanému doručení (krok 6).
+        // E-shop krok 7: e-maily zákazníkovi už neposílá Ordering (Send…Handler zmizely) – jen překladač níže oznámí
+        // fakta a modul Notifications si podle nich píše sám.
 
         // Překlad doménových událostí na integrační (krok 7) – jedna třída pro všechny události objednávky.
         services.AddDomainEventHandler<OrderPlaced, PublishOrderIntegrationEventsHandler>();
+        services.AddDomainEventHandler<OrderConfirmed, PublishOrderIntegrationEventsHandler>();   // e-shop krok 7
+        services.AddDomainEventHandler<OrderRejected, PublishOrderIntegrationEventsHandler>();    // e-shop krok 7
         services.AddDomainEventHandler<OrderShipped, PublishOrderIntegrationEventsHandler>();   // e-shop krok 6
         services.AddDomainEventHandler<OrderCompleted, PublishOrderIntegrationEventsHandler>();
         services.AddDomainEventHandler<OrderCancelled, PublishOrderIntegrationEventsHandler>();

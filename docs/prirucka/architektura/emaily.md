@@ -15,15 +15,15 @@ Přidáno v [účty kroku 5](code:docs/kroky-ucty/krok-05-emaily.md).
 | --- | --- | --- |
 | **Potvrzení e-mailu** | po registraci, nebo tlačítkem *Poslat znovu* v upozornění nahoře na stránce | hned během požadavku ([AccountEmails](code:src/MiniShop.Web/Accounts/AccountEmails.cs)) |
 | **Nové heslo** | stránka *Zapomenuté heslo* | hned během požadavku |
-| **Objednávka** potvrzená / zamítnutá / odeslaná (s číslem zásilky – e-shop krok 6) / doručená / zrušená | když se změní stav objednávky | z handleru doménové události **za outboxem** ([EmailOrderNotifier](code:src/MiniShop.Infrastructure/Ordering/EmailOrderNotifier.cs)) |
+| **Objednávka** přijatá / potvrzená / zamítnutá / odeslaná (s číslem zásilky) / doručená / zrušená | když se změní stav objednávky | modul **Notifications** podle integrační události (e-shop krok 7, [OrderNotificationsHandler](code:src/MiniShop.Application/Notifications/OrderNotificationsHandler.cs)); dřív Ordering přímo |
 
 ```mermaid
 flowchart LR
     subgraph web["Web"]
         pages["Stránky účtu<br/>Register, ForgotPassword,<br/>ResendConfirmation"]
         acc["AccountEmails<br/>odkaz s tokenem"]
-        handlers["Handlery událostí objednávky<br/>(za outboxem, opakování)"]
-        notif["EmailOrderNotifier"]
+        handlers["Notifications<br/>OrderNotificationsHandler<br/>(z RabbitMQ, inbox, opakování)"]
+        notif["OrderEmailTemplates"]
         sender["IEmailSender"]
     end
     smtp["SmtpEmailSender<br/>(MailKit)"]
@@ -37,11 +37,12 @@ flowchart LR
     sender -.-> log
     smtp --> gmail
     smtp --> mailpit
-    click handlers "/Docs/eda/outbox"
+    click handlers "/Docs/architektura/moduly/notifications"
 ```
 
-**Proč dvě cesty?** Ordering má outbox – e-mail o objednávce se pošle spolehlivě, i když Gmail chvíli nejde
-(až 5 pokusů). Modul Accounts outbox nemá, e-mail účtu se posílá hned; když selže, uživatel to vidí a může to
+**Proč dvě cesty?** E-mail o objednávce posílá modul Notifications ze zprávy (e-shop krok 7) – když Gmail chvíli
+nejde, zpráva se doručí znovu (RabbitMQ za 2 s) a e-mail odejde, jakmile SMTP naběhne; inbox hlídá, aby odešel jen
+jednou. Modul Accounts outbox nemá, e-mail účtu se posílá hned; když selže, uživatel to vidí a může to
 zkusit znovu (*Poslat znovu*, nové *Zapomenuté heslo*).
 
 ## Odkazy s tokenem

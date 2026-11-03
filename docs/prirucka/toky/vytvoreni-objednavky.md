@@ -95,8 +95,8 @@ sequenceDiagram
     OC->>SG: přes inbox
     SG->>SG: saga.StockReserved → ConfirmOrder
     SG->>ODB: COMMIT: sága Reserved, Order Confirmed, Outbox[OrderConfirmed]
-    OW->>TR: OrderConfirmed → SendOrderConfirmationHandler (≤ 2 s)
-    TR->>TR: „Objednávka potvrzena…“ (log místo e-mailu)
+    OW->>TR: OrderConfirmed → překladač: OrderConfirmedV1 (≤ 2 s)
+    TR->>MQ: OrderConfirmedV1 → modul Notifications pošle e-mail „potvrzená“ (e-shop krok 7)
     end
 ```
 

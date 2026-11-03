@@ -44,7 +44,7 @@ v MiniShopu** (diagram) → **Proč takhle** → **Kód** → **Na internetu**.
 | --- | --- |
 | odkaz na jinou stránku | `[Inbox](../eda/inbox.md)` – relativně k souboru, jako na GitHubu |
 | odkaz do kódu na GitHubu | `[OrderService](code:src/MiniShop.Application/Ordering/OrderService.cs)` |
-| odkaz na složku v kódu | `[EventHandlers](code:src/MiniShop.Application/Ordering/EventHandlers/)` (lomítko na konci) |
+| odkaz na složku v kódu | `[Notifications](code:src/MiniShop.Application/Notifications/)` (lomítko na konci) |
 | klikací uzel diagramu | v bloku `mermaid`: `click uzel "/Docs/eda/saga"` |
 | obsah vygenerovaný z kódu | samostatný řádek `{{auto:contracts}}` |
 

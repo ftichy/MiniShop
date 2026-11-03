@@ -30,7 +30,7 @@ sequenceDiagram
     S->>DB: SaveChangesAsync()
     DB->>DB: uloží objednávku + událost do outboxu<br/>(jedna transakce)
     Note over W: o chvilku později (≤ 2 s)
-    W->>H: OrderConfirmed → SendOrderConfirmationHandler, log…
+    W->>H: OrderConfirmed → překladač (OrderConfirmedV1 pro Notifications), log…
 ```
 
 1. Entita dědí z [Entity](code:src/MiniShop.Domain/Common/Entity.cs) a událost zaznamená metodou `Raise`.

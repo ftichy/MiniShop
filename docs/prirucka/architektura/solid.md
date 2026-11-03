@@ -17,12 +17,12 @@ order: 5
 
 ## S – Single Responsibility
 
-**Kde:** [OrderService](code:src/MiniShop.Application/Ordering/OrderService.cs) a handlery v
-[EventHandlers/](code:src/MiniShop.Application/Ordering/EventHandlers/).
+**Kde:** [OrderService](code:src/MiniShop.Application/Ordering/OrderService.cs), sága a modul
+[Notifications](moduly/notifications.md).
 
 Původně (krok 1) `OrderService` při zrušení objednávky sám vracel zboží na sklad **a** posílal oznámení. Měl tak tři
-důvody ke změně. Od kroku 3 jen změní objednávku a uloží ji; vrácení zboží řeší sága a oznámení samostatné handlery
-(`SendCancellationNoticeHandler`…). Každý dělá jednu věc.
+důvody ke změně. Od kroku 3 jen změní objednávku a uloží ji; vrácení zboží řeší sága a oznámení samostatné handlery –
+od e-shop kroku 7 dokonce samostatný modul Notifications, který jen poslouchá události. Každý dělá jednu věc.
 
 > **Přirovnání:** Číšník objednávku přijme a předá do kuchyně. Nevaří, neumývá nádobí a neúčtuje zásoby.
 
@@ -39,14 +39,14 @@ důvody ke změně. Od kroku 3 jen změní objednávku a uloží ji; vrácení z
 
 ## L – Liskov Substitution
 
-**Kde:** `IIntegrationBus` a `IOrderNotifier`.
+**Kde:** `IIntegrationBus` a `IEmailSender`.
 
 - [RabbitMqIntegrationBus](code:src/MiniShop.Infrastructure/Integration/RabbitMq/RabbitMqIntegrationBus.cs) a
   [InProcessIntegrationBus](code:src/MiniShop.Infrastructure/Integration/InProcessIntegrationBus.cs) jsou
   zaměnitelné. Testy běží celou ságu v procesu, produkce přes RabbitMQ – handlery nepoznají rozdíl.
-- Oznámení zákazníkovi: původní `LoggingOrderNotifier` (jen log) nahradil v účtech kroku 5
-  [EmailOrderNotifier](code:src/MiniShop.Infrastructure/Ordering/EmailOrderNotifier.cs) – handlery ani `OrderService`
-  se nezměnily ani o řádek. Stejně tak `IEmailSender`: SMTP, nebo jen log, když server není nastavený.
+- Odesílání e-mailů: `IEmailSender` má dvě implementace – SMTP (MailKit), nebo jen log, když server není nastavený.
+  Účty ani [Notifications](code:src/MiniShop.Application/Notifications/OrderNotificationsHandler.cs) nepoznají rozdíl
+  (testy navíc podstrčí záznamník, který e-maily jen „schová do šuplíku“).
 
 ## I – Interface Segregation
 

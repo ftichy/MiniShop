@@ -1,6 +1,6 @@
 ---
 title: Moduly
-summary: Ordering, Inventory, Journeys a Accounts – business oblasti s vlastními daty, které se navzájem neznají.
+summary: Ordering, Inventory, Journeys, Accounts a Notifications – business oblasti s vlastními daty, které se navzájem neznají.
 order: 3
 ---
 
@@ -32,6 +32,10 @@ flowchart LR
     subgraph acc["Accounts (služba Web)"]
         a1[Uživatelské účty, přihlášení]
     end
+    subgraph ntf["Notifications (služba Web)"]
+        n1[E-maily zákazníkovi]
+    end
+    o1 -->|"OrderPlacedV2, OrderConfirmedV1, …, CustomerAnonymizedV1"| n1
 
     jou -.-|"spojené jen číslem objednávky (zapíše UI)"| ord
 
@@ -43,14 +47,16 @@ flowchart LR
     click i2 "/Docs/architektura/moduly/inventory"
     click j2 "/Docs/architektura/moduly/journeys"
     click a1 "/Docs/architektura/moduly/accounts"
+    click n1 "/Docs/architektura/moduly/notifications"
 ```
 
 | Modul | Odpovídá za | Databáze | Kde v kódu |
 | --- | --- | --- | --- |
-| [Ordering](ordering.md) | objednávky, jejich stavy, ságu, kopii katalogu, oznámení zákazníkovi | `ordering.db` | `Domain/Orders`, `Application/Ordering`, `Infrastructure/Ordering` |
+| [Ordering](ordering.md) | objednávky, jejich stavy, ságu, kopii katalogu, košík, pokladnu, expedici | `ordering.db` | `Domain/Orders`, `Application/Ordering`, `Infrastructure/Ordering` |
 | [Inventory](inventory.md) | produkty, skladové zásoby, rezervace | `inventory.db` | `Domain/Inventory`, `Application/Inventory`, `Infrastructure/Inventory` |
 | [Journeys](journeys.md) | co uživatel dělal ve formuláři objednávky | `journeys.db` | `Domain/Journeys`, `Application/Journeys`, `Infrastructure/Journeys` |
 | [Accounts](accounts.md) | uživatelské účty, registrace a přihlášení (ASP.NET Core Identity) | `users.db` | `Infrastructure/Accounts`, stránky `Pages/Account` ve Webu |
+| [Notifications](notifications.md) | e-maily zákazníkovi podle událostí objednávky (e-shop krok 7) – jen poslouchá | `notifications.db` | `Domain/Notifications`, `Application/Notifications`, `Infrastructure/Notifications` |
 
 ## Pravidla hranic
 

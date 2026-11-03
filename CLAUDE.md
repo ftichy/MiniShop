@@ -13,15 +13,17 @@ Cíl: postupně ho převést na EDA podle plánu v `docs/EDA-roadmap.md`.
 ```
 src/MiniShop.Contracts       integrační zprávy – události (OrderPlacedV1, StockReservedV1, …) a příkazy (ReserveStockV1, …), žádné závislosti
 src/MiniShop.Domain          Common/ (Entity, IDomainEvent), Orders/ (Order, CatalogProduct, CatalogSearchText, Carts/Cart, Saga/OrderSaga), Inventory/ (Product, Category, StockAvailability, StockReservation),
-                             Journeys/ (JourneyEvent, JourneyEventType)
+                             Journeys/ (JourneyEvent, JourneyEventType), Notifications/ (OrderRecipient)
 src/MiniShop.Application     Abstractions/ (sdílené: IUnitOfWork, IDomainEvent*, IIntegrationMessage*, TraceTags),
-                             Ordering/ (OrderService, DTO, Saga, Catalog projekce + CatalogQueryService, Carts/CartService, Checkout/CheckoutService, EventHandlers, Pricing), Inventory/ (ProductService, CategoryService, Reserve/ReleaseStock),
-                             Journeys/ (JourneyService, OrderJourneyProjection, JourneyReplayProjection, DTO)
+                             Ordering/ (OrderService, DTO, Saga, Catalog projekce + CatalogQueryService, Carts/CartService, Checkout/CheckoutService, IntegrationEvents (překladač), Pricing), Inventory/ (ProductService, CategoryService, Reserve/ReleaseStock),
+                             Journeys/ (JourneyService, OrderJourneyProjection, JourneyReplayProjection, DTO),
+                             Notifications/ (OrderNotificationsHandler, OrderEmailTemplates, NotificationSettings)
 src/MiniShop.Infrastructure  sdílené: Persistence/ModuleDbContext, Outbox, Inbox (InboxGuard), Integration (bus, routing, dispatcher, RabbitMq/), Events,
                              Observability/ (MessagingTelemetry – ActivitySource + Meter, OutboxHealthCheck),
                              Hosting/ (OutboxWorker, RabbitMqConsumersWorker, AddMessaging);
                              Ordering/ (OrderingDbContext, repozitáře, notifier, DB init), Inventory/ (InventoryDbContext, repozitáře, DB init + seed),
-                             Journeys/ (JourneysDbContext – journeys.db bez outboxu/inboxu, repozitář, DB init)
+                             Journeys/ (JourneysDbContext – journeys.db bez outboxu/inboxu, repozitář, DB init),
+                             Notifications/ (NotificationsDbContext – notifications.db s inboxem, repozitář příjemců, DB init)
 src/MiniShop.Web             služba Ordering (7180): API objednávek, Razor Pages (celé UI), Inventory/InventoryApiClient (HTTP na sklad),
                              OrderSagaTimeoutWorker, Program.cs (composition root); krok 12: JourneysController, Pages/Orders/Journey + Replay,
                              wwwroot/js/order-form-tracker.js + journey-player.js
@@ -151,6 +153,15 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   `Order.Version` = concurrency token → `ConcurrencyConflictException` (stránky: `Orders.IndexModel.ConcurrencyMessage`, API 409).
   `OrderShippedV1` = **událost** (choreografie): sklad `FulfilReservationHandler` → `StockReservation.Fulfil()`; sága jen
   `Reserved → Shipped → Completed`, nic neposílá. Aktivní rezervace = ani uvolněná, ani vydaná.
+- **Notifikace (e-shop krok 7):** modul Notifications (`…Notifications` ve všech vrstvách, hostuje Web, `notifications.db`
+  s inboxem, fronta `minishop.notifications`) – **Ordering zákazníkovi nepíše** (hlídá `ModuleBoundariesTests.Ordering_NeposilaEmaily`),
+  jen překladač publikuje fakta: `OrderPlacedV1` + `OrderPlacedV2` (snímek: jméno, položky, doprava, adresa), `OrderConfirmedV1`,
+  `OrderRejectedV1`, `OrderShippedV1`, `OrderCompletedV1`, `OrderCancelledV1`; smazání účtu `CustomerAnonymizedV1` (z `AnonymizeCustomerAsync`).
+  `OrderNotificationsHandler` uloží příjemce (`OrderRecipient`) z V2, pak hledá podle `OrderId`; chybí-li (zpráva mimo pořadí)
+  u potvrzení/zamítnutí výjimka → opakování, nejvýš `MaxWaitForPlacedOrder` (5 min); odeslání/doručení/zrušení bez příjemce =
+  kratší e-mail na adresu ze zprávy. Texty jen v `OrderEmailTemplates` (text + HTML, `WebUtility.HtmlEncode`), odkaz z
+  `Notifications:PublicBaseUrl` (produkce `PUBLIC_BASE_URL` v `production.env`). **Nový e-mail o objednávce = šablona + handler
+  v Notifications, ne v Orderingu.** Testy: `OrderServiceTests` mají modul Notifications + `RecordingEmailSender` (`FailNext`).
 - **Průběh objednávky (krok 12):** modul Journeys (`…Journeys` ve všech vrstvách, hostuje ho Web, vlastní `journeys.db`,
   bez zpráv → `JourneysDbContext` nedědí z `ModuleDbContext`). Proud `JourneyEvents` = jen INSERT, idempotence přes unikátní `EventId`
   z prohlížeče, řazení podle `OffsetMs` (čas od otevření formuláře). `ValidationFailed`/`OrderSubmitted` zapisuje jen server
@@ -310,7 +321,7 @@ Modul Accounts (ASP.NET Core Identity, `users.db`). Souhrny kroků do `docs/krok
 - E-maily (krok 5): `IEmailSender` (`Application/Abstractions`) → `Infrastructure/Email` (MailKit; bez `Email:Host`
   jen log). Lokálně Mailpit v AppHostu, produkce Gmail `ftichy.gemini@gmail.com` (`EMAIL_*` v `production.env`,
   secret `SMTP_PASSWORD`, volitelný). E-maily účtu hned (`Web/Accounts/AccountEmails`), objednávek za outboxem
-  (`EmailOrderNotifier`). Testy Webu: `MiniShopWebFactory.Emails` (`RecordingEmailSender`). Do logu jen předmět e-mailu.
+  (od e-shop kroku 7 modul Notifications ze zpráv).  Testy Webu: `MiniShopWebFactory.Emails` (`RecordingEmailSender`). Do logu jen předmět e-mailu.
 - První admin: produkce `docker compose exec web dotnet MiniShop.Web.dll create-admin --email …` (jen bez admina),
   vývoj `AdminBootstrap` v `appsettings.Development.json` (`admin@minishop.local` / `admin-heslo-pro-vyvoj`, vynucená změna hesla).
 - Správa uživatelů (krok 6): `AccountAdministration` (Infrastructure/Accounts) – role výhradní User ↔ Admin, blokace = lockout
@@ -360,8 +371,8 @@ nové moduly Notifications (odběratel událostí) a Payments (účastník ságy
 | 4A. Pokladna (`/Checkout`, `CheckoutService`, `CheckoutId` = verze košíku + concurrency token, žádné tiché zdražení, `DeliveryAddress`, `IShippingPriceCalculator`, `checkoutId` v API) | hotovo (nasazeno 2. 11. 2026, ověřeno objednávkou v produkci) | `docs/kroky-eshop/krok-04a-pokladna.md` |
 | 4B. Journeys na pokladnu (sledování a přehrání pokladny, `OrderJourneyDto.Form`, staré proudy beze změny, odstranění starého formuláře objednávky a „Objednat“ ve výloze) | hotovo (nasazeno 3. 11. 2026, přehrání pokladny ověřeno v produkci) | `docs/kroky-eshop/krok-04b-journeys-pokladna.md` |
 | 5. Detail objednávky a historie stavů (`/Orders/{id}`, `OrderStatusChange` v agregátu, migrace doplní historii starým objednávkám) | hotovo (nasazeno 3. 11. 2026, detail a historie ověřeny v produkci) | `docs/kroky-eshop/krok-05-detail-objednavky.md` |
-| 6. Expedice (Packing → Shipped → Completed, `/Admin/Fulfilment`, `OrderShippedV1` → sklad vydá rezervaci, `Order.Version` proti souběhu, e-mail s číslem zásilky) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-06-expedice.md` |
-| 7. Notifikace jako samostatný odběratel (modul Notifications, šablony, `CustomerAnonymizedV1`) | plán | — |
+| 6. Expedice (Packing → Shipped → Completed, `/Admin/Fulfilment`, `OrderShippedV1` → sklad vydá rezervaci, `Order.Version` proti souběhu, e-mail s číslem zásilky) | hotovo (nasazeno 3. 11. 2026, celá expedice ověřena v produkci) | `docs/kroky-eshop/krok-06-expedice.md` |
+| 7. Notifikace jako samostatný odběratel (modul Notifications, `notifications.db`, `OrderPlacedV2` + `OrderConfirmedV1`/`OrderRejectedV1`, `CustomerAnonymizedV1`, šablony s odkazem; Ordering bez e-mailů) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-07-notifikace.md` |
 | 8. Platba – simulovaná brána (modul Payments, webhook s HMAC, timeout platby, dobírka) | plán | — |
 | 9. Zrušení kdykoli před odesláním (navazuje na účty krok 4) | plán | — |
 | 10. Opuštěný košík (volitelně) | plán | — |

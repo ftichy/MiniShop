@@ -28,7 +28,8 @@ sequenceDiagram
     MQ->>SG: StockReservationFailedV1
     SG->>SG: saga → Rejected, akce RejectOrder
     SG->>W: Order.Reject(důvod) → OrderRejected
-    W->>W: SendRejectionNoticeHandler: omluva zákazníkovi (log)
+    W->>MQ: OrderRejectedV1 (důvod) – e-shop krok 7
+    MQ->>W: Notifications: e-mail „nelze vyřídit“ s důvodem
 ```
 
 ## Co si všimnout
@@ -43,4 +44,4 @@ sequenceDiagram
 
 [ReserveStockHandler](code:src/MiniShop.Application/Inventory/ReserveStockHandler.cs) ·
 [OrderSaga.StockReservationFailed](code:src/MiniShop.Domain/Orders/Saga/OrderSaga.cs) ·
-[SendRejectionNoticeHandler](code:src/MiniShop.Application/Ordering/EventHandlers/SendRejectionNoticeHandler.cs)
+[OrderNotificationsHandler](code:src/MiniShop.Application/Notifications/OrderNotificationsHandler.cs)

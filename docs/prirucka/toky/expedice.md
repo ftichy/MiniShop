@@ -20,9 +20,10 @@ sequenceDiagram
     participant ODB as ordering.db
     participant OW as OutboxWorker
     participant SG as OrderSagaOrchestrator
-    participant H as Handlery (e-mail, překladač)
+    participant H as Překladač (integrační události)
     participant MQ as RabbitMQ
     participant I as Inventory.Api
+    participant N as Notifications (Web)
 
     A->>P: Začít balit (vybrané objednávky)
     P->>S: StartPackingAsync(id)
@@ -33,9 +34,10 @@ sequenceDiagram
     S->>ODB: COMMIT: Order Shipped + Outbox[OrderShipped]
     OW->>SG: OrderShipped
     SG->>SG: saga Reserved → Shipped (žádný příkaz)
-    OW->>H: OrderShipped → e-mail „na cestě“ + OrderShippedV1
+    OW->>H: OrderShipped → OrderShippedV1
     OW->>MQ: OrderShippedV1 (událost, fanout)
     MQ->>I: OrderShippedV1 → FulfilReservationHandler
+    MQ->>N: OrderShippedV1 → Notifications: e-mail „na cestě“ s číslem zásilky (e-shop krok 7)
     I->>I: StockReservation.Fulfil() – rezervace „vydaná“, zásoba beze změny
 ```
 
@@ -43,13 +45,13 @@ sequenceDiagram
 
 „Doručeno“ zatím kliká admin (simulace dopravce – skutečný by poslal webhook, e-shop krok 8):
 `CompleteAsync` → `order.MarkDelivered()` (jen ze `Shipped`) → `OrderCompleted` → sága `Shipped → Completed`,
-e-mail „doručeno“ a integrační `OrderCompletedV1` (kontrakt zůstal stejný, jen teď znamená „doručeno“).
+integrační `OrderCompletedV1` (podle ní e-mail „doručeno“ z modulu Notifications) (kontrakt zůstal stejný, jen teď znamená „doručeno“).
 
 ## Proč událost, a ne příkaz
 
 Rezervaci řídí sága **příkazem** (`ReserveStockV1`) a čeká na odpověď – rezervace může selhat (málo zboží) a sága
 podle výsledku rozhoduje. Výdej odeslaného zboží selhat nemůže: zboží už je fyzicky pryč. Stačí proto oznámit
-fakt a každý, koho zajímá, si ho zpracuje sám (**choreografie**). Sklad dnes, notifikace v e-shop kroku 7 –
+fakt a každý, koho zajímá, si ho zpracuje sám (**choreografie**). Sklad i modul Notifications (e-shop krok 7) –
 Ordering kvůli novému odběrateli nic měnit nemusí.
 
 ## Souběh: odeslat × zrušit

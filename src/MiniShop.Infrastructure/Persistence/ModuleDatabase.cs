@@ -66,11 +66,18 @@ public static class ModuleDatabaseExtensions
         database.Provider switch
         {
             DatabaseProvider.Sqlite => options.UseSqlite(database.ConnectionString),
-            DatabaseProvider.Postgres => options.UseNpgsql(database.ConnectionString, npgsql => npgsql
+            DatabaseProvider.Postgres => options.UseNpgsql(PostgresConnectionString(database.ConnectionString), npgsql => npgsql
                 .MigrationsAssembly(PostgresMigrationsAssembly)
                 .MigrationsHistoryTable("__EFMigrationsHistory", schema)),
             _ => throw new ArgumentOutOfRangeException(nameof(database), database.Provider, "Neznámý provider databáze.")
         };
+
+    /// <summary>
+    /// Škálování krok 3: Npgsql by se jinak při každém připojení pokusil o šifrování přes Kerberos (GSSAPI) – v image
+    /// služeb knihovna libgssapi_krb5 není a do konzole by psal chybu. MiniShop se přihlašuje heslem, Kerberos nepoužívá.
+    /// </summary>
+    private static string PostgresConnectionString(string connectionString) =>
+        new Npgsql.NpgsqlConnectionStringBuilder(connectionString) { GssEncryptionMode = Npgsql.GssEncryptionMode.Disable }.ConnectionString;
 
     /// <summary>
     /// Do <c>OnModelCreating</c> každého kontextu: u PostgreSQL dá tabulky modulu do jeho schématu (stejného jako historie

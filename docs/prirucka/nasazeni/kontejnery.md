@@ -47,13 +47,18 @@ flowchart TB
         inv["inventory-api :8080<br/>(zvenku nedostupný)"]
         mq["rabbitmq :5672"]
         dash["aspire-dashboard<br/>OTLP :18889"]
+        pg["postgres :5432<br/>(jen z VM 127.0.0.1)"]
     end
     wv[("web-data<br/>ordering.db, journeys.db,<br/>users.db, klíče, logy")]
     iv[("inventory-data<br/>inventory.db, images/")]
     rv[("rabbitmq-data<br/>fronty")]
+    pv[("postgres-data<br/>schéma na modul")]
     web --- wv
     inv --- iv
     mq --- rv
+    pg --- pv
+    web --> pg
+    inv --> pg
     web -->|"depends_on: healthy"| inv
     web --> mq
     inv --> mq
@@ -66,6 +71,7 @@ Co dřív dělal Aspire AppHost, dělá teď [compose.yaml](code:deploy/compose.
 | Aspire (AppHost) | Compose |
 | --- | --- |
 | `AddRabbitMQ(...)` | služba `rabbitmq` (image `rabbitmq:4-management`) |
+| `AddPostgres(...).AddDatabase("minishop")` | služba `postgres` (image `postgres:18-alpine`, škálování krok 3 – běží vždy, služby na ni přepne `DATABASE_PROVIDER`; viz [Databáze](../architektura/databaze.md)) |
 | `AddProject<...>("inventory-api")` | služba `inventory-api` – jméno je zároveň DNS adresa v síti |
 | `WithReference(messaging)` | proměnná `ConnectionStrings__messaging` |
 | `WithReference(inventoryApi)` | proměnná `Services__inventory-api__http__0` |

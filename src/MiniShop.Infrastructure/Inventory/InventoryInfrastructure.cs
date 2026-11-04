@@ -27,6 +27,7 @@ public static class InventoryInfrastructure
 
         // Krok 11: /health hlásí Degraded, když v outboxu visí zpráva déle než 5 minut.
         services.AddHealthChecks().AddCheck<OutboxHealthCheck<InventoryDbContext>>("outbox-inventory");
+        services.AddHealthChecks().AddCheck<DatabaseHealthCheck<InventoryDbContext>>("database-inventory");   // škálování krok 3: databáze odpovídá
 
         services.AddIntegrationModule<InventoryDbContext>(IntegrationModules.Inventory);
 

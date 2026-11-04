@@ -51,6 +51,7 @@ public static class OrderingInfrastructure
 
         // Krok 11: /health hlásí Degraded, když v outboxu visí zpráva déle než 5 minut.
         services.AddHealthChecks().AddCheck<OutboxHealthCheck<OrderingDbContext>>("outbox-ordering");
+        services.AddHealthChecks().AddCheck<DatabaseHealthCheck<OrderingDbContext>>("database-ordering");   // škálování krok 3: databáze odpovídá
 
         services.AddIntegrationModule<OrderingDbContext>(IntegrationModules.Ordering);
 

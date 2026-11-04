@@ -13,7 +13,7 @@ order: 1
 | --- | --- | --- |
 | General → Danger Zone | **Public** | rulesety se na bezplatném účtu vynucují jen u veřejných repozitářů (Pro by stál celý rozpočet); navíc Actions bez limitu a secret scanning zdarma |
 | Rules → Rulesets | **`main-protection`**, cíl: výchozí větev, *Active* | ochrana `main` |
-| – pravidla | zákaz smazání, zákaz force push, **povinný PR**, **povinný check „Build a testy“** | rozbitý kód se do `main` nedostane |
+| – pravidla | zákaz smazání, zákaz force push, **povinný PR**, **povinné checky „Build a testy“ a „Testy PostgreSQL“** (druhý od škálování kroku 2) | rozbitý kód se do `main` nedostane |
 | – schválení | 0 povinných | jediný vývojář sám sobě schválit nemůže; ochranu dělá CI |
 | – bypass list | prázdný | pravidla platí i pro správce – „rychlá oprava přímo do main“ je přesně ta, co se rozbije |
 | Code security | **Secret scanning** + **Push protection** | GitHub odmítne push, ve kterém pozná heslo nebo token |
@@ -37,7 +37,7 @@ Každý jeho PR projde stejným CI jako jakákoli jiná změna; sloučení je ru
 ## Pravidla práce
 
 1. Nová větev → commity → `git push` → pull request.
-2. CI musí zezelenat (povinný check).
+2. CI musí zezelenat (povinné checky „Build a testy“ a „Testy PostgreSQL“).
 3. Sloučení (merge commit) → automaticky build image a nasazení.
 
 ## Na internetu

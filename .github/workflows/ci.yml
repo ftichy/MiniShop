@@ -9,7 +9,7 @@ on:
     # Krok 8: změna jen dokumentace po sloučení nic nestaví ani nenasazuje (testy proběhly už v PR).
     # Výjimka: příručka v aplikaci (docs/prirucka, /Docs) je součást image Webu – její změna se nasadit musí.
     # Pořadí vzorů je důležité: rozhoduje poslední, který na soubor pasuje.
-    # U pull_request se NEfiltruje – povinný check "Build a testy" musí dorazit u každého PR, jinak by nešel sloučit.
+    # U pull_request se NEfiltruje – povinné checky "Build a testy" a "Testy PostgreSQL" musí dorazit u každého PR, jinak by nešel sloučit.
     paths:
       - '**'
       - '!docs/**'
@@ -77,8 +77,8 @@ jobs:
           path: TestResults/*.trx
           retention-days: 14
 
-  # Škálování krok 2: stejné testy proti skutečnému PostgreSQL (Testcontainers spustí postgres:17-alpine v Dockeru
-  # runneru). Běží souběžně s "Build a testy" – jméno toho jobu (povinný check) se nemění.
+  # Škálování krok 2: stejné testy proti skutečnému PostgreSQL (Testcontainers spustí postgres:18-alpine v Dockeru
+  # runneru). Běží souběžně s "Build a testy". Oba joby jsou povinné checky v rulesetu main-protection – jména neměnit.
   test-postgres:
     name: Testy PostgreSQL
     runs-on: ubuntu-24.04

@@ -60,8 +60,8 @@ flowchart LR
 | `Database:Provider` | `Sqlite` (výchozí) | `Postgres` |
 | Connection string | `ConnectionStrings:Ordering`, `…:Inventory`, … (soubor pro každý modul) | `ConnectionStrings:minishop` (jeden pro všechny) |
 | Lokálně | `-- --Database:Provider=Sqlite` u AppHostu, nebo služby bez Aspire | AppHost (výchozí): kontejner `postgres` s volume `minishop-postgres-data` |
-| Compose | výchozí | `DATABASE_PROVIDER=Postgres` + `POSTGRES_PASSWORD` v `.env`, `docker compose --profile postgres up -d` |
-| Produkce | **ano** (zatím) | až po převodu dat (škálování krok 3) |
+| Compose | výchozí (`DATABASE_PROVIDER=Sqlite`) | `DATABASE_PROVIDER=Postgres` v `.env`; služba `postgres` běží vždy (od kroku 3, heslo `POSTGRES_PASSWORD` povinné) |
+| Produkce | do přepnutí (krok 3B) – soubory zůstávají jako cesta zpět | PostgreSQL běží od kroku 3A (prázdný), služby přepne `DATABASE_PROVIDER=Postgres` v `deploy/production.env` po převodu dat |
 
 V kódu je rozdíl jen na jednom místě – [ModuleDatabase.cs](code:src/MiniShop.Infrastructure/Persistence/ModuleDatabase.cs):
 
@@ -77,6 +77,42 @@ Další rozdíly databází, které kód řeší:
 | --- | --- | --- | --- |
 | Druhý zápis stejné unikátní hodnoty (souběh v pokladně, kupon) | chyba 2067 | SQLSTATE `23505` | [ModuleDbContext](code:src/MiniShop.Infrastructure/Persistence/ModuleDbContext.cs) → `ConcurrencyConflictException` |
 | Stará databáze bez historie migrací (baseline) | ano – produkce z doby `EnsureCreated` | nikdy – vzniká rovnou migracemi | [DatabaseMigrator](code:src/MiniShop.Infrastructure/Persistence/DatabaseMigrator.cs) |
+
+## Převod dat ze SQLite (migrate-to-postgres)
+
+Data se ze SQLite do PostgreSQL přenesou jednou, při plánované odstávce (škálování krok 3B). Každá služba převádí své
+moduly – data leží v jejích volumes:
+
+```text
+docker compose stop web inventory-api                       # nikdo nezapisuje
+docker compose run --rm --no-deps inventory-api migrate-to-postgres
+docker compose run --rm --no-deps web migrate-to-postgres
+```
+
+```mermaid
+flowchart LR
+    s[(SQLite modulu)] -->|"řádky se stejnými ID,<br/>převod typů"| t[(schéma v PostgreSQL)]
+    t --> c{"počty řádků<br/>souhlasí?"}
+    c -->|ano| ok["COMMIT + značka<br/>__MiniShopDataMigration"]
+    c -->|ne / chyba| rb["ROLLBACK – nic se neuloží"]
+```
+
+- [SqliteToPostgresCopier](code:src/MiniShop.Infrastructure/Persistence/SqliteToPostgresCopier.cs) se řídí **relačním modelem EF**
+  (tabulky, sloupce, cizí klíče): tabulky v pořadí podle cizích klíčů, hodnoty převedené podle typu cílového sloupce
+  (SQLite má GUID, čas i desetinná čísla jako text, `bool` jako 0/1), stejná ID, pak posune čítače identity – další
+  objednávka dostane další číslo. Nový sloupec nebo tabulka se převede bez úpravy kódu.
+- Celý modul v **jedné transakci**; na konci porovná počty řádků každé tabulky a vypíše je. Při neshodě se nic neuloží.
+- **Pojistky proti přepsání nových dat:** úspěšný převod zapíše značku do tabulky `__MiniShopDataMigration` ve schématu
+  modulu – podruhé se modul převede jen s `--replace` (např. po návratu na SQLite). Nové řádky zapsané aplikací
+  (klíč, který v SQLite není) převod odmítne vždy. Data z migrací (kategorie „Nezařazeno“, role) nevadí – jsou i v SQLite.
+- [MigrateToPostgresCommand](code:src/MiniShop.Infrastructure/MigrateToPostgresCommand.cs) bere SQLite z `ConnectionStrings:<Modul>`
+  a PostgreSQL z `ConnectionStrings:minishop` – nezáleží na `Database:Provider`.
+- [PostgresDataMigrationTests](code:tests/MiniShop.Tests/Infrastructure/PostgresDataMigrationTests.cs) převedou data skutečných
+  scénářů (objednávky přes celou ságu, platby, kupony, expedice, vratky, hodnocení, přehled tržeb, notifikace, účty
+  se zablokovaným uživatelem) a porovnají **obsah každé tabulky**, ne jen počty.
+
+Po přepnutí běží zálohy `pg_dump` (viz [Zálohy](../nasazeni/zalohy.md)) a `/health` hlídá i dostupnost databáze
+(kontrola `database-ordering`, `database-inventory` – [DatabaseHealthCheck](code:src/MiniShop.Infrastructure/Observability/DatabaseHealthCheck.cs)).
 
 ## Dvě sady migrací
 
@@ -116,7 +152,7 @@ flowchart LR
     t["test (konstruktor)"] --> td["TestDatabases"]
     td -->|Sqlite| m[("databáze v paměti<br/>pro každý modul")]
     td -->|Postgres| c["CREATE DATABASE test_… TEMPLATE minishop_template"]
-    s["PostgresTestServer<br/>(jednou za běh)"] -->|"Testcontainers: postgres:17-alpine<br/>migrace všech modulů do šablony"| c
+    s["PostgresTestServer<br/>(jednou za běh)"] -->|"Testcontainers: postgres:18-alpine<br/>migrace všech modulů do šablony"| c
 ```
 
 - [TestDatabases](code:tests/MiniShop.Tests/TestDoubles/TestDatabases.cs) dá testu databáze modulů. Nad PostgreSQL mají

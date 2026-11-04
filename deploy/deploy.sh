@@ -14,9 +14,11 @@
 #   SMTP_PASSWORD=abcdefghijklmnop                   (účty krok 5, volitelný – heslo aplikace Gmailu)
 #   INVENTORY_API_KEY=<64 hex znaků>                  (účty krok 7, povinný – servisní klíč skladu)
 #   PAYMENTS_WEBHOOK_SECRET=<64 hex znaků>            (e-shop krok 8, povinný – podpis webhooku platební brány)
+#   POSTGRES_PASSWORD=<24–128 písmen/číslic>          (škálování krok 3, povinný – databáze PostgreSQL)
 # Co na vstupu chybí (ruční spuštění z terminálu), vezme se z dosavadního .env. Netajná konfigurace je v gitu
 # (deploy/production.env). Soubor .env na VM skript pokaždé sestaví znovu – ruční změny v něm nepřežijí.
 # Změněné heslo RabbitMQ nejdřív vymění v běžícím RabbitMQ (RABBITMQ_DEFAULT_PASS platí jen při prvním startu).
+# Stejně heslo PostgreSQL (POSTGRES_PASSWORD platí jen při založení prázdného volume) – škálování krok 3.
 #
 # Postup: ověří vstup → stáhne deploy/ z GitHubu přesně pro daný commit → sestaví .env (IMAGE_TAG=sha-<7 znaků>)
 #         → docker compose pull → up --wait (čeká na healthchecky) → při chybě vrátí předchozí verzi.
@@ -44,6 +46,7 @@ healthchecks_backup_url=""
 smtp_password=""
 inventory_api_key=""
 payments_webhook_secret=""
+postgres_password=""
 if [ ! -t 0 ]; then
     while IFS= read -r line || [ -n "$line" ]; do
         [ -z "$line" ] && continue
@@ -73,6 +76,10 @@ if [ ! -t 0 ]; then
                 # E-shop krok 8: tajemství pro podpis webhooku platební brány (HMAC) = 64 hex znaků (openssl rand -hex 32).
                 [[ "$value" =~ ^[0-9a-f]{64}$ ]] || { echo "Chybný PAYMENTS_WEBHOOK_SECRET (čekám 64 malých hex znaků)." >&2; exit 2; }
                 payments_webhook_secret="$value" ;;
+            POSTGRES_PASSWORD)
+                # Škálování krok 3: jen písmena a číslice – heslo je součástí connection stringu (znaky ; = by ho rozbily).
+                [[ "$value" =~ ^[A-Za-z0-9]{24,128}$ ]] || { echo "Chybný POSTGRES_PASSWORD (24–128 písmen/číslic)." >&2; exit 2; }
+                postgres_password="$value" ;;
             *)
                 echo "Neznámý klíč na vstupu: $key" >&2
                 exit 2 ;;
@@ -101,6 +108,9 @@ payments_webhook_secret="${payments_webhook_secret:-$(current PAYMENTS_WEBHOOK_S
 [ -n "$basic_auth_hash" ] || { echo "Chybí BASIC_AUTH_HASH (na vstupu ani v .env)." >&2; exit 2; }
 [ -n "$inventory_api_key" ] || { echo "Chybí INVENTORY_API_KEY (na vstupu ani v .env)." >&2; exit 2; }
 [ -n "$payments_webhook_secret" ] || { echo "Chybí PAYMENTS_WEBHOOK_SECRET (na vstupu ani v .env)." >&2; exit 2; }
+previous_postgres_password=$(current POSTGRES_PASSWORD)
+postgres_password="${postgres_password:-$previous_postgres_password}"
+[ -n "$postgres_password" ] || { echo "Chybí POSTGRES_PASSWORD (na vstupu ani v .env)." >&2; exit 2; }
 
 log "Nasazuji $tag (commit $sha), předchozí ${previous_tag:-žádná}"
 
@@ -130,6 +140,7 @@ chmod 755 "$work"/*.sh 2>/dev/null || true
         [ -n "$smtp_password" ] && echo "SMTP_PASSWORD=$smtp_password"
         echo "INVENTORY_API_KEY=$inventory_api_key"
         echo "PAYMENTS_WEBHOOK_SECRET=$payments_webhook_secret"
+        echo "POSTGRES_PASSWORD=$postgres_password"
         true
     } > "$work/.env"
 )
@@ -146,6 +157,13 @@ rotate_rabbitmq_password() {
     docker compose exec -T rabbitmq rabbitmqctl --quiet change_password "$rabbitmq_user" "$1" > /dev/null
 }
 
+postgres_rotated=false
+rotate_postgres_password() {
+    # Škálování krok 3: uvnitř kontejneru přes lokální socket (bez hesla). Heslo jde na stdin psql, ne do příkazové řádky.
+    printf "ALTER USER minishop PASSWORD '%s';\n" "$1" \
+        | docker compose exec -T postgres psql --quiet -v ON_ERROR_STOP=1 -U minishop -d minishop > /dev/null
+}
+
 reload_caddy() {
     docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile
 }
@@ -154,6 +172,9 @@ rollback() {
     log "CHYBA – vracím ${previous_tag:-(nic – první nasazení)}"
     if [ "$rabbitmq_rotated" = true ]; then
         rotate_rabbitmq_password "$previous_rabbitmq_password" || log "Heslo RabbitMQ se nepodařilo vrátit!"
+    fi
+    if [ "$postgres_rotated" = true ]; then
+        rotate_postgres_password "$previous_postgres_password" || log "Heslo PostgreSQL se nepodařilo vrátit!"
     fi
     if [ -f previous/.env ]; then
         cp -p previous/.env .env
@@ -170,6 +191,14 @@ if [ -n "$previous_rabbitmq_password" ] && [ "$rabbitmq_password" != "$previous_
     log "Měním heslo RabbitMQ (uživatel $rabbitmq_user)"
     rotate_rabbitmq_password "$rabbitmq_password" || rollback
     rabbitmq_rotated=true
+fi
+
+# 3b. Škálování krok 3: totéž pro heslo PostgreSQL (POSTGRES_PASSWORD platí jen při založení prázdného volume).
+if [ -n "$previous_postgres_password" ] && [ "$postgres_password" != "$previous_postgres_password" ] \
+    && [ -n "$(docker compose ps --status running --quiet postgres 2>/dev/null)" ]; then
+    log "Měním heslo PostgreSQL (uživatel minishop)"
+    rotate_postgres_password "$postgres_password" || rollback
+    postgres_rotated=true
 fi
 
 # 4. Nová konfigurace a tag.

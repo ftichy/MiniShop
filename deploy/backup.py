@@ -39,6 +39,9 @@ DATABASES = [
     ("/web/users.db", "users.db"),  # účty krok 1 – starší zálohy ho nemají, obnova ho pak přeskočí
     ("/inventory/inventory.db", "inventory.db"),
 ]
+# Škálování krok 3: snímek PostgreSQL (pg_dump --format=custom) – vytvoří ho backup.sh, sem ho připojí jako soubor.
+# Obnova z něj (pg_restore) přijde ve škálování kroku 4; restore() ho zatím jen nechá v archivu.
+PG_DUMP = ("/pgdump/minishop.pgdump", "minishop.pgdump")
 # Složky s daty: (cesta ve volume, jméno v archivu). Chybějící složka se přeskočí – ve starších zálohách i na disku.
 DIRECTORIES = [
     ("/web/keys", "keys"),  # Data Protection klíče Webu (cookies, antiforgery)
@@ -84,6 +87,12 @@ def backup() -> None:
             if os.path.isdir(source):
                 shutil.copytree(source, os.path.join(content, target))
                 log(f"  {target}/: {len(os.listdir(source))} souborů")
+
+        source, target = PG_DUMP
+        if not os.path.isfile(source) or os.path.getsize(source) == 0:
+            raise FileNotFoundError(f"Chybí snímek PostgreSQL {source} – spouští se záloha přes backup.sh?")
+        shutil.copyfile(source, os.path.join(content, target))
+        log(f"  {target}: {os.path.getsize(source) // 1024} kB")
 
         with open(os.path.join(content, "manifest.json"), "w") as manifest:
             json.dump({"created_utc": datetime.now(timezone.utc).isoformat(),

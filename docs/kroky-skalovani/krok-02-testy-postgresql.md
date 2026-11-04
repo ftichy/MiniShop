@@ -57,8 +57,8 @@ Kód aplikace žádnou chybu neměl – časy, desetinná čísla, unikátní in
   i místo sdílené databáze (testy běží paralelně a nesmí se ovlivnit).
 - **Testy migrací SQLite** (`DatabaseMigrationTests` – baseline, `sqlite_master`) zůstávají jen nad SQLite; běží v obou
   variantách, protože si databázi v paměti zakládají samy.
-- **Nový check zatím nepovinný** – až bude stabilně zelený, přidat „Testy PostgreSQL“ do povinných checků rulesetu
-  `main-protection` (GitHub → Settings → Rules).
+- **„Testy PostgreSQL“ je povinný check** v rulesetu `main-protection` (přidán po prvním zeleném běhu v CI, 4. 11. 2026) –
+  PR, kterému padají testy nad PostgreSQL, nejde sloučit.
 
 ## Známá omezení
 

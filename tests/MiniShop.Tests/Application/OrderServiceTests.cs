@@ -69,7 +69,7 @@ public sealed class OrderServiceTests : IDisposable
     private static readonly TimeSpan ReturnWindow = TimeSpan.FromDays(14);           // e-shop krok 12
     private const string WebhookSecret = "testovaci-tajemstvi-webhooku-plateb-0123456789";
 
-    private readonly TestDatabases _databases = new();   // škálování krok 2: SQLite (databáze na modul) nebo PostgreSQL (schéma na modul)
+    private readonly TestDatabases _databases;   // škálování krok 2: SQLite (databáze na modul) nebo PostgreSQL (schéma na modul)
     private readonly FixedTimeProvider _time = new(Now);
     private readonly RecordingEmailSender _emails = new();
     private readonly InMemoryCustomerContacts _contacts = new();   // e-shop krok 10: účty se souhlasem
@@ -78,8 +78,14 @@ public sealed class OrderServiceTests : IDisposable
     private readonly ServiceProvider _services;
     private readonly RecordingIntegrationBus _bus;
 
-    public OrderServiceTests()
+    public OrderServiceTests() : this(new TestDatabases())
     {
+    }
+
+    /// <summary>Škálování krok 3: scénáře nad zadanými databázemi – test převodu je pouští nad SQLite a výsledek převádí.</summary>
+    internal OrderServiceTests(TestDatabases databases)
+    {
+        _databases = databases;
         var services = new ServiceCollection();
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         services.AddSingleton<TimeProvider>(_time);

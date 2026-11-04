@@ -30,9 +30,14 @@ public sealed class TestDatabases : IDisposable
     private readonly string? _postgresDatabase;
     private readonly string? _postgresConnectionString;
 
-    public TestDatabases()
+    public TestDatabases() : this(Provider)
     {
-        if (IsPostgres)
+    }
+
+    /// <summary>Škálování krok 3: databáze konkrétního providera bez ohledu na proměnnou prostředí (test převodu dat).</summary>
+    public TestDatabases(DatabaseProvider provider)
+    {
+        if (provider == DatabaseProvider.Postgres)
         {
             (_postgresDatabase, _postgresConnectionString) = PostgresTestServer.CreateDatabase();
         }

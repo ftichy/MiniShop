@@ -1,0 +1,85 @@
+@page
+@model MiniShop.Web.Pages.Admin.Coupons.IndexModel
+@using MiniShop.Domain.Orders.Coupons
+@{
+    ViewData["Title"] = "Slevové kódy";
+}
+<h1>Slevové kódy</h1>
+<p class="text-muted">
+    Kód zákazník zadá v pokladně. Použití se započítá až při objednání – ve stejné transakci jako objednávka, takže
+    poslední použití nepřetečou ani při souběhu. Zamítnuté a zrušené objednávky použití vrátí.
+</p>
+
+<partial name="_StatusMessage" model="Model.StatusMessage" />
+<div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+<table class="table table-sm align-middle">
+    <thead>
+        <tr>
+            <th>Kód</th>
+            <th class="text-end">Sleva</th>
+            <th>Platí do</th>
+            <th class="text-end">Nákup od</th>
+            <th class="text-end">Použito</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @if (Model.Coupons.Count == 0)
+        {
+            <tr><td colspan="6" class="text-muted">Zatím žádný kupon.</td></tr>
+        }
+        @foreach (var coupon in Model.Coupons)
+        {
+            <tr class="@(coupon.IsActive ? null : "text-muted")">
+                <td><code>@coupon.Code</code> @if (!coupon.IsActive) { <span class="badge bg-secondary">vypnutý</span> }</td>
+                <td class="text-end">@IndexModel.ValueText(coupon)</td>
+                <td>@(coupon.ValidUntilUtc?.ToLocalTime().ToString("d. M. yyyy") ?? "bez omezení")</td>
+                <td class="text-end">@(coupon.MinItemsTotal > 0 ? $"{coupon.MinItemsTotal:N0} Kč" : "–")</td>
+                <td class="text-end" data-track="coupon-usage">@coupon.RedemptionCount@(coupon.MaxRedemptions is { } max ? $" / {max}" : "")</td>
+                <td class="text-end">
+                    @if (coupon.IsActive)
+                    {
+                        <form method="post" asp-page-handler="Deactivate" asp-route-id="@coupon.Id">
+                            <button type="submit" class="btn btn-outline-secondary btn-sm" data-track="coupon-deactivate">Vypnout</button>
+                        </form>
+                    }
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<h2 class="h5 mt-4">Nový kupon</h2>
+<form method="post" asp-page-handler="Create" class="row g-2 align-items-end">
+    <div class="col-sm-6 col-lg-2">
+        <label asp-for="Input.Code" class="form-label small"></label>
+        <input asp-for="Input.Code" class="form-control form-control-sm" maxlength="@Coupon.CodeMaxLength" placeholder="JARO10" />
+    </div>
+    <div class="col-sm-6 col-lg-2">
+        <label asp-for="Input.Kind" class="form-label small"></label>
+        <select asp-for="Input.Kind" class="form-select form-select-sm">
+            <option value="@CouponKind.Percent">procenta</option>
+            <option value="@CouponKind.Amount">Kč</option>
+        </select>
+    </div>
+    <div class="col-sm-4 col-lg-2">
+        <label asp-for="Input.Value" class="form-label small"></label>
+        <input asp-for="Input.Value" class="form-control form-control-sm" />
+    </div>
+    <div class="col-sm-4 col-lg-2">
+        <label asp-for="ValidUntil" class="form-label small">Platí do</label>
+        <input asp-for="ValidUntil" type="date" class="form-control form-control-sm" />
+    </div>
+    <div class="col-sm-4 col-lg-1">
+        <label asp-for="Input.MinItemsTotal" class="form-label small"></label>
+        <input asp-for="Input.MinItemsTotal" class="form-control form-control-sm" />
+    </div>
+    <div class="col-sm-4 col-lg-1">
+        <label asp-for="Input.MaxRedemptions" class="form-label small"></label>
+        <input asp-for="Input.MaxRedemptions" class="form-control form-control-sm" />
+    </div>
+    <div class="col-sm-4 col-lg-2">
+        <button type="submit" class="btn btn-primary btn-sm" data-track="coupon-create">Založit</button>
+    </div>
+</form>

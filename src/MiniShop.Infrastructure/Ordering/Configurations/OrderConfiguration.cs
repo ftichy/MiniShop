@@ -19,6 +19,9 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(o => o.RejectionReason).HasMaxLength(500);
         builder.Property(o => o.ReturnReason).HasMaxLength(Order.ReturnReasonMaxLength);   // e-shop krok 12
         builder.Property(o => o.ReturnRejectionReason).HasMaxLength(500);
+        builder.Property(o => o.CouponCode).HasMaxLength(MiniShop.Domain.Orders.Coupons.Coupon.CodeMaxLength);   // e-shop krok 13
+        builder.Property(o => o.CouponDiscount).HasPrecision(18, 2);
+        builder.HasIndex(o => new { o.CustomerId, o.CouponId });   // „jeden zákazník jednou“
         builder.Ignore(o => o.DeliveredAtUtc);
 
         // SQLite neukládá DateTimeKind – při načtení čas označíme jako UTC.

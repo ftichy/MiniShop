@@ -11,6 +11,12 @@ public interface ICheckoutService
     /// <summary>Zákazník viděl změněné ceny a souhlasí s nimi.</summary>
     Task AcceptCurrentPricesAsync(string customerId, CancellationToken cancellationToken = default);
 
+    /// <summary>E-shop krok 13: uplatnit slevový kód (ověří ho hned; použití se počítá až při objednání).</summary>
+    Task ApplyCouponAsync(string customerId, string code, CancellationToken cancellationToken = default);
+
+    /// <summary>E-shop krok 13: odebrat slevový kód z košíku.</summary>
+    Task RemoveCouponAsync(string customerId, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Založí objednávku z košíku a košík vyprázdní – v jedné transakci. Stejné <see cref="CheckoutRequest.CheckoutId"/>
     /// podruhé (dvojklik, F5, souběh) vrátí už založenou objednávku.

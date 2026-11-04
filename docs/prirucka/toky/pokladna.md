@@ -36,7 +36,7 @@ sequenceDiagram
     CS->>C: CheckOut(CheckoutId, katalog)
     C->>C: stejná verze? nic staženého ani vyprodaného? ceny beze změny?
     C-->>CS: řádky + košík prázdný, nová verze
-    CS->>CS: new Order(…, CheckoutId), AddItem (+ sleva), SetShipping (cena ze strategie)
+    CS->>CS: new Order(…, CheckoutId), AddItem (+ sleva), ApplyCoupon (e-shop krok 13), SetShipping (cena ze strategie)
     CS->>ODB: COMMIT: Orders + OrderStatusChanges[Pending] + Carts (UPDATE … WHERE CheckoutId = původní) + Outbox[OrderPlaced]
     P-->>Z: 302 → /Orders/{id} (detail) „objednávka přijata, ověřujeme sklad…“
     Note over ODB: dál sága → ReserveStockV1 se všemi položkami → sklad zarezervuje všechno, nebo nic

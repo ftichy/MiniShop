@@ -3,6 +3,7 @@ using MiniShop.Application.Ordering;
 using MiniShop.Domain.Common;
 using MiniShop.Domain.Orders;
 using MiniShop.Domain.Orders.Carts;
+using MiniShop.Domain.Orders.Coupons;
 using MiniShop.Domain.Orders.Saga;
 using MiniShop.Infrastructure.Ordering.Configurations;
 using MiniShop.Infrastructure.Outbox;
@@ -25,6 +26,9 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
 
     /// <summary>E-shop krok 12: ságy vrácení zboží.</summary>
     public DbSet<ReturnSaga> ReturnSagas => Set<ReturnSaga>();
+
+    /// <summary>E-shop krok 13: slevové kódy.</summary>
+    public DbSet<Coupon> Coupons => Set<Coupon>();
     public DbSet<CatalogProduct> CatalogProducts => Set<CatalogProduct>();
     public DbSet<Cart> Carts => Set<Cart>();
 

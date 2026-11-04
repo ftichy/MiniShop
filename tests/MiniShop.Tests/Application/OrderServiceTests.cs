@@ -9,6 +9,7 @@ using MiniShop.Application.Inventory;
 using MiniShop.Application.Ordering;
 using MiniShop.Application.Exceptions;
 using MiniShop.Application.Ordering.Carts;
+using MiniShop.Application.Ordering.Coupons;
 using MiniShop.Application.Ordering.Catalog;
 using MiniShop.Application.Ordering.Checkout;
 using MiniShop.Application.Notifications;
@@ -27,6 +28,7 @@ using MiniShop.Contracts.Reporting;
 using MiniShop.Domain.Common;
 using MiniShop.Domain.Exceptions;
 using MiniShop.Domain.Orders;
+using MiniShop.Domain.Orders.Coupons;
 using MiniShop.Domain.Orders.Events;
 using MiniShop.Domain.Orders.Saga;
 using MiniShop.Domain.Payments;
@@ -125,6 +127,9 @@ public sealed class OrderServiceTests : IDisposable
         services.AddScoped<ICatalogQueryService, CatalogQueryService>();
         services.AddScoped<ICartService, CartService>();
         services.AddScoped<ICheckoutService, CheckoutService>();
+        services.AddScoped<CouponService>();                                       // e-shop krok 13
+        services.AddDomainEventHandler<OrderRejected, ReleaseCouponHandler>();
+        services.AddDomainEventHandler<OrderCancelled, ReleaseCouponHandler>();
         services.AddSingleton<IShippingPriceCalculator>(new StandardShippingPriceCalculator(courierPrice: 99m, freeFrom: 1_000m));
         services.AddIntegrationMessageHandler<ReserveStockV1, ReserveStockHandler>(IntegrationModules.Inventory);
         services.AddIntegrationMessageHandler<ReleaseStockV1, ReleaseStockHandler>(IntegrationModules.Inventory);
@@ -818,6 +823,125 @@ public sealed class OrderServiceTests : IDisposable
 
         Assert.Equal(2, _bus.Published.OfType<CartAbandonedV1>().Count());
         Assert.Equal(2, _emails.Sent.Count(e => e.Subject.Contains("košíku")));
+    }
+
+    // ---------- E-shop krok 13: slevové kódy ----------
+
+    [Fact]
+    public async Task Kupon_VPokladne_SlevaVPolozkachDopravaZPoSleve_PouzitiZapocteno()
+    {
+        await CreateCouponAsync("jaro-10", CouponKind.Percent, 10);
+        var product = await AddProductAsync(price: 400m, stock: 10);
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, product.Id, 3));   // 1 200 Kč → po slevě 1 080 (doprava stále zdarma)
+
+        await Checkout(async s => { await s.ApplyCouponAsync(Jan.CustomerId, " jaro-10 "); return true; });
+        var summary = await Checkout(s => s.GetAsync(Jan.CustomerId));
+        Assert.Equal(("JARO-10", 120m, 1080m), (summary.CouponCode, summary.CouponDiscount, summary.ItemsTotal));
+
+        var order = await Checkout(s => s.PlaceOrderAsync(Courier(summary.CheckoutId), Jan));
+        await ProcessOutboxAsync();
+
+        Assert.Equal((1080m, "JARO-10", 120m), (order.TotalPrice, order.CouponCode, order.CouponDiscount));
+        var placed = Assert.Single(_bus.Published.OfType<OrderPlacedV2>());   // kontrakt beze změny – ceny už po slevě
+        Assert.Equal(1080m, placed.TotalPrice);
+        Assert.Equal(1080m, placed.Items.Sum(i => i.LineTotal));
+        Assert.Equal(1, (await CouponAsync("JARO-10")).RedemptionCount);
+        Assert.Null((await Cart(s => s.GetAsync(Jan.CustomerId))).Lines.FirstOrDefault());
+    }
+
+    [Fact]
+    public async Task Kupon_DopravaZdarmaSePocitaZCenyPoSleve()
+    {
+        await CreateCouponAsync("STOVKA", CouponKind.Amount, 100);
+        var product = await AddProductAsync(price: 1000m, stock: 10);
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, product.Id, 1));
+        await Checkout(async s => { await s.ApplyCouponAsync(Jan.CustomerId, "stovka"); return true; });
+
+        var summary = await Checkout(s => s.GetAsync(Jan.CustomerId));
+
+        Assert.Equal(900m, summary.ItemsTotal);
+        Assert.Equal(99m, summary.ShippingOptions.Single(o => o.Method == ShippingMethod.Courier).Price);   // pod 1 000 Kč
+    }
+
+    [Fact]
+    public async Task Kupon_JedenZakaznikJednou_PoZruseniZnovu()
+    {
+        await CreateCouponAsync("JEDNOU", CouponKind.Percent, 10);
+        var product = await AddProductAsync(price: 100m, stock: 10);
+        var order = await PlaceWithCouponAsync(Jan, product.Id, "JEDNOU");
+
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, product.Id, 1));
+        var used = await Assert.ThrowsAsync<DomainException>(() =>
+            Checkout(async s => { await s.ApplyCouponAsync(Jan.CustomerId, "JEDNOU"); return true; }));
+        Assert.Contains("už použili", used.Message);
+
+        // Kompenzace: zrušená objednávka použití vrátí (ReleaseCouponHandler na OrderCancelled).
+        await Orders(s => s.CancelAsync(order.Id, OrderAccess.Customer(Jan.CustomerId)));
+        await ProcessOutboxAsync();
+        Assert.Equal(0, (await CouponAsync("JEDNOU")).RedemptionCount);
+        await Checkout(async s => { await s.ApplyCouponAsync(Jan.CustomerId, "JEDNOU"); return true; });
+    }
+
+    [Fact]
+    public async Task Kupon_ZamitnutaObjednavka_PouzitiSeVrati()
+    {
+        await CreateCouponAsync("SKLAD", CouponKind.Percent, 10);
+        var product = await AddProductAsync(price: 100m, stock: 1);
+
+        // Petra objedná poslední kus dřív (bez kódu), Jan hned po ní s kódem – sklad rezervuje Petře, Janovi zamítne.
+        await Cart(s => s.AddItemAsync(Petra.CustomerId, product.Id, 1));
+        var petraCheckout = await Checkout(s => s.GetAsync(Petra.CustomerId));
+        await Checkout(s => s.PlaceOrderAsync(Pickup(petraCheckout.CheckoutId), Petra));
+        var jan = await PlaceWithCouponAsync(Jan, product.Id, "SKLAD");
+        Assert.Equal(1, (await CouponAsync("SKLAD")).RedemptionCount);
+
+        await ProcessOutboxAsync();   // OrderRejected → ReleaseCouponHandler
+
+        Assert.Equal("Rejected", await StatusAsync(jan.Id));
+        Assert.Equal(0, (await CouponAsync("SKLAD")).RedemptionCount);
+    }
+
+    [Fact]
+    public async Task Kupon_PosledniPouziti_DruhaPokladnaDostaneHlasku()
+    {
+        await CreateCouponAsync("POSLEDNI", CouponKind.Percent, 10, maxRedemptions: 1);
+        var product = await AddProductAsync(price: 100m, stock: 10);
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, product.Id, 1));
+        await Cart(s => s.AddItemAsync(Petra.CustomerId, product.Id, 1));
+        await Checkout(async s => { await s.ApplyCouponAsync(Jan.CustomerId, "POSLEDNI"); return true; });
+        await Checkout(async s => { await s.ApplyCouponAsync(Petra.CustomerId, "POSLEDNI"); return true; });   // ještě volný
+
+        var janSummary = await Checkout(s => s.GetAsync(Jan.CustomerId));
+        var petraSummary = await Checkout(s => s.GetAsync(Petra.CustomerId));
+        await Checkout(s => s.PlaceOrderAsync(Pickup(janSummary.CheckoutId), Jan));
+
+        var exhausted = await Assert.ThrowsAsync<DomainException>(() =>
+            Checkout(s => s.PlaceOrderAsync(Pickup(petraSummary.CheckoutId), Petra)));
+        Assert.Contains("vyčerpaný", exhausted.Message);
+        var after = await Checkout(s => s.GetAsync(Petra.CustomerId));
+        Assert.False(after.CanPlaceOrder);                  // nejdřív odebrat kód
+        Assert.NotNull(after.CouponProblem);
+        Assert.Equal(1, (await CouponAsync("POSLEDNI")).RedemptionCount);
+    }
+
+    [Fact]
+    public async Task Kupon_Soubeh_VerzeKuponuPustiJenJedenZapis()
+    {
+        // Dvě pokladny načetly kupon ve stejný okamžik – uložení té druhé narazí na verzi (concurrency token).
+        await CreateCouponAsync("SOUBEH", CouponKind.Percent, 10, maxRedemptions: 1);
+        await using var first = _services.CreateAsyncScope();
+        await using var second = _services.CreateAsyncScope();
+        var firstDb = first.ServiceProvider.GetRequiredService<OrderingDbContext>();
+        var secondDb = second.ServiceProvider.GetRequiredService<OrderingDbContext>();
+        var a = await firstDb.Coupons.SingleAsync(c => c.Code == "SOUBEH");
+        var b = await secondDb.Coupons.SingleAsync(c => c.Code == "SOUBEH");
+
+        a.Redeem(100m, Now.UtcDateTime);
+        b.Redeem(100m, Now.UtcDateTime);   // obě pokladny vidí „1 volné použití“
+        await firstDb.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<ConcurrencyConflictException>(() => secondDb.SaveChangesAsync());
+        Assert.Equal(1, (await CouponAsync("SOUBEH")).RedemptionCount);
     }
 
     // ---------- E-shop krok 12: vrácení zboží ----------
@@ -2082,6 +2206,27 @@ public sealed class OrderServiceTests : IDisposable
         {
             await Reminders(s => s.RemindAsync(cartId));
         }
+    }
+
+    /// <summary>E-shop krok 13: admin založí kupon (správa kuponů ve vlastním scope).</summary>
+    private async Task CreateCouponAsync(string code, CouponKind kind, decimal value, int? maxRedemptions = null)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<CouponService>().CreateAsync(new CreateCouponRequest
+        {
+            Code = code, Kind = kind, Value = value, MaxRedemptions = maxRedemptions
+        });
+    }
+
+    private Task<Coupon> CouponAsync(string code) => OrderingDb(db => db.Coupons.AsNoTracking().SingleAsync(c => c.Code == code));
+
+    /// <summary>E-shop krok 13: zákazník dá produkt do košíku, uplatní kód a objedná (osobní odběr, dobírka).</summary>
+    private async Task<OrderDto> PlaceWithCouponAsync(OrderCustomer customer, int productId, string code)
+    {
+        await Cart(s => s.AddItemAsync(customer.CustomerId, productId, 1));
+        await Checkout(async s => { await s.ApplyCouponAsync(customer.CustomerId, code); return true; });
+        var summary = await Checkout(s => s.GetAsync(customer.CustomerId));
+        return await Checkout(s => s.PlaceOrderAsync(Pickup(summary.CheckoutId), customer));
     }
 
     /// <summary>E-shop krok 12: doručená objednávka z pokladny (kartou zaplacená) – podklad pro vratku.</summary>

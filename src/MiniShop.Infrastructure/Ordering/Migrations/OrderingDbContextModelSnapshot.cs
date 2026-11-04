@@ -27,6 +27,10 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
                         .IsConcurrencyToken()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("CouponCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("CustomerId")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -126,6 +130,57 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
                     b.ToTable("CatalogProducts", (string)null);
                 });
 
+            modelBuilder.Entity("MiniShop.Domain.Orders.Coupons.Coupon", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("MaxRedemptions")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("MinItemsTotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RedemptionCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ValidUntilUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("Value")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("Coupons", (string)null);
+                });
+
             modelBuilder.Entity("MiniShop.Domain.Orders.Order", b =>
                 {
                     b.Property<int>("Id")
@@ -138,6 +193,17 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
 
                     b.Property<Guid?>("CheckoutId")
                         .HasColumnType("TEXT");
+
+                    b.Property<string>("CouponCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("CouponDiscount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("CouponId")
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("TEXT");
@@ -202,6 +268,8 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
                         .IsUnique();
 
                     b.HasIndex("CustomerId");
+
+                    b.HasIndex("CustomerId", "CouponId");
 
                     b.ToTable("Orders", (string)null);
                 });

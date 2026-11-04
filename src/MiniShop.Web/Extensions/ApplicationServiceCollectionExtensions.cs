@@ -5,6 +5,7 @@ using MiniShop.Application.Ordering;
 using MiniShop.Application.Ordering.Carts;
 using MiniShop.Application.Ordering.Catalog;
 using MiniShop.Application.Ordering.Checkout;
+using MiniShop.Application.Ordering.Coupons;
 using MiniShop.Application.Notifications;
 using MiniShop.Application.Payments;
 using MiniShop.Application.Ordering.IntegrationEvents;
@@ -186,6 +187,11 @@ public static class ApplicationServiceCollectionExtensions
 
         // E-shop krok 4: pokladna (košík → objednávka v jedné transakci) a ceník dopravy (strategie).
         services.AddScoped<ICheckoutService, CheckoutService>();
+
+        // E-shop krok 13: slevové kódy – správa (admin) a vrácení použití po zamítnutí/zrušení objednávky (kompenzace).
+        services.AddScoped<CouponService>();
+        services.AddDomainEventHandler<OrderRejected, ReleaseCouponHandler>();
+        services.AddDomainEventHandler<OrderCancelled, ReleaseCouponHandler>();
         services.AddSingleton<IShippingPriceCalculator>(new StandardShippingPriceCalculator(courierPrice: 99m, freeFrom: 1_000m));
 
         return services;

@@ -24,7 +24,9 @@ public static class OrderMapping
             order.DeliveryAddress?.ToString(),
             order.Carrier,
             order.TrackingNumber,
-            order.PaymentMethod.ToString());
+            order.PaymentMethod.ToString(),
+            order.CouponCode,          // e-shop krok 13
+            order.CouponDiscount);
 
     /// <summary>E-shop krok 5: objednávka s historií stavů v pořadí, jak nastaly (podle Id – pořadí zápisu).</summary>
     public static OrderDetailDto ToDetailDto(this Order order) =>

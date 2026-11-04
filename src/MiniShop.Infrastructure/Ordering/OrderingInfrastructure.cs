@@ -5,6 +5,7 @@ using MiniShop.Application;
 using MiniShop.Application.Abstractions;
 using MiniShop.Application.Ordering;
 using MiniShop.Application.Ordering.Carts;
+using MiniShop.Application.Ordering.Coupons;
 using MiniShop.Domain.Common;
 using MiniShop.Domain.Orders.Events;
 using MiniShop.Infrastructure.Events;
@@ -26,6 +27,7 @@ public static class OrderingInfrastructure
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<IOrderSagaRepository, OrderSagaRepository>();
         services.AddScoped<IReturnSagaRepository, ReturnSagaRepository>();   // e-shop krok 12
+        services.AddScoped<ICouponRepository, CouponRepository>();             // e-shop krok 13
         services.AddScoped<ICatalogProductRepository, CatalogProductRepository>();
         services.AddScoped<ICartRepository, CartRepository>();   // e-shop krok 3
 

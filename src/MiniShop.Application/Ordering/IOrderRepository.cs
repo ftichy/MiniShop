@@ -18,5 +18,10 @@ public interface IOrderRepository
 
     /// <summary>E-shop krok 4: adresa z poslední objednávky kurýrem – předvyplní pokladnu.</summary>
     Task<DeliveryAddress?> GetLastDeliveryAddressAsync(string customerId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// E-shop krok 13: použil už zákazník tenhle kupon? Počítají se jen platné objednávky (zamítnuté a zrušené kupon vrátily).
+    /// </summary>
+    Task<bool> HasUsedCouponAsync(string customerId, int couponId, CancellationToken cancellationToken = default);
+
     void Add(Order order);
 }

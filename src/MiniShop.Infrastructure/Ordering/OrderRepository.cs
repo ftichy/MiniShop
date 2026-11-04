@@ -70,5 +70,9 @@ public sealed class OrderRepository(OrderingDbContext db) : IOrderRepository
         return last?.DeliveryAddress;
     }
 
+    public Task<bool> HasUsedCouponAsync(string customerId, int couponId, CancellationToken cancellationToken = default) =>
+        db.Orders.AnyAsync(o => o.CustomerId == customerId && o.CouponId == couponId
+            && o.Status != OrderStatus.Rejected && o.Status != OrderStatus.Cancelled, cancellationToken);
+
     public void Add(Order order) => db.Orders.Add(order);
 }

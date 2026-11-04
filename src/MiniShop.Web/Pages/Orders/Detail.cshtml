@@ -90,6 +90,14 @@ else if (order.Status == "Completed" && Model.Detail.ReturnRejectionReason is no
                         <td class="num">@(order.ShippingPrice == 0 ? "zdarma" : $"{order.ShippingPrice:N2} Kč")</td>
                     </tr>
                 }
+                @if (order.CouponCode is not null)
+                {
+                    @* E-shop krok 13: sleva z kódu je rozpočítaná ve slevách položek – tady jen pro informaci. *@
+                    <tr class="text-muted small">
+                        <td colspan="4">Slevový kód @order.CouponCode (už ve slevách položek)</td>
+                        <td class="num">-@order.CouponDiscount.ToString("N2") Kč</td>
+                    </tr>
+                }
                 <tr class="fw-bold">
                     <td colspan="4">Celkem</td>
                     <td class="num">@order.TotalPrice.ToString("N2") Kč</td>

@@ -21,9 +21,10 @@ sequenceDiagram
 
     T->>S: spustit (uživatel deploy)
     S->>HC: /start
-    S->>P: docker run … backup
+    S->>S: pg_dump v kontejneru postgres (škálování krok 3) → minishop.pgdump
+    S->>P: docker run … backup (+ minishop.pgdump)
     P->>V: online backup SQLite (ordering, journeys, users, notifications, payments, inventory) + /data/keys + obrázky produktů
-    P->>P: integrity_check, tar.gz minishop-RRRRMMDDTHHMMSSZ
+    P->>P: integrity_check, přibalí minishop.pgdump, tar.gz minishop-RRRRMMDDTHHMMSSZ
     P->>B: upload (přihlášení instance principal – bez klíče)
     S->>HC: ping OK (jinak /fail)
     Note over B: lifecycle pravidlo smaže zálohy starší než 7 dní
@@ -42,6 +43,7 @@ sequenceDiagram
 | Rozhodnutí | Proč |
 | --- | --- |
 | **Online backup API SQLite**, ne kopie souboru | soubor může být uprostřed zápisu – kopie by byla poškozená; `.backup` udělá konzistentní snímek za běhu |
+| **`pg_dump --format=custom`** pro PostgreSQL (škálování krok 3) | konzistentní snímek celé databáze za běhu, obnova přes `pg_restore`; dělá se v kontejneru databáze přes lokální socket – bez hesla. Ve stejném archivu jako SQLite, dokud produkce běží na obou ([Databáze](../architektura/databaze.md)) |
 | **Instance principal** (identita VM) | na VM neleží žádný klíč ani heslo k úložišti |
 | VM smí zapisovat a číst, **ne mazat ani přepsat** | napadená VM zálohy nezničí; staré maže lifecycle pravidlo služby Object Storage |
 | **Bucket mimo VM**, `prevent_destroy` | záloha musí přežít smazání VM i omyl v OpenTofu |
@@ -68,6 +70,9 @@ Po startu služby doplní obnoveným databázím chybějící **migrace** schém
 Před rizikovou akcí ruční záloha: `sudo systemctl start minishop-backup`.
 
 **Nová databáze = přidat do `DATABASES`, nová složka s daty (jako obrázky) do `DIRECTORIES` v `backup.py`.**
+Nový modul nad PostgreSQL (jen nové schéma) zálohuje `pg_dump` automaticky – celou databázi `minishop`.
+
+Obnova z `minishop.pgdump` (`pg_restore`) zatím není v `restore.sh` – přijde ve škálování kroku 4 i s cvičnou obnovou.
 
 ## Cvičná havárie
 

@@ -11,7 +11,7 @@ order: 50
 
 ```mermaid
 flowchart LR
-    pr["Pull request"] --> bt["Build a testy<br/>(povinný check)"]
+    pr["Pull request"] --> bt["Build a testy + Testy PostgreSQL<br/>(povinné checky)"]
     bt --> img1["Zkušební build image<br/>(jen x86, bez push)"]
     bt -->|"zeleně → lze sloučit"| main["main"]
     main --> bt2["Build a testy"]

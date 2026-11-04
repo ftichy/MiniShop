@@ -18,6 +18,7 @@ Pravidla:
 | `SMTP_PASSWORD` | heslo aplikace Gmailu účtu `ftichy.gemini@gmail.com` – Web jím posílá e-maily (účty krok 5). Dává přístup k **celé schránce** toho účtu. Volitelný: prázdný = e-maily jen do logu | `.env` na VM | [R8](#r8-heslo-aplikace-gmailu) | při podezření, jinak 1× ročně |
 | `INVENTORY_API_KEY` | servisní klíč mezi Webem a skladem (účty krok 7) – kdo ho zná a dostane se do sítě Dockeru, může měnit produkty a zásoby. 64 hex znaků, povinný | `.env` na VM → proměnná `InventoryApi__ApiKey` v kontejnerech `web` a `inventory-api` | [R9](#r9-servisní-klíč-skladu) | při podezření, jinak 1× ročně |
 | `PAYMENTS_WEBHOOK_SECRET` | sdílené tajemství s platební bránou (e-shop krok 8) – HMAC podpis webhooku `/api/payments/webhook`. Kdo ho zná, může „zaplatit“ libovolnou objednávku. 64 hex znaků, povinný (bez něj se Web nespustí) | `.env` na VM → proměnná `Payments__WebhookSecret` v kontejneru `web` | [R10](#r10-tajemství-webhooku-plateb) | při podezření, jinak 1× ročně |
+| `POSTGRES_PASSWORD` | heslo účtu `minishop` v PostgreSQL (škálování krok 3) – Web a sklad se jím přihlašují k databázi se všemi daty (objednávky, účty). Databáze je dostupná jen uvnitř sítě Compose a z VM (`127.0.0.1:5432`). 24–128 písmen/číslic, povinný | `.env` na VM → `POSTGRES_PASSWORD` kontejneru `postgres` a connection string `ConnectionStrings__minishop` ve `web` a `inventory-api` | [R11](#r11-heslo-postgresql) | při podezření, jinak 1× ročně |
 
 ## Secrets nasazení (GitHub → Environments → `production`)
 
@@ -137,6 +138,17 @@ Nový klíč (`ssh-keygen`), veřejnou část přidat na VM do `/home/ubuntu/.ss
    Simulovaná brána běží ve Webu, takže podepisuje i ověřuje stejným tajemstvím – výměna nic nerozbije.
    (Se skutečnou bránou by se nové tajemství muselo nastavit i u ní – jinak by webhooky do výměny vracely 401.)
 3. Ověření: objednávka kartou → *Zaplatit* → objednávka potvrzená.
+
+### R11. Heslo PostgreSQL
+
+1. Nové heslo – 24–128 písmen a číslic (je součástí connection stringu; znaky `;` `=` by ho rozbily), např. na VM
+   `openssl rand -hex 24` nebo v PowerShellu
+   `-join ((48..57) + (65..90) + (97..122) | Get-Random -Count 32 | ForEach-Object { [char]$_ })`.
+2. GitHub → *Environments* → `production` → `POSTGRES_PASSWORD` → nová hodnota → *Actions → Deploy → Run workflow*.
+   `deploy.sh` heslo nejdřív změní v běžící databázi (`ALTER USER minishop`, přes lokální socket kontejneru), pak
+   spustí služby s novým connection stringem. Při chybě nasazení vrátí i staré heslo.
+   (`POSTGRES_PASSWORD` v Compose platí jen při založení prázdného volume – samotná změna proměnné heslo nezmění.)
+3. Ověření: `/health` = Healthy (kontrola `database-ordering`), výloha a objednávky se načtou.
 
 ### Které SHA nasadit
 

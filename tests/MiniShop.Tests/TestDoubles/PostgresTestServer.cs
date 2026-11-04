@@ -25,7 +25,7 @@ namespace MiniShop.Tests.TestDoubles;
 internal static class PostgresTestServer
 {
     /// <summary>Stejná verze jako v Compose (deploy/compose.yaml).</summary>
-    public const string Image = "postgres:17-alpine";
+    public const string Image = "postgres:18-alpine";
 
     private const string TemplateDatabase = "minishop_template";
 

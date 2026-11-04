@@ -25,7 +25,7 @@ flowchart LR
 | Job | Co dělá | Detaily |
 | --- | --- | --- |
 | **Build a testy** | `restore` → `build -c Release` → `test` | cache NuGet balíčků (klíč = otisk `.csproj`, `.props`, `global.json`), výsledky testů jako artefakt `.trx` (14 dní) |
-| **Testy PostgreSQL** | stejné testy s `MINISHOP_TEST_DATABASE=Postgres` – Testcontainers spustí `postgres:17-alpine` v Dockeru runneru | škálování krok 2; souběžně s „Build a testy“, image se sestaví až po obou. Viz [Databáze – testy](../architektura/databaze.md) |
+| **Testy PostgreSQL** | stejné testy s `MINISHOP_TEST_DATABASE=Postgres` – Testcontainers spustí `postgres:18-alpine` v Dockeru runneru | škálování krok 2; souběžně s „Build a testy“, image se sestaví až po obou. Viz [Databáze – testy](../architektura/databaze.md) |
 | **Image web / inventory-api** | Docker Buildx | PR: jen x86, nic se neukládá (rozbitý Dockerfile se pozná před sloučením). `main`: **amd64 + arm64** (QEMU) a push do GHCR |
 | **Nasazení** | volá `deploy.yml` | jen na `main`, až po úspěšných image – viz [CD](cd.md) |
 

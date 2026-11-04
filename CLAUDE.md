@@ -318,7 +318,7 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   (**před** sloučením, pokud na změně závisí její vlastní nasazení). Změněný `Caddyfile` `deploy.sh` načte přes `caddy reload`.
   Port 22 je z internetu zavřený – SSH jen přes Tailscale. Nouzově: pravidlo 22 v security listu vrátit.
   Secrets/proměnné jen v environmentu `production`: `TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`, `DEPLOY_SSH_KEY`,
-  `RABBITMQ_PASSWORD`, `BASIC_AUTH_HASH` (krok 10), `SMTP_PASSWORD` (účty krok 5), `INVENTORY_API_KEY` (účty krok 7), `PAYMENTS_WEBHOOK_SECRET` (e-shop krok 8), `DEPLOY_HOST`, `DEPLOY_KNOWN_HOSTS`.
+  `RABBITMQ_PASSWORD`, `BASIC_AUTH_HASH` (krok 10), `SMTP_PASSWORD` (účty krok 5), `INVENTORY_API_KEY` (účty krok 7), `PAYMENTS_WEBHOOK_SECRET` (e-shop krok 8), `POSTGRES_PASSWORD` (škálování krok 3), `DEPLOY_HOST`, `DEPLOY_KNOWN_HOSTS`.
 - Doména (krok 13): `https://minishop-tichy.cz` (Wedos: registrace + DNS, záznamy A `@` a `dashboard` → reserved IP, TTL 300,
   žádné AAAA – zadává uživatel ručně v client.wedos.com, pak *Aplikovat změny*). `DOMAIN` + `LEGACY_DOMAIN` v `production.env`;
   stará `minishop-tichy.duckdns.org` (i `dashboard.`) = 301 na novou doménu (Caddyfile), smoke test hlídá obojí (doména
@@ -356,8 +356,9 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   `sudo -u deploy /opt/minishop/restore.sh latest|<jméno>|list` (zastaví web + inventory-api, původní soubory nechá jako
   `*.before-restore-…`). Skripty záloh přináší `deploy.sh` z gitu (volitelné soubory – starší commity je nemají),
   jednotky systemd cloud-init. Hlídač zálohy: healthchecks.io (`HEALTHCHECKS_BACKUP_URL`, volitelný secret).
+  Od škálování kroku 3A `backup.sh` nejdřív `pg_dump --format=custom` (kontejner postgres) → `minishop.pgdump` v archivu (obnova = krok 4).
   Nová DB = `DATABASES`, nová složka s daty = `DIRECTORIES` v `backup.py` (od e-shop kroku 2B i `/inventory/images`). Před rizikovou akcí ruční záloha `sudo systemctl start minishop-backup`.
-- CI (krok 6): workflow „CI“, job „Build a testy“ (= povinný status check v rulesetu). Repozitář `ftichy/MiniShop` je veřejný –
+- CI (krok 6): workflow „CI“, joby „Build a testy“ a „Testy PostgreSQL“ (škálování krok 2) = povinné status checky v rulesetu (jména jobů neměnit). Repozitář `ftichy/MiniShop` je veřejný –
   nic tajného do gitu. `main` jen přes PR se zeleným CI (bez přímého push). SDK určuje `global.json` (10.0.200, `latestFeature`).
   Nový projekt/závislost = ověřit, že CI na Linuxu projde.
 
@@ -467,13 +468,25 @@ převod produkčních dat s krátkou odstávkou, expand → contract (oba provid
   (Testcontainers, potřeba Docker; CI job „Testy PostgreSQL“). **Žádné ruční SQL v testech** (schéma, uvozovky) – `ExecuteUpdateAsync`.
   **Ruční SQL v migraci SQLite (data) dopsat i do migrace PostgreSQL** (EF ho nevygeneruje – tak chyběla kategorie „Nezařazeno“).
   Po změně kódu s databází spustit i variantu PostgreSQL.
+- **Převod dat (krok 3A):** `docker compose run --rm --no-deps <web|inventory-api> migrate-to-postgres [--replace]`
+  (`MigrateToPostgresCommand` – SQLite z `ConnectionStrings:<Modul>`, cíl `ConnectionStrings:minishop`, nezávisle na
+  `Database:Provider`). `SqliteToPostgresCopier` podle relačního modelu EF, jedna transakce na modul, stejná ID + `setval`,
+  porovná počty; značka `__MiniShopDataMigration` → podruhé jen s `--replace`, nové řádky aplikace odmítne vždy.
+  Testy `PostgresDataMigrationTests` (`[PostgresFact]`/`[PostgresTheory]` = jen s `MINISHOP_TEST_DATABASE=Postgres`) převádí
+  scénáře z `OrderServiceTests` (konstruktor s `TestDatabases`) a porovnávají obsah tabulek. **Nová tabulka/modul = přidat
+  do seznamu modulů v `Program.cs` služby (migrate-to-postgres) a do `PostgresDataMigrationTests.Modules`.**
+  Compose: `postgres:18-alpine` běží vždy (volume `postgres-data` na `/var/lib/postgresql`, `127.0.0.1:5432`, `mem_limit 1g`),
+  `POSTGRES_PASSWORD` povinný (i lokální `deploy/.env`); `deploy.sh` mění heslo v běžící DB (`ALTER USER` přes socket).
+  Npgsql: `GssEncryptionMode=Disable` (v `UseModuleDatabase`, jinak hláška o libgssapi_krb5). `/health`: `database-ordering`/`-inventory`.
 
 | Krok | Stav | Souhrn |
 | --- | --- | --- |
 | 1. PostgreSQL vedle SQLite (`Database:Provider`, `ModuleDatabase`, schéma na modul, migrace v `MiniShop.Infrastructure.PostgreSql`, Aspire + Compose profil `postgres`; produkce dál SQLite) | hotovo (lokálně ověřeno – obě služby nad PostgreSQL, 8 schémat, katalog přes RabbitMQ; AppHost s PostgreSQL ověřen uživatelem 4. 11. 2026) | `docs/kroky-skalovani/krok-01-postgresql.md` |
 | 2. Testy proti PostgreSQL (`MINISHOP_TEST_DATABASE=Postgres`, `TestDatabases` + `PostgresTestServer` – Testcontainers, šablona + kopie DB na test, CI job „Testy PostgreSQL“; oprava: kategorie „Nezařazeno“ v migraci PostgreSQL) | hotovo (lokálně obě varianty zelené) | `docs/kroky-skalovani/krok-02-testy-postgresql.md` |
-| 3. Převod produkčních dat (`migrate-to-postgres`, odstávka, přepnutí, odebrání SQLite) | plán | — |
-| 4. Zálohy a obnova (`pg_dump`, `restore.sh`, cvičná obnova) | plán | — |
+| 3A. Příprava převodu (`migrate-to-postgres` + `SqliteToPostgresCopier`, značka `__MiniShopDataMigration` / `--replace`, PostgreSQL 18 v produkčním Compose, secret `POSTGRES_PASSWORD`, `pg_dump` v `backup.sh`, `DatabaseHealthCheck`) | hotovo (generálka v Compose: SQLite → převod → přepnutí → Healthy) | `docs/kroky-skalovani/krok-03a-priprava-prevodu.md` |
+| 3B. Přepnutí produkce (odstávka, `migrate-to-postgres` na VM, `DATABASE_PROVIDER=Postgres` v `production.env`) | plán | — |
+| 3C. Odebrání SQLite – contract (provider, migrace SQLite, baseline, `backup.py` SQLite; testy výchozí PostgreSQL) | plán | — |
+| 4. Obnova ze zálohy (`restore.sh` s `pg_restore`, cvičná obnova; `pg_dump` už od 3A) | plán | — |
 | 5. Více instancí (leader lease přes advisory lock, `web` ve dvou kopiích za Caddy) | plán | — |
 | 6. Druhá VM (volitelně) | plán | — |
 

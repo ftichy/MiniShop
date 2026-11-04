@@ -124,6 +124,22 @@ try
         return;
     }
 
+    // Škálování krok 3: "dotnet MiniShop.Web.dll migrate-to-postgres" převede data modulů Webu ze SQLite do PostgreSQL a skončí.
+    if (MigrateToPostgresCommand.IsRequested(args))
+    {
+        Environment.ExitCode = await MigrateToPostgresCommand.RunAsync(app.Configuration, Console.Out,
+        [
+            ModuleDataMigration.For<OrderingDbContext>("Ordering", OrderingDbContext.Schema),
+            ModuleDataMigration.For<JourneysDbContext>("Journeys", JourneysDbContext.Schema),
+            ModuleDataMigration.For<NotificationsDbContext>("Notifications", NotificationsDbContext.Schema),
+            ModuleDataMigration.For<PaymentsDbContext>("Payments", PaymentsDbContext.Schema),
+            ModuleDataMigration.For<ReportingDbContext>("Reporting", ReportingDbContext.Schema),
+            ModuleDataMigration.For<ReviewsDbContext>("Reviews", ReviewsDbContext.Schema),
+            ModuleDataMigration.For<AccountsDbContext>("Accounts", AccountsDbContext.Schema)
+        ], MigrateToPostgresCommand.IsReplace(args));
+        return;
+    }
+
     await OrderingDatabaseInitializer.InitializeAsync(app.Services);
     await JourneysDatabaseInitializer.InitializeAsync(app.Services);
     await NotificationsDatabaseInitializer.InitializeAsync(app.Services);

@@ -76,6 +76,14 @@ try
 
     var app = builder.Build();
 
+    // Škálování krok 3: "dotnet MiniShop.Inventory.Api.dll migrate-to-postgres" převede inventory.db do PostgreSQL a skončí.
+    if (MigrateToPostgresCommand.IsRequested(args))
+    {
+        Environment.ExitCode = await MigrateToPostgresCommand.RunAsync(app.Configuration, Console.Out,
+            [ModuleDataMigration.For<InventoryDbContext>("Inventory", InventoryDbContext.Schema)], MigrateToPostgresCommand.IsReplace(args));
+        return;
+    }
+
     await InventoryDatabaseInitializer.InitializeAsync(app.Services, app.Services.GetRequiredService<TimeProvider>());
 
     if (app.Environment.IsDevelopment())

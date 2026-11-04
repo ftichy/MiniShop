@@ -24,6 +24,7 @@ internal sealed class CartConfiguration : IEntityTypeConfiguration<Cart>
         // E-shop krok 4: verze košíku jako concurrency token – UPDATE … WHERE CheckoutId = původní. Dvě souběžná
         // odeslání pokladny (nebo změny ze dvou záložek): druhé narazí a jeho transakce se celá zruší.
         builder.Property(c => c.CheckoutId).IsConcurrencyToken();
+        builder.Property(c => c.CouponCode).HasMaxLength(MiniShop.Domain.Orders.Coupons.Coupon.CodeMaxLength);   // e-shop krok 13
 
         // Řádky jsou v privátním poli _lines, EF k nim přistupuje přímo.
         builder.HasMany(c => c.Lines)

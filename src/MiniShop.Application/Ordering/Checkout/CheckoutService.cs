@@ -1,9 +1,12 @@
 using MiniShop.Application.Abstractions;
 using MiniShop.Application.Exceptions;
 using MiniShop.Application.Ordering.Carts;
+using MiniShop.Application.Ordering.Coupons;
 using MiniShop.Application.Ordering.Pricing;
 using MiniShop.Domain.Exceptions;
 using MiniShop.Domain.Orders;
+using MiniShop.Domain.Orders.Carts;
+using MiniShop.Domain.Orders.Coupons;
 
 namespace MiniShop.Application.Ordering.Checkout;
 
@@ -26,6 +29,7 @@ public sealed class CheckoutService(
     IOrderingUnitOfWork unitOfWork,
     IEnumerable<IDiscountPolicy> discountPolicies,
     IShippingPriceCalculator shipping,
+    ICouponRepository coupons,
     TimeProvider timeProvider) : ICheckoutService
 {
     private static readonly ShippingMethod[] ShippingMethods = [ShippingMethod.Pickup, ShippingMethod.Courier];
@@ -33,17 +37,19 @@ public sealed class CheckoutService(
     public async Task<CheckoutDto> GetAsync(string customerId, CancellationToken cancellationToken = default)
     {
         var cart = await carts.GetByCustomerIdAsync(customerId, cancellationToken);
-        var products = cart is null
-            ? new Dictionary<int, CatalogProduct>()
-            : await catalog.GetForCartAsync(cart, cancellationToken);
-        var cartDto = cart?.ToDto(products) ?? CartDto.Empty;
+        var (cartDto, discount, afterDiscounts) = await PriceAsync(cart, cancellationToken);
 
-        // Slevy stejnými pravidly jako objednávka – jen pro řádky, které jdou objednat.
-        var discount = cartDto.Lines
-            .Where(line => line.IsOrderable)
-            .Sum(line => discountPolicies.BestDiscount(products[line.ProductId], line.Quantity));
-        var itemsTotal = cartDto.Total - discount;
+        // E-shop krok 13: uplatněný kód – sleva, nebo proč už neplatí (mezitím se mohl vyčerpat či vypršet).
+        decimal couponDiscount = 0;
+        string? couponProblem = null;
+        if (cart?.CouponCode is { } code)
+        {
+            var coupon = await coupons.GetByCodeAsync(code, cancellationToken);
+            couponProblem = await WhyCouponNotApplicableAsync(coupon, customerId, afterDiscounts, cancellationToken);
+            couponDiscount = couponProblem is null ? coupon!.DiscountFor(afterDiscounts) : 0;
+        }
 
+        var itemsTotal = afterDiscounts - couponDiscount;
         var lastAddress = await orders.GetLastDeliveryAddressAsync(customerId, cancellationToken);
 
         return new CheckoutDto(
@@ -52,8 +58,67 @@ public sealed class CheckoutService(
             discount,
             itemsTotal,
             ShippingMethods.Select(method => new ShippingOptionDto(method, shipping.Calculate(method, itemsTotal))).ToList(),
-            lastAddress is null ? null : new DeliveryAddressDto(lastAddress.Street, lastAddress.City, lastAddress.PostalCode));
+            lastAddress is null ? null : new DeliveryAddressDto(lastAddress.Street, lastAddress.City, lastAddress.PostalCode),
+            cart?.CouponCode,
+            couponDiscount,
+            couponProblem);
     }
+
+    /// <summary>
+    /// E-shop krok 13: zákazník uplatnil slevový kód. Ověří ho hned (ať zákazník vidí slevu nebo důvod), uloží do košíku;
+    /// při objednání se ověří znovu – a teprve tam se počítá jeho použití.
+    /// </summary>
+    public async Task ApplyCouponAsync(string customerId, string code, CancellationToken cancellationToken = default)
+    {
+        var cart = await carts.GetByCustomerIdAsync(customerId, cancellationToken)
+            ?? throw new DomainException("Slevový kód jde uplatnit jen na košík se zbožím.");
+        var normalized = Coupon.NormalizeCode(code);
+        if (normalized.Length == 0)
+        {
+            throw new DomainException("Zadejte slevový kód.");
+        }
+
+        var (_, _, afterDiscounts) = await PriceAsync(cart, cancellationToken);
+        var coupon = await coupons.GetByCodeAsync(normalized, cancellationToken);
+        if (await WhyCouponNotApplicableAsync(coupon, customerId, afterDiscounts, cancellationToken) is { } problem)
+        {
+            throw new DomainException(problem);
+        }
+
+        cart.ApplyCoupon(normalized, UtcNow);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task RemoveCouponAsync(string customerId, CancellationToken cancellationToken = default)
+    {
+        if (await carts.GetByCustomerIdAsync(customerId, cancellationToken) is { } cart)
+        {
+            cart.RemoveCoupon(UtcNow);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    /// <summary>Košík s aktuálními cenami a slevami za množství (stejná pravidla jako objednávka, jen objednatelné řádky).</summary>
+    private async Task<(CartDto Cart, decimal Discount, decimal ItemsTotal)> PriceAsync(Cart? cart,
+        CancellationToken cancellationToken)
+    {
+        var products = cart is null
+            ? new Dictionary<int, CatalogProduct>()
+            : await catalog.GetForCartAsync(cart, cancellationToken);
+        var cartDto = cart?.ToDto(products) ?? CartDto.Empty;
+        var discount = cartDto.Lines
+            .Where(line => line.IsOrderable)
+            .Sum(line => discountPolicies.BestDiscount(products[line.ProductId], line.Quantity));
+        return (cartDto, discount, cartDto.Total - discount);
+    }
+
+    /// <summary>Proč kupon nejde použít (neexistuje, neplatí, vyčerpaný, malý nákup, už použitý zákazníkem), nebo null.</summary>
+    private async Task<string?> WhyCouponNotApplicableAsync(Coupon? coupon, string customerId, decimal itemsTotal,
+        CancellationToken cancellationToken) =>
+        coupon is null ? "Takový slevový kód neexistuje."
+        : coupon.WhyNotApplicable(itemsTotal, UtcNow) is { } reason ? reason
+        : await orders.HasUsedCouponAsync(customerId, coupon.Id, cancellationToken) ? "Tento slevový kód jste už použili."
+        : null;
 
     public async Task AcceptCurrentPricesAsync(string customerId, CancellationToken cancellationToken = default)
     {
@@ -85,12 +150,26 @@ public sealed class CheckoutService(
             : null;
 
         // 2. Pravidla pokladny hlídá košík: stejná verze, nic staženého/vyprodaného, žádná nepotvrzená změna ceny.
+        var couponCode = cart.CouponCode;   // CheckOut košík vyprázdní i s kódem – zapamatovat si ho předem
         var lines = cart.CheckOut(request.CheckoutId, await catalog.GetForCartAsync(cart, cancellationToken), UtcNow);
 
         var order = new Order(customer.CustomerId, customer.Name, customer.Email, UtcNow, request.CheckoutId);
         foreach (var (product, quantity) in lines)
         {
             order.AddItem(product, quantity, discountPolicies.BestDiscount(product, quantity));
+        }
+
+        // E-shop krok 13: kupon se ověří znovu a jeho použití se započítá ve STEJNÉ transakci jako objednávka.
+        // Souběh o poslední použití rozhodne verze kuponu (concurrency token) – viz catch níže.
+        if (couponCode is not null)
+        {
+            var coupon = await coupons.GetByCodeAsync(couponCode, cancellationToken);
+            if (await WhyCouponNotApplicableAsync(coupon, customer.CustomerId, order.ItemsTotal, cancellationToken) is { } problem)
+            {
+                throw new DomainException($"{problem} Odeberte ho v pokladně a objednejte znovu.");
+            }
+
+            order.ApplyCoupon(coupon!, UtcNow);   // sleva rozpočítaná do položek, kupon.RedemptionCount + 1
         }
 
         order.SetShipping(request.ShippingMethod, shipping.Calculate(request.ShippingMethod, order.ItemsTotal), address);
@@ -108,7 +187,10 @@ public sealed class CheckoutService(
             // na změněnou verzi košíku (concurrency token) a jeho transakce se celá zrušila. Vrátíme objednávku prvního.
             var first = await orders.GetByCheckoutIdAsync(customer.CustomerId, request.CheckoutId, cancellationToken);
             return first?.ToDto()
-                ?? throw new DomainException("Košík se mezitím změnil. Zkontrolujte ho a objednejte znovu.");
+                ?? throw new DomainException(couponCode is not null
+                    // E-shop krok 13: jiná pokladna mezitím použila stejný kupon (třeba jeho poslední použití).
+                    ? "Slevový kód mezitím použil někdo jiný. Zkontrolujte souhrn a objednejte znovu."
+                    : "Košík se mezitím změnil. Zkontrolujte ho a objednejte znovu.");
         }
 
         TraceTags.TagOrder(order.Id);

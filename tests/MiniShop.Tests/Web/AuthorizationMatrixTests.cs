@@ -75,6 +75,9 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Admin, "/Account/EmailPreferences", Expect.Denied },
 
         // Jen admin
+        { Who.Anonymous, "/Admin/Coupons", Expect.Login },                // e-shop krok 13: slevové kódy
+        { Who.User, "/Admin/Coupons", Expect.Denied },
+        { Who.Admin, "/Admin/Coupons", Expect.Allowed },
         { Who.Anonymous, "/Admin/Returns", Expect.Login },                // e-shop krok 12: vratky (příjem zboží)
         { Who.User, "/Admin/Returns", Expect.Denied },
         { Who.Admin, "/Admin/Returns", Expect.Allowed },
@@ -128,6 +131,14 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.User, "/Pay/1?handler=Decline", Expect.Allowed },
         { Who.User, "/Checkout?handler=AcceptPrices", Expect.Allowed },
         { Who.Admin, "/Checkout?handler=AcceptPrices", Expect.Denied },
+        { Who.User, "/Checkout?handler=ApplyCoupon", Expect.Allowed },          // e-shop krok 13 (prázdný kód: hláška)
+        { Who.Admin, "/Checkout?handler=ApplyCoupon", Expect.Denied },
+        { Who.User, "/Checkout?handler=RemoveCoupon", Expect.Allowed },
+        { Who.Admin, "/Checkout?handler=RemoveCoupon", Expect.Denied },
+        { Who.User, "/Admin/Coupons?handler=Create", Expect.Denied },           // e-shop krok 13: jen admin
+        { Who.Admin, "/Admin/Coupons?handler=Create", Expect.Allowed },
+        { Who.User, "/Admin/Coupons?handler=Deactivate&id=999", Expect.Denied },
+        { Who.Admin, "/Admin/Coupons?handler=Deactivate&id=999", Expect.Allowed },
 
         // E-shop krok 6: expedice (místo „Vyřídit“ na stránce Objednávky) – jen admin
         { Who.Anonymous, "/Admin/Fulfilment?handler=StartPacking", Expect.Login },

@@ -394,7 +394,7 @@ Nereagujeme na událost, ale na to, že po `CartItemAdded` do 24 hodin nepřiše
 
 ## Volitelně: kam dál
 
-- **Slevové kódy** – další `IDiscountPolicy` (strategie), uplatnění v pokladně, limit použití (souběžnost!).
+- ~~**Slevové kódy**~~ – **hotovo jako krok 13** ([souhrn](kroky-eshop/krok-13-slevove-kody.md)): agregát `Coupon`, limit použití hlídá verze kuponu, sleva rozpočítaná do položek.
 - ~~**Kategorie, vyhledávání a filtrování** ve výloze; obrázky produktů~~ – hotovo v krocích 2A a 2B.
 - **Skutečná platební brána** (Stripe test mode, GoPay sandbox) – jen nová implementace `IPaymentGateway`.
 - ~~**Vrácení zboží / reklamace**~~ – **hotovo jako krok 12** ([souhrn](kroky-eshop/krok-12-vraceni-zbozi.md)): druhá sága `ReturnSaga`, převzetí adminem, naskladnění, refundace.

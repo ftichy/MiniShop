@@ -67,12 +67,47 @@
                 <td class="text-end">-@Model.Summary.Discount.ToString("N2") Kč</td>
             </tr>
         }
+        @if (Model.Summary.CouponDiscount > 0)
+        {
+            <tr>
+                <td colspan="3" class="text-end">Slevový kód @Model.Summary.CouponCode</td>
+                <td class="text-end" data-track="checkout-coupon-discount">-@Model.Summary.CouponDiscount.ToString("N2") Kč</td>
+            </tr>
+        }
         <tr class="fw-bold">
             <td colspan="3" class="text-end">Zboží celkem</td>
             <td class="text-end">@Model.Summary.ItemsTotal.ToString("N2") Kč</td>
         </tr>
     </tfoot>
 </table>
+
+@* E-shop krok 13: slevový kód – vlastní formulář mimo sledovaný formulář objednávky (Journeys ho nezapisují,
+   proto ani kopie v Replay.cshtml). Použití kódu se započítá až při objednání, ve stejné transakci. *@
+@if (Model.CouponMessage is not null)
+{
+    <div class="alert alert-info py-2" data-track="checkout-coupon-message">@Model.CouponMessage</div>
+}
+@if (Model.Summary.CouponProblem is not null)
+{
+    <div class="alert alert-warning py-2">@Model.Summary.CouponProblem Odeberte ho, nebo objednejte bez něj.</div>
+}
+<div class="mb-4">
+    @if (Model.Summary.CouponCode is null)
+    {
+        <form method="post" asp-page-handler="ApplyCoupon" class="d-flex gap-2" style="max-width: 24rem">
+            <input name="couponCode" class="form-control form-control-sm" placeholder="Slevový kód" maxlength="20"
+                   aria-label="Slevový kód" data-track="checkout-coupon-code" />
+            <button type="submit" class="btn btn-outline-primary btn-sm text-nowrap" data-track="checkout-coupon-apply">Uplatnit</button>
+        </form>
+    }
+    else
+    {
+        <form method="post" asp-page-handler="RemoveCoupon" class="d-flex gap-2 align-items-center">
+            <span>Slevový kód <strong>@Model.Summary.CouponCode</strong></span>
+            <button type="submit" class="btn btn-link btn-sm" data-track="checkout-coupon-remove">Odebrat</button>
+        </form>
+    }
+</div>
 
 @* E-shop krok 4B: order-form-tracker.js zapisuje, co zákazník v pokladně dělá (proud JourneyId, modul Journeys).
    Hodnoty proudu ručně (ne asp-for) – po chybě musí platit hodnota ze serveru, ne ta odeslaná. *@

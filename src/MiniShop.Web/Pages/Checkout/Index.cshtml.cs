@@ -104,6 +104,35 @@ public sealed class IndexModel(ICheckoutService checkout, IJourneyService journe
         return RedirectToPage();
     }
 
+    /// <summary>E-shop krok 13: výsledek uplatnění kódu (přes přesměrování – formulář objednávky zůstane netknutý).</summary>
+    [TempData]
+    public string? CouponMessage { get; set; }
+
+    /// <summary>
+    /// E-shop krok 13: uplatnit slevový kód. Vlastní formulář – <see cref="Input"/> se tu neověřuje (pole neposílá),
+    /// proto rovnou přesměrování s hláškou v TempData.
+    /// </summary>
+    public async Task<IActionResult> OnPostApplyCouponAsync(string? couponCode, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await checkout.ApplyCouponAsync(User.ToCustomerId(), couponCode ?? string.Empty, cancellationToken);
+            CouponMessage = $"Slevový kód {couponCode?.Trim().ToUpperInvariant()} je uplatněný.";
+        }
+        catch (Exception ex) when (ex is DomainException or ConcurrencyConflictException)
+        {
+            CouponMessage = ex.Message;
+        }
+
+        return RedirectToPage();
+    }
+
+    public async Task<IActionResult> OnPostRemoveCouponAsync(CancellationToken cancellationToken)
+    {
+        await checkout.RemoveCouponAsync(User.ToCustomerId(), cancellationToken);
+        return RedirectToPage();
+    }
+
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
         Summary = await checkout.GetAsync(User.ToCustomerId(), cancellationToken);

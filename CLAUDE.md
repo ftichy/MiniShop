@@ -12,7 +12,7 @@ Cíl: postupně ho převést na EDA podle plánu v `docs/EDA-roadmap.md`.
 
 ```
 src/MiniShop.Contracts       integrační zprávy – události (OrderPlacedV1, StockReservedV1, …) a příkazy (ReserveStockV1, …), žádné závislosti
-src/MiniShop.Domain          Common/ (Entity, IDomainEvent), Orders/ (Order, CatalogProduct, CatalogSearchText, Carts/Cart, Saga/OrderSaga + ReturnSaga), Inventory/ (Product, Category, StockAvailability, StockReservation),
+src/MiniShop.Domain          Common/ (Entity, IDomainEvent), Orders/ (Order, CatalogProduct, CatalogSearchText, Carts/Cart, Coupons/Coupon, Saga/OrderSaga + ReturnSaga), Inventory/ (Product, Category, StockAvailability, StockReservation),
                              Journeys/ (JourneyEvent, JourneyEventType), Notifications/ (OrderRecipient), Payments/ (Payment), Reporting/ (SalesOrder – čtecí model)
 src/MiniShop.Application     Abstractions/ (sdílené: IUnitOfWork, IDomainEvent*, IIntegrationMessage*, TraceTags),
                              Ordering/ (OrderService, DTO, Saga, Catalog projekce + CatalogQueryService, Carts/CartService, Checkout/CheckoutService, IntegrationEvents (překladač), Pricing), Inventory/ (ProductService, CategoryService, Reserve/ReleaseStock),
@@ -205,6 +205,13 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   (bez ságy vratky ignoruje) → `Order.CompleteReturn` → `ReturnCompletedV1`; dobírka bez refundu (peníze ručně, `RefundedByCard=false`).
   Zamítnutí/timeout (`OrderSagaTimeoutWorker`) → `Order.RejectReturn` → zpět `Completed` + `ReturnRejectedV1`. Reporting: `Returned` se
   nepočítá do tržby (`SalesOrder` z `Completed` jen na `Returned`). Testy: `DeliveredOrderAsync`, `Returns(…)`.
+- **Slevové kódy (e-shop krok 13):** agregát `Coupon` v Orderingu (tabulka `Coupons`, unikátní `Code` velkými písmeny, `Version` =
+  concurrency token). Pokladna: `ApplyCouponAsync` jen ověří a uloží `Cart.CouponCode` (nová verze košíku); **použití se počítá až v
+  `PlaceOrderAsync` ve stejné transakci** jako objednávka (`Order.ApplyCoupon` → `Coupon.Redeem`, sleva **rozpočítaná do
+  `OrderItem.Discount`** – kontrakty beze změny; doprava zdarma z ceny po slevě). Souběh o poslední použití = `ConcurrencyConflictException`
+  → hláška „kód mezitím použil někdo jiný“. Jeden zákazník jednou (`IOrderRepository.HasUsedCouponAsync`, jen platné objednávky).
+  Kompenzace `ReleaseCouponHandler` na `OrderRejected`/`OrderCancelled` (vratka ne). Formulář kódu je mimo sledovaný formulář
+  pokladny (do `Replay.cshtml` nepatří). Admin `/Admin/Coupons`. Testy: `CreateCouponAsync`, `PlaceWithCouponAsync`.
 - **Průběh objednávky (krok 12):** modul Journeys (`…Journeys` ve všech vrstvách, hostuje ho Web, vlastní `journeys.db`,
   bez zpráv → `JourneysDbContext` nedědí z `ModuleDbContext`). Proud `JourneyEvents` = jen INSERT, idempotence přes unikátní `EventId`
   z prohlížeče, řazení podle `OffsetMs` (čas od otevření formuláře). `ValidationFailed`/`OrderSubmitted` zapisuje jen server
@@ -420,7 +427,8 @@ nové moduly Notifications (odběratel událostí) a Payments (účastník ságy
 | 9. Zrušení kdykoli před odesláním (i `Pending`/`AwaitingPayment`, stav ságy `Cancelled`, orchestrátor dožene zrušení, zrušená zaplacená = `ReleaseStockAndRefundPayment`, `/Pay` u zrušené nepustí platit) | hotovo (nasazeno 3. 11. 2026, zrušení před platbou, po platbě i dobírky ověřeno v produkci) | `docs/kroky-eshop/krok-09-zruseni.md` |
 | 10. Opuštěný košík (`CartReminderWorker`, `CartAbandonedV1`, `Cart.ReminderSentAtUtc`, souhlas `CartRemindersConsent` ověřený až při odeslání přes `ICustomerContacts`, `/Account/EmailPreferences`) | hotovo (nasazeno 3. 11. 2026, nastavení souhlasu ověřeno v produkci; e-mail po 24 h) | `docs/kroky-eshop/krok-10-opusteny-kosik.md` |
 | 11. Přehled tržeb pro admina – CQRS (modul Reporting, `reporting.db`, projekce se stavem jen dopředu, `/Admin/Sales`, přestavění `RebuildSalesReportV1` → `OrderSnapshotV1`) | hotovo (nasazeno 3. 11. 2026, přehled se po startu postavil ze snímků, přestavění ověřeno v produkci) | `docs/kroky-eshop/krok-11-prehled-trzeb.md` |
-| 12. Vrácení zboží (druhá sága `ReturnSaga`, `/Admin/Returns`, `RestockReturnedGoodsV1` → `ReturnedGoodsRestockedV1`, `RefundPaymentV1`, `ReturnRequested/Rejected/CompletedV1`, dobírka ručně) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-12-vraceni-zbozi.md` |
+| 12. Vrácení zboží (druhá sága `ReturnSaga`, `/Admin/Returns`, `RestockReturnedGoodsV1` → `ReturnedGoodsRestockedV1`, `RefundPaymentV1`, `ReturnRequested/Rejected/CompletedV1`, dobírka ručně) | hotovo (nasazeno 3. 11. 2026, vratka kartou, zamítnutí i dobírka ověřeny v produkci) | `docs/kroky-eshop/krok-12-vraceni-zbozi.md` |
+| 13. Slevové kódy (agregát `Coupon`, `/Admin/Coupons`, použití ve stejné transakci jako objednávka, `Version` proti souběhu o poslední použití, sleva v položkách, `ReleaseCouponHandler`) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-13-slevove-kody.md` |
 
 ## Postup práce na dalším kroku EDA
 1. Nejdřív **shrň**, co se bude přidávat/měnit a **proč** (teorie + konkrétní případ v MiniShopu),

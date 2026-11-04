@@ -87,6 +87,7 @@ Plán (výloha, košík, pokladna, expedice, platba, notifikace): [docs/Eshop-ro
 | 10 | Opuštěný košík – reakce na „ticho“ (worker hledá košíky nezměněné 24 h), `CartAbandonedV1` bez osobních údajů, připomínka jen se souhlasem ověřeným až při odeslání, nejvýš jedna na nákup | [eshop-10](code:docs/kroky-eshop/krok-10-opusteny-kosik.md) |
 | 11 | Přehled tržeb pro admina (CQRS) – modul Reporting jako nový odběratel existujících událostí, čtecí model se stavem jen dopředu (zprávy mimo pořadí), přestavění ze snímků `OrderSnapshotV1` | [eshop-11](code:docs/kroky-eshop/krok-11-prehled-trzeb.md) |
 | 12 | Vrácení zboží – druhá sága (`ReturnSaga`) s krokem člověka uprostřed: žádost do 14 dní, převzetí adminem, naskladnění podle vydaných rezervací, vrácení peněz stávajícím `RefundPaymentV1`, zamítnutí a vypršení; přehled tržeb vratku odečte | [eshop-12](code:docs/kroky-eshop/krok-12-vraceni-zbozi.md) |
+| 13 | Slevové kódy – agregát `Coupon` v Orderingu, použití ve stejné transakci jako objednávka, souběh o poslední použití hlídá verze kuponu, sleva rozpočítaná do položek (bez nového kontraktu), vrácení použití po zamítnutí/zrušení | [eshop-13](code:docs/kroky-eshop/krok-13-slevove-kody.md) |
 
 ## Proč po krocích
 

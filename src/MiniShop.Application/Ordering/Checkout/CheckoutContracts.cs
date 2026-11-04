@@ -11,20 +11,26 @@ namespace MiniShop.Application.Ordering.Checkout;
 /// <param name="Discount">Součet slev (stejná pravidla jako objednávka).</param>
 /// <param name="ItemsTotal">Položky po slevách, bez dopravy (jen ty, které jdou objednat).</param>
 /// <param name="LastAddress">Adresa z poslední objednávky kurýrem, nebo null.</param>
+/// <param name="CouponCode">E-shop krok 13: uplatněný slevový kód, nebo null.</param>
+/// <param name="CouponDiscount">Kolik kód odečte (už je v <paramref name="ItemsTotal"/>).</param>
+/// <param name="CouponProblem">Proč uplatněný kód už neplatí (vyčerpaný, vypršel…) – objednat jde až po odebrání.</param>
 public sealed record CheckoutDto(
     CartDto Cart,
     Guid CheckoutId,
     decimal Discount,
     decimal ItemsTotal,
     IReadOnlyList<ShippingOptionDto> ShippingOptions,
-    DeliveryAddressDto? LastAddress)
+    DeliveryAddressDto? LastAddress,
+    string? CouponCode = null,
+    decimal CouponDiscount = 0m,
+    string? CouponProblem = null)
 {
     public bool HasPriceChanges => Cart.Lines.Any(l => l.PriceChanged);
 
     /// <summary>Stažený nebo vyprodaný produkt – zákazník ho musí odebrat.</summary>
     public bool HasUnavailableItems => Cart.Lines.Any(l => !l.IsOrderable);
 
-    public bool CanPlaceOrder => !Cart.IsEmpty && !HasPriceChanges && !HasUnavailableItems;
+    public bool CanPlaceOrder => !Cart.IsEmpty && !HasPriceChanges && !HasUnavailableItems && CouponProblem is null;
 }
 
 /// <param name="Price">Cena dopravy pro aktuální obsah košíku (kurýr nad limit zdarma).</param>

@@ -41,4 +41,15 @@ public class OrderItem
     public decimal Discount { get; private set; }
 
     public decimal LineTotal => UnitPrice * Quantity - Discount;
+
+    /// <summary>E-shop krok 13: díl slevy z kuponu se přičte ke slevě položky (cena položky nesmí jít pod nulu).</summary>
+    internal void AddDiscount(decimal amount)
+    {
+        if (amount < 0 || Discount + amount > UnitPrice * Quantity)
+        {
+            throw new DomainException("Sleva musí být mezi nulou a cenou položky.");
+        }
+
+        Discount += amount;
+    }
 }

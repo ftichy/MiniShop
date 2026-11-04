@@ -158,6 +158,58 @@ public class Order : Entity
         _items.Add(new OrderItem(product.Id, product.Name, product.Price, quantity, discount));
     }
 
+    /// <summary>E-shop krok 13: použitý slevový kód (ID kuponu – kvůli vrácení použití), nebo null.</summary>
+    public int? CouponId { get; private set; }
+
+    /// <summary>E-shop krok 13: slevový kód, jak ho zákazník uplatnil (pro zobrazení).</summary>
+    public string? CouponCode { get; private set; }
+
+    /// <summary>E-shop krok 13: kolik kupon odečetl (už je rozpočítané ve slevách položek).</summary>
+    public decimal CouponDiscount { get; private set; }
+
+    /// <summary>
+    /// E-shop krok 13: uplatní slevový kód. Sleva se <b>rozpočítá do slev položek</b> (poměrně podle ceny řádku,
+    /// haléřový zbytek na poslední řádek) – <see cref="ItemsTotal"/> i <see cref="TotalPrice"/> jsou pak po slevě a žádný
+    /// kontrakt (OrderPlacedV2, vrácení peněz) se nemusí měnit. Volat po položkách a před dopravou (doprava zdarma
+    /// se počítá z ceny po slevě). Kupon si sám zvýší počet použití (<see cref="Coupons.Coupon.Redeem"/>).
+    /// </summary>
+    public void ApplyCoupon(Coupons.Coupon coupon, DateTime nowUtc)
+    {
+        EnsureStatus(OrderStatus.Pending, "Slevový kód lze uplatnit jen u nové objednávky.");
+        if (CouponId is not null)
+        {
+            throw new DomainException("Na objednávku jde uplatnit jen jeden slevový kód.");
+        }
+
+        if (_items.Count == 0)
+        {
+            throw new DomainException("Slevový kód potřebuje položky objednávky.");
+        }
+
+        var itemsTotal = ItemsTotal;
+        var discount = coupon.Redeem(itemsTotal, nowUtc);
+        // 1. poměrně, zaokrouhleno dolů na haléře; 2. haléřový zbytek od nejdražšího řádku, kolik se vejde
+        //    (sleva v Kč může pokrýt celé zboží – žádný řádek nesmí jít pod nulu).
+        var shares = _items.ToDictionary(i => i,
+            i => decimal.Round(discount * i.LineTotal / itemsTotal, 2, MidpointRounding.ToZero));
+        var remaining = discount - shares.Values.Sum();
+        foreach (var item in _items.OrderByDescending(i => i.LineTotal))
+        {
+            var extra = Math.Min(remaining, item.LineTotal - shares[item]);
+            shares[item] += extra;
+            remaining -= extra;
+        }
+
+        foreach (var (item, share) in shares)
+        {
+            item.AddDiscount(share);
+        }
+
+        CouponId = coupon.Id;
+        CouponCode = coupon.Code;
+        CouponDiscount = discount;
+    }
+
     /// <summary>E-shop krok 8: způsob platby z pokladny (kartou / dobírka). Jen u nové objednávky.</summary>
     public void SetPayment(PaymentMethod method)
     {

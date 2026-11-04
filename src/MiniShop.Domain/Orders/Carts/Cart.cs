@@ -208,6 +208,35 @@ public sealed class Cart
         ReminderSentAtUtc = nowUtc;
     }
 
+    /// <summary>
+    /// E-shop krok 13: slevový kód, který si zákazník v pokladně uplatnil (normalizovaný), nebo null. Platnost se ověřuje
+    /// při uplatnění, v souhrnu pokladny a znovu při objednání – kupon se mezitím mohl vyčerpat.
+    /// </summary>
+    public string? CouponCode { get; private set; }
+
+    /// <summary>E-shop krok 13: zákazník uplatnil slevový kód – mění se cena, proto i verze pro pokladnu.</summary>
+    public void ApplyCoupon(string code, DateTime nowUtc)
+    {
+        if (_lines.Count == 0)
+        {
+            throw new DomainException("Slevový kód jde uplatnit jen na košík se zbožím.");
+        }
+
+        CouponCode = Coupons.Coupon.NormalizeCode(code);
+        Changed(nowUtc);
+    }
+
+    public void RemoveCoupon(DateTime nowUtc)
+    {
+        if (CouponCode is null)
+        {
+            return;
+        }
+
+        CouponCode = null;
+        Changed(nowUtc);
+    }
+
     /// <summary>Každá změna obsahu = nová verze pro pokladnu (starý formulář pokladny už neprojde).</summary>
     private void Changed(DateTime nowUtc)
     {
@@ -216,6 +245,7 @@ public sealed class Cart
         if (_lines.Count == 0)
         {
             ReminderSentAtUtc = null;   // nákup skončil (objednávka / vyprázdnění) – příští košík smí dostat připomínku
+            CouponCode = null;          // e-shop krok 13: kód patří k nákupu, příští košík začíná bez něj
         }
     }
 

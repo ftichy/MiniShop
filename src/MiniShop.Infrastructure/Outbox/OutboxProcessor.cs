@@ -39,13 +39,16 @@ public sealed class OutboxProcessor<TDbContext>(
     /// </summary>
     public async Task<int> ProcessPendingAsync(CancellationToken cancellationToken = default)
     {
+        // EDA krok 13: selhané zprávy čekají na svůj termín (backoff), až pak se zkusí znovu.
+        var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
         List<OutboxMessage> pending;
         await using (var scope = scopeFactory.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<TDbContext>();
             pending = await db.OutboxMessages
                 .AsNoTracking()
-                .Where(m => m.ProcessedAtUtc == null && m.Attempts < MaxAttempts)
+                .Where(m => m.ProcessedAtUtc == null && m.Attempts < MaxAttempts
+                    && (m.NextAttemptAtUtc == null || m.NextAttemptAtUtc <= nowUtc))
                 .OrderBy(m => m.OccurredAtUtc)
                 .Take(BatchSize)
                 .ToListAsync(cancellationToken);
@@ -128,10 +131,13 @@ public sealed class OutboxProcessor<TDbContext>(
             MessagingTelemetry.OutboxFailed.Add(1, tags);
             var attempts = message.Attempts + 1;
             var error = Truncate(ex.Message);
+            // EDA krok 13: exponenciální backoff – 5, 10, 20, 40 s. Krátký výpadek (SMTP, zamčená DB) zprávu nezabije.
+            var nextAttemptAtUtc = timeProvider.GetUtcNow().UtcDateTime + OutboxProcessor.RetryDelay(attempts);
             await db.OutboxMessages
                 .Where(m => m.Id == message.Id)
                 .ExecuteUpdateAsync(s => s
                     .SetProperty(m => m.Attempts, attempts)
+                    .SetProperty(m => m.NextAttemptAtUtc, nextAttemptAtUtc)
                     .SetProperty(m => m.Error, error), cancellationToken);
 
             if (attempts >= MaxAttempts)
@@ -167,4 +173,13 @@ public static class OutboxProcessor
 
     /// <summary>Po tolika neúspěšných pokusech se zpráva přestane zkoušet (poison message).</summary>
     public const int MaxAttempts = 5;
+
+    /// <summary>EDA krok 13: pauza před prvním opakováním; každé další se zdvojnásobí.</summary>
+    public static readonly TimeSpan BaseRetryDelay = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// EDA krok 13: jak dlouho počkat po <paramref name="attempts"/>. neúspěšném pokusu – exponenciální backoff
+    /// (5, 10, 20, 40 s). Zpráva, která selhává kvůli chvilkovému výpadku, dostane čas; vadná propadne do minuty.
+    /// </summary>
+    public static TimeSpan RetryDelay(int attempts) => BaseRetryDelay * Math.Pow(2, Math.Max(0, attempts - 1));
 }

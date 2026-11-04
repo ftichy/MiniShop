@@ -36,6 +36,11 @@ public sealed class OutboxMessage
     public string? Error { get; set; }
 
     /// <summary>
+    /// EDA krok 13: nejdřív kdy se má selhaná zpráva zkusit znovu (exponenciální backoff); null = hned.
+    /// </summary>
+    public DateTime? NextAttemptAtUtc { get; set; }
+
+    /// <summary>
     /// Počet neúspěšných pokusů o doručení. Po <see cref="OutboxProcessor.MaxAttempts"/> se zpráva
     /// přestane zkoušet ("poison message") a čeká, až se na ni podívá člověk.
     /// </summary>

@@ -30,6 +30,7 @@ Plán: [docs/EDA-roadmap.md](code:docs/EDA-roadmap.md)
 | 11 | Observabilita – trasování přes zprávy | [krok-11](code:docs/kroky/krok-11-observabilita.md) |
 | 12A | Proud událostí formuláře a projekce | [krok-12a](code:docs/kroky/krok-12a-prubeh-objednavky.md) |
 | 12B | Přehrání průběhu objednávky | [krok-12b](code:docs/kroky/krok-12b-prehrani-objednavky.md) |
+| 13 | Úklid a odolnost zpráv – retence outboxu (7 dní) a inboxu (30 dní), exponenciální backoff v outboxu, omezené opakování a dead-letter fronty v RabbitMQ, stránka Zprávy, health check dead-letters | [krok-13](code:docs/kroky/krok-13-uklid-a-odolnost-zprav.md) |
 
 ## Cesta do cloudu
 

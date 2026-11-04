@@ -33,6 +33,7 @@ public sealed class OutboxTests : IDisposable
     private readonly SwitchableDispatcher _dispatcher = new();
     private readonly RecordingIntegrationBus _bus = new();
     private readonly ServiceProvider _services;
+    private readonly FixedTimeProvider _time = new(Now);   // EDA krok 13: backoff – čas posouvá test
 
     /// <summary>Dispatcher, který si zapisuje doručené události a na povel selže – simuluje chybu handleru.</summary>
     private sealed class SwitchableDispatcher : IDomainEventDispatcher
@@ -56,7 +57,7 @@ public sealed class OutboxTests : IDisposable
     {
         var services = new ServiceCollection();
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
-        services.AddSingleton<TimeProvider>(new FixedTimeProvider(Now));
+        services.AddSingleton<TimeProvider>(_time);
         services.AddInfrastructure(_ordering.ConnectionString, _inventory.ConnectionString);
         services.AddSingleton<IDomainEventDispatcher>(_dispatcher);   // přebije skutečný dispatcher
         services.AddSingleton<IIntegrationBus>(_bus);            // a "broker"
@@ -148,8 +149,13 @@ public sealed class OutboxTests : IDisposable
         Assert.Equal(1, failed.Attempts);
         Assert.Contains("Sklad nedostupný", failed.Error);
 
-        // Sklad je zase dostupný – další kolo zprávu doručí a chybu smaže.
+        // EDA krok 13: backoff – v dalším kole (za 2 s) se zpráva ještě nezkouší, až po 5 s.
         _dispatcher.Fail = false;
+        Assert.Equal(0, await Processor.ProcessPendingAsync());
+        Assert.Equal(Now.UtcDateTime + OutboxProcessor.RetryDelay(1), failed.NextAttemptAtUtc);
+        _time.Advance(OutboxProcessor.RetryDelay(1));
+
+        // Sklad je zase dostupný – kolo po termínu zprávu doručí a chybu smaže.
         await Processor.ProcessPendingAsync();
 
         var retried = await Db(db => db.OutboxMessages.SingleAsync());
@@ -164,13 +170,15 @@ public sealed class OutboxTests : IDisposable
         await PlaceOrderAsync(quantity: 1);
         _dispatcher.Fail = true;
 
-        for (var i = 0; i < OutboxProcessor.MaxAttempts; i++)
+        for (var attempt = 1; attempt <= OutboxProcessor.MaxAttempts; attempt++)
         {
             Assert.Equal(1, await Processor.ProcessPendingAsync());
+            _time.Advance(OutboxProcessor.RetryDelay(attempt));   // EDA krok 13: počkat na termín dalšího pokusu
         }
 
         // Poison message: zůstane v tabulce nezpracovaná, ale už se nezkouší.
         _dispatcher.Fail = false;
+        _time.Advance(TimeSpan.FromDays(1));
         Assert.Equal(0, await Processor.ProcessPendingAsync());
 
         var message = await Db(db => db.OutboxMessages.SingleAsync());

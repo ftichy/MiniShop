@@ -77,6 +77,9 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Admin, "/Account/EmailPreferences", Expect.Denied },
 
         // Jen admin
+        { Who.Anonymous, "/Admin/Messages", Expect.Login },               // EDA krok 13: provoz zpráv
+        { Who.User, "/Admin/Messages", Expect.Denied },
+        { Who.Admin, "/Admin/Messages", Expect.Allowed },
         { Who.Anonymous, "/Admin/Reviews", Expect.Login },                // e-shop krok 14: moderace hodnocení
         { Who.User, "/Admin/Reviews", Expect.Denied },
         { Who.Admin, "/Admin/Reviews", Expect.Allowed },
@@ -140,6 +143,10 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Admin, "/Checkout?handler=ApplyCoupon", Expect.Denied },
         { Who.User, "/Checkout?handler=RemoveCoupon", Expect.Allowed },
         { Who.Admin, "/Checkout?handler=RemoveCoupon", Expect.Denied },
+        { Who.User, "/Admin/Messages?handler=Retry&module=Ordering&id=00000000-0000-0000-0000-000000000001", Expect.Denied },   // EDA krok 13
+        { Who.Admin, "/Admin/Messages?handler=Retry&module=Ordering&id=00000000-0000-0000-0000-000000000001", Expect.Allowed },
+        { Who.User, "/Admin/Messages?handler=Requeue&queue=minishop.ordering", Expect.Denied },
+        { Who.Admin, "/Admin/Messages?handler=Requeue&queue=minishop.ordering", Expect.Allowed },
         { Who.Anonymous, "/Shop/1?handler=Review", Expect.Login },              // e-shop krok 14: hodnotit jen zákazník
         { Who.User, "/Shop/1?handler=Review", Expect.Allowed },
         { Who.Admin, "/Shop/1?handler=Review", Expect.Denied },

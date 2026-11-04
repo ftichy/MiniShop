@@ -18,5 +18,8 @@ internal sealed class ProcessedMessageConfiguration : IEntityTypeConfiguration<P
         // SQLite neukládá DateTimeKind – při načtení čas označíme jako UTC.
         builder.Property(m => m.ProcessedAtUtc)
             .HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+
+        // EDA krok 13: úklid maže staré záznamy – WHERE ProcessedAtUtc < hranice.
+        builder.HasIndex(m => m.ProcessedAtUtc);
     }
 }

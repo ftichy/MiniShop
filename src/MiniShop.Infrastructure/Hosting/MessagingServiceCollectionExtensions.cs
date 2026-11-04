@@ -35,6 +35,12 @@ public static class MessagingServiceCollectionExtensions
         services.AddHostedService<RabbitMqConsumersWorker>();
         services.AddHostedService<OutboxWorker>();
 
+        // EDA krok 13: úklid zpracovaných zpráv v databázích modulů této služby.
+        services.AddSingleton(new MessageRetentionSettings(
+            TimeSpan.FromDays(configuration.GetValue("Messaging:Retention:OutboxDays", 7)),
+            TimeSpan.FromDays(configuration.GetValue("Messaging:Retention:InboxDays", 30))));
+        services.AddHostedService<MessageRetentionWorker>();
+
         return services;
     }
 }

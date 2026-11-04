@@ -61,7 +61,7 @@ sequenceDiagram
 
 - **Vnější akce nejsou v transakci.** Když handler pošle skutečný e-mail a aplikace spadne před `COMMIT`, e-mail
   při opakování odejde znovu. (V MiniShopu „e-mail“ jen píše do logu.)
-- Inbox se nečistí – roste s každou zprávou.
+- Inbox se od EDA kroku 13 uklízí: záznamy starší než 30 dní zmizí (lhůta musí být delší než nejdelší opakované doručení) – viz [Provoz zpráv](provoz-zprav.md).
 
 ## Na internetu
 

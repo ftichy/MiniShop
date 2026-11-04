@@ -21,8 +21,7 @@ public sealed class MessageMaintenanceTests : IDisposable
 {
     private static readonly DateTime Now = new(2026, 11, 4, 12, 0, 0, DateTimeKind.Utc);
 
-    private readonly InMemoryDatabase _ordering = new();
-    private readonly InMemoryDatabase _inventory = new();
+    private readonly TestDatabases _databases = new();   // škálování krok 2: SQLite nebo PostgreSQL
     private readonly FixedTimeProvider _time = new(Now);
     private readonly ServiceProvider _services;
 
@@ -31,7 +30,7 @@ public sealed class MessageMaintenanceTests : IDisposable
         var services = new ServiceCollection();
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         services.AddSingleton<TimeProvider>(_time);
-        services.AddInfrastructure(_ordering.ConnectionString, _inventory.ConnectionString);
+        services.AddInfrastructure(_databases.Ordering, _databases.Inventory);
         _services = services.BuildServiceProvider();
         OrderingDatabaseInitializer.InitializeAsync(_services).GetAwaiter().GetResult();
     }
@@ -130,7 +129,6 @@ public sealed class MessageMaintenanceTests : IDisposable
     public void Dispose()
     {
         _services.Dispose();
-        _ordering.Dispose();
-        _inventory.Dispose();
+        _databases.Dispose();
     }
 }

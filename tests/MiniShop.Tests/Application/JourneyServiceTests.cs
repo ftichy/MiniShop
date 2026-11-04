@@ -16,7 +16,7 @@ public sealed class JourneyServiceTests : IDisposable
 {
     private static readonly DateTimeOffset Now = new(2026, 1, 15, 10, 0, 0, TimeSpan.Zero);
 
-    private readonly InMemoryDatabase _database = new();
+    private readonly TestDatabases _databases = new();   // škálování krok 2: SQLite nebo PostgreSQL
     private readonly ServiceProvider _services;
     private readonly Guid _journeyId = Guid.NewGuid();
 
@@ -24,7 +24,7 @@ public sealed class JourneyServiceTests : IDisposable
     {
         var services = new ServiceCollection();
         services.AddSingleton<TimeProvider>(new FixedTimeProvider(Now));
-        services.AddJourneysInfrastructure(_database.ConnectionString);
+        services.AddJourneysInfrastructure(_databases.Journeys);
         services.AddScoped<IJourneyService, JourneyService>();
         _services = services.BuildServiceProvider();
 
@@ -267,6 +267,6 @@ public sealed class JourneyServiceTests : IDisposable
     public void Dispose()
     {
         _services.Dispose();
-        _database.Dispose();
+        _databases.Dispose();
     }
 }

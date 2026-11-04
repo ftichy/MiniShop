@@ -20,8 +20,7 @@ public sealed class IdempotentHandlerTests : IDisposable
 {
     private static readonly DateTimeOffset Now = new(2026, 1, 15, 10, 0, 0, TimeSpan.Zero);
 
-    private readonly InMemoryDatabase _ordering = new();
-    private readonly InMemoryDatabase _inventory = new();
+    private readonly TestDatabases _databases = new();   // škálování krok 2: SQLite nebo PostgreSQL
     private readonly Switch _switch = new();
     private readonly ServiceProvider _services;
 
@@ -63,7 +62,7 @@ public sealed class IdempotentHandlerTests : IDisposable
         var services = new ServiceCollection();
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         services.AddSingleton<TimeProvider>(new FixedTimeProvider(Now));
-        services.AddInfrastructure(_ordering.ConnectionString, _inventory.ConnectionString);
+        services.AddInfrastructure(_databases.Ordering, _databases.Inventory);
         services.AddSingleton(_switch);
 
         _services = services.BuildServiceProvider();
@@ -139,7 +138,7 @@ public sealed class IdempotentHandlerTests : IDisposable
         var services = new ServiceCollection();
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         services.AddSingleton<TimeProvider>(new FixedTimeProvider(Now));
-        services.AddInfrastructure(_ordering.ConnectionString, _inventory.ConnectionString);
+        services.AddInfrastructure(_databases.Ordering, _databases.Inventory);
         services.AddSingleton(_switch);
         register(services);
         return services.BuildServiceProvider();
@@ -178,7 +177,6 @@ public sealed class IdempotentHandlerTests : IDisposable
     public void Dispose()
     {
         _services.Dispose();
-        _ordering.Dispose();
-        _inventory.Dispose();
+        _databases.Dispose();
     }
 }

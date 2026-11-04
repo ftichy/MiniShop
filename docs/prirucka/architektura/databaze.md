@@ -97,8 +97,37 @@ dotnet ef migrations add <Nazev> --project src/MiniShop.Infrastructure.PostgreSq
 
 Na zapomenutou migraci upozorní testy: [DatabaseMigrationTests](code:tests/MiniShop.Tests/Infrastructure/DatabaseMigrationTests.cs)
 (SQLite) a [PostgresMigrationTests](code:tests/MiniShop.Tests/Infrastructure/PostgresMigrationTests.cs) (PostgreSQL –
-model proti snapshotu, tabulky jen ve schématu modulu; server k tomu není potřeba). Testy aplikace zatím běží nad SQLite
-v paměti, proti skutečnému PostgreSQL až od škálování kroku 2 (Testcontainers).
+model proti snapshotu, tabulky jen ve schématu modulu; server k tomu není potřeba).
+
+Ruční SQL v migraci (data, ne schéma – např. kategorie „Nezařazeno“) EF pro druhého providera nevygeneruje – je potřeba
+ho dopsat i do migrace PostgreSQL. Přesně tohle našly první testy nad PostgreSQL (migrace `UncategorizedCategory`).
+
+## Testy nad oběma databázemi
+
+Celá sada testů běží nad SQLite i nad PostgreSQL – přepíná ji proměnná prostředí `MINISHOP_TEST_DATABASE`:
+
+```text
+dotnet test MiniShop.slnx                                           # SQLite v paměti (výchozí, bez Dockeru, ~50 s)
+$env:MINISHOP_TEST_DATABASE="Postgres"; dotnet test MiniShop.slnx   # skutečný PostgreSQL (potřeba Docker, ~1,5 min)
+```
+
+```mermaid
+flowchart LR
+    t["test (konstruktor)"] --> td["TestDatabases"]
+    td -->|Sqlite| m[("databáze v paměti<br/>pro každý modul")]
+    td -->|Postgres| c["CREATE DATABASE test_… TEMPLATE minishop_template"]
+    s["PostgresTestServer<br/>(jednou za běh)"] -->|"Testcontainers: postgres:17-alpine<br/>migrace všech modulů do šablony"| c
+```
+
+- [TestDatabases](code:tests/MiniShop.Tests/TestDoubles/TestDatabases.cs) dá testu databáze modulů. Nad PostgreSQL mají
+  všechny moduly jednu databázi a oddělují je schémata – stejně jako v produkci.
+- [PostgresTestServer](code:tests/MiniShop.Tests/TestDoubles/PostgresTestServer.cs) spustí kontejner jednou za běh testů a
+  migrace provede jen jednou do šablony. Každý test dostane **kopii šablony** (desítky milisekund) a po sobě ji smaže –
+  testy se navzájem neovlivní, i když běží paralelně. Kontejner po skončení uklidí Testcontainers.
+- Ruční SQL v testech nepoužívat (jména tabulek, schéma, uvozovky se liší) – změnu dat udělat přes EF (`ExecuteUpdateAsync`).
+- Nad PostgreSQL běží transakce opravdu souběžně – test `Kupon_PosledniPouzitiNaraz_ProjdeJenJednaObjednavka` ověřuje,
+  že poslední použití kuponu dostane jen jedna ze dvou současných objednávek (concurrency token `Coupon.Version`).
+- V CI běží obě varianty souběžně – viz [CI](../github/ci.md).
 
 Projekt s migracemi PostgreSQL referencují Web, Inventory.Api i testy – EF ho za běhu načítá podle jména
 (`MigrationsAssembly`), musí tedy ležet vedle jejich DLL. Proto je i v `COPY *.csproj` obou Dockerfile.

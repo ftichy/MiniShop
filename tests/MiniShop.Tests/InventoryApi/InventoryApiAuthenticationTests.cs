@@ -89,17 +89,17 @@ public sealed class InventoryApiAuthenticationTests : IClassFixture<InventoryApi
     };
 }
 
-/// <summary>Inventory.Api v paměti: SQLite v paměti, bez workerů (outbox, RabbitMQ).</summary>
+/// <summary>Inventory.Api v paměti: databáze z <see cref="TestDatabases"/> (SQLite nebo PostgreSQL), bez workerů (outbox, RabbitMQ).</summary>
 public sealed class InventoryApiFactory : WebApplicationFactory<ApiKeyAuthenticationHandler>
 {
     public static readonly string ApiKey = new('a', 64);
 
-    private readonly InMemoryDatabase _inventory = new();
+    private readonly TestDatabases _databases = new();   // škálování krok 2
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
-        builder.UseSetting("ConnectionStrings:Inventory", _inventory.ConnectionString);
+        _databases.Configure(builder, "Inventory");
         builder.UseSetting(ServiceApiKey.ConfigurationKey, ApiKey);
 
         builder.ConfigureTestServices(services =>
@@ -118,6 +118,6 @@ public sealed class InventoryApiFactory : WebApplicationFactory<ApiKeyAuthentica
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
-        _inventory.Dispose();
+        _databases.Dispose();
     }
 }

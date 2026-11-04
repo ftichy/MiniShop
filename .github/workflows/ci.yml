@@ -1,5 +1,6 @@
 # Cloud krok 6: CI – každá změna se sestaví a otestuje na čistém stroji (runner = dočasná Linux VM od GitHubu).
-# Testy nepotřebují RabbitMQ ani Docker: sága běží nad InProcessIntegrationBus, databáze jsou SQLite v paměti.
+# Testy nepotřebují RabbitMQ: sága běží nad InProcessIntegrationBus. Databáze: "Build a testy" SQLite v paměti,
+# "Testy PostgreSQL" skutečný PostgreSQL v Dockeru runneru (škálování krok 2).
 name: CI
 
 on:
@@ -76,13 +77,61 @@ jobs:
           path: TestResults/*.trx
           retention-days: 14
 
+  # Škálování krok 2: stejné testy proti skutečnému PostgreSQL (Testcontainers spustí postgres:17-alpine v Dockeru
+  # runneru). Běží souběžně s "Build a testy" – jméno toho jobu (povinný check) se nemění.
+  test-postgres:
+    name: Testy PostgreSQL
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      MINISHOP_TEST_DATABASE: Postgres
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: .NET SDK podle global.json
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet balíčků
+        uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/*.props', 'global.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore MiniShop.slnx
+
+      - name: Build
+        run: dotnet build MiniShop.slnx --configuration Release --no-restore
+
+      - name: Testy nad PostgreSQL
+        run: >
+          dotnet test MiniShop.slnx --configuration Release --no-build
+          --logger "trx;LogFileName=test-results-postgres.trx"
+          --results-directory TestResults
+
+      - name: Výsledky testů jako artefakt
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-postgres
+          path: TestResults/*.trx
+          retention-days: 14
+
   # Cloud krok 7: Docker image obou služeb.
   #   pull request → jen zkušební sestavení pro x86 (rozbitý Dockerfile se pozná před sloučením), nic se neukládá,
   #   main         → sestavení pro x86 i ARM a push do GHCR s tagy sha-<commit> a latest.
   # Běží až po zelených testech (needs) – do registry se nedostane image z kódu, který neprošel.
   images:
     name: Image ${{ matrix.service }}
-    needs: build-and-test
+    needs: [build-and-test, test-postgres]   # škálování krok 2: do registry jen kód zelený nad SQLite i PostgreSQL
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 

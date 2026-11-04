@@ -18,7 +18,7 @@ namespace MiniShop.Tests.Web;
 
 /// <summary>
 /// Účty krok 2: celý Web (Program.cs) v paměti – skutečné HTTP požadavky, skutečné přihlášení cookie,
-/// skutečné policies. Databáze jsou SQLite v paměti, workery (outbox, RabbitMQ, sága) neběží a sklad
+/// skutečné policies. Databáze jsou SQLite v paměti (nebo PostgreSQL – škálování krok 2, <see cref="TestDatabases"/>), workery (outbox, RabbitMQ, sága) neběží a sklad
 /// nahrazuje <see cref="StubProductService"/>.
 /// </summary>
 /// <remarks>
@@ -40,24 +40,12 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
     /// <summary>Účty krok 8: všechno, co Web zapsal do logu.</summary>
     public RecordingLoggerProvider Logs { get; } = new();
 
-    private readonly InMemoryDatabase _ordering = new();
-    private readonly InMemoryDatabase _journeys = new();
-    private readonly InMemoryDatabase _accounts = new();
-    private readonly InMemoryDatabase _notifications = new();   // e-shop krok 7
-    private readonly InMemoryDatabase _payments = new();        // e-shop krok 8
-    private readonly InMemoryDatabase _reporting = new();       // e-shop krok 11
-    private readonly InMemoryDatabase _reviews = new();         // e-shop krok 14
+    private readonly TestDatabases _databases = new();   // škálování krok 2: SQLite (databáze na modul) nebo PostgreSQL
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
-        builder.UseSetting("ConnectionStrings:Ordering", _ordering.ConnectionString);
-        builder.UseSetting("ConnectionStrings:Journeys", _journeys.ConnectionString);
-        builder.UseSetting("ConnectionStrings:Accounts", _accounts.ConnectionString);
-        builder.UseSetting("ConnectionStrings:Notifications", _notifications.ConnectionString);
-        builder.UseSetting("ConnectionStrings:Payments", _payments.ConnectionString);
-        builder.UseSetting("ConnectionStrings:Reporting", _reporting.ConnectionString);
-        builder.UseSetting("ConnectionStrings:Reviews", _reviews.ConnectionString);
+        _databases.Configure(builder, "Ordering", "Journeys", "Accounts", "Notifications", "Payments", "Reporting", "Reviews");
         // E-shop krok 8: tajemství webhooku platební brány (bez něj by se Web nespustil). Testy jím i podepisují.
         builder.UseSetting("Payments:WebhookSecret", WebhookSecret);
         // Účty krok 7: servisní klíč skladu (sklad tu nahrazuje StubProductService, ale bez klíče by se Web nespustil).
@@ -217,13 +205,7 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
     async Task IAsyncLifetime.DisposeAsync()
     {
         await base.DisposeAsync();
-        _ordering.Dispose();
-        _journeys.Dispose();
-        _accounts.Dispose();
-        _notifications.Dispose();
-        _payments.Dispose();
-        _reporting.Dispose();
-        _reviews.Dispose();
+        _databases.Dispose();
     }
 
     [GeneratedRegex("name=\"__RequestVerificationToken\" type=\"hidden\" value=\"([^\"]+)\"")]

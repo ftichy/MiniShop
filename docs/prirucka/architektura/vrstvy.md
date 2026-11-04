@@ -57,7 +57,7 @@ nezná Infrastructure – zná jen rozhraní, která Infrastructure implementuje
 | [MiniShop.Web](code:src/MiniShop.Web/) | Razor Pages, REST API objednávek, background workery, `Program.cs` | Hostitel modulů Ordering a Journeys; skládá celou aplikaci (*composition root*). |
 | [MiniShop.Inventory.Api](code:src/MiniShop.Inventory.Api/) | REST API produktů, `Program.cs` | Hostitel modulu Inventory. |
 | [MiniShop.AppHost](code:src/MiniShop.AppHost/) | Popis celé aplikace pro .NET Aspire | Lokální spuštění jedním příkazem (RabbitMQ + obě služby + dashboard). |
-| [MiniShop.Tests](code:tests/MiniShop.Tests/) | Testy domény, služeb, ságy, outboxu, inboxu, kontraktů, architektury a této dokumentace | Testy běží bez RabbitMQ – celá sága v jednom procesu nad SQLite v paměti. |
+| [MiniShop.Tests](code:tests/MiniShop.Tests/) | Testy domény, služeb, ságy, outboxu, inboxu, kontraktů, architektury a této dokumentace | Testy běží bez RabbitMQ – celá sága v jednom procesu nad SQLite v paměti, nebo nad PostgreSQL (`MINISHOP_TEST_DATABASE=Postgres`, Testcontainers). |
 
 ## Composition root – kde se to celé skládá
 

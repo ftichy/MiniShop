@@ -7,4 +7,7 @@ namespace MiniShop.Application.Ordering.Catalog;
 public interface ICatalogQueryService
 {
     Task<CatalogSearchResult> SearchAsync(CatalogSearchRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>E-shop krok 14: jeden produkt pro stránku detailu (/Shop/{id}); null = neexistuje nebo je stažený z nabídky.</summary>
+    Task<CatalogItemDto?> GetProductAsync(int productId, CancellationToken cancellationToken = default);
 }

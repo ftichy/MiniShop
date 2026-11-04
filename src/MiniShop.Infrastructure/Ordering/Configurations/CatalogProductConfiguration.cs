@@ -26,5 +26,8 @@ internal sealed class CatalogProductConfiguration : IEntityTypeConfiguration<Cat
             .HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
         builder.Property(p => p.SearchText).IsRequired().HasMaxLength(800);
         builder.Ignore(p => p.IsOrderable);
+        builder.Property(p => p.RatingAverage).HasPrecision(3, 1);   // e-shop krok 14: hodnocení z modulu Reviews
+        builder.Property(p => p.RatingChangedAtUtc)
+            .HasConversion(v => v, v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
     }
 }

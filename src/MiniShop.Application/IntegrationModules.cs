@@ -20,4 +20,7 @@ public static class IntegrationModules
 
     /// <summary>E-shop krok 11: přehled tržeb pro admina (CQRS – čtecí model z událostí objednávek a plateb).</summary>
     public const string Reporting = "reporting";
+
+    /// <summary>E-shop krok 14: hodnocení produktů – kopie nákupů z událostí objednávek, souhrn hodnocení pro výlohu.</summary>
+    public const string Reviews = "reviews";
 }

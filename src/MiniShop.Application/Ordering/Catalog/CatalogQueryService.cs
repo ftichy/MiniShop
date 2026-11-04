@@ -26,6 +26,8 @@ public sealed class CatalogQueryService(ICatalogProductRepository catalog) : ICa
         {
             CatalogSort.PriceAscending => found.OrderBy(p => p.Price).ThenBy(p => p.Name, CzechOrder),
             CatalogSort.PriceDescending => found.OrderByDescending(p => p.Price).ThenBy(p => p.Name, CzechOrder),
+            CatalogSort.BestRated => found.OrderByDescending(p => p.RatingAverage).ThenByDescending(p => p.RatingCount)
+                .ThenBy(p => p.Name, CzechOrder),
             _ => found.OrderBy(p => p.Name, CzechOrder)
         };
 
@@ -35,6 +37,9 @@ public sealed class CatalogQueryService(ICatalogProductRepository catalog) : ICa
 
         return new CatalogSearchResult(items, found.Count, page, pageCount, await GetCategoriesAsync(cancellationToken));
     }
+
+    public async Task<CatalogItemDto?> GetProductAsync(int productId, CancellationToken cancellationToken = default) =>
+        await catalog.GetByIdAsync(productId, cancellationToken) is { IsRemoved: false } product ? product.ToCatalogItemDto() : null;
 
     /// <summary>Kategorie s počtem produktů v nabídce – nezávisle na hledání, ať jde filtr kdykoli změnit.</summary>
     private async Task<IReadOnlyList<CatalogCategoryDto>> GetCategoriesAsync(CancellationToken cancellationToken)

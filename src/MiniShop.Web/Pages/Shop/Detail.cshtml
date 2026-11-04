@@ -1,0 +1,105 @@
+@page "/Shop/{id:int}"
+@using MiniShop.Web.Catalog
+@model MiniShop.Web.Pages.Shop.DetailModel
+@{
+    var p = Model.Product;
+    ViewData["Title"] = p.Name;
+}
+<p><a asp-page="/Shop/Index" data-track="product-back">← Obchod</a></p>
+
+<partial name="_StatusMessage" model="Model.StatusMessage" />
+@if (Model.ErrorMessage is not null)
+{
+    <div class="alert alert-danger">@Model.ErrorMessage</div>
+}
+
+<div class="row g-4">
+    <div class="col-md-5">
+        @if (p.ImageFileName is not null)
+        {
+            <img src="@(ProductImageEndpoint.PathPrefix + p.ImageFileName)" alt="@p.Name" class="img-fluid rounded product-img" />
+        }
+        else
+        {
+            <div class="product-img-placeholder rounded">bez obrázku</div>
+        }
+    </div>
+    <div class="col-md-7">
+        <div class="text-muted small">@p.CategoryName</div>
+        <h1 class="h3">@p.Name</h1>
+        <div class="mb-2 text-warning" title="@RatingStars.Summary(Model.Reviews.AverageRating, Model.Reviews.RatingCount)" data-track="product-rating">
+            @RatingStars.For(Model.Reviews.AverageRating)
+            <span class="text-muted small">@RatingStars.Summary(Model.Reviews.AverageRating, Model.Reviews.RatingCount)</span>
+        </div>
+        <p>@p.Description</p>
+        <div class="d-flex align-items-center gap-3">
+            <strong class="fs-4">@p.Price.ToString("N2") Kč</strong>
+            <span class="badge @AvailabilityLabels.Badge(p.Availability)">@AvailabilityLabels.Text(p.Availability)</span>
+            @if (Model.CanOrder && p.Availability != "OutOfStock")
+            {
+                <form method="post" asp-page="/Cart/Index" asp-page-handler="Add">
+                    <input type="hidden" name="productId" value="@p.ProductId" />
+                    <input type="hidden" name="returnUrl" value="@Model.CurrentUrl" />
+                    <button type="submit" class="btn btn-primary" data-track="product-add-to-cart">Do košíku</button>
+                </form>
+            }
+            else if (Model.IsAnonymous)
+            {
+                <a asp-page="/Account/Login" asp-route-returnUrl="@Model.CurrentUrl" class="btn btn-outline-primary">Přihlásit a nakoupit</a>
+            }
+        </div>
+    </div>
+</div>
+
+@* E-shop krok 14: hodnocení z modulu Reviews – hodnotit smí jen ten, kdo produkt koupil a dostal (kopie nákupů z událostí). *@
+<h2 class="h4 mt-5">Hodnocení zákazníků</h2>
+
+@if (Model.Reviews.CanReview)
+{
+    var mine = Model.Reviews.Mine;
+    <form method="post" asp-page-handler="Review" asp-route-id="@p.ProductId" class="card card-body mb-4" style="max-width: 40rem">
+        <div class="fw-semibold mb-2">@(mine is null ? "Ohodnoťte produkt" : "Vaše hodnocení (můžete upravit)")</div>
+        <div class="mb-2">
+            @for (var stars = 5; stars >= 1; stars--)
+            {
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="rating" id="rating@(stars)" value="@stars"
+                           checked="@((mine?.Rating ?? 5) == stars)" data-track="product-review-rating" />
+                    <label class="form-check-label text-warning" for="rating@(stars)">@RatingStars.For(stars)</label>
+                </div>
+            }
+        </div>
+        <textarea name="text" class="form-control mb-2" rows="3" maxlength="@DetailModel.MaxTextLength"
+                  placeholder="Co se vám líbilo, co ne? (nepovinné)" aria-label="Text hodnocení" data-track="product-review-text">@mine?.Text</textarea>
+        <div>
+            <button type="submit" class="btn btn-primary btn-sm" data-track="product-review-submit">@(mine is null ? "Odeslat hodnocení" : "Uložit změny")</button>
+        </div>
+    </form>
+}
+else if (Model.CanOrder)
+{
+    <p class="text-muted small">Hodnotit můžete zboží, které jste u nás koupili a dostali.</p>
+}
+
+@if (Model.Reviews.Reviews.Count == 0)
+{
+    <p class="text-muted">Zatím nikdo nehodnotil.</p>
+}
+else
+{
+    <div class="list-group" data-track="product-reviews">
+        @foreach (var review in Model.Reviews.Reviews)
+        {
+            <div class="list-group-item">
+                <div class="d-flex justify-content-between">
+                    <span><span class="text-warning">@RatingStars.For(review.Rating)</span> <strong>@review.AuthorName</strong></span>
+                    <span class="text-muted small">@review.UpdatedAtUtc.ToLocalTime().ToString("d. M. yyyy")</span>
+                </div>
+                @if (review.Text.Length > 0)
+                {
+                    <p class="mb-0 mt-1">@review.Text</p>
+                }
+            </div>
+        }
+    </div>
+}

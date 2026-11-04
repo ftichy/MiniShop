@@ -46,6 +46,7 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
     private readonly InMemoryDatabase _notifications = new();   // e-shop krok 7
     private readonly InMemoryDatabase _payments = new();        // e-shop krok 8
     private readonly InMemoryDatabase _reporting = new();       // e-shop krok 11
+    private readonly InMemoryDatabase _reviews = new();         // e-shop krok 14
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -56,6 +57,7 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
         builder.UseSetting("ConnectionStrings:Notifications", _notifications.ConnectionString);
         builder.UseSetting("ConnectionStrings:Payments", _payments.ConnectionString);
         builder.UseSetting("ConnectionStrings:Reporting", _reporting.ConnectionString);
+        builder.UseSetting("ConnectionStrings:Reviews", _reviews.ConnectionString);
         // E-shop krok 8: tajemství webhooku platební brány (bez něj by se Web nespustil). Testy jím i podepisují.
         builder.UseSetting("Payments:WebhookSecret", WebhookSecret);
         // Účty krok 7: servisní klíč skladu (sklad tu nahrazuje StubProductService, ale bez klíče by se Web nespustil).
@@ -221,6 +223,7 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
         _notifications.Dispose();
         _payments.Dispose();
         _reporting.Dispose();
+        _reviews.Dispose();
     }
 
     [GeneratedRegex("name=\"__RequestVerificationToken\" type=\"hidden\" value=\"([^\"]+)\"")]

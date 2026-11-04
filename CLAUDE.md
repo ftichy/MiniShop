@@ -13,13 +13,14 @@ Cíl: postupně ho převést na EDA podle plánu v `docs/EDA-roadmap.md`.
 ```
 src/MiniShop.Contracts       integrační zprávy – události (OrderPlacedV1, StockReservedV1, …) a příkazy (ReserveStockV1, …), žádné závislosti
 src/MiniShop.Domain          Common/ (Entity, IDomainEvent), Orders/ (Order, CatalogProduct, CatalogSearchText, Carts/Cart, Coupons/Coupon, Saga/OrderSaga + ReturnSaga), Inventory/ (Product, Category, StockAvailability, StockReservation),
-                             Journeys/ (JourneyEvent, JourneyEventType), Notifications/ (OrderRecipient), Payments/ (Payment), Reporting/ (SalesOrder – čtecí model)
+                             Journeys/ (JourneyEvent, JourneyEventType), Notifications/ (OrderRecipient), Payments/ (Payment), Reporting/ (SalesOrder – čtecí model), Reviews/ (Review, PurchasedOrder)
 src/MiniShop.Application     Abstractions/ (sdílené: IUnitOfWork, IDomainEvent*, IIntegrationMessage*, TraceTags),
                              Ordering/ (OrderService, DTO, Saga, Catalog projekce + CatalogQueryService, Carts/CartService, Checkout/CheckoutService, IntegrationEvents (překladač), Pricing), Inventory/ (ProductService, CategoryService, Reserve/ReleaseStock),
                              Journeys/ (JourneyService, OrderJourneyProjection, JourneyReplayProjection, DTO),
                              Notifications/ (OrderNotificationsHandler, OrderEmailTemplates, NotificationSettings, CartReminderHandler, ICustomerContacts),
                              Payments/ (PaymentCommandHandlers, PaymentWebhookProcessor, WebhookSignature, IPaymentGateway),
-                             Reporting/ (SalesProjectionHandler, SalesReportService)
+                             Reporting/ (SalesProjectionHandler, SalesReportService),
+                             Reviews/ (ReviewService, PurchaseProjectionHandler)
 src/MiniShop.Infrastructure  sdílené: Persistence/ModuleDbContext, Outbox, Inbox (InboxGuard), Integration (bus, routing, dispatcher, RabbitMq/), Events,
                              Observability/ (MessagingTelemetry – ActivitySource + Meter, OutboxHealthCheck),
                              Hosting/ (OutboxWorker, RabbitMqConsumersWorker, AddMessaging);
@@ -27,7 +28,8 @@ src/MiniShop.Infrastructure  sdílené: Persistence/ModuleDbContext, Outbox, Inb
                              Journeys/ (JourneysDbContext – journeys.db bez outboxu/inboxu, repozitář, DB init),
                              Notifications/ (NotificationsDbContext – notifications.db s inboxem, repozitář příjemců, DB init),
                              Payments/ (PaymentsDbContext – payments.db s outboxem + inboxem, FakePaymentGateway + simulátor),
-                             Reporting/ (ReportingDbContext – reporting.db s inboxem + outboxem, jen příkaz na přestavění)
+                             Reporting/ (ReportingDbContext – reporting.db s inboxem + outboxem, jen příkaz na přestavění),
+                             Reviews/ (ReviewsDbContext – reviews.db s inboxem + outboxem, hodnocení + kopie nákupů)
 src/MiniShop.Web             služba Ordering (7180): API objednávek, Razor Pages (celé UI), Inventory/InventoryApiClient (HTTP na sklad),
                              OrderSagaTimeoutWorker, Program.cs (composition root); krok 12: JourneysController, Pages/Orders/Journey + Replay,
                              wwwroot/js/order-form-tracker.js + journey-player.js
@@ -212,6 +214,14 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   → hláška „kód mezitím použil někdo jiný“. Jeden zákazník jednou (`IOrderRepository.HasUsedCouponAsync`, jen platné objednávky).
   Kompenzace `ReleaseCouponHandler` na `OrderRejected`/`OrderCancelled` (vratka ne). Formulář kódu je mimo sledovaný formulář
   pokladny (do `Replay.cshtml` nepatří). Admin `/Admin/Coupons`. Testy: `CreateCouponAsync`, `PlaceWithCouponAsync`.
+- **Hodnocení produktů (e-shop krok 14):** modul Reviews (`…Reviews` ve všech vrstvách, hostuje Web, `reviews.db` s inboxem + outboxem,
+  fronta `minishop.reviews`; **musí do zálohy** – nejde přestavět). Kopie nákupů `PurchasedOrder` z `OrderPlacedV2`, `OrderCompletedV1`
+  (doručeno), `ReturnCompletedV1` (vráceno), `OrderSnapshotV2`, `CustomerAnonymizedV1` (smazat nákupy, autor „Smazaný zákazník“) – upsert,
+  doručeno/vráceno jen zapnout. Hodnotí jen doručeno + nevráceno (`FindReviewableAsync`), jedno na zákazníka a produkt (filtrovaný unikátní
+  index), autor „Jan N.“. Každá změna (i skrytí adminem) = `ProductRatingChangedV1` ve stejné transakci → Ordering `CatalogProjectionHandler`
+  → `CatalogProduct.ApplyRating` (starší nepřepíše) → výloha hvězdičky + `CatalogSort.BestRated`. Nákupy z doby před modulem:
+  `PurchasesSyncOnStartupWorker` → `SyncPurchasesV1` → Ordering `SyncPurchasesHandler` → `OrderSnapshotV2` (se zákazníkem, bez
+  anonymizovaných). Stránky `/Shop/{id}` (veřejná, `OnPostReview` jen zákazník), `/Admin/Reviews`. Testy: `Reviews(…)`, `DeliverApiOrderAsync`.
 - **Průběh objednávky (krok 12):** modul Journeys (`…Journeys` ve všech vrstvách, hostuje ho Web, vlastní `journeys.db`,
   bez zpráv → `JourneysDbContext` nedědí z `ModuleDbContext`). Proud `JourneyEvents` = jen INSERT, idempotence přes unikátní `EventId`
   z prohlížeče, řazení podle `OffsetMs` (čas od otevření formuláře). `ValidationFailed`/`OrderSubmitted` zapisuje jen server
@@ -330,7 +340,7 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   `<<: *otel-env` + `OTEL_SERVICE_NAME` v compose. Alarmy VM (CPU, paměť, chybějící metriky) + e-mail v `infra/monitoring.tf`
   (OCI Monitoring + Notifications, `alert_email` v `terraform.tfvars`).
 - Zálohy (krok 12): `minishop-backup.timer` (02:30 UTC, uživatel `deploy`) → `/opt/minishop/backup.sh` → `backup.py`
-  v kontejneru `ghcr.io/oracle/oci-cli:20261007` (online backup SQLite `ordering/journeys/notifications/payments/reporting/users/inventory.db` + `/data/keys` + obrázky skladu
+  v kontejneru `ghcr.io/oracle/oci-cli:20261007` (online backup SQLite `ordering/journeys/notifications/payments/reporting/reviews/users/inventory.db` + `/data/keys` + obrázky skladu
   → `minishop-RRRRMMDDTHHMMSSZ.tar.gz` → bucket `minishop-backups`, lifecycle 7 dní). VM se přihlašuje jako instance principal
   (dynamická skupina `minishop-vm`, politika v `infra/backup.tf`: číst + vytvářet, ne mazat). Obnova:
   `sudo -u deploy /opt/minishop/restore.sh latest|<jméno>|list` (zastaví web + inventory-api, původní soubory nechá jako
@@ -428,7 +438,8 @@ nové moduly Notifications (odběratel událostí) a Payments (účastník ságy
 | 10. Opuštěný košík (`CartReminderWorker`, `CartAbandonedV1`, `Cart.ReminderSentAtUtc`, souhlas `CartRemindersConsent` ověřený až při odeslání přes `ICustomerContacts`, `/Account/EmailPreferences`) | hotovo (nasazeno 3. 11. 2026, nastavení souhlasu ověřeno v produkci; e-mail po 24 h) | `docs/kroky-eshop/krok-10-opusteny-kosik.md` |
 | 11. Přehled tržeb pro admina – CQRS (modul Reporting, `reporting.db`, projekce se stavem jen dopředu, `/Admin/Sales`, přestavění `RebuildSalesReportV1` → `OrderSnapshotV1`) | hotovo (nasazeno 3. 11. 2026, přehled se po startu postavil ze snímků, přestavění ověřeno v produkci) | `docs/kroky-eshop/krok-11-prehled-trzeb.md` |
 | 12. Vrácení zboží (druhá sága `ReturnSaga`, `/Admin/Returns`, `RestockReturnedGoodsV1` → `ReturnedGoodsRestockedV1`, `RefundPaymentV1`, `ReturnRequested/Rejected/CompletedV1`, dobírka ručně) | hotovo (nasazeno 3. 11. 2026, vratka kartou, zamítnutí i dobírka ověřeny v produkci) | `docs/kroky-eshop/krok-12-vraceni-zbozi.md` |
-| 13. Slevové kódy (agregát `Coupon`, `/Admin/Coupons`, použití ve stejné transakci jako objednávka, `Version` proti souběhu o poslední použití, sleva v položkách, `ReleaseCouponHandler`) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-13-slevove-kody.md` |
+| 13. Slevové kódy (agregát `Coupon`, `/Admin/Coupons`, použití ve stejné transakci jako objednávka, `Version` proti souběhu o poslední použití, sleva v položkách, `ReleaseCouponHandler`) | hotovo (nasazeno 4. 11. 2026, uplatnění, limit použití a vrácení po zrušení ověřeny v produkci) | `docs/kroky-eshop/krok-13-slevove-kody.md` |
+| 14. Hodnocení produktů (modul Reviews, `reviews.db`, kopie nákupů z událostí, `ProductRatingChangedV1` do kopie katalogu, `/Shop/{id}`, `/Admin/Reviews`, `SyncPurchasesV1` → `OrderSnapshotV2`) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-14-hodnoceni-produktu.md` |
 
 ## Postup práce na dalším kroku EDA
 1. Nejdřív **shrň**, co se bude přidávat/měnit a **proč** (teorie + konkrétní případ v MiniShopu),

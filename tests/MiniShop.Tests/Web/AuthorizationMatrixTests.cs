@@ -43,6 +43,8 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.User, "/Shop", Expect.Allowed },
         { Who.Admin, "/Shop", Expect.Allowed },
         { Who.Anonymous, "/media/products/1-0123456789ab.png", Expect.Allowed },   // e-shop krok 2B: obrázky výlohy
+        { Who.Anonymous, "/Shop/1", Expect.Allowed },                       // e-shop krok 14: detail produktu (neexistující = 404)
+        { Who.User, "/Shop/1", Expect.Allowed },
 
         // Účty krok 9: smazání účtu – jen přihlášený (admin stránku uvidí, ale smazat nemůže)
         { Who.Anonymous, "/Account/Delete", Expect.Login },
@@ -75,6 +77,9 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Admin, "/Account/EmailPreferences", Expect.Denied },
 
         // Jen admin
+        { Who.Anonymous, "/Admin/Reviews", Expect.Login },                // e-shop krok 14: moderace hodnocení
+        { Who.User, "/Admin/Reviews", Expect.Denied },
+        { Who.Admin, "/Admin/Reviews", Expect.Allowed },
         { Who.Anonymous, "/Admin/Coupons", Expect.Login },                // e-shop krok 13: slevové kódy
         { Who.User, "/Admin/Coupons", Expect.Denied },
         { Who.Admin, "/Admin/Coupons", Expect.Allowed },
@@ -135,6 +140,11 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Admin, "/Checkout?handler=ApplyCoupon", Expect.Denied },
         { Who.User, "/Checkout?handler=RemoveCoupon", Expect.Allowed },
         { Who.Admin, "/Checkout?handler=RemoveCoupon", Expect.Denied },
+        { Who.Anonymous, "/Shop/1?handler=Review", Expect.Login },              // e-shop krok 14: hodnotit jen zákazník
+        { Who.User, "/Shop/1?handler=Review", Expect.Allowed },
+        { Who.Admin, "/Shop/1?handler=Review", Expect.Denied },
+        { Who.User, "/Admin/Reviews?handler=Toggle&id=999", Expect.Denied },
+        { Who.Admin, "/Admin/Reviews?handler=Toggle&id=999", Expect.Allowed },
         { Who.User, "/Admin/Coupons?handler=Create", Expect.Denied },           // e-shop krok 13: jen admin
         { Who.Admin, "/Admin/Coupons?handler=Create", Expect.Allowed },
         { Who.User, "/Admin/Coupons?handler=Deactivate&id=999", Expect.Denied },

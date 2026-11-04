@@ -1,0 +1,45 @@
+@page
+@using MiniShop.Web.Catalog
+@model MiniShop.Web.Pages.Admin.Reviews.IndexModel
+@{
+    ViewData["Title"] = "Hodnocení";
+}
+<h1>Hodnocení</h1>
+<p class="text-muted">
+    Nejnovější hodnocení zákazníků (modul Reviews). Skryté hodnocení se nezobrazuje ani nepočítá do průměru ve výloze.
+</p>
+
+<partial name="_StatusMessage" model="Model.StatusMessage" />
+
+@if (Model.Reviews.Count == 0)
+{
+    <p class="text-muted">Zatím žádné hodnocení.</p>
+}
+else
+{
+    <div class="list-group">
+        @foreach (var review in Model.Reviews)
+        {
+            <div class="list-group-item @(review.IsHidden ? "text-muted" : null)">
+                <div class="d-flex flex-wrap justify-content-between gap-2">
+                    <span>
+                        <span class="text-warning">@RatingStars.For(review.Rating)</span>
+                        <strong>@review.AuthorName</strong> ·
+                        <a asp-page="/Shop/Detail" asp-route-id="@review.ProductId">produkt č. @review.ProductId</a>
+                        · @review.UpdatedAtUtc.ToLocalTime().ToString("g")
+                        @if (review.IsHidden) { <span class="badge bg-secondary">skryté</span> }
+                    </span>
+                    <form method="post" asp-page-handler="Toggle" asp-route-id="@review.Id" asp-route-hide="@(!review.IsHidden)">
+                        <button type="submit" class="btn btn-outline-secondary btn-sm" data-track="review-toggle">
+                            @(review.IsHidden ? "Zobrazit" : "Skrýt")
+                        </button>
+                    </form>
+                </div>
+                @if (review.Text.Length > 0)
+                {
+                    <p class="mb-0 mt-1">@review.Text</p>
+                }
+            </div>
+        }
+    </div>
+}

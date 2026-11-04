@@ -35,6 +35,7 @@ DATABASES = [
     ("/web/notifications.db", "notifications.db"),  # e-shop krok 7 – starší zálohy ho nemají, obnova ho pak přeskočí
     ("/web/payments.db", "payments.db"),  # e-shop krok 8
     ("/web/reporting.db", "reporting.db"),  # e-shop krok 11 – čtecí model (jde i přestavět tlačítkem v přehledu)
+    ("/web/reviews.db", "reviews.db"),  # e-shop krok 14 – hodnocení produktů (jediná kopie – musí do zálohy)
     ("/web/users.db", "users.db"),  # účty krok 1 – starší zálohy ho nemají, obnova ho pak přeskočí
     ("/inventory/inventory.db", "inventory.db"),
 ]

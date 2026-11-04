@@ -1,6 +1,6 @@
 ---
 title: Moduly
-summary: Ordering, Inventory, Journeys, Accounts, Notifications, Payments a Reporting – business oblasti s vlastními daty, které se navzájem neznají.
+summary: Ordering, Inventory, Journeys, Accounts, Notifications, Payments, Reporting a Reviews – business oblasti s vlastními daty, které se navzájem neznají.
 order: 3
 ---
 
@@ -46,6 +46,11 @@ flowchart LR
     end
     o1 -->|"OrderPlacedV2, OrderConfirmedV1, …, OrderSnapshotV1"| r1
     r1 -->|RebuildSalesReportV1| o1
+    subgraph rev["Reviews (služba Web)"]
+        v1[Hodnocení + kopie nákupů]
+    end
+    o1 -->|"OrderPlacedV2, OrderCompletedV1, ReturnCompletedV1, OrderSnapshotV2"| v1
+    v1 -->|"ProductRatingChangedV1, SyncPurchasesV1"| o3
 
     jou -.-|"spojené jen číslem objednávky (zapíše UI)"| ord
 
@@ -60,6 +65,7 @@ flowchart LR
     click n1 "/Docs/architektura/moduly/notifications"
     click p1 "/Docs/architektura/moduly/payments"
     click r1 "/Docs/architektura/moduly/reporting"
+    click v1 "/Docs/architektura/moduly/reviews"
 ```
 
 | Modul | Odpovídá za | Databáze | Kde v kódu |
@@ -71,6 +77,7 @@ flowchart LR
 | [Notifications](notifications.md) | e-maily zákazníkovi podle událostí objednávky (e-shop krok 7) – jen poslouchá | `notifications.db` | `Domain/Notifications`, `Application/Notifications`, `Infrastructure/Notifications` |
 | [Payments](payments.md) | platby kartou přes bránu – účastník ságy, podepsaný webhook, vrácení peněz (e-shop krok 8) | `payments.db` | `Domain/Payments`, `Application/Payments`, `Infrastructure/Payments` |
 | [Reporting](reporting.md) | přehled tržeb pro admina – čtecí model (CQRS) z událostí, přestavění ze snímků (e-shop krok 11) | `reporting.db` | `Domain/Reporting`, `Application/Reporting`, `Infrastructure/Reporting` |
+| [Reviews](reviews.md) | hodnocení produktů – hodnotí jen ten, kdo zboží dostal (kopie nákupů z událostí), souhrn do výlohy (e-shop krok 14) | `reviews.db` | `Domain/Reviews`, `Application/Reviews`, `Infrastructure/Reviews` |
 
 ## Pravidla hranic
 

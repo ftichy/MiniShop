@@ -461,6 +461,21 @@ Každá služba má svou databázi. Jediná společná věc je broker a kontrakt
 
 **Hotovo, když:** po zadání čísla objednávky uvidíte, co uživatel ve formuláři dělal (12A), a můžete si to přehrát (12B).
 
+## Krok 13: Úklid a odolnost zpráv
+
+**Teorie.** Spolehlivé doručení má i provozní stránku. Tabulky outboxu a inboxu jen rostou, opakování bez rozvahy
+buď vzdá chvilkový výpadek, nebo točí vadnou zprávu donekonečna. Standardní vzory: **retence** (mazat staré
+zpracované záznamy), **exponenciální backoff** (čekat mezi pokusy čím dál déle) a **dead-letter fronta** (vadné zprávy
+odložit stranou, ať se dají prohlédnout a vrátit).
+
+**V MiniShopu:** `MessageRetentionWorker` (outbox 7 dní, inbox 30 dní – inbox musí přežít každé opakované doručení),
+`OutboxMessage.NextAttemptAtUtc` (5, 10, 20, 40 s), consumer RabbitMQ s počtem pokusů v hlavičce a frontou
+`minishop.{modul}.dead` po 5 pokusech, stránka **Zprávy** pro admina (poison a dead-letter zpět ke zpracování),
+health check `dead-letters` (Degraded → UptimeRobot).
+
+**Hotovo, když:** staré zprávy mizí, chvilkový výpadek zprávu nezabije, vadná zpráva skončí v dead-letter frontě
+a admin ji po opravě vrátí.
+
 ## Slovníček a další čtení
 
 | Pojem | Stručně | Krok |

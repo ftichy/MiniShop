@@ -24,7 +24,11 @@ internal sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outb
         builder.Property(m => m.ProcessedAtUtc)
             .HasConversion(v => v, v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
 
-        // Worker (krok 5) bude hledat nezpracované zprávy: WHERE ProcessedAtUtc IS NULL.
+        // EDA krok 13: backoff – selhaná zpráva se zkusí až po tomhle čase.
+        builder.Property(m => m.NextAttemptAtUtc)
+            .HasConversion(v => v, v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
+
+        // Worker (krok 5) hledá nezpracované zprávy: WHERE ProcessedAtUtc IS NULL; úklid (EDA krok 13) staré zpracované.
         builder.HasIndex(m => m.ProcessedAtUtc);
     }
 }

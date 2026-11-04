@@ -1,0 +1,82 @@
+@page
+@using MiniShop.Infrastructure.Integration.RabbitMq
+@using MiniShop.Infrastructure.Outbox
+@model MiniShop.Web.Pages.Admin.Messages.IndexModel
+@{
+    ViewData["Title"] = "Zprávy";
+}
+<h1>Zprávy</h1>
+<p class="text-muted">
+    Provoz zpráv mezi moduly (EDA krok 13). Zpráva, která selže, se zkouší znovu s rostoucí pauzou. Když se ani po
+    @OutboxProcessor.MaxAttempts pokusech (outbox) nebo @RabbitMqDeadLetters.MaxDeliveryAttempts pokusech (fronta) nepovede,
+    odloží se stranou a čeká tady. Po opravě příčiny ji vraťte ke zpracování. Zpracované zprávy se po čase samy uklízejí.
+</p>
+
+<partial name="_StatusMessage" model="Model.StatusMessage" />
+
+<h2 class="h5 mt-4">Outboxy modulů</h2>
+<table class="table table-sm align-middle">
+    <thead><tr><th>Modul</th><th class="text-end">Čeká na doručení</th><th class="text-end">Vyčerpané pokusy (poison)</th></tr></thead>
+    <tbody>
+        @foreach (var module in Model.Modules)
+        {
+            <tr class="@(module.PoisonCount > 0 ? "table-warning" : null)">
+                <td>@module.Module</td>
+                <td class="text-end">@module.Pending</td>
+                <td class="text-end" data-track="messages-poison">@module.PoisonCount</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@foreach (var module in Model.Modules.Where(m => m.Poison.Count > 0))
+{
+    <h3 class="h6">@module.Module – poison zprávy</h3>
+    <div class="list-group mb-3">
+        @foreach (var message in module.Poison)
+        {
+            <div class="list-group-item">
+                <div class="d-flex flex-wrap justify-content-between gap-2">
+                    <span><code>@message.Type</code> · @message.OccurredAtUtc.ToLocalTime().ToString("g") · @message.Attempts pokusů</span>
+                    <form method="post" asp-page-handler="Retry" asp-route-module="@module.Module" asp-route-id="@message.Id">
+                        <button type="submit" class="btn btn-outline-primary btn-sm" data-track="messages-retry">Zkusit znovu</button>
+                    </form>
+                </div>
+                @if (message.Error is not null)
+                {
+                    <div class="small text-danger mt-1">@message.Error</div>
+                }
+            </div>
+        }
+    </div>
+}
+
+<h2 class="h5 mt-4">Dead-letter fronty (RabbitMQ)</h2>
+@if (Model.DeadLetters is null)
+{
+    <div class="alert alert-secondary">RabbitMQ teď nejde zkontrolovat.</div>
+}
+else
+{
+    <table class="table table-sm align-middle">
+        <thead><tr><th>Fronta</th><th class="text-end">Odložené zprávy</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var (queue, count) in Model.DeadLetters)
+            {
+                <tr class="@(count > 0 ? "table-warning" : null)">
+                    <td><code>@RabbitMqDeadLetters.DeadQueueFor(queue)</code></td>
+                    <td class="text-end" data-track="messages-dead">@count</td>
+                    <td class="text-end">
+                        @if (count > 0)
+                        {
+                            <form method="post" asp-page-handler="Requeue" asp-route-queue="@queue">
+                                <button type="submit" class="btn btn-outline-primary btn-sm" data-track="messages-requeue">Vrátit do fronty</button>
+                            </form>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <p class="small text-muted">Obsah odložených zpráv (i s chybou v hlavičce <code>@RabbitMqDeadLetters.ErrorHeader</code>) ukáže RabbitMQ Management.</p>
+}

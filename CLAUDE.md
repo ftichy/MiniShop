@@ -222,6 +222,11 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   → `CatalogProduct.ApplyRating` (starší nepřepíše) → výloha hvězdičky + `CatalogSort.BestRated`. Nákupy z doby před modulem:
   `PurchasesSyncOnStartupWorker` → `SyncPurchasesV1` → Ordering `SyncPurchasesHandler` → `OrderSnapshotV2` (se zákazníkem, bez
   anonymizovaných). Stránky `/Shop/{id}` (veřejná, `OnPostReview` jen zákazník), `/Admin/Reviews`. Testy: `Reviews(…)`, `DeliverApiOrderAsync`.
+- **Provoz zpráv (EDA krok 13):** každý modul se zprávami má `IMessageStore` (registruje `AddIntegrationModule`) – úklid (`MessageRetentionWorker`,
+  `Messaging:Retention:OutboxDays` 7 / `InboxDays` 30; mazat jen zpracované, poison nikdy; **inbox delší než nejdelší opakované doručení**),
+  přehled a „Zkusit znovu“. Outbox: `NextAttemptAtUtc` + `OutboxProcessor.RetryDelay`. Consumer (`RabbitMqQueueConsumer`): selhání = kopie
+  s hlavičkou `x-minishop-attempt` zpět do fronty + ack originálu, po `RabbitMqDeadLetters.MaxDeliveryAttempts` (5) nebo u nečitelné
+  zprávy do `minishop.{modul}.dead` (nové fronty – **existujícím frontám neměnit argumenty**). `/Admin/Messages`, health check `dead-letters`.
 - **Průběh objednávky (krok 12):** modul Journeys (`…Journeys` ve všech vrstvách, hostuje ho Web, vlastní `journeys.db`,
   bez zpráv → `JourneysDbContext` nedědí z `ModuleDbContext`). Proud `JourneyEvents` = jen INSERT, idempotence přes unikátní `EventId`
   z prohlížeče, řazení podle `OffsetMs` (čas od otevření formuláře). `ValidationFailed`/`OrderSubmitted` zapisuje jen server
@@ -263,12 +268,13 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
 | 11. Observabilita (OpenTelemetry, `TraceParent` v outboxu + hlavička `traceparent` v RabbitMQ, metriky, health check outboxu) | hotovo | `docs/kroky/krok-11-observabilita.md` |
 | 12A. Průběh objednávky – proud událostí z formuláře (`JourneyEvents`, modul Journeys), projekce časová osa + souhrn (`/Orders/Journey/{id}`) | hotovo | `docs/kroky/krok-12a-prubeh-objednavky.md` |
 | 12B. Přehrání průběhu objednávky (`/Orders/Replay/{id}`, `JourneyReplayProjection`, `journey-player.js`, událost `FieldInvalid`) | hotovo | `docs/kroky/krok-12b-prehrani-objednavky.md` |
+| 13. Úklid a odolnost zpráv (`MessageRetentionWorker` – outbox 7 / inbox 30 dní, `OutboxMessage.NextAttemptAtUtc` backoff, consumer: počet pokusů v hlavičce + `minishop.{modul}.dead`, `/Admin/Messages`, health check `dead-letters`) | kód hotový, čeká na nasazení | `docs/kroky/krok-13-uklid-a-odolnost-zprav.md` |
 
 Známé omezení po kroku 11: vnější akce (notifikace) nejsou v transakci – při pádu mezi odesláním a zápisem
-do inboxu odejdou znovu. Inbox se nečistí. Worker počítá s jednou instancí aplikace, retry je bez backoffu.
+do inboxu odejdou znovu. Inbox i outbox uklízí `MessageRetentionWorker` (EDA krok 13). Worker počítá s jednou instancí aplikace.
 `OrderingDomainEventReader` převádí payload zpět na událost načtením `Order` podle `OrderId` (handlery vidí aktuální stav).
 Integrační zprávy jdou do RabbitMQ (`RabbitMqIntegrationBus`), nedostupný broker (`IntegrationBusUnavailableException`)
-se nepočítá jako pokus. Consumery nemají dead-letter frontu: nečitelnou zprávu zahodí, při chybě handleru ji po 2 s vrátí do fronty (bez limitu).
+se nepočítá jako pokus. Od EDA kroku 13: outbox opakuje s backoffem (5/10/20/40 s), consumer nejvýš 5× (2/4/8/16 s) a pak do `minishop.{modul}.dead`.
 Každý krok ságy čeká na kolo outbox workeru (2 s) → potvrzení objednávky trvá ~4–8 s, nový produkt je v nabídce po ~2–4 s.
 Služby sdílí knihovny Application/Infrastructure (změna jádra = nasadit obě). Bez Dockeru se aplikace nespustí.
 Obnova katalogu (`SyncCatalogV1`) produkty nemaže – zmeškané `ProductRemovedV1` neopraví.
@@ -277,7 +283,7 @@ Timeout ságy a obnova katalogu začínají vlastní trasu (nenavazují na půvo
 dashboardu (v paměti, bez vzorkování) – lokálně přes AppHost, v Compose/cloudu do kontejneru `aspire-dashboard`
 (cloud krok 11); bez `OTEL_EXPORTER_OTLP_ENDPOINT` se neexportuje, trace ID je jen v logu a v outboxu.
 Testy běží bez RabbitMQ (`RecordingIntegrationBus` nad `InProcessIntegrationBus` – celá sága v procesu).
-Testy: `ProcessOutboxAsync` jede kola, dokud přibývají zprávy (opakuje i selhané), `ProcessOneRoundAsync` = jedno kolo,
+Testy: `ProcessOutboxAsync` jede kola, dokud přibývají zprávy (selhané až po backoffu – `_time.Advance(OutboxProcessor.RetryDelay(n))`), `ProcessOneRoundAsync` = jedno kolo,
 čas posouvá `FixedTimeProvider.Advance` (timeout ságy).
 
 ## Stav nasazení do cloudu (viz `docs/Cloud-roadmap.md`)
@@ -439,7 +445,7 @@ nové moduly Notifications (odběratel událostí) a Payments (účastník ságy
 | 11. Přehled tržeb pro admina – CQRS (modul Reporting, `reporting.db`, projekce se stavem jen dopředu, `/Admin/Sales`, přestavění `RebuildSalesReportV1` → `OrderSnapshotV1`) | hotovo (nasazeno 3. 11. 2026, přehled se po startu postavil ze snímků, přestavění ověřeno v produkci) | `docs/kroky-eshop/krok-11-prehled-trzeb.md` |
 | 12. Vrácení zboží (druhá sága `ReturnSaga`, `/Admin/Returns`, `RestockReturnedGoodsV1` → `ReturnedGoodsRestockedV1`, `RefundPaymentV1`, `ReturnRequested/Rejected/CompletedV1`, dobírka ručně) | hotovo (nasazeno 3. 11. 2026, vratka kartou, zamítnutí i dobírka ověřeny v produkci) | `docs/kroky-eshop/krok-12-vraceni-zbozi.md` |
 | 13. Slevové kódy (agregát `Coupon`, `/Admin/Coupons`, použití ve stejné transakci jako objednávka, `Version` proti souběhu o poslední použití, sleva v položkách, `ReleaseCouponHandler`) | hotovo (nasazeno 4. 11. 2026, uplatnění, limit použití a vrácení po zrušení ověřeny v produkci) | `docs/kroky-eshop/krok-13-slevove-kody.md` |
-| 14. Hodnocení produktů (modul Reviews, `reviews.db`, kopie nákupů z událostí, `ProductRatingChangedV1` do kopie katalogu, `/Shop/{id}`, `/Admin/Reviews`, `SyncPurchasesV1` → `OrderSnapshotV2`) | kód hotový, čeká na nasazení | `docs/kroky-eshop/krok-14-hodnoceni-produktu.md` |
+| 14. Hodnocení produktů (modul Reviews, `reviews.db`, kopie nákupů z událostí, `ProductRatingChangedV1` do kopie katalogu, `/Shop/{id}`, `/Admin/Reviews`, `SyncPurchasesV1` → `OrderSnapshotV2`) | hotovo (nasazeno 4. 11. 2026, hodnocení, hvězdičky ve výloze, starší objednávky ze snímků i moderace ověřeny v produkci) | `docs/kroky-eshop/krok-14-hodnoceni-produktu.md` |
 
 ## Postup práce na dalším kroku EDA
 1. Nejdřív **shrň**, co se bude přidávat/měnit a **proč** (teorie + konkrétní případ v MiniShopu),

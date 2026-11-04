@@ -54,8 +54,8 @@ flowchart LR
 | Odeslání | Publisher čeká na **potvrzení brokeru** (*publisher confirms*); bez potvrzení zpráva zůstane v outboxu | [RabbitMqIntegrationBus](code:src/MiniShop.Infrastructure/Integration/RabbitMq/RabbitMqIntegrationBus.cs) |
 | Broker neběží | Zprávy čekají v outboxu, nepočítá se to jako pokus | [OutboxProcessor](code:src/MiniShop.Infrastructure/Outbox/OutboxProcessor.cs) |
 | Restart brokeru | Exchange i fronty jsou *durable*, zprávy *persistent* | [RabbitMqTopology](code:src/MiniShop.Infrastructure/Integration/RabbitMq/RabbitMqTopology.cs) |
-| Handler selže | Zpráva se po 2 s vrátí do fronty (*nack + requeue*) | [RabbitMqQueueConsumer](code:src/MiniShop.Infrastructure/Integration/RabbitMq/RabbitMqQueueConsumer.cs) |
-| Nečitelná zpráva | Zahodí se (*nack bez requeue*) | tamtéž |
+| Handler selže | Kopie zprávy zpět do fronty s počtem pokusů v hlavičce a pauzou 2, 4, 8, 16 s; po 5. neúspěchu do `minishop.{modul}.dead` (EDA krok 13) | [RabbitMqQueueConsumer](code:src/MiniShop.Infrastructure/Integration/RabbitMq/RabbitMqQueueConsumer.cs) |
+| Nečitelná zpráva | Rovnou do dead-letter fronty (EDA krok 13 – dřív se zahodila) | tamtéž |
 | Výpadek spojení | Consumer se každých 5 s zkusí připojit znovu | tamtéž |
 
 ## Proč broker (a ne přímé HTTP volání)
@@ -69,7 +69,7 @@ Kafka (log událostí) nebo cloudové služby (Azure Service Bus, AWS SQS) váza
 
 ## Známá omezení
 
-- **Chybí dead-letter fronta** – zpráva, na které handler stále padá, se vrací do fronty bez limitu.
+- **Dead-letter fronta** (EDA krok 13): zpráva, na které handler stále padá, skončí po 5 pokusech v `minishop.{modul}.dead`; admin ji vrátí na stránce Zprávy – viz [Provoz zpráv](provoz-zprav.md).
 - Fanout na kontrakt je jednoduchý; větší systémy používají *topic* exchange s routovacími klíči.
 
 ## Na internetu

@@ -75,6 +75,8 @@ namespace MiniShop.Infrastructure.Notifications.Migrations
 
                     b.HasKey("EventId", "Handler");
 
+                    b.HasIndex("ProcessedAtUtc");
+
                     b.ToTable("ProcessedMessages", (string)null);
                 });
 
@@ -94,6 +96,9 @@ namespace MiniShop.Infrastructure.Notifications.Migrations
                     b.Property<string>("Kind")
                         .IsRequired()
                         .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("NextAttemptAtUtc")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("OccurredAtUtc")

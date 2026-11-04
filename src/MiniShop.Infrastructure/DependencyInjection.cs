@@ -7,6 +7,7 @@ using MiniShop.Infrastructure.Integration;
 using MiniShop.Infrastructure.Integration.RabbitMq;
 using MiniShop.Infrastructure.Inventory;
 using MiniShop.Infrastructure.Ordering;
+using MiniShop.Infrastructure.Outbox;
 using MiniShop.Infrastructure.Persistence;
 
 namespace MiniShop.Infrastructure;
@@ -68,6 +69,10 @@ public static class DependencyInjection
         services.AddSingleton<RabbitMqAuditConsumer>();
         services.AddSingleton<RabbitMqConsumers>();
 
+        // EDA krok 13: dead-letter fronty – přehled, vrácení zpět, health check (zpráva v dead-letter = Degraded).
+        services.AddSingleton<RabbitMqDeadLetterService>();
+        services.AddHealthChecks().AddCheck<DeadLetterHealthCheck>("dead-letters");
+
         return services;
     }
 
@@ -78,6 +83,7 @@ public static class DependencyInjection
         where TDbContext : ModuleDbContext
     {
         services.AddSingleton(new IntegrationModule(module, typeof(TDbContext)));
+        services.AddSingleton<IMessageStore, MessageStore<TDbContext>>();   // EDA krok 13: úklid a přehled zpráv modulu
         return services;
     }
 

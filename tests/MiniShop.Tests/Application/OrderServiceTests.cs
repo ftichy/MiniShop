@@ -549,6 +549,10 @@ public sealed class OrderServiceTests : IDisposable
 
         await Orders(s => s.CancelAsync(order.Id, OrderAccess.AllOrders));
         await ProcessOutboxAsync();
+        Assert.Empty(NotifierEvents.Where(e => e == $"cancelled:{order.Id}"));   // EDA krok 13: čeká na backoff
+
+        _time.Advance(OutboxProcessor.RetryDelay(1));
+        await ProcessOutboxAsync();
 
         Assert.Equal(5, await StockAsync());
         Assert.Single(_bus.Published.OfType<ReleaseStockV1>());

@@ -51,7 +51,7 @@ Každý kámen řeší problém, který vznikl předchozím krokem:
 ```mermaid
 flowchart LR
     k1["1 Doménové<br/>události"] --> k2["2 Integrační<br/>zprávy"] --> k3["3 Outbox<br/>+ worker"] --> k4["4 Inbox<br/>idempotence"]
-    k4 --> k5["5 Message<br/>broker"] --> k6["6 Sága"] --> k7["7 Kopie<br/>katalogu"] --> k8["8 Observa-<br/>bilita"] --> k9["9 Proud<br/>událostí"] --> k10["10 CQRS<br/>přehled"]
+    k4 --> k5["5 Message<br/>broker"] --> k6["6 Sága"] --> k7["7 Kopie<br/>katalogu"] --> k8["8 Observa-<br/>bilita"] --> k9["9 Proud<br/>událostí"] --> k10["10 CQRS<br/>přehled"] --> k11["11 Provoz<br/>zpráv"]
 
     click k1 "/Docs/eda/domenove-udalosti"
     click k2 "/Docs/eda/integracni-zpravy"
@@ -63,6 +63,7 @@ flowchart LR
     click k8 "/Docs/eda/observabilita"
     click k9 "/Docs/eda/proud-udalosti"
     click k10 "/Docs/eda/cqrs"
+    click k11 "/Docs/eda/provoz-zprav"
 ```
 
 1. [Doménové události](domenove-udalosti.md) – entita oznámí, co se stalo.
@@ -75,6 +76,7 @@ flowchart LR
 8. [Observabilita](observabilita.md) – jak sledovat jednu objednávku přes služby a zprávy.
 9. [Proud událostí](proud-udalosti.md) – ukládat, *co se dělo*, a stav z toho počítat.
 10. [CQRS – přehled tržeb](cqrs.md) – oddělený čtecí model z událostí, který jde kdykoli přestavět.
+11. [Provoz zpráv](provoz-zprav.md) – úklid, backoff a dead-letter fronty: co se stane se zprávou, která selhává.
 
 ## Na internetu
 

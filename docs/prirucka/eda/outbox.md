@@ -58,8 +58,9 @@ Kód:
 - **Každý modul má vlastní outbox** ve své databázi. Jinak by zpráva nebyla v téže transakci jako data.
 - **Dva druhy zpráv** (`Kind`): *doménová* jde handlerům ve stejné službě, *integrační* ven přes
   [broker](broker.md).
-- **Retry bez backoffu:** neúspěšná zpráva se zkusí v dalším kole (za 2 s), maximálně 5×. Pak je to
-  **poison message** – zůstane v tabulce s chybou a čeká na člověka.
+- **Retry s backoffem (EDA krok 13):** neúspěšná zpráva se zkusí nejvýš 5×, s pauzou 5, 10, 20, 40 s (`NextAttemptAtUtc`).
+  Pak je to **poison message** – zůstane v tabulce s chybou a čeká na člověka (stránka Zprávy → Zkusit znovu).
+  Zpracované zprávy se po 7 dnech uklízejí – viz [Provoz zpráv](provoz-zprav.md).
 - **Výpadek brokeru se nepočítá jako pokus** – chyba není ve zprávě, zprávy počkají, až se RabbitMQ vrátí.
 - **Doručení „alespoň jednou“ (at-least-once):** když aplikace spadne po doručení, ale před označením, zpráva odejde
   znovu. Proto příjemce potřebuje [inbox](inbox.md).

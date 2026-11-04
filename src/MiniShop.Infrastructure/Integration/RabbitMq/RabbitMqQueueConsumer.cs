@@ -16,13 +16,12 @@ namespace MiniShop.Infrastructure.Integration.RabbitMq;
 /// <remarks>
 /// <see cref="RunAsync"/> běží po celou dobu života aplikace (spouští ho RabbitMqConsumersWorker ve Webu).
 /// Když broker neběží nebo spojení spadne, za 5 s se připojí znovu. Zprávy mezitím čekají ve frontě.
-/// Chyba při čtení (neznámý kontrakt, rozbitý JSON) = zprávu zahodit – opakování nepomůže.
-/// Chyba handleru = po pauze vrátit do fronty (retry); duplicitě zabrání inbox.
+/// Chyba při čtení (neznámý kontrakt, rozbitý JSON) = rovnou do dead-letter fronty (EDA krok 13) – opakování nepomůže.
+/// Chyba handleru = po rostoucí pauze znovu (nejvýš 5×, pak dead-letter fronta); duplicitě zabrání inbox.
 /// </remarks>
 public abstract class RabbitMqQueueConsumer(RabbitMqConnection connection, ILogger logger)
 {
     private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(5);
-    private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(2);
 
     /// <summary>Název vlastní fronty consumera.</summary>
     public abstract string QueueName { get; }
@@ -69,6 +68,7 @@ public abstract class RabbitMqQueueConsumer(RabbitMqConnection connection, ILogg
         // Vlastní fronta consumera + napojení na exchange odebíraných kontraktů (binding).
         await channel.QueueDeclareAsync(QueueName, durable: true, exclusive: false, autoDelete: false,
             cancellationToken: cancellationToken);
+        await RabbitMqDeadLetters.DeclareDeadQueueAsync(channel, QueueName, cancellationToken);   // EDA krok 13
         foreach (var contractName in ContractNames)
         {
             await RabbitMqTopology.DeclareExchangeAsync(channel, contractName, cancellationToken);
@@ -120,10 +120,11 @@ public abstract class RabbitMqQueueConsumer(RabbitMqConnection connection, ILogg
             activity.RecordError(ex);
             MessagingTelemetry.ConsumerFailed.Add(1, tags);
 
-            // Zprávu nejde přečíst – opakování nepomůže. Bez dead-letter fronty se zahodí.
-            logger.LogError(ex, "Zprávu {MessageId} ({Type}) z fronty {Queue} nejde přečíst, zahazuje se",
-                messageId, type, QueueName);
-            await channel.BasicNackAsync(delivery.DeliveryTag, multiple: false, requeue: false, cancellationToken);
+            // Zprávu nejde přečíst – opakování nepomůže. EDA krok 13: neztratí se, jde rovnou do dead-letter fronty.
+            logger.LogError(ex, "Zprávu {MessageId} ({Type}) z fronty {Queue} nejde přečíst, přesouvá se do {DeadQueue}",
+                messageId, type, QueueName, RabbitMqDeadLetters.DeadQueueFor(QueueName));
+            await DeadLetterAsync(channel, delivery, RabbitMqDeadLetters.ReadAttempts(delivery.BasicProperties), ex.Message,
+                cancellationToken);
             return;
         }
 
@@ -137,12 +138,35 @@ public abstract class RabbitMqQueueConsumer(RabbitMqConnection connection, ILogg
         {
             activity.RecordError(ex);
             MessagingTelemetry.ConsumerFailed.Add(1, tags);
+            var attempts = RabbitMqDeadLetters.ReadAttempts(delivery.BasicProperties) + 1;
 
-            // Chyba handleru (např. zamčená DB) – po pauze vrátit do fronty, broker ji doručí znovu.
-            logger.LogWarning("Zprávu {MessageId} ({Type}) z fronty {Queue} se nepodařilo zpracovat, za {Delay} s se vrátí do fronty: {Error}",
-                messageId, type, QueueName, RetryDelay.TotalSeconds, ex.Message);
-            await Task.Delay(RetryDelay, cancellationToken);
-            await channel.BasicNackAsync(delivery.DeliveryTag, multiple: false, requeue: true, cancellationToken);
+            if (attempts >= RabbitMqDeadLetters.MaxDeliveryAttempts)
+            {
+                // EDA krok 13: dost pokusů – zpráva jde stranou (dead-letter), ať neběží v kruhu. Admin ji vrátí ze stránky Zprávy.
+                logger.LogError("Zpráva {MessageId} ({Type}) z fronty {Queue} selhala {Attempts}×, přesouvá se do {DeadQueue}: {Error}",
+                    messageId, type, QueueName, attempts, RabbitMqDeadLetters.DeadQueueFor(QueueName), ex.Message);
+                await DeadLetterAsync(channel, delivery, attempts, ex.Message, cancellationToken);
+                return;
+            }
+
+            // Chyba handleru (např. zamčená DB) – po rostoucí pauze kopie zpět do fronty s počtem pokusů, originál potvrdit.
+            // (Spadne-li služba mezi publikováním a potvrzením, přijde zpráva dvakrát – zachytí to inbox.)
+            var delay = RabbitMqDeadLetters.RetryDelay(attempts);
+            logger.LogWarning("Zprávu {MessageId} ({Type}) z fronty {Queue} se nepodařilo zpracovat ({Attempts}/{Max}), za {Delay} s znovu: {Error}",
+                messageId, type, QueueName, attempts, RabbitMqDeadLetters.MaxDeliveryAttempts, delay.TotalSeconds, ex.Message);
+            await Task.Delay(delay, cancellationToken);
+            await channel.BasicPublishAsync(string.Empty, QueueName, mandatory: false,
+                RabbitMqDeadLetters.CopyProperties(delivery.BasicProperties, attempts), delivery.Body, cancellationToken);
+            await channel.BasicAckAsync(delivery.DeliveryTag, multiple: false, cancellationToken);
         }
+    }
+
+    /// <summary>EDA krok 13: zprávu do <c>{fronta}.dead</c> (s chybou v hlavičce) a originál potvrdit.</summary>
+    private async Task DeadLetterAsync(IChannel channel, BasicDeliverEventArgs delivery, int attempts, string error,
+        CancellationToken cancellationToken)
+    {
+        await channel.BasicPublishAsync(string.Empty, RabbitMqDeadLetters.DeadQueueFor(QueueName), mandatory: false,
+            RabbitMqDeadLetters.CopyProperties(delivery.BasicProperties, attempts, error), delivery.Body, cancellationToken);
+        await channel.BasicAckAsync(delivery.DeliveryTag, multiple: false, cancellationToken);
     }
 }

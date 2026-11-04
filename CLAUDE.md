@@ -456,7 +456,7 @@ nové moduly Notifications (odběratel událostí) a Payments (účastník ságy
 Cíl: víc instancí služeb (a později víc strojů). Nejdřív PostgreSQL (kontejner na Always Free VM, 0 Kč), pak víc instancí.
 Rozhodnutí: jeden PostgreSQL se **schématem pro každý modul**, testy proti skutečnému PostgreSQL (Testcontainers),
 převod produkčních dat s krátkou odstávkou, expand → contract (oba provideři, pak odebrat SQLite). Souhrny do `docs/kroky-skalovani/`.
-- **Provider (krok 1):** `Database:Provider` = `Sqlite` (výchozí, produkce, `ConnectionStrings:<Modul>`) / `Postgres`
+- **Provider (krok 1):** **produkce od kroku 3B na `Postgres`** (`deploy/production.env`). `Database:Provider` = `Sqlite` (výchozí – lokálně bez Aspire, testy, `ConnectionStrings:<Modul>`) / `Postgres`
   (`ConnectionStrings:minishop`, jedna DB, schéma = `XxxDbContext.Schema`). Rozdíl jen v `Persistence/ModuleDatabase.cs`
   (`FromConfiguration`, `UseModuleDatabase`, `UseModuleSchema` v `OnModelCreating`, `UseUtcDateTimes` v `ConfigureConventions` –
   **nový DbContext je musí volat**). Moduly berou `ModuleDatabase` (implicitně ze `string` = SQLite – testy).
@@ -484,7 +484,7 @@ převod produkčních dat s krátkou odstávkou, expand → contract (oba provid
 | 1. PostgreSQL vedle SQLite (`Database:Provider`, `ModuleDatabase`, schéma na modul, migrace v `MiniShop.Infrastructure.PostgreSql`, Aspire + Compose profil `postgres`; produkce dál SQLite) | hotovo (lokálně ověřeno – obě služby nad PostgreSQL, 8 schémat, katalog přes RabbitMQ; AppHost s PostgreSQL ověřen uživatelem 4. 11. 2026) | `docs/kroky-skalovani/krok-01-postgresql.md` |
 | 2. Testy proti PostgreSQL (`MINISHOP_TEST_DATABASE=Postgres`, `TestDatabases` + `PostgresTestServer` – Testcontainers, šablona + kopie DB na test, CI job „Testy PostgreSQL“; oprava: kategorie „Nezařazeno“ v migraci PostgreSQL) | hotovo (lokálně obě varianty zelené) | `docs/kroky-skalovani/krok-02-testy-postgresql.md` |
 | 3A. Příprava převodu (`migrate-to-postgres` + `SqliteToPostgresCopier`, značka `__MiniShopDataMigration` / `--replace`, PostgreSQL 18 v produkčním Compose, secret `POSTGRES_PASSWORD`, `pg_dump` v `backup.sh`, `DatabaseHealthCheck`) | hotovo (generálka v Compose; nasazeno 4. 11. 2026 – prázdný PostgreSQL 18 na VM healthy, noční záloha obsahuje `minishop.pgdump`) | `docs/kroky-skalovani/krok-03a-priprava-prevodu.md` |
-| 3B. Přepnutí produkce (odstávka, `migrate-to-postgres` na VM, `DATABASE_PROVIDER=Postgres` v `production.env`) | plán | — |
+| 3B. Přepnutí produkce (odstávka, `migrate-to-postgres` na VM, `DATABASE_PROVIDER=Postgres` v `production.env`) | hotovo (4. 11. 2026, odstávka ~25 min, 1 702 řádků ve 41 tabulkách, počty souhlasí; produkce na PostgreSQL ověřena v prohlížeči i novou objednávkou; SQLite soubory zůstávají jako cesta zpět do 3C) | `docs/kroky-skalovani/krok-03b-prepnuti-produkce.md` |
 | 3C. Odebrání SQLite – contract (provider, migrace SQLite, baseline, `backup.py` SQLite; testy výchozí PostgreSQL) | plán | — |
 | 4. Obnova ze zálohy (`restore.sh` s `pg_restore`, cvičná obnova; `pg_dump` už od 3A) | plán | — |
 | 5. Více instancí (leader lease přes advisory lock, `web` ve dvou kopiích za Caddy) | plán | — |

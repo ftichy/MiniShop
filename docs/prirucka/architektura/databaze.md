@@ -4,8 +4,8 @@ summary: SQLite soubor pro každý modul, nebo jeden PostgreSQL se schématem pr
 order: 3
 ---
 
-> **V jedné větě:** Každý modul má **vlastní databázi**. Dnes je to SQLite soubor (`ordering.db`, `inventory.db`, …);
-> od škálování kroku 1 umí aplikace i **PostgreSQL** – jeden server, v něm **schéma pro každý modul**. Kterou databázi
+> **V jedné větě:** Každý modul má **vlastní databázi**. Produkce od 4. 11. 2026 běží na **PostgreSQL** (škálování krok 3B), aplikace umí i SQLite soubory (`ordering.db`, `inventory.db`, …);
+> v PostgreSQL je jeden server a v něm **schéma pro každý modul**. Kterou databázi
 > služba použije, určuje konfigurace `Database:Provider`.
 
 ## Proč PostgreSQL
@@ -61,7 +61,7 @@ flowchart LR
 | Connection string | `ConnectionStrings:Ordering`, `…:Inventory`, … (soubor pro každý modul) | `ConnectionStrings:minishop` (jeden pro všechny) |
 | Lokálně | `-- --Database:Provider=Sqlite` u AppHostu, nebo služby bez Aspire | AppHost (výchozí): kontejner `postgres` s volume `minishop-postgres-data` |
 | Compose | výchozí (`DATABASE_PROVIDER=Sqlite`) | `DATABASE_PROVIDER=Postgres` v `.env`; služba `postgres` běží vždy (od kroku 3, heslo `POSTGRES_PASSWORD` povinné) |
-| Produkce | do přepnutí (krok 3B) – soubory zůstávají jako cesta zpět | PostgreSQL běží od kroku 3A (prázdný), služby přepne `DATABASE_PROVIDER=Postgres` v `deploy/production.env` po převodu dat |
+| Produkce | do 4. 11. 2026; soubory zůstávají ve volumes jako cesta zpět (stav z okamžiku převodu) do kroku 3C | **ano** – od 4. 11. 2026 (škálování krok 3B), `DATABASE_PROVIDER=Postgres` v `deploy/production.env` |
 
 V kódu je rozdíl jen na jednom místě – [ModuleDatabase.cs](code:src/MiniShop.Infrastructure/Persistence/ModuleDatabase.cs):
 

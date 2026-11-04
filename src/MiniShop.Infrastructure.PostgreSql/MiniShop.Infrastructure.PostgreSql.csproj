@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Škálování krok 1: EF Core migrace pro PostgreSQL (jedna databáze, schéma pro každý modul).
+       Migrace SQLite zůstávají v MiniShop.Infrastructure – jeden DbContext, dvě sady migrací podle providera
+       (UseModuleDatabase → MigrationsAssembly). Kód tu není, jen vygenerované migrace; služby projekt referencují,
+       aby se sestavení dostalo do jejich výstupu. -->
+  <ItemGroup>
+    <ProjectReference Include="..\MiniShop.Infrastructure\MiniShop.Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Nástroj dotnet ef – jen při vývoji, do aplikace se nedostane. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+</Project>

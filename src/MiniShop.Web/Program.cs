@@ -11,6 +11,7 @@ using MiniShop.Infrastructure.Payments;
 using MiniShop.Infrastructure.Reporting;
 using MiniShop.Infrastructure.Reviews;
 using MiniShop.Infrastructure.Ordering;
+using MiniShop.Infrastructure.Persistence;
 using MiniShop.ServiceDefaults;
 using MiniShop.Web.Accounts;
 using MiniShop.Web.BackgroundServices;
@@ -49,45 +50,23 @@ try
         // Krok 11: logy i do OpenTelemetry (Aspire dashboard → Structured logs, propojené s trasou).
         writeToProviders: true);
 
-    // Krok 10B: Web je služba Ordering – jen databáze objednávek. Sklad má vlastní službu i databázi.
-    var orderingConnectionString = builder.Configuration.GetConnectionString("Ordering")
-        ?? throw new InvalidOperationException("Chybí connection string 'Ordering' v appsettings.json.");
-
-    // Krok 12: průběh zakládání objednávek (modul Journeys) má vlastní databázi.
-    var journeysConnectionString = builder.Configuration.GetConnectionString("Journeys")
-        ?? throw new InvalidOperationException("Chybí connection string 'Journeys' v appsettings.json.");
-
-    // Účty krok 1: uživatelské účty (modul Accounts) mají vlastní databázi.
-    var accountsConnectionString = builder.Configuration.GetConnectionString("Accounts")
-        ?? throw new InvalidOperationException("Chybí connection string 'Accounts' v appsettings.json.");
-
-    // E-shop krok 7: oznámení zákazníkům (modul Notifications) – příjemci a inbox ve vlastní databázi.
-    var notificationsConnectionString = builder.Configuration.GetConnectionString("Notifications")
-        ?? throw new InvalidOperationException("Chybí connection string 'Notifications' v appsettings.json.");
-
-    // E-shop krok 8: platby kartou (modul Payments) – platby, outbox a inbox ve vlastní databázi.
-    var paymentsConnectionString = builder.Configuration.GetConnectionString("Payments")
-        ?? throw new InvalidOperationException("Chybí connection string 'Payments' v appsettings.json.");
-
-    // E-shop krok 11: přehled tržeb (modul Reporting) – čtecí model, inbox a outbox ve vlastní databázi.
-    var reportingConnectionString = builder.Configuration.GetConnectionString("Reporting")
-        ?? throw new InvalidOperationException("Chybí connection string 'Reporting' v appsettings.json.");
-
-    // E-shop krok 14: hodnocení produktů (modul Reviews) – hodnocení, kopie nákupů, inbox a outbox ve vlastní databázi.
-    var reviewsConnectionString = builder.Configuration.GetConnectionString("Reviews")
-        ?? throw new InvalidOperationException("Chybí connection string 'Reviews' v appsettings.json.");
+    // Každý modul má vlastní databázi: Ordering (krok 10B – sklad má vlastní službu), Journeys (krok 12), Accounts
+    // (účty krok 1), Notifications, Payments, Reporting, Reviews (e-shop kroky 7, 8, 11, 14).
+    // Škálování krok 1: Database:Provider = Sqlite (soubor pro každý modul, ConnectionStrings:Ordering …)
+    // nebo Postgres (jedna databáze ConnectionStrings:minishop, každý modul ve vlastním schématu).
+    ModuleDatabase Database(string module) => ModuleDatabase.FromConfiguration(builder.Configuration, module);
 
     // Registrace vrstev (composition root).
     builder.Services.AddApplication(builder.Configuration);
     builder.Services.AddInfrastructureCore();
-    builder.Services.AddOrderingInfrastructure(orderingConnectionString);
-    builder.Services.AddJourneysInfrastructure(journeysConnectionString);
-    builder.Services.AddNotificationsInfrastructure(notificationsConnectionString);
+    builder.Services.AddOrderingInfrastructure(Database("Ordering"));
+    builder.Services.AddJourneysInfrastructure(Database("Journeys"));
+    builder.Services.AddNotificationsInfrastructure(Database("Notifications"));
     // Bez tajemství webhooku (Payments:WebhookSecret, min. 32 znaků) se Web nespustí – jako se servisním klíčem skladu.
-    builder.Services.AddPaymentsInfrastructure(paymentsConnectionString, builder.Configuration["Payments:WebhookSecret"]);
-    builder.Services.AddReportingInfrastructure(reportingConnectionString);
-    builder.Services.AddReviewsInfrastructure(reviewsConnectionString);
-    builder.Services.AddAccounts(accountsConnectionString);
+    builder.Services.AddPaymentsInfrastructure(Database("Payments"), builder.Configuration["Payments:WebhookSecret"]);
+    builder.Services.AddReportingInfrastructure(Database("Reporting"));
+    builder.Services.AddReviewsInfrastructure(Database("Reviews"));
+    builder.Services.AddAccounts(Database("Accounts"));
 
     // Účty krok 8: zpevnění – limit odeslání formulářů účtu z jedné IP a HSTS (prohlížeč pak chodí jen přes HTTPS).
     builder.Services.AddAccountRateLimiting(builder.Configuration);

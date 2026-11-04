@@ -34,6 +34,7 @@ src/MiniShop.Web             služba Ordering (7180): API objednávek, Razor Pag
                              OrderSagaTimeoutWorker, Program.cs (composition root); krok 12: JourneysController, Pages/Orders/Journey + Replay,
                              wwwroot/js/order-form-tracker.js + journey-player.js
 src/MiniShop.Inventory.Api   služba skladu (7181): ProductsController, CategoriesController, jen modul Inventory, inventory.db, fronta minishop.inventory
+src/MiniShop.Infrastructure.PostgreSql  jen EF migrace pro PostgreSQL (schéma na modul) + design-time továrny (škálování krok 1)
 src/MiniShop.ServiceDefaults AddServiceDefaults (service discovery, HTTP resilience, health checky /health, /alive, OpenTelemetry → OTLP)
 src/MiniShop.AppHost         .NET Aspire: RabbitMQ (persistentní kontejner) + inventory-api + web, dashboard
 tests/MiniShop.Tests         testy domény, OrderService + ságy + katalogu (2× SQLite in-memory, oba moduly v procesu), dispatcheru,
@@ -128,6 +129,9 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   bez `__EFMigrationsHistory` pozná podle značkové tabulky a první migraci zapíše jako provedenou). `DatabaseMigrationTests` hlídají
   zapomenutou migraci (`HasPendingModelChanges`) a shodu schématu migrace s `EnsureCreated`. Testy zakládají DB přes migrace.
   Migrace nesmí ztratit data (pozor na přejmenování – EF z něj udělá DROP + ADD; zkontrolovat vygenerovaný kód).
+  **Od škálování kroku 1 každá změna schématu = migrace i pro PostgreSQL se stejným názvem:**
+  `dotnet ef migrations add <Nazev> --project src/MiniShop.Infrastructure.PostgreSql --context <X>DbContext --output-dir <Modul>/Migrations --namespace MiniShop.Infrastructure.PostgreSql.<Modul>.Migrations`
+  (design-time továrny v `PostgresDesignTimeFactories.cs`; snapshot ověřit, že leží v `<Modul>/Migrations`).
 - Testy OrderService používají skutečný dispatcher a skutečné handlery (testují celou cestu).
   Služby skládají přes `AddInfrastructure` nad dvěma SQLite v paměti (`InMemoryDatabase` pro každý modul), každá akce
   běží ve vlastním scope a outboxy všech modulů se zpracují ručně přes `ProcessOutboxAsync()` – žádné čekání na workera.
@@ -268,7 +272,7 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
 | 11. Observabilita (OpenTelemetry, `TraceParent` v outboxu + hlavička `traceparent` v RabbitMQ, metriky, health check outboxu) | hotovo | `docs/kroky/krok-11-observabilita.md` |
 | 12A. Průběh objednávky – proud událostí z formuláře (`JourneyEvents`, modul Journeys), projekce časová osa + souhrn (`/Orders/Journey/{id}`) | hotovo | `docs/kroky/krok-12a-prubeh-objednavky.md` |
 | 12B. Přehrání průběhu objednávky (`/Orders/Replay/{id}`, `JourneyReplayProjection`, `journey-player.js`, událost `FieldInvalid`) | hotovo | `docs/kroky/krok-12b-prehrani-objednavky.md` |
-| 13. Úklid a odolnost zpráv (`MessageRetentionWorker` – outbox 7 / inbox 30 dní, `OutboxMessage.NextAttemptAtUtc` backoff, consumer: počet pokusů v hlavičce + `minishop.{modul}.dead`, `/Admin/Messages`, health check `dead-letters`) | kód hotový, čeká na nasazení | `docs/kroky/krok-13-uklid-a-odolnost-zprav.md` |
+| 13. Úklid a odolnost zpráv (`MessageRetentionWorker` – outbox 7 / inbox 30 dní, `OutboxMessage.NextAttemptAtUtc` backoff, consumer: počet pokusů v hlavičce + `minishop.{modul}.dead`, `/Admin/Messages`, health check `dead-letters`) | hotovo (nasazeno 4. 11. 2026, stránka Zprávy a dead-letter fronty ověřeny v produkci) | `docs/kroky/krok-13-uklid-a-odolnost-zprav.md` |
 
 Známé omezení po kroku 11: vnější akce (notifikace) nejsou v transakci – při pádu mezi odesláním a zápisem
 do inboxu odejdou znovu. Inbox i outbox uklízí `MessageRetentionWorker` (EDA krok 13). Worker počítá s jednou instancí aplikace.
@@ -446,6 +450,27 @@ nové moduly Notifications (odběratel událostí) a Payments (účastník ságy
 | 12. Vrácení zboží (druhá sága `ReturnSaga`, `/Admin/Returns`, `RestockReturnedGoodsV1` → `ReturnedGoodsRestockedV1`, `RefundPaymentV1`, `ReturnRequested/Rejected/CompletedV1`, dobírka ručně) | hotovo (nasazeno 3. 11. 2026, vratka kartou, zamítnutí i dobírka ověřeny v produkci) | `docs/kroky-eshop/krok-12-vraceni-zbozi.md` |
 | 13. Slevové kódy (agregát `Coupon`, `/Admin/Coupons`, použití ve stejné transakci jako objednávka, `Version` proti souběhu o poslední použití, sleva v položkách, `ReleaseCouponHandler`) | hotovo (nasazeno 4. 11. 2026, uplatnění, limit použití a vrácení po zrušení ověřeny v produkci) | `docs/kroky-eshop/krok-13-slevove-kody.md` |
 | 14. Hodnocení produktů (modul Reviews, `reviews.db`, kopie nákupů z událostí, `ProductRatingChangedV1` do kopie katalogu, `/Shop/{id}`, `/Admin/Reviews`, `SyncPurchasesV1` → `OrderSnapshotV2`) | hotovo (nasazeno 4. 11. 2026, hodnocení, hvězdičky ve výloze, starší objednávky ze snímků i moderace ověřeny v produkci) | `docs/kroky-eshop/krok-14-hodnoceni-produktu.md` |
+
+## Stav škálování (viz `docs/Skalovani-roadmap.md`)
+Cíl: víc instancí služeb (a později víc strojů). Nejdřív PostgreSQL (kontejner na Always Free VM, 0 Kč), pak víc instancí.
+Rozhodnutí: jeden PostgreSQL se **schématem pro každý modul**, testy proti skutečnému PostgreSQL (Testcontainers),
+převod produkčních dat s krátkou odstávkou, expand → contract (oba provideři, pak odebrat SQLite). Souhrny do `docs/kroky-skalovani/`.
+- **Provider (krok 1):** `Database:Provider` = `Sqlite` (výchozí, produkce, `ConnectionStrings:<Modul>`) / `Postgres`
+  (`ConnectionStrings:minishop`, jedna DB, schéma = `XxxDbContext.Schema`). Rozdíl jen v `Persistence/ModuleDatabase.cs`
+  (`FromConfiguration`, `UseModuleDatabase`, `UseModuleSchema` v `OnModelCreating`, `UseUtcDateTimes` v `ConfigureConventions` –
+  **nový DbContext je musí volat**). Moduly berou `ModuleDatabase` (implicitně ze `string` = SQLite – testy).
+  Unikátní index v PostgreSQL = SQLSTATE 23505 → `ConcurrencyConflictException`; baseline `DatabaseMigrator` jen SQLite.
+  AppHost výchozí PostgreSQL (persistentní kontejner, volume `minishop-postgres-data`; `-- --Database:Provider=Sqlite`),
+  Compose jen s profilem `postgres` (`DATABASE_PROVIDER`, `POSTGRES_PASSWORD` v `.env`). `PostgresMigrationTests` hlídají migrace PostgreSQL.
+
+| Krok | Stav | Souhrn |
+| --- | --- | --- |
+| 1. PostgreSQL vedle SQLite (`Database:Provider`, `ModuleDatabase`, schéma na modul, migrace v `MiniShop.Infrastructure.PostgreSql`, Aspire + Compose profil `postgres`; produkce dál SQLite) | hotovo (lokálně ověřeno – obě služby nad PostgreSQL, 8 schémat, katalog přes RabbitMQ) | `docs/kroky-skalovani/krok-01-postgresql.md` |
+| 2. Testy proti PostgreSQL (Testcontainers, CI) | plán | — |
+| 3. Převod produkčních dat (`migrate-to-postgres`, odstávka, přepnutí, odebrání SQLite) | plán | — |
+| 4. Zálohy a obnova (`pg_dump`, `restore.sh`, cvičná obnova) | plán | — |
+| 5. Více instancí (leader lease přes advisory lock, `web` ve dvou kopiích za Caddy) | plán | — |
+| 6. Druhá VM (volitelně) | plán | — |
 
 ## Postup práce na dalším kroku EDA
 1. Nejdřív **shrň**, co se bude přidávat/měnit a **proč** (teorie + konkrétní případ v MiniShopu),

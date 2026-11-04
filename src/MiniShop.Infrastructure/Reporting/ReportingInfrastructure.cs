@@ -15,9 +15,9 @@ namespace MiniShop.Infrastructure.Reporting;
 /// </summary>
 public static class ReportingInfrastructure
 {
-    public static IServiceCollection AddReportingInfrastructure(this IServiceCollection services, string connectionString)
+    public static IServiceCollection AddReportingInfrastructure(this IServiceCollection services, ModuleDatabase database)
     {
-        services.AddDbContext<ReportingDbContext>(options => options.UseSqlite(connectionString));
+        services.AddDbContext<ReportingDbContext>(options => options.UseModuleDatabase(database, ReportingDbContext.Schema));
         services.AddScoped<IReportingUnitOfWork>(sp => sp.GetRequiredService<ReportingDbContext>());
         services.AddScoped<IReportingMessagePublisher, ReportingMessagePublisher>();
         services.AddScoped<ISalesOrderRepository, SalesOrderRepository>();

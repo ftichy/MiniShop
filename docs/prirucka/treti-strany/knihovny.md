@@ -11,7 +11,7 @@ order: 1
 
 {{auto:nuget-packages}}
 
-Projekt `MiniShop.AppHost` (balíčky `Aspire.Hosting.RabbitMQ`, `MessagePack`) a testy se do Webu nenasazují, proto
+Projekt `MiniShop.AppHost` (balíčky `Aspire.Hosting.RabbitMQ`, `Aspire.Hosting.PostgreSQL`, `MessagePack`) a testy se do Webu nenasazují, proto
 v tabulce nejsou – jsou popsané níže.
 
 ## Platforma
@@ -31,6 +31,7 @@ v tabulce nejsou – jsou popsané níže.
 | --- | --- | --- | --- |
 | **Entity Framework Core** + **Microsoft.EntityFrameworkCore.Sqlite** | ORM – entity ↔ tabulky, transakce, change tracker (outbox v `SaveChanges`); **Microsoft.EntityFrameworkCore.Design** + nástroj `dotnet-ef` (`dotnet-tools.json`) pro migrace všech databází | standard v .NET; transakce přes data i outbox v jednom `DbContext`; migrace – produkční data se nesmí mazat ([Sdílené jádro – migrace](../architektura/sdilene-jadro.md)) | [docs](https://learn.microsoft.com/ef/core/) |
 | **SQLite** | databáze v jednom souboru na modul | žádný databázový server – ideální pro výuku a malou VM; online backup API | [sqlite.org](https://www.sqlite.org/) |
+| **Npgsql.EntityFrameworkCore.PostgreSQL** (+ Npgsql) | EF Core provider pro PostgreSQL – vedle SQLite podle `Database:Provider`, schéma pro každý modul | oficiální a nejrozšířenější provider PostgreSQL pro .NET; cesta k víc instancím ([proč](../architektura/databaze.md)) | [npgsql.org](https://www.npgsql.org/efcore/) |
 | **RabbitMQ.Client** | připojení k RabbitMQ: exchange, fronty, publisher confirms, consumery | oficiální klient; vlastní tenká vrstva ukazuje, co dělají knihovny jako MassTransit | [docs](https://www.rabbitmq.com/client-libraries/dotnet) |
 
 ## Služby a observabilita
@@ -41,7 +42,7 @@ v tabulce nejsou – jsou popsané níže.
 | **Serilog** (Serilog.AspNetCore, Serilog.Sinks.File) | strukturované logy do konzole, souboru a OpenTelemetry | konfigurace v `appsettings`, denní soubory, jeden řádek na HTTP požadavek | [serilog.net](https://serilog.net/) |
 | **Microsoft.Extensions.Http.Resilience** | opakování, timeout a circuit breaker pro HTTP klienta skladu | postavené na [Polly](https://www.pollydocs.org/); výpadek skladu neshodí stránku | [docs](https://learn.microsoft.com/dotnet/core/resilience/http-resilience) |
 | **Microsoft.Extensions.ServiceDiscovery** | najde adresu služby podle jména `inventory-api` | adresu dodá Aspire nebo Compose, kód se nemění | [docs](https://learn.microsoft.com/dotnet/core/extensions/service-discovery) |
-| **.NET Aspire** (Aspire.AppHost.Sdk, Aspire.Hosting.RabbitMQ) | lokální orchestrace: RabbitMQ, služby, dashboard | jeden příkaz pro celé prostředí; viz [Lokální vývoj](../nasazeni/lokalne.md) | [docs](https://learn.microsoft.com/dotnet/aspire/) |
+| **.NET Aspire** (Aspire.AppHost.Sdk, Aspire.Hosting.RabbitMQ, Aspire.Hosting.PostgreSQL) | lokální orchestrace: RabbitMQ, PostgreSQL, služby, dashboard | jeden příkaz pro celé prostředí; viz [Lokální vývoj](../nasazeni/lokalne.md) | [docs](https://learn.microsoft.com/dotnet/aspire/) |
 | **MessagePack** | tranzitivní závislost Aspire, připnutá na opravenou verzi | bezpečnostní oprava (GHSA-qhrr-8q5h-9q3h) | [GitHub](https://github.com/MessagePack-CSharp/MessagePack-CSharp) |
 
 ## Testy

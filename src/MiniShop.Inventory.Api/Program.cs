@@ -5,6 +5,7 @@ using MiniShop.Contracts.Orders;
 using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Hosting;
 using MiniShop.Infrastructure.Inventory;
+using MiniShop.Infrastructure.Persistence;
 using MiniShop.Inventory.Api;
 using Microsoft.AspNetCore.Authorization;
 using MiniShop.ServiceDefaults;
@@ -35,8 +36,9 @@ try
         // Krok 11: logy i do OpenTelemetry (Aspire dashboard → Structured logs, propojené s trasou).
         writeToProviders: true);
 
-    var connectionString = builder.Configuration.GetConnectionString("Inventory")
-        ?? throw new InvalidOperationException("Chybí connection string 'Inventory' v appsettings.json.");
+    // Škálování krok 1: SQLite (ConnectionStrings:Inventory) nebo PostgreSQL (ConnectionStrings:minishop, schéma inventory)
+    // podle Database:Provider.
+    var database = ModuleDatabase.FromConfiguration(builder.Configuration, "Inventory");
 
     // Jen modul Inventory: aplikační služba, handlery příkazů ságy a infrastruktura (inventory.db, outbox, inbox).
     builder.Services.AddSingleton(TimeProvider.System);
@@ -49,7 +51,7 @@ try
     builder.Services.AddIntegrationMessageHandler<OrderShippedV1, FulfilReservationHandler>(IntegrationModules.Inventory);
     builder.Services.AddIntegrationMessageHandler<SyncCatalogV1, SyncCatalogHandler>(IntegrationModules.Inventory);
     builder.Services.AddInfrastructureCore();
-    builder.Services.AddInventoryInfrastructure(connectionString);
+    builder.Services.AddInventoryInfrastructure(database);
 
     // E-shop krok 2B: obrázky produktů – v kontejneru /data/images (ENV v Dockerfile), lokálně složka images vedle projektu.
     builder.Services.AddFileSystemProductImages(

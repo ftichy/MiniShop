@@ -5,6 +5,7 @@
     <ProjectReference Include="..\MiniShop.Application\MiniShop.Application.csproj" />
     <ProjectReference Include="..\MiniShop.Infrastructure\MiniShop.Infrastructure.csproj" />
     <ProjectReference Include="..\MiniShop.ServiceDefaults\MiniShop.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\MiniShop.Infrastructure.PostgreSql\MiniShop.Infrastructure.PostgreSql.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.14" />

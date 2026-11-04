@@ -91,6 +91,14 @@ Plán (výloha, košík, pokladna, expedice, platba, notifikace): [docs/Eshop-ro
 | 13 | Slevové kódy – agregát `Coupon` v Orderingu, použití ve stejné transakci jako objednávka, souběh o poslední použití hlídá verze kuponu, sleva rozpočítaná do položek (bez nového kontraktu), vrácení použití po zamítnutí/zrušení | [eshop-13](code:docs/kroky-eshop/krok-13-slevove-kody.md) |
 | 14 | Hodnocení produktů – modul Reviews s vlastní kopií nákupů z událostí (hodnotí jen ten, kdo zboží dostal), souhrn `ProductRatingChangedV1` do kopie katalogu (hvězdičky a řazení ve výloze), detail produktu `/Shop/{id}`, nákupy z doby před modulem přes `SyncPurchasesV1` → `OrderSnapshotV2` | [eshop-14](code:docs/kroky-eshop/krok-14-hodnoceni-produktu.md) |
 
+## Škálování
+
+Plán: [docs/Skalovani-roadmap.md](code:docs/Skalovani-roadmap.md) – víc instancí služeb, nejdřív PostgreSQL.
+
+| Krok | Co přinesl | Souhrn |
+| --- | --- | --- |
+| 1 | PostgreSQL vedle SQLite – provider podle `Database:Provider`, schéma pro každý modul, druhá sada migrací v `MiniShop.Infrastructure.PostgreSql`, PostgreSQL v Aspire a v Compose (profil); produkce dál na SQLite (expand → contract) | [skalovani-01](code:docs/kroky-skalovani/krok-01-postgresql.md) |
+
 ## Proč po krocích
 
 Každý krok řeší **jeden** problém, který předchozí krok odhalil, a po každém aplikace funguje. Tak je u každé

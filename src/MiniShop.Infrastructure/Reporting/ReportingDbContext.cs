@@ -14,6 +14,9 @@ namespace MiniShop.Infrastructure.Reporting;
 /// </summary>
 public sealed class ReportingDbContext(DbContextOptions<ReportingDbContext> options) : ModuleDbContext(options), IReportingUnitOfWork
 {
+    /// <summary>Škálování krok 1: schéma modulu v PostgreSQL (SQLite schémata nezná).</summary>
+    public const string Schema = "reporting";
+
     public DbSet<SalesOrder> SalesOrders => Set<SalesOrder>();
 
     // Reporting nemá doménové události – kdyby nějaká vznikla, chyba se ukáže hned.

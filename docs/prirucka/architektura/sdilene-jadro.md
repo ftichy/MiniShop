@@ -96,6 +96,8 @@ Přirovnání: stavební deník – místo stavby nového domu při každé pře
   ```
 
   Vygenerovaný kód migrace je potřeba přečíst: přejmenování sloupce EF někdy pozná jako smazání a přidání (= ztráta dat).
+- Škálování krok 1: každý kontext má i druhou sadu migrací pro PostgreSQL (projekt `MiniShop.Infrastructure.PostgreSql`) –
+  nová migrace se přidává **pro oba providery**, viz [Databáze](databaze.md). Baseline se týká jen SQLite.
 
 ## Jak se jádro zapojí do modulu
 

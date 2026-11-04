@@ -8,6 +8,17 @@ var messaging = builder.AddRabbitMQ("messaging")
     .WithManagementPlugin()
     .WithLifetime(ContainerLifetime.Persistent);
 
+// Škálování krok 1: databáze. Výchozí PostgreSQL v Dockeru (persistentní kontejner + volume s daty, heslo v user secrets
+// AppHostu) – jedna databáze "minishop", každý modul ve vlastním schématu. Služby dostanou ConnectionStrings:minishop
+// a Database:Provider=Postgres. Původní SQLite soubory zůstanou beze změny: dotnet run --project src/MiniShop.AppHost -- --Database:Provider=Sqlite
+var usePostgres = !string.Equals(builder.Configuration["Database:Provider"], "Sqlite", StringComparison.OrdinalIgnoreCase);
+var database = usePostgres
+    ? builder.AddPostgres("postgres")
+        .WithDataVolume("minishop-postgres-data")
+        .WithLifetime(ContainerLifetime.Persistent)
+        .AddDatabase("minishop")
+    : null;
+
 // Účty krok 7: servisní klíč skladu. Aspire ho vygeneruje (jako heslo RabbitMQ) a uloží do user secrets AppHostu;
 // obě služby ho dostanou v InventoryApi__ApiKey – Web ho posílá, sklad ověřuje.
 var inventoryApiKey = builder.AddParameter("inventory-api-key",
@@ -22,7 +33,8 @@ var inventoryApi = builder.AddProject<Projects.MiniShop_Inventory_Api>("inventor
     .WithReference(messaging)
     .WithEnvironment("InventoryApi__ApiKey", inventoryApiKey)
     .WaitFor(messaging)
-    .WithHttpHealthCheck("/health");
+    .WithHttpHealthCheck("/health")
+    .WithModuleDatabase(database);
 
 // Účty krok 5: "cvičná pošta" Mailpit – zachytí každý e-mail z Webu, nikam ven nic neodejde.
 // Pošta je vidět na webovém rozhraní (odkaz u prostředku "mailpit" v dashboardu).
@@ -43,6 +55,17 @@ builder.AddProject<Projects.MiniShop_Web>("web")
     .WaitFor(messaging)
     .WaitFor(mailpit)
     .WithHttpHealthCheck("/health")
-    .WithExternalHttpEndpoints();
+    .WithExternalHttpEndpoints()
+    .WithModuleDatabase(database);
 
 builder.Build().Run();
+
+internal static class ModuleDatabaseResourceExtensions
+{
+    /// <summary>Škálování krok 1: služba dostane PostgreSQL (connection string + provider) a počká na něj; bez něj SQLite z appsettings.</summary>
+    public static IResourceBuilder<ProjectResource> WithModuleDatabase(
+        this IResourceBuilder<ProjectResource> service, IResourceBuilder<PostgresDatabaseResource>? database) =>
+        database is null
+            ? service
+            : service.WithReference(database).WaitFor(database).WithEnvironment("Database__Provider", "Postgres");
+}

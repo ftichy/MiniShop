@@ -6,6 +6,7 @@ using MiniShop.Domain.Common;
 using MiniShop.Infrastructure.Inbox;
 using MiniShop.Infrastructure.Outbox;
 using MiniShop.Infrastructure.Persistence.Configurations;
+using Npgsql;
 
 namespace MiniShop.Infrastructure.Persistence;
 
@@ -51,9 +52,11 @@ public abstract class ModuleDbContext(DbContextOptions options) : DbContext(opti
         }
     }
 
-    // SQLITE_CONSTRAINT_UNIQUE – druhý zápis stejné unikátní hodnoty (souběžné odeslání pokladny…).
+    // Druhý zápis stejné unikátní hodnoty (souběžné odeslání pokladny…): SQLITE_CONSTRAINT_UNIQUE,
+    // v PostgreSQL (škálování krok 1) SQLSTATE 23505 unique_violation.
     private static bool IsUniqueViolation(DbUpdateException ex) =>
-        ex.InnerException is SqliteException { SqliteExtendedErrorCode: 2067 };
+        ex.InnerException is SqliteException { SqliteExtendedErrorCode: 2067 }
+            or PostgresException { SqlState: PostgresErrorCodes.UniqueViolation };
 
     private async Task<int> SaveWithOutboxAsync(CancellationToken cancellationToken)
     {
@@ -92,8 +95,13 @@ public abstract class ModuleDbContext(DbContextOptions options) : DbContext(opti
         return result;
     }
 
+    // Škálování krok 1: v PostgreSQL časy vždy jako UTC (SQLite Kind neukládá).
+    protected sealed override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder) =>
+        configurationBuilder.UseUtcDateTimes(this);
+
     protected sealed override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.UseModuleSchema(this);   // škálování krok 1: v PostgreSQL vlastní schéma modulu
         modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());
         modelBuilder.ApplyConfiguration(new ProcessedMessageConfiguration());
         ConfigureModule(modelBuilder);

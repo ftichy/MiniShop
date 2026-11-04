@@ -19,6 +19,9 @@ namespace MiniShop.Infrastructure.Payments;
 /// </remarks>
 public sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> options) : ModuleDbContext(options), IPaymentsUnitOfWork
 {
+    /// <summary>Škálování krok 1: schéma modulu v PostgreSQL (SQLite schémata nezná).</summary>
+    public const string Schema = "payments";
+
     public DbSet<Payment> Payments => Set<Payment>();
 
     protected override IEnumerable<OutboxMessage> ToOutboxMessages(IDomainEvent domainEvent) => domainEvent switch

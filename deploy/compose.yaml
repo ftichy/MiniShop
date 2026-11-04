@@ -35,7 +35,42 @@ x-dotnet-healthcheck: &dotnet-healthcheck
 x-otel-env: &otel-env
   OTEL_EXPORTER_OTLP_ENDPOINT: http://aspire-dashboard:18889
 
+# Škálování krok 1: databáze služeb. Výchozí SQLite (soubory ve volume /data – produkce zatím beze změny).
+# PostgreSQL jen na zkoušku lokálně: v .env DATABASE_PROVIDER=Postgres + POSTGRES_PASSWORD a
+#   docker compose --profile postgres up -d --build
+# Bez profilu služba "postgres" vůbec nevznikne (ani na VM).
+x-database-env: &database-env
+  Database__Provider: ${DATABASE_PROVIDER:-Sqlite}
+  ConnectionStrings__minishop: Host=postgres;Database=minishop;Username=minishop;Password=${POSTGRES_PASSWORD:-}
+
+# Na PostgreSQL čekat jen tehdy, když běží (profil postgres) – required: false.
+x-depends-on-postgres: &depends-on-postgres
+  condition: service_healthy
+  required: false
+
 services:
+  # Škálování krok 1: jedna databáze "minishop", každý modul ve vlastním schématu (ordering, inventory, …).
+  # Jen s profilem postgres. Port 5432 jen z tohoto počítače (pro pgAdmin/psql).
+  postgres:
+    image: postgres:17-alpine
+    profiles: [postgres]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: minishop
+      POSTGRES_USER: minishop
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "minishop", "-d", "minishop"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+
   # Cloud krok 11: samostatný Aspire dashboard. Telemetrii drží jen v paměti (restart = prázdný).
   # Lokálně http://localhost:18888, na VM https://dashboard.<doména> přes Caddy s heslem (compose.cloud.yaml).
   aspire-dashboard:
@@ -84,7 +119,7 @@ services:
       dockerfile: src/MiniShop.Inventory.Api/Dockerfile
     restart: unless-stopped
     environment:
-      <<: *otel-env
+      <<: [*otel-env, *database-env]
       OTEL_SERVICE_NAME: inventory-api
       ConnectionStrings__messaging: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
       # Účty krok 7: servisní klíč – /api skladu jen pro Web. Bez něj se Compose ani nespustí (:?).
@@ -95,6 +130,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+      postgres: *depends-on-postgres
     healthcheck: *dotnet-healthcheck
 
   web:
@@ -104,7 +140,7 @@ services:
       dockerfile: src/MiniShop.Web/Dockerfile
     restart: unless-stopped
     environment:
-      <<: *otel-env
+      <<: [*otel-env, *database-env]
       OTEL_SERVICE_NAME: web
       ConnectionStrings__messaging: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
       # Jméno služby "inventory-api" je zároveň DNS jméno kontejneru v síti Compose.
@@ -135,6 +171,7 @@ services:
         condition: service_healthy
       inventory-api:
         condition: service_healthy
+      postgres: *depends-on-postgres
     healthcheck: *dotnet-healthcheck
 
 # Pojmenované volumes = trvalá data. Přežijí "docker compose down" i nový build image.
@@ -143,3 +180,4 @@ volumes:
   rabbitmq-data:
   inventory-data:
   web-data:
+  postgres-data:   # škálování krok 1: jen s profilem postgres

@@ -1,10 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Infrastruktura: implementace rozhraní z aplikační vrstvy (EF Core + SQLite, notifikace, RabbitMQ). -->
+  <!-- Infrastruktura: implementace rozhraní z aplikační vrstvy (EF Core + SQLite/PostgreSQL, notifikace, RabbitMQ). -->
   <ItemGroup>
     <ProjectReference Include="..\MiniShop.Application\MiniShop.Application.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.14" />
+    <!-- Škálování krok 1: PostgreSQL vedle SQLite (Database:Provider). Migrace pro PostgreSQL jsou v MiniShop.Infrastructure.PostgreSql. -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <!-- Účty krok 5: odesílání e-mailů přes SMTP (Gmail v produkci, Mailpit lokálně). -->
     <PackageReference Include="MailKit" Version="4.18.2" />
     <!-- Tranzitivní závislost MailKitu (MimeKit, S/MIME) připnutá na opravenou verzi – 10.0.0 má zranitelnosti

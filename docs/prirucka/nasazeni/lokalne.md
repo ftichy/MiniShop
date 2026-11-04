@@ -19,8 +19,14 @@ dotnet run --project src/MiniShop.AppHost
 | Inventory.Api (sklad) | https://localhost:7181 |
 | Aspire dashboard | https://localhost:17180 (přihlašovací odkaz vypíše konzole) |
 | RabbitMQ management | odkaz v dashboardu (zdroj `messaging`) |
+| PostgreSQL | zdroj `postgres` / databáze `minishop` v dashboardu (connection string v detailu) |
 
-Potřeba: .NET SDK podle `global.json` a **Docker** (Docker Desktop) kvůli RabbitMQ.
+Potřeba: .NET SDK podle `global.json` a **Docker** (Docker Desktop) kvůli RabbitMQ a PostgreSQL.
+
+Škálování krok 1: přes AppHost běží obě služby na **PostgreSQL** (persistentní kontejner, data ve volume
+`minishop-postgres-data`, každý modul ve vlastním schématu). Dřívější SQLite soubory zůstávají beze změny – použít je jde
+přes `dotnet run --project src/MiniShop.AppHost -- --Database:Provider=Sqlite`. Bez Aspire služby jedou na SQLite
+z `appsettings.json`. Viz [Databáze](../architektura/databaze.md).
 
 ## Co AppHost dělá
 

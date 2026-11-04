@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using MiniShop.Infrastructure.Accounts;
+using MiniShop.Infrastructure.Persistence;
 using MiniShop.Web.Accounts;
 
 namespace MiniShop.Web.Extensions;
@@ -13,9 +14,9 @@ namespace MiniShop.Web.Extensions;
 /// </summary>
 public static class AccountsServiceCollectionExtensions
 {
-    public static IServiceCollection AddAccounts(this IServiceCollection services, string connectionString)
+    public static IServiceCollection AddAccounts(this IServiceCollection services, ModuleDatabase database)
     {
-        services.AddAccountsInfrastructure(connectionString)
+        services.AddAccountsInfrastructure(database)
             .AddSignInManager()
             .AddDefaultTokenProviders();   // krok 5: tokeny do odkazů v e-mailu (potvrzení, reset hesla)
 

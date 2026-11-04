@@ -92,7 +92,7 @@ def backup() -> None:
         if not os.path.isfile(source) or os.path.getsize(source) == 0:
             raise FileNotFoundError(f"Chybí snímek PostgreSQL {source} – spouští se záloha přes backup.sh?")
         shutil.copyfile(source, os.path.join(content, target))
-        log(f"  {target}: {os.path.getsize(source) // 1024} kB")
+        log(f"  {target}: {os.path.getsize(source)} B")   # prázdná databáze má jen pár set bajtů
 
         with open(os.path.join(content, "manifest.json"), "w") as manifest:
             json.dump({"created_utc": datetime.now(timezone.utc).isoformat(),

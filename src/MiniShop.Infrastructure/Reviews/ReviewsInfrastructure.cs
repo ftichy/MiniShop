@@ -15,9 +15,9 @@ namespace MiniShop.Infrastructure.Reviews;
 /// </summary>
 public static class ReviewsInfrastructure
 {
-    public static IServiceCollection AddReviewsInfrastructure(this IServiceCollection services, string connectionString)
+    public static IServiceCollection AddReviewsInfrastructure(this IServiceCollection services, ModuleDatabase database)
     {
-        services.AddDbContext<ReviewsDbContext>(options => options.UseSqlite(connectionString));
+        services.AddDbContext<ReviewsDbContext>(options => options.UseModuleDatabase(database, ReviewsDbContext.Schema));
         services.AddScoped<IReviewsUnitOfWork>(sp => sp.GetRequiredService<ReviewsDbContext>());
         services.AddScoped<IReviewsMessagePublisher, ReviewsMessagePublisher>();
         services.AddScoped<IReviewRepository, ReviewRepository>();

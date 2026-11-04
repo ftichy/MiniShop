@@ -5,14 +5,16 @@ using MiniShop.Application.Inventory;
 using MiniShop.Infrastructure.Observability;
 using MiniShop.Infrastructure.Outbox;
 
+using MiniShop.Infrastructure.Persistence;
+
 namespace MiniShop.Infrastructure.Inventory;
 
 /// <summary>Infrastruktura modulu Inventory (krok 10): databáze inventory.db, její outbox a inbox, repozitáře.</summary>
 public static class InventoryInfrastructure
 {
-    public static IServiceCollection AddInventoryInfrastructure(this IServiceCollection services, string connectionString)
+    public static IServiceCollection AddInventoryInfrastructure(this IServiceCollection services, ModuleDatabase database)
     {
-        services.AddDbContext<InventoryDbContext>(options => options.UseSqlite(connectionString));
+        services.AddDbContext<InventoryDbContext>(options => options.UseModuleDatabase(database, InventoryDbContext.Schema));
         services.AddScoped<IInventoryUnitOfWork>(sp => sp.GetRequiredService<InventoryDbContext>());
         services.AddScoped<IInventoryMessagePublisher, InventoryMessagePublisher>();
 

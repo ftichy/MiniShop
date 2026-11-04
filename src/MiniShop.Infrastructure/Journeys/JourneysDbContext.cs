@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using MiniShop.Application.Journeys;
 using MiniShop.Domain.Journeys;
 using MiniShop.Infrastructure.Journeys.Configurations;
+using MiniShop.Infrastructure.Persistence;
 
 namespace MiniShop.Infrastructure.Journeys;
 
@@ -14,8 +15,18 @@ namespace MiniShop.Infrastructure.Journeys;
 /// </remarks>
 public sealed class JourneysDbContext(DbContextOptions<JourneysDbContext> options) : DbContext(options), IJourneysUnitOfWork
 {
+    /// <summary>Škálování krok 1: schéma modulu v PostgreSQL (SQLite schémata nezná).</summary>
+    public const string Schema = "journeys";
+
     public DbSet<JourneyEvent> JourneyEvents => Set<JourneyEvent>();
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder) =>
+    // Škálování krok 1: v PostgreSQL časy jako UTC a tabulky ve schématu journeys.
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder) =>
+        configurationBuilder.UseUtcDateTimes(this);
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.UseModuleSchema(this);
         modelBuilder.ApplyConfiguration(new JourneyEventConfiguration());
+    }
 }

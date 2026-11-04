@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
+using MiniShop.Infrastructure.Persistence;
+
 namespace MiniShop.Infrastructure.Accounts;
 
 /// <summary>
@@ -19,9 +21,9 @@ public static class AccountsInfrastructure
     public const int MaxFailedAccessAttempts = 5;
     public static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
 
-    public static IdentityBuilder AddAccountsInfrastructure(this IServiceCollection services, string connectionString)
+    public static IdentityBuilder AddAccountsInfrastructure(this IServiceCollection services, ModuleDatabase database)
     {
-        services.AddDbContext<AccountsDbContext>(options => options.UseSqlite(connectionString));
+        services.AddDbContext<AccountsDbContext>(options => options.UseModuleDatabase(database, AccountsDbContext.Schema));
         services.AddScoped<AccountsSeeder>();
         services.AddScoped<AccountAdministration>();   // účty krok 6: správa uživatelů adminem
         services.AddScoped<AccountDeletion>();         // účty krok 9: smazání vlastního účtu

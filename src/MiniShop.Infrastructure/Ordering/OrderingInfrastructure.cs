@@ -13,14 +13,16 @@ using MiniShop.Infrastructure.Inbox;
 using MiniShop.Infrastructure.Observability;
 using MiniShop.Infrastructure.Outbox;
 
+using MiniShop.Infrastructure.Persistence;
+
 namespace MiniShop.Infrastructure.Ordering;
 
 /// <summary>Infrastruktura modulu Ordering (krok 10): databáze ordering.db, její outbox a inbox, repozitáře.</summary>
 public static class OrderingInfrastructure
 {
-    public static IServiceCollection AddOrderingInfrastructure(this IServiceCollection services, string connectionString)
+    public static IServiceCollection AddOrderingInfrastructure(this IServiceCollection services, ModuleDatabase database)
     {
-        services.AddDbContext<OrderingDbContext>(options => options.UseSqlite(connectionString));
+        services.AddDbContext<OrderingDbContext>(options => options.UseModuleDatabase(database, OrderingDbContext.Schema));
         services.AddScoped<IOrderingUnitOfWork>(sp => sp.GetRequiredService<OrderingDbContext>());
         services.AddScoped<IOrderingMessagePublisher, OrderingMessagePublisher>();
 

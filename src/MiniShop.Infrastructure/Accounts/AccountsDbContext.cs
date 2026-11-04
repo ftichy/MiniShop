@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using MiniShop.Infrastructure.Persistence;
 
 namespace MiniShop.Infrastructure.Accounts;
 
@@ -15,10 +16,18 @@ namespace MiniShop.Infrastructure.Accounts;
 public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> options)
     : IdentityDbContext<ApplicationUser, IdentityRole, string>(options)
 {
+    /// <summary>Škálování krok 1: schéma modulu v PostgreSQL (SQLite schémata nezná).</summary>
+    public const string Schema = "accounts";
+
     public DbSet<AccountAuditEntry> AuditEntries => Set<AccountAuditEntry>();
+
+    // Škálování krok 1: v PostgreSQL časy jako UTC a tabulky ve schématu accounts.
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder) =>
+        configurationBuilder.UseUtcDateTimes(this);
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.UseModuleSchema(this);
         base.OnModelCreating(modelBuilder);
 
         modelBuilder.Entity<ApplicationUser>()

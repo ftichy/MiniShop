@@ -15,10 +15,10 @@ namespace MiniShop.Infrastructure.Payments;
 /// </summary>
 public static class PaymentsInfrastructure
 {
-    public static IServiceCollection AddPaymentsInfrastructure(this IServiceCollection services, string connectionString,
+    public static IServiceCollection AddPaymentsInfrastructure(this IServiceCollection services, ModuleDatabase database,
         string? webhookSecret)
     {
-        services.AddDbContext<PaymentsDbContext>(options => options.UseSqlite(connectionString));
+        services.AddDbContext<PaymentsDbContext>(options => options.UseModuleDatabase(database, PaymentsDbContext.Schema));
         services.AddScoped<IPaymentsUnitOfWork>(sp => sp.GetRequiredService<PaymentsDbContext>());
         services.AddScoped<IPaymentRepository, PaymentRepository>();
 

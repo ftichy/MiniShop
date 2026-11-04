@@ -18,7 +18,12 @@ public static class DatabaseMigrator
 {
     public static async Task MigrateAsync(DbContext dbContext, string markerTable, CancellationToken cancellationToken = default)
     {
-        await BaselineDatabaseCreatedWithoutMigrationsAsync(dbContext, markerTable, cancellationToken);
+        // Škálování krok 1: PostgreSQL databáze vznikají rovnou přes migrace – staré databáze z EnsureCreated jsou jen SQLite.
+        if (dbContext.Database.IsSqlite())
+        {
+            await BaselineDatabaseCreatedWithoutMigrationsAsync(dbContext, markerTable, cancellationToken);
+        }
+
         await dbContext.Database.MigrateAsync(cancellationToken);
     }
 

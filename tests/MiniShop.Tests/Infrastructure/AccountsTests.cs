@@ -14,14 +14,14 @@ public sealed class AccountsTests : IDisposable
 {
     private const string GoodPassword = "dlouhe heslo bez cisel";
 
-    private readonly InMemoryDatabase _database = new();
+    private readonly TestDatabases _databases = new();   // škálování krok 2: SQLite nebo PostgreSQL
     private readonly ServiceProvider _services;
 
     public AccountsTests()
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddAccountsInfrastructure(_database.ConnectionString);
+        services.AddAccountsInfrastructure(_databases.Accounts);
         _services = services.BuildServiceProvider();
 
         using var scope = _services.CreateScope();
@@ -204,6 +204,6 @@ public sealed class AccountsTests : IDisposable
     public void Dispose()
     {
         _services.Dispose();
-        _database.Dispose();
+        _databases.Dispose();
     }
 }

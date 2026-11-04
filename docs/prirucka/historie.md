@@ -98,6 +98,7 @@ Plán: [docs/Skalovani-roadmap.md](code:docs/Skalovani-roadmap.md) – víc inst
 | Krok | Co přinesl | Souhrn |
 | --- | --- | --- |
 | 1 | PostgreSQL vedle SQLite – provider podle `Database:Provider`, schéma pro každý modul, druhá sada migrací v `MiniShop.Infrastructure.PostgreSql`, PostgreSQL v Aspire a v Compose (profil); produkce dál na SQLite (expand → contract) | [skalovani-01](code:docs/kroky-skalovani/krok-01-postgresql.md) |
+| 2 | Testy nad PostgreSQL – celá sada i nad skutečným PostgreSQL (Testcontainers, šablona + kopie databáze pro každý test), druhý job v CI; našly chybějící kategorii „Nezařazeno“ v migracích PostgreSQL | [skalovani-02](code:docs/kroky-skalovani/krok-02-testy-postgresql.md) |
 
 ## Proč po krocích
 

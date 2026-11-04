@@ -27,8 +27,7 @@ public sealed class OutboxTests : IDisposable
 {
     private static readonly DateTimeOffset Now = new(2026, 1, 15, 10, 0, 0, TimeSpan.Zero);
 
-    private readonly InMemoryDatabase _ordering = new();
-    private readonly InMemoryDatabase _inventory = new();
+    private readonly TestDatabases _databases = new();   // škálování krok 2: SQLite nebo PostgreSQL
     private int _nextProductId = 1;
     private readonly SwitchableDispatcher _dispatcher = new();
     private readonly RecordingIntegrationBus _bus = new();
@@ -58,7 +57,7 @@ public sealed class OutboxTests : IDisposable
         var services = new ServiceCollection();
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         services.AddSingleton<TimeProvider>(_time);
-        services.AddInfrastructure(_ordering.ConnectionString, _inventory.ConnectionString);
+        services.AddInfrastructure(_databases.Ordering, _databases.Inventory);
         services.AddSingleton<IDomainEventDispatcher>(_dispatcher);   // přebije skutečný dispatcher
         services.AddSingleton<IIntegrationBus>(_bus);            // a "broker"
 
@@ -367,7 +366,6 @@ public sealed class OutboxTests : IDisposable
     public void Dispose()
     {
         _services.Dispose();
-        _ordering.Dispose();
-        _inventory.Dispose();
+        _databases.Dispose();
     }
 }

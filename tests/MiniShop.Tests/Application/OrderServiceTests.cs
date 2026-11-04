@@ -69,13 +69,8 @@ public sealed class OrderServiceTests : IDisposable
     private static readonly TimeSpan ReturnWindow = TimeSpan.FromDays(14);           // e-shop krok 12
     private const string WebhookSecret = "testovaci-tajemstvi-webhooku-plateb-0123456789";
 
-    private readonly InMemoryDatabase _orderingDatabase = new();
-    private readonly InMemoryDatabase _inventoryDatabase = new();
+    private readonly TestDatabases _databases = new();   // škálování krok 2: SQLite (databáze na modul) nebo PostgreSQL (schéma na modul)
     private readonly FixedTimeProvider _time = new(Now);
-    private readonly InMemoryDatabase _notificationsDatabase = new();   // e-shop krok 7: modul Notifications
-    private readonly InMemoryDatabase _paymentsDatabase = new();        // e-shop krok 8: modul Payments
-    private readonly InMemoryDatabase _reportingDatabase = new();       // e-shop krok 11: modul Reporting (CQRS)
-    private readonly InMemoryDatabase _reviewsDatabase = new();         // e-shop krok 14: modul Reviews
     private readonly RecordingEmailSender _emails = new();
     private readonly InMemoryCustomerContacts _contacts = new();   // e-shop krok 10: účty se souhlasem
     private readonly InMemoryProductImageStore _images = new();   // e-shop krok 2B
@@ -88,7 +83,7 @@ public sealed class OrderServiceTests : IDisposable
         var services = new ServiceCollection();
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         services.AddSingleton<TimeProvider>(_time);
-        services.AddInfrastructure(_orderingDatabase.ConnectionString, _inventoryDatabase.ConnectionString);
+        services.AddInfrastructure(_databases.Ordering, _databases.Inventory);
 
         // Stejné služby a handlery jako v aplikaci (ApplicationServiceCollectionExtensions).
         services.AddScoped<IOrderService, OrderService>();
@@ -144,7 +139,7 @@ public sealed class OrderServiceTests : IDisposable
         services.AddScoped<CatalogSyncService>();
 
         // E-shop krok 7: modul Notifications (e-maily podle integračních událostí) – jako AddNotificationsModule ve Webu.
-        services.AddNotificationsInfrastructure(_notificationsDatabase.ConnectionString);
+        services.AddNotificationsInfrastructure(_databases.Notifications);
         services.AddSingleton(new NotificationSettings("https://minishop.test"));
         services.AddSingleton<OrderEmailTemplates>();
         services.AddIntegrationMessageHandler<OrderPlacedV2, OrderNotificationsHandler>(IntegrationModules.Notifications);
@@ -167,13 +162,13 @@ public sealed class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<CartAbandonedV1, CartReminderHandler>(IntegrationModules.Notifications);
 
         // E-shop krok 8: modul Payments (účastník ságy) – jako AddPaymentsModule + AddPaymentsInfrastructure ve Webu.
-        services.AddPaymentsInfrastructure(_paymentsDatabase.ConnectionString, WebhookSecret);
+        services.AddPaymentsInfrastructure(_databases.Payments, WebhookSecret);
         services.AddIntegrationMessageHandler<RequestPaymentV1, PaymentCommandHandlers>(IntegrationModules.Payments);
         services.AddIntegrationMessageHandler<RefundPaymentV1, PaymentCommandHandlers>(IntegrationModules.Payments);
 
         // E-shop krok 11: modul Reporting (přehled tržeb) – jako AddReportingModule + AddReportingInfrastructure ve Webu,
         // a snímky objednávek pro přestavění (handler v Orderingu).
-        services.AddReportingInfrastructure(_reportingDatabase.ConnectionString);
+        services.AddReportingInfrastructure(_databases.Reporting);
         services.AddScoped<SalesReportService>();
         services.AddIntegrationMessageHandler<OrderPlacedV2, SalesProjectionHandler>(IntegrationModules.Reporting);
         services.AddIntegrationMessageHandler<OrderConfirmedV1, SalesProjectionHandler>(IntegrationModules.Reporting);
@@ -187,7 +182,7 @@ public sealed class OrderServiceTests : IDisposable
 
         // E-shop krok 14: modul Reviews (kopie nákupů, hodnocení) – jako AddReviewsModule + AddReviewsInfrastructure ve Webu,
         // a v Orderingu snímky nákupů a souhrn hodnocení do kopie katalogu.
-        services.AddReviewsInfrastructure(_reviewsDatabase.ConnectionString);
+        services.AddReviewsInfrastructure(_databases.Reviews);
         services.AddScoped<ReviewService>();
         services.AddIntegrationMessageHandler<OrderPlacedV2, PurchaseProjectionHandler>(IntegrationModules.Reviews);
         services.AddIntegrationMessageHandler<OrderCompletedV1, PurchaseProjectionHandler>(IntegrationModules.Reviews);
@@ -1051,6 +1046,45 @@ public sealed class OrderServiceTests : IDisposable
         Assert.Equal(1, (await CouponAsync("POSLEDNI")).RedemptionCount);
     }
 
+    /// <summary>
+    /// Škálování krok 2: dvě pokladny s posledním použitím kuponu opravdu naráz. Nad PostgreSQL (MINISHOP_TEST_DATABASE=Postgres)
+    /// běží obě transakce souběžně – projde jen jedna, druhá dostane hlášku a nic neuloží (SQLite zápisy seřadí za sebe).
+    /// </summary>
+    [Fact]
+    public async Task Kupon_PosledniPouzitiNaraz_ProjdeJenJednaObjednavka()
+    {
+        await CreateCouponAsync("NARAZ", CouponKind.Percent, 10, maxRedemptions: 1);
+        var product = await AddProductAsync(price: 100m, stock: 10);
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, product.Id, 1));
+        await Cart(s => s.AddItemAsync(Petra.CustomerId, product.Id, 1));
+        await Checkout(async s => { await s.ApplyCouponAsync(Jan.CustomerId, "NARAZ"); return true; });
+        await Checkout(async s => { await s.ApplyCouponAsync(Petra.CustomerId, "NARAZ"); return true; });
+        var janCheckout = (await Checkout(s => s.GetAsync(Jan.CustomerId))).CheckoutId;
+        var petraCheckout = (await Checkout(s => s.GetAsync(Petra.CustomerId))).CheckoutId;
+
+        var attempts = await Task.WhenAll(
+            Attempt(() => Checkout(s => s.PlaceOrderAsync(Pickup(janCheckout), Jan))),
+            Attempt(() => Checkout(s => s.PlaceOrderAsync(Pickup(petraCheckout), Petra))));
+
+        Assert.Single(attempts, error => error is null);
+        Assert.IsType<DomainException>(Assert.Single(attempts, error => error is not null));
+        Assert.Equal(1, await OrderingDb(db => db.Orders.CountAsync()));
+        Assert.Equal(1, (await CouponAsync("NARAZ")).RedemptionCount);
+
+        static async Task<Exception?> Attempt(Func<Task> placeOrder)
+        {
+            try
+            {
+                await placeOrder();
+                return null;
+            }
+            catch (Exception ex)
+            {
+                return ex;
+            }
+        }
+    }
+
     [Fact]
     public async Task Kupon_Soubeh_VerzeKuponuPustiJenJedenZapis()
     {
@@ -1605,8 +1639,11 @@ public sealed class OrderServiceTests : IDisposable
     public async Task NeuplnaKopieKatalogu_PoStartuSeDoplniZeSkladu()
     {
         await AddProductAsync(price: 120m, stock: 50);
-        await OrderingDb(db => db.Database.ExecuteSqlRawAsync(
-            "UPDATE CatalogProducts SET Availability = 'Unknown', CategoryId = NULL, CategoryName = NULL"));
+        // Škálování krok 2: přes EF (ne ruční SQL) – stejný příkaz pro SQLite i PostgreSQL (schéma, uvozovky).
+        await OrderingDb(db => db.CatalogProducts.ExecuteUpdateAsync(setters => setters
+            .SetProperty(p => p.Availability, CatalogAvailability.Unknown)
+            .SetProperty(p => p.CategoryId, (int?)null)
+            .SetProperty(p => p.CategoryName, (string?)null)));
 
         Assert.True(await CatalogSync(s => s.RequestIfEmptyOrIncompleteAsync()));
         await ProcessOutboxAsync();
@@ -1814,7 +1851,10 @@ public sealed class OrderServiceTests : IDisposable
         // Ordering nezná tabulky skladu a naopak – jediná cesta mezi nimi jsou zprávy.
         Assert.Null(await OrderingDb(db => Task.FromResult(db.Model.FindEntityType(typeof(MiniShop.Domain.Inventory.Product)))));
         Assert.Null(await InventoryDb(db => Task.FromResult(db.Model.FindEntityType(typeof(MiniShop.Domain.Orders.Order)))));
-        Assert.NotEqual(_orderingDatabase.ConnectionString, _inventoryDatabase.ConnectionString);
+        // SQLite: každý modul vlastní soubor. PostgreSQL (škálování krok 1): jedna databáze, ale každý modul vlastní schéma.
+        var ordering = await OrderingDb(db => Task.FromResult((db.Database.GetConnectionString(), db.Model.GetDefaultSchema())));
+        var inventory = await InventoryDb(db => Task.FromResult((db.Database.GetConnectionString(), db.Model.GetDefaultSchema())));
+        Assert.NotEqual(ordering, inventory);
     }
 
     // ---------- Krok 11: jedna trasa přes celou ságu ----------
@@ -2544,11 +2584,6 @@ public sealed class OrderServiceTests : IDisposable
     public void Dispose()
     {
         _services.Dispose();
-        _orderingDatabase.Dispose();
-        _inventoryDatabase.Dispose();
-        _notificationsDatabase.Dispose();
-        _paymentsDatabase.Dispose();
-        _reportingDatabase.Dispose();
-        _reviewsDatabase.Dispose();
+        _databases.Dispose();
     }
 }

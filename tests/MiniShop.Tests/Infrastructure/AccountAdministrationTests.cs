@@ -17,7 +17,7 @@ public sealed class AccountAdministrationTests : IDisposable
 {
     private const string Password = "dlouhe heslo bez cisel";
 
-    private readonly InMemoryDatabase _database = new();
+    private readonly TestDatabases _databases = new();   // škálování krok 2: SQLite nebo PostgreSQL
     private readonly ServiceProvider _services;
     private readonly string _adminId;
 
@@ -25,7 +25,7 @@ public sealed class AccountAdministrationTests : IDisposable
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddAccountsInfrastructure(_database.ConnectionString);
+        services.AddAccountsInfrastructure(_databases.Accounts);
         _services = services.BuildServiceProvider();
 
         AccountsDatabaseInitializer.InitializeAsync(_services, new AdminBootstrapSettings("admin@example.com", Password))
@@ -252,6 +252,6 @@ public sealed class AccountAdministrationTests : IDisposable
     public void Dispose()
     {
         _services.Dispose();
-        _database.Dispose();
+        _databases.Dispose();
     }
 }

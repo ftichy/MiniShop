@@ -51,6 +51,7 @@ v tabulce nejsou – jsou popsané níže.
 | --- | --- | --- | --- |
 | **xUnit** (xunit, xunit.runner.visualstudio) + **Microsoft.NET.Test.Sdk** | testovací framework a jeho spouštění | nejrozšířenější v .NET, jednoduchý | [xunit.net](https://xunit.net/) |
 | **Microsoft.AspNetCore.Mvc.Testing** | `WebApplicationFactory` – celý Web v paměti pro testy přes skutečné HTTP (matice oprávnění) | ověří přihlášení, cookie, policies i antiforgery dohromady, bez spuštění serveru | [docs](https://learn.microsoft.com/aspnet/core/test/integration-tests) |
+| **Testcontainers.PostgreSql** | testy nad skutečným PostgreSQL – kontejner `postgres:17-alpine` spustí a po testech uklidí sám (`MINISHOP_TEST_DATABASE=Postgres`) | testuje se proti databázi, která poběží v produkci; stačí Docker, lokálně i v CI ([proč](../architektura/databaze.md)) | [testcontainers.com](https://dotnet.testcontainers.org/) |
 | **NetArchTest.Rules** | testy architektury – hranice modulů a vrstev | pravidla architektury hlídá CI, ne jen code review | [GitHub](https://github.com/BenMorris/NetArchTest) |
 
 ## Front-end a dokumentace

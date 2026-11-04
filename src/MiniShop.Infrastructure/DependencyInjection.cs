@@ -43,16 +43,16 @@ public static class DependencyInjection
     /// Oba moduly v jednom procesu (modulární monolit z kroku 10A). Od kroku 10B to používají jen testy –
     /// celá sága tak proběhne v paměti bez sítě a bez RabbitMQ.
     /// </summary>
-    /// <param name="orderingConnectionString">Databáze modulu Ordering (ordering.db).</param>
-    /// <param name="inventoryConnectionString">Databáze modulu Inventory (inventory.db).</param>
+    /// <param name="orderingDatabase">Databáze modulu Ordering (ordering.db).</param>
+    /// <param name="inventoryDatabase">Databáze modulu Inventory (inventory.db).</param>
     public static IServiceCollection AddInfrastructure(
-        this IServiceCollection services, string orderingConnectionString, string inventoryConnectionString)
+        this IServiceCollection services, ModuleDatabase orderingDatabase, ModuleDatabase inventoryDatabase)
     {
         services.AddInfrastructureCore();
 
         // Moduly (krok 10) – každý s vlastní databází, outboxem a inboxem.
-        services.AddOrderingInfrastructure(orderingConnectionString);
-        services.AddInventoryInfrastructure(inventoryConnectionString);
+        services.AddOrderingInfrastructure(orderingDatabase);
+        services.AddInventoryInfrastructure(inventoryDatabase);
 
         return services;
     }

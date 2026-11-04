@@ -462,11 +462,16 @@ převod produkčních dat s krátkou odstávkou, expand → contract (oba provid
   Unikátní index v PostgreSQL = SQLSTATE 23505 → `ConcurrencyConflictException`; baseline `DatabaseMigrator` jen SQLite.
   AppHost výchozí PostgreSQL (persistentní kontejner, volume `minishop-postgres-data`; `-- --Database:Provider=Sqlite`),
   Compose jen s profilem `postgres` (`DATABASE_PROVIDER`, `POSTGRES_PASSWORD` v `.env`). `PostgresMigrationTests` hlídají migrace PostgreSQL.
+- **Testy (krok 2):** databáze v testech jen přes `TestDatabases` (`_databases.Ordering` …, factory `_databases.Configure(builder, …)`),
+  `InMemoryDatabase` jen pro testy čistě SQLite (migrace/baseline). `MINISHOP_TEST_DATABASE=Postgres` = celá sada nad PostgreSQL
+  (Testcontainers, potřeba Docker; CI job „Testy PostgreSQL“). **Žádné ruční SQL v testech** (schéma, uvozovky) – `ExecuteUpdateAsync`.
+  **Ruční SQL v migraci SQLite (data) dopsat i do migrace PostgreSQL** (EF ho nevygeneruje – tak chyběla kategorie „Nezařazeno“).
+  Po změně kódu s databází spustit i variantu PostgreSQL.
 
 | Krok | Stav | Souhrn |
 | --- | --- | --- |
-| 1. PostgreSQL vedle SQLite (`Database:Provider`, `ModuleDatabase`, schéma na modul, migrace v `MiniShop.Infrastructure.PostgreSql`, Aspire + Compose profil `postgres`; produkce dál SQLite) | hotovo (lokálně ověřeno – obě služby nad PostgreSQL, 8 schémat, katalog přes RabbitMQ) | `docs/kroky-skalovani/krok-01-postgresql.md` |
-| 2. Testy proti PostgreSQL (Testcontainers, CI) | plán | — |
+| 1. PostgreSQL vedle SQLite (`Database:Provider`, `ModuleDatabase`, schéma na modul, migrace v `MiniShop.Infrastructure.PostgreSql`, Aspire + Compose profil `postgres`; produkce dál SQLite) | hotovo (lokálně ověřeno – obě služby nad PostgreSQL, 8 schémat, katalog přes RabbitMQ; AppHost s PostgreSQL ověřen uživatelem 4. 11. 2026) | `docs/kroky-skalovani/krok-01-postgresql.md` |
+| 2. Testy proti PostgreSQL (`MINISHOP_TEST_DATABASE=Postgres`, `TestDatabases` + `PostgresTestServer` – Testcontainers, šablona + kopie DB na test, CI job „Testy PostgreSQL“; oprava: kategorie „Nezařazeno“ v migraci PostgreSQL) | hotovo (lokálně obě varianty zelené) | `docs/kroky-skalovani/krok-02-testy-postgresql.md` |
 | 3. Převod produkčních dat (`migrate-to-postgres`, odstávka, přepnutí, odebrání SQLite) | plán | — |
 | 4. Zálohy a obnova (`pg_dump`, `restore.sh`, cvičná obnova) | plán | — |
 | 5. Více instancí (leader lease přes advisory lock, `web` ve dvou kopiích za Caddy) | plán | — |

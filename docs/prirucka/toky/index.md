@@ -27,6 +27,7 @@ order: 30
 | [Opuštěný košík](opusteny-kosik.md) | reakce na „ticho“: worker → `CartAbandonedV1` → připomínka jen se souhlasem |
 | [Vrácení zboží](vraceni-zbozi.md) | druhá sága: žádost → převzetí adminem → naskladnění → vrácení peněz; zamítnutí a vypršení |
 | [Slevové kódy](slevove-kody.md) | kód v pokladně, poslední použití při souběhu (verze kuponu), vrácení použití po zamítnutí/zrušení |
+| [Hodnocení produktu](hodnoceni-produktu.md) | kopie nákupů rozhodne, kdo smí hodnotit; souhrn hodnocení do kopie katalogu a výlohy |
 
 Diagramy v Markdownu jsou psané v [Mermaidu](https://mermaid.js.org/syntax/sequenceDiagram.html). Velký diagram
 zvětšíte tlačítkem **Plná velikost** v jeho pravém horním rohu.

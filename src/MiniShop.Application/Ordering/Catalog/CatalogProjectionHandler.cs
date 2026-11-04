@@ -1,5 +1,6 @@
 using MiniShop.Application.Abstractions;
 using MiniShop.Contracts.Inventory;
+using MiniShop.Contracts.Reviews;
 using MiniShop.Domain.Orders;
 
 namespace MiniShop.Application.Ordering.Catalog;
@@ -17,7 +18,8 @@ public sealed class CatalogProjectionHandler(ICatalogProductRepository catalog, 
     IIntegrationMessageHandler<ProductUpdatedV1>,
     IIntegrationMessageHandler<ProductUpdatedV2>,
     IIntegrationMessageHandler<StockAvailabilityChangedV1>,
-    IIntegrationMessageHandler<ProductRemovedV1>
+    IIntegrationMessageHandler<ProductRemovedV1>,
+    IIntegrationMessageHandler<ProductRatingChangedV1>
 {
     public async Task HandleAsync(ProductUpdatedV1 message, CancellationToken cancellationToken)
     {
@@ -73,6 +75,21 @@ public sealed class CatalogProjectionHandler(ICatalogProductRepository catalog, 
         }
 
         product.MarkRemoved(message.OccurredAtUtc);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// E-shop krok 14: nový souhrn hodnocení z modulu Reviews – výloha pak ukáže hvězdičky bez dotazu do Reviews.
+    /// Produkt, který kopie nezná (nemělo by nastat – hodnotí se jen doručené zboží), se přeskočí.
+    /// </summary>
+    public async Task HandleAsync(ProductRatingChangedV1 message, CancellationToken cancellationToken)
+    {
+        if (await catalog.GetByIdAsync(message.ProductId, cancellationToken) is not { } product)
+        {
+            return;
+        }
+
+        product.ApplyRating(message.AverageRating, message.RatingCount, message.OccurredAtUtc);
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 

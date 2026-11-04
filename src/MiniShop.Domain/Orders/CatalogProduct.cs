@@ -111,6 +111,28 @@ public sealed class CatalogProduct
         return true;
     }
 
+    /// <summary>E-shop krok 14: průměrné hodnocení (1–5, na desetiny) z modulu Reviews; 0 = zatím žádné.</summary>
+    public decimal RatingAverage { get; private set; }
+
+    public int RatingCount { get; private set; }
+
+    /// <summary>Čas posledního souhrnu hodnocení – starší zpráva přes novější nepřepíše.</summary>
+    public DateTime? RatingChangedAtUtc { get; private set; }
+
+    /// <summary>E-shop krok 14: ProductRatingChangedV1. Vrací false, když je souhrn starší než to, co kopie zná.</summary>
+    public bool ApplyRating(decimal average, int count, DateTime changedAtUtc)
+    {
+        if (RatingChangedAtUtc is { } known && changedAtUtc < known)
+        {
+            return false;
+        }
+
+        RatingAverage = average;
+        RatingCount = count;
+        RatingChangedAtUtc = changedAtUtc;
+        return true;
+    }
+
     public bool MarkRemoved(DateTime removedAtUtc)
     {
         if (removedAtUtc < ChangedAtUtc)

@@ -40,6 +40,7 @@
             <option value="@CatalogSort.Name" selected="@(Model.Sort == CatalogSort.Name)">podle názvu</option>
             <option value="@CatalogSort.PriceAscending" selected="@(Model.Sort == CatalogSort.PriceAscending)">od nejlevnějšího</option>
             <option value="@CatalogSort.PriceDescending" selected="@(Model.Sort == CatalogSort.PriceDescending)">od nejdražšího</option>
+            <option value="@CatalogSort.BestRated" selected="@(Model.Sort == CatalogSort.BestRated)">nejlépe hodnocené</option>
         </select>
     </div>
     <div class="col-md-2">
@@ -88,7 +89,14 @@
                         <span class="text-muted small">@p.CategoryName</span>
                         <span class="badge @AvailabilityLabels.Badge(p.Availability)">@AvailabilityLabels.Text(p.Availability)</span>
                     </div>
-                    <h2 class="h5 card-title">@p.Name</h2>
+                    @* E-shop krok 14: detail produktu s hodnocením; hvězdičky z kopie katalogu (ProductRatingChangedV1). *@
+                    <h2 class="h5 card-title"><a asp-page="/Shop/Detail" asp-route-id="@p.ProductId" class="text-reset" data-track="shop-product">@p.Name</a></h2>
+                    @if (p.RatingCount > 0)
+                    {
+                        <div class="small text-warning mb-1" title="@RatingStars.Summary(p.RatingAverage, p.RatingCount)">
+                            @RatingStars.For(p.RatingAverage) <span class="text-muted">(@p.RatingCount)</span>
+                        </div>
+                    }
                     <p class="card-text text-muted flex-grow-1">@p.Description</p>
                     <div class="d-flex justify-content-between align-items-center">
                         <strong class="fs-5">@p.Price.ToString("N2") Kč</strong>

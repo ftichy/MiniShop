@@ -15,6 +15,7 @@ using MiniShop.Application.Ordering.Checkout;
 using MiniShop.Application.Notifications;
 using MiniShop.Application.Payments;
 using MiniShop.Application.Reporting;
+using MiniShop.Application.Reviews;
 using MiniShop.Application.Ordering.IntegrationEvents;
 using MiniShop.Application.Ordering.Saga;
 using MiniShop.Application.Ordering.Pricing;
@@ -25,6 +26,7 @@ using MiniShop.Contracts.Inventory;
 using MiniShop.Contracts.Orders;
 using MiniShop.Contracts.Payments;
 using MiniShop.Contracts.Reporting;
+using MiniShop.Contracts.Reviews;
 using MiniShop.Domain.Common;
 using MiniShop.Domain.Exceptions;
 using MiniShop.Domain.Orders;
@@ -33,6 +35,7 @@ using MiniShop.Domain.Orders.Events;
 using MiniShop.Domain.Orders.Saga;
 using MiniShop.Domain.Payments;
 using MiniShop.Domain.Reporting;
+using MiniShop.Domain.Reviews;
 using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Events;
 using MiniShop.Infrastructure.Integration;
@@ -41,6 +44,7 @@ using MiniShop.Infrastructure.Inventory;
 using MiniShop.Infrastructure.Notifications;
 using MiniShop.Infrastructure.Payments;
 using MiniShop.Infrastructure.Reporting;
+using MiniShop.Infrastructure.Reviews;
 using MiniShop.Infrastructure.Ordering;
 using MiniShop.Tests.TestDoubles;
 
@@ -71,6 +75,7 @@ public sealed class OrderServiceTests : IDisposable
     private readonly InMemoryDatabase _notificationsDatabase = new();   // e-shop krok 7: modul Notifications
     private readonly InMemoryDatabase _paymentsDatabase = new();        // e-shop krok 8: modul Payments
     private readonly InMemoryDatabase _reportingDatabase = new();       // e-shop krok 11: modul Reporting (CQRS)
+    private readonly InMemoryDatabase _reviewsDatabase = new();         // e-shop krok 14: modul Reviews
     private readonly RecordingEmailSender _emails = new();
     private readonly InMemoryCustomerContacts _contacts = new();   // e-shop krok 10: účty se souhlasem
     private readonly InMemoryProductImageStore _images = new();   // e-shop krok 2B
@@ -180,6 +185,18 @@ public sealed class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<ReturnCompletedV1, SalesProjectionHandler>(IntegrationModules.Reporting);   // e-shop krok 12
         services.AddIntegrationMessageHandler<RebuildSalesReportV1, RebuildSalesReportHandler>(IntegrationModules.Ordering);
 
+        // E-shop krok 14: modul Reviews (kopie nákupů, hodnocení) – jako AddReviewsModule + AddReviewsInfrastructure ve Webu,
+        // a v Orderingu snímky nákupů a souhrn hodnocení do kopie katalogu.
+        services.AddReviewsInfrastructure(_reviewsDatabase.ConnectionString);
+        services.AddScoped<ReviewService>();
+        services.AddIntegrationMessageHandler<OrderPlacedV2, PurchaseProjectionHandler>(IntegrationModules.Reviews);
+        services.AddIntegrationMessageHandler<OrderCompletedV1, PurchaseProjectionHandler>(IntegrationModules.Reviews);
+        services.AddIntegrationMessageHandler<ReturnCompletedV1, PurchaseProjectionHandler>(IntegrationModules.Reviews);
+        services.AddIntegrationMessageHandler<OrderSnapshotV2, PurchaseProjectionHandler>(IntegrationModules.Reviews);
+        services.AddIntegrationMessageHandler<CustomerAnonymizedV1, PurchaseProjectionHandler>(IntegrationModules.Reviews);
+        services.AddIntegrationMessageHandler<SyncPurchasesV1, SyncPurchasesHandler>(IntegrationModules.Ordering);
+        services.AddIntegrationMessageHandler<ProductRatingChangedV1, CatalogProjectionHandler>(IntegrationModules.Ordering);
+
         // Testovací náhrady: notifikace do seznamu, "broker" si zprávy zapamatuje a doručí je v procesu,
         // skutečný dispatcher obalený záznamníkem.
         services.AddSingleton<IEmailSender>(_emails);
@@ -195,6 +212,7 @@ public sealed class OrderServiceTests : IDisposable
         NotificationsDatabaseInitializer.InitializeAsync(_services).GetAwaiter().GetResult();
         PaymentsDatabaseInitializer.InitializeAsync(_services).GetAwaiter().GetResult();
         ReportingDatabaseInitializer.InitializeAsync(_services).GetAwaiter().GetResult();
+        ReviewsDatabaseInitializer.InitializeAsync(_services).GetAwaiter().GetResult();
         InventoryDb(async db => { await InventoryDatabaseInitializer.MigrateAsync(db); return true; }).GetAwaiter().GetResult();
     }
 
@@ -823,6 +841,111 @@ public sealed class OrderServiceTests : IDisposable
 
         Assert.Equal(2, _bus.Published.OfType<CartAbandonedV1>().Count());
         Assert.Equal(2, _emails.Sent.Count(e => e.Subject.Contains("košíku")));
+    }
+
+    // ---------- E-shop krok 14: hodnocení produktů ----------
+
+    [Fact]
+    public async Task Hodnoceni_AzPoDoruceni_SouhrnDorazilDoVylohy()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 10);
+        var order = await PlaceConfirmedOrderAsync(product.Id, quantity: 1);   // zaplaceno, ale nedoručeno
+
+        var notYet = await Assert.ThrowsAsync<DomainException>(() => Reviews(s => s.SubmitAsync(product.Id, Jan.CustomerId, 5, "Super")));
+        Assert.Contains("dostali", notYet.Message);
+
+        await ShipAsync(order.Id);
+        await Orders(s => s.CompleteAsync(order.Id));
+        await ProcessOutboxAsync();   // OrderCompletedV1 → Reviews: smí hodnotit
+        await Reviews(s => s.SubmitAsync(product.Id, Jan.CustomerId, 4, "Dobrá myš"));
+        await ProcessOutboxAsync();   // ProductRatingChangedV1 → kopie katalogu v Orderingu
+
+        var inShop = await Catalog(s => s.GetProductAsync(product.Id));
+        Assert.Equal((4m, 1), (inShop!.RatingAverage, inShop.RatingCount));
+        var page = await Reviews(s => s.GetForProductAsync(product.Id, Jan.CustomerId));
+        Assert.True(page.CanReview);
+        Assert.Equal(("Jan N.", 4, "Dobrá myš"), (page.Mine!.AuthorName, page.Mine.Rating, page.Mine.Text));
+    }
+
+    [Fact]
+    public async Task Hodnoceni_UpravaASkryti_PrumerSePrepocita()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 10);
+        await DeliverApiOrderAsync(Jan, product.Id);
+        await DeliverApiOrderAsync(Petra, product.Id);
+
+        await Reviews(s => s.SubmitAsync(product.Id, Jan.CustomerId, 5, null));
+        await Reviews(s => s.SubmitAsync(product.Id, Petra.CustomerId, 3, "Ujde to"));
+        await Reviews(s => s.SubmitAsync(product.Id, Jan.CustomerId, 1, "Po týdnu rozbitá"));   // úprava, ne druhé hodnocení
+        await ProcessOutboxAsync();
+        Assert.Equal((2m, 2), await RatingInShopAsync(product.Id));
+
+        var petra = (await Reviews(s => s.GetLatestAsync())).Single(r => r.AuthorName == "Petra M.");
+        await Reviews(s => s.SetHiddenAsync(petra.Id, hidden: true));   // moderace
+        await ProcessOutboxAsync();
+
+        Assert.Equal((1m, 1), await RatingInShopAsync(product.Id));
+        Assert.Single((await Reviews(s => s.GetForProductAsync(product.Id, null))).Reviews);
+    }
+
+    [Fact]
+    public async Task Hodnoceni_VracenoNoveNejde_NapsaneZustava()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 10);
+        var order = await DeliveredOrderAsync(product.Id, quantity: 1, PaymentMethod.CashOnDelivery);
+        await Reviews(s => s.SubmitAsync(product.Id, Jan.CustomerId, 5, null));
+
+        await Orders(s => s.RequestReturnAsync(order.Id, OrderAccess.Customer(Jan.CustomerId), "Nesedí"));
+        await ProcessOutboxAsync();
+        await Returns(r => r.AcceptGoodsAsync(order.Id));
+        await ProcessOutboxAsync();   // ReturnCompletedV1 → Reviews: vráceno
+
+        await Assert.ThrowsAsync<DomainException>(() => Reviews(s => s.SubmitAsync(product.Id, Jan.CustomerId, 1, "Vrátil jsem")));
+        Assert.Single((await Reviews(s => s.GetForProductAsync(product.Id, null))).Reviews);
+    }
+
+    [Fact]
+    public async Task Hodnoceni_StarsiObjednavky_ZeSnimku_AnonymizovaneNe()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 10);
+        await DeliverApiOrderAsync(Jan, product.Id);
+        await DeliverApiOrderAsync(Petra, product.Id);
+        await Orders(s => s.AnonymizeCustomerAsync(Petra.CustomerId));
+        await ProcessOutboxAsync();
+
+        // Modul Reviews „vznikl až teď“ – o objednávkách nic neví.
+        await ReviewsDb(async db => { db.PurchasedOrders.RemoveRange(db.PurchasedOrders); await db.SaveChangesAsync(); return true; });
+        Assert.True(await Reviews(s => s.SyncPurchasesIfEmptyAsync()));
+        await ProcessOutboxAsync();   // SyncPurchasesV1 → Ordering → OrderSnapshotV2 (bez Petry) → kopie nákupů
+
+        Assert.Single(_bus.Published.OfType<OrderSnapshotV2>());
+        Assert.True((await Reviews(s => s.GetForProductAsync(product.Id, Jan.CustomerId))).CanReview);
+        Assert.False(await Reviews(s => s.SyncPurchasesIfEmptyAsync()));   // podruhé už ne
+    }
+
+    [Fact]
+    public async Task Hodnoceni_SmazanyUcet_HodnoceniZustaneBezJmena()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 10);
+        await DeliverApiOrderAsync(Jan, product.Id);
+        await Reviews(s => s.SubmitAsync(product.Id, Jan.CustomerId, 5, "Doporučuji"));
+
+        await Orders(s => s.AnonymizeCustomerAsync(Jan.CustomerId));
+        await ProcessOutboxAsync();   // CustomerAnonymizedV1 → Reviews
+
+        var review = Assert.Single((await Reviews(s => s.GetForProductAsync(product.Id, null))).Reviews);
+        Assert.Equal(Review.AnonymizedAuthor, review.AuthorName);
+        Assert.False(await ReviewsDb(db => db.PurchasedOrders.AnyAsync()));
+    }
+
+    [Fact]
+    public async Task Hodnoceni_DoruceniPredbehloVznik_PakSmiHodnotit()
+    {
+        await RedeliverAsync(new OrderCompletedV1(Guid.NewGuid(), Now.UtcDateTime, 777, Jan.Email), IntegrationModules.Reviews);
+        await RedeliverAsync(new OrderPlacedV2(Guid.NewGuid(), Now.UtcDateTime, 777, Jan.CustomerId, Jan.Name, Jan.Email,
+            [new OrderItemV2(55, "Myš", 1, 100m, 0m, 100m)], "None", 0m, null, 100m), IntegrationModules.Reviews);
+
+        Assert.True((await Reviews(s => s.GetForProductAsync(55, Jan.CustomerId))).CanReview);
     }
 
     // ---------- E-shop krok 13: slevové kódy ----------
@@ -2208,6 +2331,39 @@ public sealed class OrderServiceTests : IDisposable
         }
     }
 
+    /// <summary>E-shop krok 14: hodnocení (modul Reviews) ve vlastním scope.</summary>
+    private async Task<T> Reviews<T>(Func<ReviewService, Task<T>> action)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await action(scope.ServiceProvider.GetRequiredService<ReviewService>());
+    }
+
+    private async Task Reviews(Func<ReviewService, Task> action) => await Reviews(async s => { await action(s); return true; });
+
+    private async Task<T> ReviewsDb<T>(Func<ReviewsDbContext, Task<T>> action)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await action(scope.ServiceProvider.GetRequiredService<ReviewsDbContext>());
+    }
+
+    private async Task<T> Catalog<T>(Func<ICatalogQueryService, Task<T>> action)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await action(scope.ServiceProvider.GetRequiredService<ICatalogQueryService>());
+    }
+
+    private async Task<(decimal Average, int Count)> RatingInShopAsync(int productId) =>
+        await Catalog(s => s.GetProductAsync(productId)) is { } p ? (p.RatingAverage, p.RatingCount) : (0m, 0);
+
+    /// <summary>E-shop krok 14: objednávka přes API (bez pokladny) doručená zákazníkovi – smí hodnotit.</summary>
+    private async Task DeliverApiOrderAsync(OrderCustomer customer, int productId)
+    {
+        var order = await PlaceConfirmedOrderAsync(productId, quantity: 1, customer);
+        await ShipAsync(order.Id);
+        await Orders(s => s.CompleteAsync(order.Id));
+        await ProcessOutboxAsync();
+    }
+
     /// <summary>E-shop krok 13: admin založí kupon (správa kuponů ve vlastním scope).</summary>
     private async Task CreateCouponAsync(string code, CouponKind kind, decimal value, int? maxRedemptions = null)
     {
@@ -2389,5 +2545,6 @@ public sealed class OrderServiceTests : IDisposable
         _notificationsDatabase.Dispose();
         _paymentsDatabase.Dispose();
         _reportingDatabase.Dispose();
+        _reviewsDatabase.Dispose();
     }
 }

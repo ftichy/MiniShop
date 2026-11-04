@@ -120,6 +120,16 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("TEXT");
 
+                    b.Property<decimal>("RatingAverage")
+                        .HasPrecision(3, 1)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("RatingChangedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RatingCount")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("SearchText")
                         .IsRequired()
                         .HasMaxLength(800)

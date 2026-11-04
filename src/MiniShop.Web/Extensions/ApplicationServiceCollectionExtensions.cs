@@ -18,6 +18,8 @@ using MiniShop.Contracts.Orders;
 using MiniShop.Contracts.Payments;
 using MiniShop.Contracts.Reporting;
 using MiniShop.Application.Reporting;
+using MiniShop.Application.Reviews;
+using MiniShop.Contracts.Reviews;
 using MiniShop.Domain.Orders.Events;
 using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Ordering;
@@ -42,6 +44,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddNotificationsModule(configuration);
         services.AddPaymentsModule();
         services.AddReportingModule();
+        services.AddReviewsModule();
         services.AddInventoryApiClient(configuration);
 
         return services;
@@ -51,6 +54,19 @@ public static class ApplicationServiceCollectionExtensions
     /// E-shop krok 11 (CQRS): modul Reporting – přehled tržeb pro admina jako projekce z událostí, které už existují.
     /// Vlastní fronta minishop.reporting; Ordering ani Payments o něm nevědí. Databázi registruje AddReportingInfrastructure.
     /// </summary>
+    public static IServiceCollection AddReviewsModule(this IServiceCollection services)
+    {
+        // E-shop krok 14 (modul Reviews): hodnocení produktů. Kopie nákupů z existujících událostí objednávek,
+        // souhrn hodnocení (ProductRatingChangedV1) jde do kopie katalogu v Orderingu. Databázi registruje AddReviewsInfrastructure.
+        services.AddScoped<ReviewService>();
+        services.AddIntegrationMessageHandler<OrderPlacedV2, PurchaseProjectionHandler>(IntegrationModules.Reviews);
+        services.AddIntegrationMessageHandler<OrderCompletedV1, PurchaseProjectionHandler>(IntegrationModules.Reviews);
+        services.AddIntegrationMessageHandler<ReturnCompletedV1, PurchaseProjectionHandler>(IntegrationModules.Reviews);
+        services.AddIntegrationMessageHandler<OrderSnapshotV2, PurchaseProjectionHandler>(IntegrationModules.Reviews);
+        services.AddIntegrationMessageHandler<CustomerAnonymizedV1, PurchaseProjectionHandler>(IntegrationModules.Reviews);
+        return services;
+    }
+
     public static IServiceCollection AddReportingModule(this IServiceCollection services)
     {
         services.AddScoped<SalesReportService>();
@@ -169,6 +185,9 @@ public static class ApplicationServiceCollectionExtensions
 
         // E-shop krok 11: snímky všech objednávek pro přestavění přehledu tržeb (Reporting si o ně řekne příkazem).
         services.AddIntegrationMessageHandler<RebuildSalesReportV1, RebuildSalesReportHandler>(IntegrationModules.Ordering);
+        // E-shop krok 14: snímky nákupů pro modul Reviews a souhrn hodnocení do kopie katalogu (výloha).
+        services.AddIntegrationMessageHandler<SyncPurchasesV1, SyncPurchasesHandler>(IntegrationModules.Ordering);
+        services.AddIntegrationMessageHandler<ProductRatingChangedV1, CatalogProjectionHandler>(IntegrationModules.Ordering);
 
         // Obnova kopie katalogu (příkaz SyncCatalogV1 pro sklad): po startu, když je prázdná/neúplná, nebo tlačítkem v UI.
         services.AddScoped<CatalogSyncService>();

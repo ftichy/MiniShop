@@ -28,6 +28,7 @@ public sealed class ModuleBoundariesTests
     private const string Notifications = "Notifications";
     private const string Payments = "Payments";
     private const string Reporting = "Reporting";
+    private const string Reviews = "Reviews";
 
     /// <summary>Namespace modulu v každé vrstvě (Domain používá "Orders"; Accounts je zatím jen v Infrastructure).</summary>
     private static readonly IReadOnlyDictionary<string, string[]> ModuleNamespaces = new Dictionary<string, string[]>
@@ -38,7 +39,8 @@ public sealed class ModuleBoundariesTests
         [Accounts] = ["MiniShop.Infrastructure.Accounts"],
         [Notifications] = ["MiniShop.Domain.Notifications", "MiniShop.Application.Notifications", "MiniShop.Infrastructure.Notifications"],
         [Payments] = ["MiniShop.Domain.Payments", "MiniShop.Application.Payments", "MiniShop.Infrastructure.Payments"],
-        [Reporting] = ["MiniShop.Domain.Reporting", "MiniShop.Application.Reporting", "MiniShop.Infrastructure.Reporting"]
+        [Reporting] = ["MiniShop.Domain.Reporting", "MiniShop.Application.Reporting", "MiniShop.Infrastructure.Reporting"],
+        [Reviews] = ["MiniShop.Domain.Reviews", "MiniShop.Application.Reviews", "MiniShop.Infrastructure.Reviews"]
     };
 
     [Theory]
@@ -71,6 +73,12 @@ public sealed class ModuleBoundariesTests
     [InlineData(Reporting, Notifications)]
     [InlineData(Reporting, Accounts)]
     [InlineData(Reporting, Inventory)]
+    [InlineData(Reviews, Ordering)]         // e-shop krok 14: hodnocení zná nákupy jen ze zpráv (kopie nákupů)
+    [InlineData(Ordering, Reviews)]         // … a Ordering zná hodnocení jen ze souhrnu ProductRatingChangedV1
+    [InlineData(Reviews, Accounts)]
+    [InlineData(Reviews, Notifications)]
+    [InlineData(Reviews, Reporting)]
+    [InlineData(Reviews, Inventory)]
     public void Modul_NezavisiNaJinemModulu(string module, string forbiddenModule)
     {
         foreach (var moduleNamespace in ModuleNamespaces[module])

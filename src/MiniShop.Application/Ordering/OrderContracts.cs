@@ -59,7 +59,9 @@ public sealed record CatalogItemDto(
     int? CategoryId,
     string? CategoryName,
     string Availability,
-    string? ImageFileName = null);
+    string? ImageFileName = null,
+    decimal RatingAverage = 0m,
+    int RatingCount = 0);
 
 /// <summary>
 /// Nová objednávka. Účty krok 3: bez jména a e-mailu – zákazník je přihlášený uživatel (<see cref="OrderCustomer"/>).

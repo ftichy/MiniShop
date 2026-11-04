@@ -5,7 +5,10 @@ public enum CatalogSort
 {
     Name,
     PriceAscending,
-    PriceDescending
+    PriceDescending,
+
+    /// <summary>E-shop krok 14: nejlépe hodnocené (průměr, pak počet hodnocení) – z kopie katalogu.</summary>
+    BestRated
 }
 
 /// <summary>E-shop krok 2: co zákazník ve výloze hledá. Prázdné hodnoty = bez filtru.</summary>

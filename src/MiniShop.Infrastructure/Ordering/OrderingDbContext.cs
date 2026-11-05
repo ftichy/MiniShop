@@ -21,7 +21,7 @@ namespace MiniShop.Infrastructure.Ordering;
 /// </remarks>
 public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> options) : ModuleDbContext(options), IOrderingUnitOfWork
 {
-    /// <summary>Škálování krok 1: schéma modulu v PostgreSQL (SQLite schémata nezná).</summary>
+    /// <summary>Škálování krok 1: schéma modulu v PostgreSQL (vlastní tabulky i historie migrací).</summary>
     public const string Schema = "ordering";
 
     public DbSet<Order> Orders => Set<Order>();

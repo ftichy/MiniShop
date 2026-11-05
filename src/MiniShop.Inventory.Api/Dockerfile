@@ -12,7 +12,6 @@ COPY src/MiniShop.Contracts/MiniShop.Contracts.csproj src/MiniShop.Contracts/
 COPY src/MiniShop.Domain/MiniShop.Domain.csproj src/MiniShop.Domain/
 COPY src/MiniShop.Application/MiniShop.Application.csproj src/MiniShop.Application/
 COPY src/MiniShop.Infrastructure/MiniShop.Infrastructure.csproj src/MiniShop.Infrastructure/
-COPY src/MiniShop.Infrastructure.PostgreSql/MiniShop.Infrastructure.PostgreSql.csproj src/MiniShop.Infrastructure.PostgreSql/
 COPY src/MiniShop.ServiceDefaults/MiniShop.ServiceDefaults.csproj src/MiniShop.ServiceDefaults/
 COPY src/MiniShop.Inventory.Api/MiniShop.Inventory.Api.csproj src/MiniShop.Inventory.Api/
 RUN dotnet restore src/MiniShop.Inventory.Api/MiniShop.Inventory.Api.csproj -a $TARGETARCH
@@ -29,7 +28,6 @@ USER $APP_UID
 
 # Sklad nemá formuláře, takže Data Protection klíče nepotřebuje.
 ENV ASPNETCORE_HTTP_PORTS=8080 \
-    ConnectionStrings__Inventory="Data Source=/data/inventory.db" \
     Serilog__WriteTo__1__Args__path=/data/logs/inventory-.log \
     ProductImages__Path=/data/images
 EXPOSE 8080

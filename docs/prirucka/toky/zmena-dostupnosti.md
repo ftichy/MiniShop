@@ -17,9 +17,9 @@ sequenceDiagram
     participant MQ as RabbitMQ
     participant RH as ReserveStockHandler
     participant P as Product (5 ks)
-    participant IDB as inventory.db
+    participant IDB as schéma inventory
     participant CH as CatalogProjectionHandler
-    participant ODB as ordering.db
+    participant ODB as schéma ordering
     actor Z as Zákazník ve výloze
 
     S->>MQ: ReserveStockV1 (5 ks)

@@ -20,7 +20,7 @@ sequenceDiagram
     autonumber
     participant W as CartReminderWorker (Web)
     participant R as CartReminderService
-    participant ODB as ordering.db
+    participant ODB as schéma ordering
     participant OW as OutboxWorker
     participant MQ as RabbitMQ
     participant N as CartReminderHandler (Notifications)

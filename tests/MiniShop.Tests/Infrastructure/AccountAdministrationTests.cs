@@ -1,8 +1,5 @@
 using Microsoft.AspNetCore.Identity;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 using MiniShop.Infrastructure.Accounts;
 using MiniShop.Tests.TestDoubles;
@@ -10,16 +7,16 @@ using MiniShop.Tests.TestDoubles;
 namespace MiniShop.Tests.Infrastructure;
 
 /// <summary>
-/// Účty krok 6: správa uživatelů (<see cref="AccountAdministration"/>) nad SQLite v paměti – pravidla
+/// Účty krok 6: správa uživatelů (<see cref="AccountAdministration"/>) nad PostgreSQL (Testcontainers) – pravidla
 /// (poslední admin, sám sebe, jen aktivní admin), audit, security stamp a migrace users.db.
 /// </summary>
 public sealed class AccountAdministrationTests : IDisposable
 {
     private const string Password = "dlouhe heslo bez cisel";
 
-    private readonly TestDatabases _databases = new();   // škálování krok 2: SQLite nebo PostgreSQL
+    private readonly TestDatabases _databases = new();   // škálování krok 2 a 3C: PostgreSQL (Testcontainers)
     private readonly ServiceProvider _services;
-    private readonly string _adminId;
+    private string _adminId;   // škálování krok 3C: test souběhu ho mění podle toho, kdo zůstal adminem
 
     public AccountAdministrationTests()
     {
@@ -111,6 +108,31 @@ public sealed class AccountAdministrationTests : IDisposable
         Assert.True((await Admin(a => a.GetAccountAsync(petraId)))!.IsAdmin);
     }
 
+    /// <summary>
+    /// Škálování krok 3C: dva admini se ve stejné chvíli navzájem vracejí na usera. V PostgreSQL běží obě transakce
+    /// souběžně a každá by viděla, že ten druhý je ještě admin – bez zámku by obchod zůstal bez admina.
+    /// </summary>
+    [Fact]
+    public async Task DvaAdminiNaraz_NavzajemSeOdeberou_VzdyZustaneAdmin()
+    {
+        for (var round = 0; round < 10; round++)
+        {
+            var petraId = await CreateUserAsync($"petra{round}@example.com");
+            await Admin(a => a.PromoteToAdminAsync(_adminId, petraId));
+
+            var results = await Task.WhenAll(
+                Admin(a => a.DemoteToUserAsync(_adminId, petraId)),
+                Admin(a => a.DemoteToUserAsync(petraId, _adminId)));
+
+            Assert.Single(results, r => r.Succeeded);
+            var accounts = await Admin(a => a.GetAccountsAsync());
+            var remaining = Assert.Single(accounts, a => a.IsAdmin);
+
+            // Další kolo s tím, kdo zůstal adminem.
+            _adminId = remaining.Id;
+        }
+    }
+
     [Fact]
     public async Task ZablokovanyAdmin_NesmiSpravovat()
     {
@@ -190,34 +212,6 @@ public sealed class AccountAdministrationTests : IDisposable
 
         return true;
     });
-
-    [Fact]
-    public async Task Migrace_DatabazeZEnsureCreated_DostaneAudit_UctyZustanou()
-    {
-        // users.db z účtů kroků 1–5: schéma první migrace, ale bez tabulky __EFMigrationsHistory.
-        using var oldDatabase = new InMemoryDatabase();
-        await using (var db = CreateDbContext(oldDatabase))
-        {
-            var initial = db.Database.GetMigrations().First();
-            await db.GetService<IMigrator>().MigrateAsync(initial);
-            await db.Database.ExecuteSqlRawAsync("DROP TABLE __EFMigrationsHistory");
-            await db.Database.ExecuteSqlRawAsync(
-                "INSERT INTO AspNetUsers (Id, DisplayName, EmailConfirmed, PhoneNumberConfirmed, TwoFactorEnabled, LockoutEnabled, AccessFailedCount) " +
-                "VALUES ('stary', 'Starý účet', 0, 0, 0, 1, 0)");
-        }
-
-        await using (var db = CreateDbContext(oldDatabase))
-        {
-            await AccountsDatabaseInitializer.MigrateAsync(db);
-
-            Assert.Empty(await db.Database.GetPendingMigrationsAsync());
-            Assert.Equal("Starý účet", (await db.Users.SingleAsync()).DisplayName);
-            Assert.Empty(await db.AuditEntries.ToListAsync());   // tabulka auditu existuje
-        }
-    }
-
-    private static AccountsDbContext CreateDbContext(InMemoryDatabase database) =>
-        new(new DbContextOptionsBuilder<AccountsDbContext>().UseSqlite(new SqliteConnection(database.ConnectionString)).Options);
 
     private async Task<string> CreateUserAsync(string email)
     {

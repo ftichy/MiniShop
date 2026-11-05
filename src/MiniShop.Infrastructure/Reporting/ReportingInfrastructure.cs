@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.DependencyInjection;
 using MiniShop.Application;
 using MiniShop.Application.Reporting;
@@ -41,15 +40,5 @@ public static class ReportingDatabaseInitializer
     }
 
     public static Task MigrateAsync(ReportingDbContext dbContext, CancellationToken cancellationToken = default) =>
-        DatabaseMigrator.MigrateAsync(dbContext, "SalesOrders", cancellationToken);
-}
-
-/// <summary>
-/// E-shop krok 11: jen pro nástroj <c>dotnet ef</c>. Nová migrace (z kořene repozitáře):
-/// <code>dotnet ef migrations add &lt;Nazev&gt; --project src/MiniShop.Infrastructure --context ReportingDbContext --output-dir Reporting/Migrations</code>
-/// </summary>
-internal sealed class ReportingDesignTimeDbContextFactory : IDesignTimeDbContextFactory<ReportingDbContext>
-{
-    public ReportingDbContext CreateDbContext(string[] args) =>
-        new(new DbContextOptionsBuilder<ReportingDbContext>().UseSqlite("Data Source=reporting.db").Options);
+        DatabaseMigrator.MigrateAsync(dbContext, cancellationToken);
 }

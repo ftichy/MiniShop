@@ -15,9 +15,6 @@ internal sealed class ProcessedMessageConfiguration : IEntityTypeConfiguration<P
         builder.HasKey(m => new { m.EventId, m.Handler });
         builder.Property(m => m.Handler).HasMaxLength(300);
 
-        // SQLite neukládá DateTimeKind – při načtení čas označíme jako UTC.
-        builder.Property(m => m.ProcessedAtUtc)
-            .HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
 
         // EDA krok 13: úklid maže staré záznamy – WHERE ProcessedAtUtc < hranice.
         builder.HasIndex(m => m.ProcessedAtUtc);

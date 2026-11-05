@@ -6,7 +6,7 @@ order: 5
 
 > **V jedné větě:** Notifications poslouchá události objednávky (`OrderPlacedV2`, `OrderConfirmedV1`,
 > `OrderRejectedV1`, `OrderShippedV1`, `OrderCompletedV1`, `OrderCancelledV1`) a podle nich píše zákazníkovi.
-> Ordering jen oznamuje fakta a o e-mailech neví nic. Běží ve službě **Web**, data má v `notifications.db`.
+> Ordering jen oznamuje fakta a o e-mailech neví nic. Běží ve službě **Web**, data má ve schématu `notifications`.
 
 ## Komponentní diagram
 
@@ -20,7 +20,7 @@ flowchart TB
     subgraph domain["Domain/Notifications"]
         recipient["OrderRecipient<br/>kopie z OrderPlacedV2"]
     end
-    db[("NotificationsDbContext<br/>notifications.db: příjemci + inbox")]
+    db[("NotificationsDbContext<br/>schéma notifications: příjemci + inbox")]
     sender["IEmailSender<br/>(MailKit / log)"]
 
     mq --> handler
@@ -42,7 +42,7 @@ flowchart TB
 | **CartReminderHandler** + **CartEmailTemplates** | E-shop krok 10: připomínka opuštěného košíku z `CartAbandonedV1`. Kontakt a souhlas nekopíruje, ptá se přes `ICustomerContacts` (implementace `IdentityCustomerContacts` ve Webu) až při odeslání. | [CartReminderHandler.cs](code:src/MiniShop.Application/Notifications/CartReminderHandler.cs) |
 | **OrderEmailTemplates** | Texty e-mailů: prostý text a jednoduché HTML (vše kódované), souhrn položek, číslo zásilky, odkaz na detail. Osobní odběr má vlastní texty. | [OrderEmailTemplates.cs](code:src/MiniShop.Application/Notifications/OrderEmailTemplates.cs) |
 | **OrderRecipient** | Komu a o čem psát u jedné objednávky: jméno, e-mail, položky, doprava, adresa – kopie z `OrderPlacedV2`. | [OrderRecipient.cs](code:src/MiniShop.Domain/Notifications/OrderRecipient.cs) |
-| **NotificationsDbContext** | `notifications.db`: tabulky `OrderRecipients`, `OrderRecipientItems` a inbox. Outbox má (dědí z `ModuleDbContext`), ale nepoužívá – modul nic neposílá. | [NotificationsDbContext.cs](code:src/MiniShop.Infrastructure/Notifications/NotificationsDbContext.cs) |
+| **NotificationsDbContext** | schéma `notifications`: tabulky `OrderRecipients`, `OrderRecipientItems` a inbox. Outbox má (dědí z `ModuleDbContext`), ale nepoužívá – modul nic neposílá. | [NotificationsDbContext.cs](code:src/MiniShop.Infrastructure/Notifications/NotificationsDbContext.cs) |
 | **NotificationSettings** | Veřejná adresa webu pro odkazy (`Notifications:PublicBaseUrl`; produkce `PUBLIC_BASE_URL` v `production.env`). Handler běží za frontou, ne v HTTP požadavku – adresu webu sám nezná. | [NotificationSettings.cs](code:src/MiniShop.Application/Notifications/NotificationSettings.cs) |
 
 ## Jaké zprávy modul přijímá
@@ -77,11 +77,11 @@ nepoužívá `IEmailSender`).
 
 - **Pořadí zpráv není zaručené.** Když potvrzení dorazí dřív než vznik, příjemce ještě neznáme – handler vyhodí
   výjimku a zpráva přijde znovu (RabbitMQ za 2 s). Nejvýš 5 minut; pak to vzdá (objednávka starší než modul).
-- **Objednávky starší než e-shop krok 7** v `notifications.db` nejsou. Odeslání, doručení a zrušení nesou e-mail
+- **Objednávky starší než e-shop krok 7** ve schématu `notifications` nejsou. Odeslání, doručení a zrušení nesou e-mail
   přímo ve zprávě – pošle se kratší e-mail bez jména a souhrnu.
 - **Každá zpráva = nejvýš jeden e-mail** díky inboxu; pád mezi odesláním a zápisem do inboxu = e-mail podruhé
   (at-least-once, stejné jako dřív).
-- Zálohuje se (`backup.py`, `notifications.db`) – obsahuje osobní údaje, zálohy mizí po 7 dnech.
+- Zálohuje se (`backup.py`, schéma `notifications`) – obsahuje osobní údaje, zálohy mizí po 7 dnech.
 
 ## Dál
 

@@ -15,7 +15,7 @@ sequenceDiagram
     participant SG as OrderSagaOrchestrator
     participant MQ as RabbitMQ
     participant RH as ReserveStockHandler
-    participant IDB as inventory.db
+    participant IDB as schéma inventory
 
     Z->>W: objednat 50 ks (skladem 3)
     W-->>Z: přijato (Pending)

@@ -5,7 +5,7 @@ order: 1
 ---
 
 > **V jedné větě:** Ordering přijímá objednávky, řídí jejich životní cyklus (přes [ságu](../../eda/saga.md)) a zná
-> produkty jen ze své [kopie katalogu](../../eda/kopie-katalogu.md). Běží ve službě **Web**, data má v `ordering.db`.
+> produkty jen ze své [kopie katalogu](../../eda/kopie-katalogu.md). Běží ve službě **Web**, data má ve schématu `ordering`.
 
 ## Komponentní diagram
 
@@ -43,7 +43,7 @@ flowchart TB
     end
 
     subgraph infra["Infrastructure/Ordering"]
-        db[("OrderingDbContext<br/>ordering.db + outbox + inbox")]
+        db[("OrderingDbContext<br/>schéma ordering + outbox + inbox")]
     end
 
     ui --> svc
@@ -112,7 +112,7 @@ později, v jiném scope, případně i opakovaně.
 | **IShippingPriceCalculator** | E-shop krok 4: cena dopravy jako strategie – `StandardShippingPriceCalculator`: osobní odběr zdarma, kurýr 99 Kč, od 1 000 Kč zdarma. Jiný ceník = nová třída. | [StandardShippingPriceCalculator.cs](code:src/MiniShop.Application/Ordering/Pricing/StandardShippingPriceCalculator.cs) |
 | **QuantityDiscountPolicy** | Množstevní sleva (od 10 ks 10 %). Další pravidlo = nová třída, `OrderService` se nemění. | [QuantityDiscountPolicy.cs](code:src/MiniShop.Application/Ordering/Pricing/QuantityDiscountPolicy.cs) |
 | **OrderSagaTimeoutWorker** | Každých 5 s hledá ságy, na které sklad neodpověděl včas (výchozí 30 s). | [OrderSagaTimeoutWorker.cs](code:src/MiniShop.Web/BackgroundServices/OrderSagaTimeoutWorker.cs) |
-| **OrderingDbContext** | `ordering.db`: objednávky, košíky, ságy, kopie katalogu, outbox, inbox. | [OrderingDbContext.cs](code:src/MiniShop.Infrastructure/Ordering/OrderingDbContext.cs) |
+| **OrderingDbContext** | schéma `ordering`: objednávky, košíky, ságy, kopie katalogu, outbox, inbox. | [OrderingDbContext.cs](code:src/MiniShop.Infrastructure/Ordering/OrderingDbContext.cs) |
 
 ## Jaké zprávy modul posílá a přijímá
 

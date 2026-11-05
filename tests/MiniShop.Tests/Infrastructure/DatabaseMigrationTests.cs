@@ -1,237 +1,117 @@
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Migrations;
-using MiniShop.Domain.Journeys;
-using MiniShop.Domain.Orders;
+using Microsoft.Extensions.Configuration;
 using MiniShop.Infrastructure.Accounts;
 using MiniShop.Infrastructure.Inventory;
 using MiniShop.Infrastructure.Journeys;
+using MiniShop.Infrastructure.Notifications;
 using MiniShop.Infrastructure.Ordering;
+using MiniShop.Infrastructure.Payments;
+using MiniShop.Infrastructure.Persistence;
+using MiniShop.Infrastructure.Reporting;
+using MiniShop.Infrastructure.Reviews;
 using MiniShop.Tests.TestDoubles;
 
 namespace MiniShop.Tests.Infrastructure;
 
 /// <summary>
-/// E-shop krok 1: databáze modulů se zakládají a aktualizují přes EF migrace (dřív EnsureCreated).
-/// Hlídá tři věci: že nikdo nezapomněl na migraci, že první migrace odpovídá schématu z EnsureCreated
-/// (jen tak je baseline produkčních databází správná) a že stará databáze migrací projde bez ztráty dat.
+/// E-shop krok 1 a škálování krok 3C: databáze modulů se zakládají a aktualizují přes EF migrace (PostgreSQL, schéma na modul).
+/// Hlídá, že nikdo nezapomněl na migraci, že každý modul má tabulky jen ve svém schématu a že produkční historie migrací
+/// (jména migrací ze škálování kroku 1–3) zůstává platná i po přesunu migrací do MiniShop.Infrastructure (krok 3C).
 /// </summary>
 public sealed class DatabaseMigrationTests
 {
-    private static readonly DateTime Now = new(2026, 10, 30, 12, 0, 0, DateTimeKind.Utc);
+    public static TheoryData<string> Modules =>
+        ["Ordering", "Inventory", "Journeys", "Notifications", "Payments", "Reporting", "Reviews", "Accounts"];
 
-    public static TheoryData<string> Modules => ["Ordering", "Inventory", "Journeys", "Accounts"];
+    /// <summary>Migrace, které má produkční databáze zapsané v __EFMigrationsHistory (převod 4. 11. 2026).</summary>
+    private static readonly Dictionary<string, string[]> ProductionHistory = new()
+    {
+        ["Ordering"] = ["20261104174524_InitialPostgres"],
+        ["Inventory"] = ["20261104174529_InitialPostgres", "20261104184754_UncategorizedCategory"],
+        ["Journeys"] = ["20261104174534_InitialPostgres"],
+        ["Notifications"] = ["20261104174539_InitialPostgres"],
+        ["Payments"] = ["20261104174544_InitialPostgres"],
+        ["Reporting"] = ["20261104174549_InitialPostgres"],
+        ["Reviews"] = ["20261104174553_InitialPostgres"],
+        ["Accounts"] = ["20261104174558_InitialPostgres"]
+    };
 
     [Theory]
     [MemberData(nameof(Modules))]
     public void Model_NemaZmenyBezMigrace(string module)
     {
-        // Selže, když se změní entita nebo konfigurace a chybí nová migrace (dotnet ef migrations add …).
-        using var database = new InMemoryDatabase();
-        using var db = CreateDbContext(module, database);
+        // Selže, když se změní entita nebo konfigurace a chybí migrace (dotnet ef migrations add … --project src/MiniShop.Infrastructure).
+        // Server k tomu není potřeba – model se jen porovná se snapshotem.
+        using var db = CreateDbContext(module, new ModuleDatabase("Host=localhost;Database=minishop"));
 
         Assert.False(db.Database.HasPendingModelChanges(), $"Model modulu {module} se změnil – chybí migrace.");
     }
 
     [Theory]
     [MemberData(nameof(Modules))]
-    public async Task Migrace_VytvoriStejneSchemaJakoEnsureCreated(string module)
+    public void Migrace_ProdukcniHistorieZustavaPlatna(string module)
     {
-        // Produkční databáze vznikly přes EnsureCreated a baseline jim zapíše první migraci jako provedenou.
-        // To je správně jen tehdy, když migrace vytvoří přesně stejné tabulky, sloupce a indexy.
-        using var created = new InMemoryDatabase();
-        using var migrated = new InMemoryDatabase();
-        await using (var db = CreateDbContext(module, created))
-        {
-            await db.Database.EnsureCreatedAsync();
-        }
+        // Produkce má tyto migrace zapsané jako provedené. Kdyby se některá přejmenovala nebo zmizela, EF by ji
+        // chtěl spustit znovu (nebo by nesouhlasila historie) – proto se jména migrací nikdy nemění.
+        using var db = CreateDbContext(module, new ModuleDatabase("Host=localhost;Database=minishop"));
 
-        await using (var db = CreateDbContext(module, migrated))
-        {
-            await MigrateAsync(module, db);
-        }
-
-        Assert.NotEmpty(Schema(created));
-        Assert.Equal(Schema(created), Schema(migrated));
+        var migrations = db.Database.GetMigrations().ToList();
+        Assert.Equal(ProductionHistory[module], migrations.Take(ProductionHistory[module].Length));
     }
 
-    // Stará databáze = schéma PRVNÍ migrace bez historie migrací – tak vypadala produkce před e-shop krokem 1.
-    // Baseline zapíše první migraci jako provedenou a novější (e-shop krok 2) se pak opravdu spustí – i s ručními úpravami.
-
-    [Fact]
-    public async Task Ordering_StaraDatabaze_ProjdeMigraci_DataZustanou()
+    [Theory]
+    [MemberData(nameof(Modules))]
+    public void TabulkyModuluJsouVeVlastnimSchematu(string module)
     {
-        using var database = new InMemoryDatabase();
-        await using (var db = CreateDbContext<OrderingDbContext>(database))
-        {
-            await CreateOldDatabaseAsync(db);
-            await db.Database.ExecuteSqlRawAsync(
-                "INSERT INTO CatalogProducts (Id, Name, Price, IsRemoved, ChangedAtUtc) " +
-                "VALUES (7, 'Klávesnice', '2490.0', 0, '2026-10-30 12:00:00')");
-        }
+        using var db = CreateDbContext(module, new ModuleDatabase("Host=localhost;Database=minishop"));
 
-        await using (var db = CreateDbContext<OrderingDbContext>(database))
-        {
-            await OrderingDatabaseInitializer.MigrateAsync(db);
+        var schemas = db.Model.GetEntityTypes().Select(e => e.GetSchema()).Distinct().ToList();
 
-            Assert.Empty(await db.Database.GetPendingMigrationsAsync());
-            var product = await db.CatalogProducts.SingleAsync();
-            Assert.Equal("Klávesnice", product.Name);
-            // E-shop krok 2: dostupnost neznámá (doplní ji obnova katalogu), hledat jde aspoň podle názvu.
-            Assert.Equal(CatalogAvailability.Unknown, product.Availability);
-            Assert.Equal("klávesnice", product.SearchText);
-        }
+        Assert.Equal([module.ToLowerInvariant()], schemas);
     }
 
-    /// <summary>
-    /// E-shop krok 5: existující objednávky dostanou historii – vznik se známým časem a aktuální stav bez času
-    /// (kdy nastal, se už nezjistí). Čekající objednávka má jen vznik.
-    /// </summary>
-    [Fact]
-    public async Task Ordering_StareObjednavky_DostanouHistoriiStavu()
-    {
-        using var database = new InMemoryDatabase();
-        await using (var db = CreateDbContext<OrderingDbContext>(database))
-        {
-            await CreateOldDatabaseAsync(db);
-            await db.Database.ExecuteSqlRawAsync(
-                "INSERT INTO Orders (Id, CustomerId, CustomerName, CustomerEmail, CreatedAtUtc, Status, RejectionReason) VALUES " +
-                "(1, 'u1', 'Jan', 'jan@example.com', '2026-10-30 12:00:00', 'Completed', NULL), " +
-                "(2, 'u1', 'Jan', 'jan@example.com', '2026-10-30 13:00:00', 'Rejected', 'Nedostatek zboží'), " +
-                "(3, 'u1', 'Jan', 'jan@example.com', '2026-10-30 14:00:00', 'Pending', NULL)");
-        }
-
-        await using (var db = CreateDbContext<OrderingDbContext>(database))
-        {
-            await OrderingDatabaseInitializer.MigrateAsync(db);
-
-            var history = (await db.Orders.Include(o => o.StatusHistory).AsNoTracking().OrderBy(o => o.Id).ToListAsync())
-                .ToDictionary(o => o.Id, o => o.StatusHistory.OrderBy(c => c.Id).Select(c => (c.Status, c.ChangedAtUtc, c.Note)).ToList());
-
-            Assert.Equal(
-                [(OrderStatus.Pending, (DateTime?)Now, (string?)null), (OrderStatus.Completed, null, null)],
-                history[1]);
-            Assert.Equal(
-                [(OrderStatus.Pending, (DateTime?)Now.AddHours(1), (string?)null), (OrderStatus.Rejected, null, "Nedostatek zboží")],
-                history[2]);
-            Assert.Equal([(OrderStatus.Pending, (DateTime?)Now.AddHours(2), (string?)null)], history[3]);
-        }
-    }
-
-    [Fact]
-    public async Task Inventory_StaraDatabaze_ProjdeMigraci_DataZustanou()
-    {
-        using var database = new InMemoryDatabase();
-        await using (var db = CreateDbContext<InventoryDbContext>(database))
-        {
-            await CreateOldDatabaseAsync(db);
-            await db.Database.ExecuteSqlRawAsync(
-                "INSERT INTO Products (Name, Description, Price, StockQuantity, ChangedAtUtc) " +
-                "VALUES ('Myš', NULL, '890.0', 40, '2026-10-30 12:00:00')");
-        }
-
-        await using (var db = CreateDbContext<InventoryDbContext>(database))
-        {
-            await InventoryDatabaseInitializer.MigrateAsync(db);
-
-            Assert.Empty(await db.Database.GetPendingMigrationsAsync());
-            var product = await db.Products.Include(p => p.Category).SingleAsync();
-            Assert.Equal(40, product.StockQuantity);
-            // E-shop krok 2: dosavadní produkty spadnou do kategorie „Nezařazeno“, čas dostupnosti = čas poslední změny.
-            Assert.Equal("Nezařazeno", product.Category.Name);
-            Assert.Equal(product.ChangedAtUtc, product.AvailabilityChangedAtUtc);
-        }
-    }
-
-    [Fact]
-    public async Task Journeys_StaraDatabaze_ProjdeMigraci_DataZustanou()
-    {
-        using var database = new InMemoryDatabase();
-        await using (var db = CreateDbContext<JourneysDbContext>(database))
-        {
-            await CreateOldDatabaseAsync(db);
-            db.JourneyEvents.Add(JourneyEvent.OrderSubmitted(Guid.NewGuid(), 1500, 42, Now));
-            await db.SaveChangesAsync();
-        }
-
-        await using (var db = CreateDbContext<JourneysDbContext>(database))
-        {
-            await JourneysDatabaseInitializer.MigrateAsync(db);
-
-            Assert.Empty(await db.Database.GetPendingMigrationsAsync());
-            Assert.Equal(42, (await db.JourneyEvents.SingleAsync()).OrderId);
-        }
-    }
     [Theory]
     [MemberData(nameof(Modules))]
     public async Task Migrace_OpakovaneSpusteni_NicNezmeni(string module)
     {
-        // Start aplikace volá migraci pokaždé – podruhé už nemá co dělat.
-        using var database = new InMemoryDatabase();
-        await using var db = CreateDbContext(module, database);
+        // Start aplikace volá migraci pokaždé – nad databází se všemi migracemi už nemá co dělat.
+        using var databases = new TestDatabases();
+        await using var db = CreateDbContext(module, databases.Database);
 
-        await MigrateAsync(module, db);
-        await MigrateAsync(module, db);
+        await DatabaseMigrator.MigrateAsync(db);
 
         Assert.Empty(await db.Database.GetPendingMigrationsAsync());
+        Assert.Equal(db.Database.GetMigrations(), await db.Database.GetAppliedMigrationsAsync());
     }
 
-    private static DbContext CreateDbContext(string module, InMemoryDatabase database) => module switch
+    [Fact]
+    public void Konfigurace_ConnectionStringMinishop()
     {
-        "Ordering" => CreateDbContext<OrderingDbContext>(database),
-        "Inventory" => CreateDbContext<InventoryDbContext>(database),
-        "Journeys" => CreateDbContext<JourneysDbContext>(database),
-        "Accounts" => CreateDbContext<AccountsDbContext>(database),
+        var database = ModuleDatabase.FromConfiguration(new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["ConnectionStrings:minishop"] = "Host=postgres;Database=minishop" })
+            .Build());
+        Assert.Equal("Host=postgres;Database=minishop", database.ConnectionString);
+        Assert.Equal("PostgreSQL", database.ToString());   // connection string (heslo) se nevypíše
+
+        var missing = Assert.Throws<InvalidOperationException>(() =>
+            ModuleDatabase.FromConfiguration(new ConfigurationBuilder().Build()));
+        Assert.Contains("minishop", missing.Message);
+    }
+
+    private static DbContext CreateDbContext(string module, ModuleDatabase database) => module switch
+    {
+        "Ordering" => Create<OrderingDbContext>(database, OrderingDbContext.Schema),
+        "Inventory" => Create<InventoryDbContext>(database, InventoryDbContext.Schema),
+        "Journeys" => Create<JourneysDbContext>(database, JourneysDbContext.Schema),
+        "Notifications" => Create<NotificationsDbContext>(database, NotificationsDbContext.Schema),
+        "Payments" => Create<PaymentsDbContext>(database, PaymentsDbContext.Schema),
+        "Reporting" => Create<ReportingDbContext>(database, ReportingDbContext.Schema),
+        "Reviews" => Create<ReviewsDbContext>(database, ReviewsDbContext.Schema),
+        "Accounts" => Create<AccountsDbContext>(database, AccountsDbContext.Schema),
         _ => throw new ArgumentOutOfRangeException(nameof(module))
     };
 
-    private static Task MigrateAsync(string module, DbContext db) => db switch
-    {
-        OrderingDbContext ordering => OrderingDatabaseInitializer.MigrateAsync(ordering),
-        InventoryDbContext inventory => InventoryDatabaseInitializer.MigrateAsync(inventory),
-        JourneysDbContext journeys => JourneysDatabaseInitializer.MigrateAsync(journeys),
-        AccountsDbContext accounts => AccountsDatabaseInitializer.MigrateAsync(accounts),
-        _ => throw new ArgumentOutOfRangeException(nameof(module))
-    };
-
-    /// <summary>Databáze ve tvaru první migrace a bez historie migrací (jako z EnsureCreated v době první migrace).</summary>
-    private static async Task CreateOldDatabaseAsync(DbContext db)
-    {
-        await db.GetService<IMigrator>().MigrateAsync(db.Database.GetMigrations().First());
-        await db.Database.ExecuteSqlRawAsync("DROP TABLE __EFMigrationsHistory");
-    }
-
-    private static TContext CreateDbContext<TContext>(InMemoryDatabase database) where TContext : DbContext =>
+    private static TContext Create<TContext>(ModuleDatabase database, string schema) where TContext : DbContext =>
         (TContext)Activator.CreateInstance(typeof(TContext),
-            new DbContextOptionsBuilder<TContext>().UseSqlite(new SqliteConnection(database.ConnectionString)).Options)!;
-
-    /// <summary>Tabulky, sloupce a indexy databáze (bez historie migrací) – pro porovnání dvou schémat.</summary>
-    private static List<string> Schema(InMemoryDatabase database)
-    {
-        using var connection = new SqliteConnection(database.ConnectionString);
-        connection.Open();
-        using var command = connection.CreateCommand();
-        command.CommandText = """
-            SELECT m.type || ' ' || m.name || ': ' || COALESCE(
-                -- sloupce podle abecedy: migrace přidává nové sloupce na konec tabulky, na pořadí nezáleží
-                (SELECT group_concat(col, ', ') FROM (
-                    SELECT c.name || ' ' || c.type || CASE c."notnull" WHEN 1 THEN ' NOT NULL' ELSE '' END
-                           || CASE c.pk WHEN 0 THEN '' ELSE ' PK' END AS col
-                    FROM pragma_table_info(m.name) c WHERE m.type = 'table' ORDER BY c.name)),
-                m.sql,   -- index: CREATE [UNIQUE] INDEX … ON tabulka (sloupce)
-                '')
-            FROM sqlite_master m
-            WHERE m.name NOT LIKE '__EFMigrations%' AND m.name NOT LIKE 'sqlite_%'
-            ORDER BY m.type, m.name
-            """;
-        using var reader = command.ExecuteReader();
-        var schema = new List<string>();
-        while (reader.Read())
-        {
-            schema.Add(reader.GetString(0));
-        }
-
-        return schema;
-    }
+            new DbContextOptionsBuilder<TContext>().UseModuleDatabase(database, schema).Options)!;
 }

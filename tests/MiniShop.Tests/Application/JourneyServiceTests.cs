@@ -10,13 +10,13 @@ namespace MiniShop.Tests.Application;
 
 /// <summary>
 /// Krok 12A: zápis proudu událostí z formuláře objednávky a jeho projekce (časová osa, souhrn)
-/// nad skutečnou SQLite databází v paměti. Každá akce běží ve vlastním scope jako HTTP požadavek.
+/// nad skutečnou databází PostgreSQL (Testcontainers). Každá akce běží ve vlastním scope jako HTTP požadavek.
 /// </summary>
 public sealed class JourneyServiceTests : IDisposable
 {
     private static readonly DateTimeOffset Now = new(2026, 1, 15, 10, 0, 0, TimeSpan.Zero);
 
-    private readonly TestDatabases _databases = new();   // škálování krok 2: SQLite nebo PostgreSQL
+    private readonly TestDatabases _databases = new();   // škálování krok 2 a 3C: PostgreSQL (Testcontainers)
     private readonly ServiceProvider _services;
     private readonly Guid _journeyId = Guid.NewGuid();
 

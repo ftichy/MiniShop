@@ -21,7 +21,7 @@ public sealed class MessageMaintenanceTests : IDisposable
 {
     private static readonly DateTime Now = new(2026, 11, 4, 12, 0, 0, DateTimeKind.Utc);
 
-    private readonly TestDatabases _databases = new();   // škálování krok 2: SQLite nebo PostgreSQL
+    private readonly TestDatabases _databases = new();   // škálování krok 2 a 3C: PostgreSQL (Testcontainers)
     private readonly FixedTimeProvider _time = new(Now);
     private readonly ServiceProvider _services;
 

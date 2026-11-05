@@ -20,7 +20,7 @@ sequenceDiagram
     participant P as Payments
     participant MQ as RabbitMQ
     participant R as SalesProjectionHandler (Reporting)
-    participant RDB as reporting.db
+    participant RDB as schéma reporting
     actor A as Admin
 
     O->>MQ: OrderPlacedV2, OrderConfirmedV1, OrderCancelledV1, … (už existují kvůli Notifications)
@@ -28,7 +28,7 @@ sequenceDiagram
     MQ->>R: fronta minishop.reporting (inbox – každá zpráva jednou)
     R->>RDB: upsert SalesOrder – stav jen dopředu
     A->>RDB: /Admin/Sales – tržby za den, top produkty, počty podle stavu
-    Note over A,RDB: čte jen čtecí model, nikdy ordering.db – data jsou o pár sekund pozadu
+    Note over A,RDB: čte jen čtecí model, nikdy schéma ordering – data jsou o pár sekund pozadu
 ```
 
 - **Nový odběratel = nic neměnit u odesílatele.** Ordering ani Payments se kvůli přehledu nezměnily – posílaly
@@ -57,7 +57,7 @@ sequenceDiagram
     autonumber
     actor A as Admin (nebo start Webu s prázdnou DB)
     participant S as SalesReportService
-    participant RDB as reporting.db
+    participant RDB as schéma reporting
     participant O as RebuildSalesReportHandler (Ordering)
     participant R as SalesProjectionHandler
 
@@ -79,7 +79,7 @@ Stejný vzor jako [obnova kopie katalogu](kopie-katalogu.md) (`SyncCatalogV1`).
 - **Vrácené platby se přestavěním neobnoví** – zná je modul Payments, ne Ordering. Do tržby se stejně nepočítají
   (vrací se jen u zamítnutých a zrušených objednávek), chybí jen v kartě „vráceno“.
 - **Dny v českém čase** (`Europe/Prague`) – objednávka v 0:30 patří do „dneška“, i když je v UTC ještě včera.
-- **Součty v paměti** – SQLite neumí `decimal` sčítat přesně, a dat za 30 dní je málo.
+- **Součty v paměti** – dat za 30 dní je málo (z doby SQLite, které neumělo `decimal` sčítat přesně; v PostgreSQL by šly i v SQL).
 
 ## Kód
 

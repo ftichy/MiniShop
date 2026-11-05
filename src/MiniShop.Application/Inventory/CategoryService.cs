@@ -9,8 +9,8 @@ namespace MiniShop.Application.Inventory;
 /// E-shop krok 2: správa kategorií. Kategorie samy žádnou zprávu neposílají – Ordering je zná jen ze zpráv o produktech.
 /// </summary>
 /// <remarks>
-/// Kategorií je pár, proto se názvy porovnávají a řadí v paměti s českými pravidly (SQLite umí bez rozlišení
-/// velikosti písmen jen ASCII – „Šperky“ a „šperky“ by nepoznal).
+/// Kategorií je pár, proto se názvy porovnávají a řadí v paměti s českými pravidly (databáze bez české kolace
+/// by „Šperky“ a „šperky“ nebo „č“ za „c“ neporovnala správně; původně kvůli SQLite).
 /// </remarks>
 public sealed class CategoryService(
     ICategoryRepository categories,

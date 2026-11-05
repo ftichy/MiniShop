@@ -12,7 +12,7 @@ public static class JourneysDatabaseInitializer
         await MigrateAsync(scope.ServiceProvider.GetRequiredService<JourneysDbContext>(), cancellationToken);
     }
 
-    /// <summary>Databázi z doby před migracemi pozná <see cref="DatabaseMigrator"/> podle tabulky JourneyEvents.</summary>
+    /// <summary>Schéma modulu přes EF migrace (<see cref="DatabaseMigrator"/>).</summary>
     public static Task MigrateAsync(JourneysDbContext dbContext, CancellationToken cancellationToken = default) =>
-        DatabaseMigrator.MigrateAsync(dbContext, "JourneyEvents", cancellationToken);
+        DatabaseMigrator.MigrateAsync(dbContext, cancellationToken);
 }

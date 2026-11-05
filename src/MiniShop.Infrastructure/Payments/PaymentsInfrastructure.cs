@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.DependencyInjection;
 using MiniShop.Application;
 using MiniShop.Application.Payments;
@@ -49,15 +48,5 @@ public static class PaymentsDatabaseInitializer
     }
 
     public static Task MigrateAsync(PaymentsDbContext dbContext, CancellationToken cancellationToken = default) =>
-        DatabaseMigrator.MigrateAsync(dbContext, "Payments", cancellationToken);
-}
-
-/// <summary>
-/// E-shop krok 8: jen pro nástroj <c>dotnet ef</c>. Nová migrace (z kořene repozitáře):
-/// <code>dotnet ef migrations add &lt;Nazev&gt; --project src/MiniShop.Infrastructure --context PaymentsDbContext --output-dir Payments/Migrations</code>
-/// </summary>
-internal sealed class PaymentsDesignTimeDbContextFactory : IDesignTimeDbContextFactory<PaymentsDbContext>
-{
-    public PaymentsDbContext CreateDbContext(string[] args) =>
-        new(new DbContextOptionsBuilder<PaymentsDbContext>().UseSqlite("Data Source=payments.db").Options);
+        DatabaseMigrator.MigrateAsync(dbContext, cancellationToken);
 }

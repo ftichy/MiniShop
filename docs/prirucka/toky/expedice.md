@@ -17,7 +17,7 @@ sequenceDiagram
     actor A as Admin
     participant P as Stránka Expedice
     participant S as OrderService
-    participant ODB as ordering.db
+    participant ODB as schéma ordering
     participant OW as OutboxWorker
     participant SG as OrderSagaOrchestrator
     participant H as Překladač (integrační události)

@@ -15,7 +15,7 @@ namespace MiniShop.Infrastructure.Notifications;
 /// </summary>
 public sealed class NotificationsDbContext(DbContextOptions<NotificationsDbContext> options) : ModuleDbContext(options), INotificationsUnitOfWork
 {
-    /// <summary>Škálování krok 1: schéma modulu v PostgreSQL (SQLite schémata nezná).</summary>
+    /// <summary>Škálování krok 1: schéma modulu v PostgreSQL (vlastní tabulky i historie migrací).</summary>
     public const string Schema = "notifications";
 
     public DbSet<OrderRecipient> OrderRecipients => Set<OrderRecipient>();

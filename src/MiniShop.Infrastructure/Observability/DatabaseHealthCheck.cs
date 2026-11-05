@@ -6,7 +6,7 @@ namespace MiniShop.Infrastructure.Observability;
 /// <summary>
 /// Škálování krok 3: „je databáze k dispozici?“ S PostgreSQL je databáze samostatný server (kontejner) – když neběží,
 /// služba nic neuloží ani nenačte. <see cref="HealthStatus.Unhealthy"/> → /health vrátí 503, UptimeRobot pošle e-mail
-/// a <c>docker compose up --wait</c> při nasazení selže (a vrátí předchozí verzi). U SQLite (soubor) je vždy Healthy.
+/// a <c>docker compose up --wait</c> při nasazení selže (a vrátí předchozí verzi).
 /// </summary>
 public sealed class DatabaseHealthCheck<TDbContext>(TDbContext db) : IHealthCheck
     where TDbContext : DbContext

@@ -23,7 +23,7 @@ flowchart LR
         svc["JourneyService"]
         p1["OrderJourneyProjection<br/>časová osa + souhrn"]
         p2["JourneyReplayProjection<br/>scénář přehrání"]
-        db[("journeys.db<br/>tabulka JourneyEvents<br/>jen INSERT")]
+        db[("schéma journeys<br/>tabulka JourneyEvents<br/>jen INSERT")]
     end
 
     tracker -->|"POST dávka událostí"| ctrl
@@ -64,7 +64,7 @@ Typy událostí v proudu (v pořadí, v jakém vznikaly):
   `FormOpened` (staré proudy jméno nemají) a přehrávač zvolí odpovídající kopii. Uložená historie platí dál.
 - **Ordering o Journeys neví.** Spojení proudu s číslem objednávky zapíše až stránka pokladny (událost
   `OrderSubmitted`). Hlídá to test hranic modulů.
-- **Sledování nesmí rozbít objednávku.** Když zápis do `journeys.db` selže, objednávka platí dál a chyba jde jen do logu.
+- **Sledování nesmí rozbít objednávku.** Když zápis do schématu `journeys` selže, objednávka platí dál a chyba jde jen do logu.
 - **Bez outboxu a inboxu.** Journeys neposílá zprávy jiným modulům, proto `JourneysDbContext` nedědí ze společného
   `ModuleDbContext`. Idempotenci řeší unikátní `EventId` z prohlížeče.
 - **Ukládá se skutečně napsaný text** (pro výuku je to názorné). V reálném e-shopu by se kvůli ochraně osobních

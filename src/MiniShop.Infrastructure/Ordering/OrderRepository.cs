@@ -15,7 +15,7 @@ public sealed class OrderRepository(OrderingDbContext db) : IOrderRepository
 
     public async Task<IReadOnlyList<CustomerOrderSummaryDto>> GetCustomerSummariesAsync(CancellationToken cancellationToken = default)
     {
-        // SQLite neumí SUM nad decimal (ukládá ho jako text) – načteme jen potřebné sloupce a sečteme v paměti.
+        // Načteme jen potřebné sloupce a sečteme v paměti (z doby SQLite, které neumělo SUM nad decimal; dat je málo).
         var rows = await db.Orders
             .AsNoTracking()
             .Select(o => new

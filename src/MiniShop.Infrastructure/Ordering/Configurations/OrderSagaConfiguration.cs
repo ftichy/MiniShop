@@ -18,17 +18,11 @@ internal sealed class OrderSagaConfiguration : IEntityTypeConfiguration<OrderSag
         // EF vyhodí DbUpdateConcurrencyException a zpráva se zpracuje znovu nad čerstvým stavem.
         builder.Property(s => s.Version).IsConcurrencyToken();
 
-        // SQLite neukládá DateTimeKind – při načtení čas označíme jako UTC.
-        builder.Property(s => s.StartedAtUtc).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
-        builder.Property(s => s.UpdatedAtUtc).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
-        builder.Property(s => s.ReservationDeadlineUtc).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
 
         // Timeout worker hledá: WHERE State = 'AwaitingReservation' AND ReservationDeadlineUtc <= now.
         builder.HasIndex(s => new { s.State, s.ReservationDeadlineUtc });
 
         // E-shop krok 8: termín platby kartou (null = bez platby).
-        builder.Property(s => s.PaymentDeadlineUtc)
-            .HasConversion(v => v, v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
         builder.HasIndex(s => new { s.State, s.PaymentDeadlineUtc });
     }
 }

@@ -17,10 +17,7 @@ public static class AccountsDatabaseInitializer
         await scope.ServiceProvider.GetRequiredService<AccountsSeeder>().SeedAsync(adminBootstrap, cancellationToken);
     }
 
-    /// <summary>
-    /// Účty krok 6: users.db jako první databáze přešla z EnsureCreated na migrace (jsou v ní účty).
-    /// Databázi z účtů kroků 1–5 (bez historie migrací) pozná <see cref="DatabaseMigrator"/> podle tabulky AspNetUsers.
-    /// </summary>
+    /// <summary>Účty krok 6: účty jako první přešly z EnsureCreated na migrace (škálování krok 3C: schéma accounts v PostgreSQL).</summary>
     public static Task MigrateAsync(AccountsDbContext dbContext, CancellationToken cancellationToken = default) =>
-        DatabaseMigrator.MigrateAsync(dbContext, "AspNetUsers", cancellationToken);
+        DatabaseMigrator.MigrateAsync(dbContext, cancellationToken);
 }

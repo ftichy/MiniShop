@@ -1,12 +1,12 @@
 ---
 title: Modul Accounts
-summary: Uživatelské účty a role – registrace, přihlášení, role User/Admin, kdo smí co, první admin, správa uživatelů a audit. Data v users.db (migrace).
+summary: Uživatelské účty a role – registrace, přihlášení, role User/Admin, kdo smí co, první admin, správa uživatelů a audit. Data ve schématu accounts (migrace).
 order: 4
 ---
 
 > **V jedné větě:** Accounts ví, **kdo** je přihlášený a **co smí**: uživatel se zaregistruje e-mailem a heslem,
 > při přihlášení dostane zašifrovanou **cookie** se svými rolemi a Web podle **policies** rozhodne, kam ho pustí.
-> Běží ve službě **Web**, data má v `users.db`.
+> Běží ve službě **Web**, data má ve schématu `accounts`.
 
 Modul vzniká postupně podle plánu [Uživatelské účty a role](code:docs/Ucty-roadmap.md). Hotové jsou kroky 1
 (registrace, přihlášení), 2 (role, oprávnění, první admin), 3 (vlastník objednávky – zákazník vidí jen své,
@@ -84,7 +84,7 @@ a historií změn. Na detailu jsou tlačítka **Povýšit na admina / Vrátit na
 
 ```mermaid
 flowchart TD
-    act(["Admin klikne na akci"]) --> tx["transakce v users.db"]
+    act(["Admin klikne na akci"]) --> tx["transakce ve schématu accounts"]
     tx --> actor{"je volající pořád<br/>aktivní admin? (databáze)"}
     actor -->|ne| fail(["chyba – nic se nezmění"])
     actor -->|ano| last{"zůstane aspoň jeden<br/>jiný aktivní admin?"}
@@ -100,7 +100,7 @@ flowchart TD
 - **Rozhoduje databáze, ne cookie.** Admin, kterému jiný admin právě roli odebral, má možná ještě starou cookie –
   akce mu přesto neprojde.
 - **Vždy zůstane aktivní admin** a nikdo si nemůže sám odebrat roli ani se zablokovat. Kontrola i změna jsou v jedné
-  transakci: když dva admini ve stejnou chvíli odebírají jeden druhého, SQLite druhou změnu nepustí.
+  transakci: když dva admini ve stejnou chvíli odebírají jeden druhého, zámek v PostgreSQL (`pg_advisory_xact_lock`) změny seřadí a druhá už vidí výsledek první (škálování krok 3C).
 - **Zablokování** = zámek účtu Identity „navždy“ (do odblokování). Přihlášení skončí stejnou hláškou jako špatné
   heslo – jiná by prozradila, že účet existuje.
 - **Odhlášení do minuty:** každá změna vymění **security stamp** (otisk „verze“ účtu). Web cookie každou minutu
@@ -156,8 +156,8 @@ sequenceDiagram
     autonumber
     actor U as Uživatel
     participant P as Account/Delete (Web)
-    participant O as Ordering (ordering.db)
-    participant A as AccountDeletion (users.db)
+    participant O as Ordering (schéma ordering)
+    participant A as AccountDeletion (schéma accounts)
 
     U->>P: heslo
     P->>P: CheckPasswordSignInAsync (počítá se do zámku účtu)
@@ -190,7 +190,7 @@ v [Order.cs](code:src/MiniShop.Domain/Orders/Order.cs).
 
 ## Databáze a migrace
 
-`users.db` jako první databáze přešla na **EF Core migrace** (účty krok 6 – jsou v ní účty, nesmí se mazat;
+Účty jako první přešly na **EF Core migrace** (účty krok 6 – jsou v ní účty, nesmí se mazat;
 ostatní databáze ji následovaly v e-shop kroku 1) ([Accounts/Migrations](code:src/MiniShop.Infrastructure/Accounts/Migrations/AccountsDbContextModelSnapshot.cs)).
 Při startu Webu (i příkazu `create-admin`) [AccountsDatabaseInitializer](code:src/MiniShop.Infrastructure/Accounts/AccountsDatabaseInitializer.cs)
 spustí migrace přes sdílený [DatabaseMigrator](../sdilene-jadro.md) – ten doplní jen chybějící migrace
@@ -220,7 +220,7 @@ flowchart LR
         adminPages["Admin/Users, Detail"]
         administration["AccountAdministration<br/>role, blokace, audit"]
         stamp["SecurityStampValidator<br/>cookie ↔ databáze každou minutu"]
-        db[("users.db<br/>AspNetUsers, AspNetRoles,<br/>AspNetUserRoles, AspNetUserClaims,<br/>AccountAuditEntries")]
+        db[("schéma accounts<br/>AspNetUsers, AspNetRoles,<br/>AspNetUserRoles, AspNetUserClaims,<br/>AccountAuditEntries")]
     end
 
     browser -->|"POST formulář"| pages
@@ -247,7 +247,7 @@ sequenceDiagram
     participant P as Account/Register, Login
     participant UM as UserManager
     participant SM as SignInManager
-    participant DB as users.db
+    participant DB as schéma accounts
 
     U->>P: jméno, e-mail, heslo
     P->>UM: CreateAsync(user, heslo) + role User
@@ -267,10 +267,10 @@ sequenceDiagram
 | --- | --- | --- |
 | **ApplicationUser** | Účet: e-mail (= přihlašovací jméno), hash hesla, zobrazované jméno. Business pravidla nemá, proto nežije v doméně. | [ApplicationUser.cs](code:src/MiniShop.Infrastructure/Accounts/ApplicationUser.cs) |
 | **AccountRoles** | Názvy rolí `User` a `Admin`. | [AccountRoles.cs](code:src/MiniShop.Infrastructure/Accounts/AccountRoles.cs) |
-| **AccountsDbContext** | Tabulky Identity v `users.db`. | [AccountsDbContext.cs](code:src/MiniShop.Infrastructure/Accounts/AccountsDbContext.cs) |
+| **AccountsDbContext** | Tabulky Identity ve schématu `accounts`. | [AccountsDbContext.cs](code:src/MiniShop.Infrastructure/Accounts/AccountsDbContext.cs) |
 | **AccountsInfrastructure** | Jádro Identity a pravidla: heslo ≥ 10 znaků bez povinných speciálních znaků (NIST), unikátní e-mail. | [AccountsInfrastructure.cs](code:src/MiniShop.Infrastructure/Accounts/AccountsInfrastructure.cs) |
 | **AccountsSeeder** | Při startu: role, role User pro účty bez role, první admin z konfigurace; totéž pro příkaz `create-admin`. | [AccountsSeeder.cs](code:src/MiniShop.Infrastructure/Accounts/AccountsSeeder.cs) |
-| **AccountsDatabaseInitializer** | Migrace `users.db` (i staré databáze bez historie migrací) a seed. | [AccountsDatabaseInitializer.cs](code:src/MiniShop.Infrastructure/Accounts/AccountsDatabaseInitializer.cs) |
+| **AccountsDatabaseInitializer** | Migrace schématu `accounts` a seed. | [AccountsDatabaseInitializer.cs](code:src/MiniShop.Infrastructure/Accounts/AccountsDatabaseInitializer.cs) |
 | **AccountAdministration** | Správa uživatelů adminem: role, blokace, pravidla (poslední admin, sám sebe), security stamp, audit. | [AccountAdministration.cs](code:src/MiniShop.Infrastructure/Accounts/AccountAdministration.cs) |
 | **AccountAuditEntry** | Auditní záznam: kdo, komu, co, kdy (tabulka `AccountAuditEntries`). | [AccountAuditEntry.cs](code:src/MiniShop.Infrastructure/Accounts/AccountAuditEntry.cs) |
 | **AccountDeletion** | Smazání vlastního účtu (účty krok 9): admin ne, e-mail z auditu pryč, účet i role a claimy smazané. | [AccountDeletion.cs](code:src/MiniShop.Infrastructure/Accounts/AccountDeletion.cs) |
@@ -287,12 +287,12 @@ sequenceDiagram
   formulář). Šifruje se klíči Data Protection – v cloudu leží na volume, takže přihlášení přežije nasazení.
 - **Role jsou v cookie.** Proto každá změna role nebo blokace vymění security stamp a Web cookie každou minutu porovná
   s databází – dotyčný je do minuty odhlášený a novou roli dostane při dalším přihlášení.
-- **Příznak „musí změnit heslo“ je claim uživatele** (tabulka `AspNetUserClaims`) – žádný nový sloupec, `users.db` se nemaže.
+- **Příznak „musí změnit heslo“ je claim uživatele** (tabulka `AspNetUserClaims`) – žádný nový sloupec, schéma `accounts` se nemaže.
 - **Stejná hláška pro neznámý e-mail i špatné heslo**, návrat po přihlášení jen na adresu v MiniShopu
   (`Url.IsLocalUrl` – ochrana proti „open redirect“), do logu jen ID uživatele.
 - **Ostatní moduly o Accounts nevědí.** Ordering bude znát jen ID uživatele (hlídá test hranic modulů).
 - Accounts zatím neposílá zprávy, proto `AccountsDbContext` (jako Journeys) nedědí ze společného `ModuleDbContext`.
-- **Migrace jen u `users.db`.** Ostatní databáze jde při změně schématu smazat (data jsou cvičná nebo se obnoví), účty ne.
+- **Žádná databáze se nemaže** – změna schématu = nová migrace (od e-shop kroku 1 u všech modulů, účty první).
 
 ## Dál
 

@@ -20,7 +20,7 @@ sequenceDiagram
     actor Z as Zákazník
     participant P as Pokladna (stránka)
     participant C as CheckoutService
-    participant ODB as ordering.db
+    participant ODB as schéma ordering
 
     Z->>P: Slevový kód „jaro-10“ → Uplatnit
     P->>C: ApplyCouponAsync – existuje, platí, nákup od…, zákazník ho ještě nepoužil?
@@ -41,7 +41,7 @@ sequenceDiagram
     autonumber
     participant A as Pokladna Jana
     participant B as Pokladna Petry
-    participant ODB as ordering.db
+    participant ODB as schéma ordering
 
     A->>ODB: načte kupon (použito 0 z 1, Version 7)
     B->>ODB: načte kupon (použito 0 z 1, Version 7)
@@ -56,7 +56,7 @@ sequenceDiagram
 Stejný vzor jako `Order.Version` (odeslat × zrušit) nebo `Cart.CheckoutId` (dvojklik v pokladně) – žádný zámek,
 jen kontrola verze při zápisu.
 
-**Proč ne sága?** Kupon i objednávka žijí ve stejné databázi (`ordering.db`), takže stačí jedna transakce. Kdyby
+**Proč ne sága?** Kupon i objednávka žijí ve stejné databázi (schéma `ordering`), takže stačí jedna transakce. Kdyby
 kupony měl jiný modul, musel by pokladnu obsloužit zprávami: *zarezervuj použití* → *objednávka vznikla* /
 *uvolni použití* – další sága s kompenzací. Hranice modulu tak rozhoduje, jestli stačí transakce, nebo je potřeba sága.
 

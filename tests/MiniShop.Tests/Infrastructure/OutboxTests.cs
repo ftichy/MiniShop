@@ -27,7 +27,7 @@ public sealed class OutboxTests : IDisposable
 {
     private static readonly DateTimeOffset Now = new(2026, 1, 15, 10, 0, 0, TimeSpan.Zero);
 
-    private readonly TestDatabases _databases = new();   // škálování krok 2: SQLite nebo PostgreSQL
+    private readonly TestDatabases _databases = new();   // škálování krok 2 a 3C: PostgreSQL (Testcontainers)
     private int _nextProductId = 1;
     private readonly SwitchableDispatcher _dispatcher = new();
     private readonly RecordingIntegrationBus _bus = new();

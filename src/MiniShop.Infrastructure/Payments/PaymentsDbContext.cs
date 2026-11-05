@@ -19,7 +19,7 @@ namespace MiniShop.Infrastructure.Payments;
 /// </remarks>
 public sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> options) : ModuleDbContext(options), IPaymentsUnitOfWork
 {
-    /// <summary>Škálování krok 1: schéma modulu v PostgreSQL (SQLite schémata nezná).</summary>
+    /// <summary>Škálování krok 1: schéma modulu v PostgreSQL (vlastní tabulky i historie migrací).</summary>
     public const string Schema = "payments";
 
     public DbSet<Payment> Payments => Set<Payment>();

@@ -72,7 +72,7 @@ internal static class PostgresTestServer
         }.ConnectionString;
 
         Execute(admin, $"CREATE DATABASE \"{TemplateDatabase}\"");
-        MigrateTemplate(ModuleDatabase.Postgres(WithDatabase(admin, TemplateDatabase)));
+        MigrateTemplate(new ModuleDatabase(WithDatabase(admin, TemplateDatabase)));
         NpgsqlConnection.ClearAllPools();   // šablona se nesmí kopírovat, dokud je k ní někdo připojený
 
         return admin;

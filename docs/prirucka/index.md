@@ -68,7 +68,7 @@ je všechno v jedné databázi a jednom procesu. MiniShop ukazuje, co dělat, kd
 
 ## Technologie v kostce
 
-ASP.NET Core (.NET 10), EF Core + SQLite (každý modul vlastní soubor DB), RabbitMQ, .NET Aspire pro lokální
+ASP.NET Core (.NET 10), EF Core + PostgreSQL (každý modul vlastní schéma), RabbitMQ, .NET Aspire pro lokální
 spouštění, OpenTelemetry, Serilog, xUnit. V cloudu Docker Compose na virtuálním stroji v Oracle Cloud, před
 ním Caddy (HTTPS), nasazování přes GitHub Actions. Celý katalog s důvody výběru: [Aplikace třetích stran](treti-strany/index.md).
 

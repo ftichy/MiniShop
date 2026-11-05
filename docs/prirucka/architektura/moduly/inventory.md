@@ -5,7 +5,7 @@ order: 2
 ---
 
 > **V jedné větě:** Inventory spravuje produkty a zásoby a vyřizuje příkazy „zarezervuj“ a „uvolni“.
-> Běží jako samostatná služba **Inventory.Api** s databází `inventory.db`.
+> Běží jako samostatná služba **Inventory.Api** se schématem `inventory`.
 
 ## Komponentní diagram
 
@@ -32,7 +32,7 @@ flowchart TB
         reservation["StockReservation"]
     end
 
-    db[("InventoryDbContext<br/>inventory.db + outbox + inbox")]
+    db[("InventoryDbContext<br/>schéma inventory + outbox + inbox")]
     files[("FileSystemProductImageStore<br/>/data/images")]
 
     key --> rest
@@ -82,7 +82,7 @@ flowchart TB
 | **FulfilReservationHandler** | E-shop krok 6: na **událost** `OrderShippedV1` (ne příkaz) označí rezervace objednávky jako vydané (`Fulfil`). Zásobu nemění, nic neposílá – výdej nemůže selhat, sága na něj nečeká. | [FulfilReservationHandler.cs](code:src/MiniShop.Application/Inventory/FulfilReservationHandler.cs) |
 | **SyncCatalogHandler** | Vyřídí `SyncCatalogV1`: pošle `ProductUpdatedV1` + `ProductUpdatedV2` pro každý produkt s časem jeho poslední změny. | [SyncCatalogHandler.cs](code:src/MiniShop.Application/Inventory/SyncCatalogHandler.cs) |
 | **StockReservation** | Záznam „pro objednávku X je odložených N kusů produktu Y“. Končí uvolněním (`Release` – zboží zpět) nebo od e-shop kroku 6 výdejem (`Fulfil` – zboží odešlo, vrátit už nejde). | [StockReservation.cs](code:src/MiniShop.Domain/Inventory/StockReservation.cs) |
-| **InventoryDbContext** | `inventory.db`. Doménové události produktu převádí na integrační **rovnou při uložení**. | [InventoryDbContext.cs](code:src/MiniShop.Infrastructure/Inventory/InventoryDbContext.cs) |
+| **InventoryDbContext** | schéma `inventory`. Doménové události produktu převádí na integrační **rovnou při uložení**. | [InventoryDbContext.cs](code:src/MiniShop.Infrastructure/Inventory/InventoryDbContext.cs) |
 
 ## Zajímavá rozhodnutí
 

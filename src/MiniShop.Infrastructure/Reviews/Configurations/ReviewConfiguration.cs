@@ -19,8 +19,5 @@ internal sealed class ReviewConfiguration : IEntityTypeConfiguration<Review>
         // se nepočítají – po smazání účtů jich u produktu může být víc.
         builder.HasIndex(r => new { r.ProductId, r.CustomerId }).IsUnique().HasFilter("\"CustomerId\" <> ''");
 
-        // SQLite neukládá DateTimeKind – při načtení čas označíme jako UTC.
-        builder.Property(r => r.CreatedAtUtc).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
-        builder.Property(r => r.UpdatedAtUtc).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
     }
 }

@@ -21,7 +21,7 @@ sequenceDiagram
     actor A as Admin (Vratky)
     participant S as OrderService
     participant RO as ReturnSagaOrchestrator
-    participant ODB as ordering.db
+    participant ODB as schéma ordering
     participant MQ as RabbitMQ
     participant I as Inventory.Api
     participant P as Payments (Web)

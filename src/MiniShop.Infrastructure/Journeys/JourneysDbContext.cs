@@ -15,14 +15,14 @@ namespace MiniShop.Infrastructure.Journeys;
 /// </remarks>
 public sealed class JourneysDbContext(DbContextOptions<JourneysDbContext> options) : DbContext(options), IJourneysUnitOfWork
 {
-    /// <summary>Škálování krok 1: schéma modulu v PostgreSQL (SQLite schémata nezná).</summary>
+    /// <summary>Škálování krok 1: schéma modulu v PostgreSQL (vlastní tabulky i historie migrací).</summary>
     public const string Schema = "journeys";
 
     public DbSet<JourneyEvent> JourneyEvents => Set<JourneyEvent>();
 
     // Škálování krok 1: v PostgreSQL časy jako UTC a tabulky ve schématu journeys.
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder) =>
-        configurationBuilder.UseUtcDateTimes(this);
+        configurationBuilder.UseUtcDateTimes();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

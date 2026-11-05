@@ -16,14 +16,14 @@ namespace MiniShop.Infrastructure.Accounts;
 public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> options)
     : IdentityDbContext<ApplicationUser, IdentityRole, string>(options)
 {
-    /// <summary>Škálování krok 1: schéma modulu v PostgreSQL (SQLite schémata nezná).</summary>
+    /// <summary>Škálování krok 1: schéma modulu v PostgreSQL (vlastní tabulky i historie migrací).</summary>
     public const string Schema = "accounts";
 
     public DbSet<AccountAuditEntry> AuditEntries => Set<AccountAuditEntry>();
 
     // Škálování krok 1: v PostgreSQL časy jako UTC a tabulky ve schématu accounts.
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder) =>
-        configurationBuilder.UseUtcDateTimes(this);
+        configurationBuilder.UseUtcDateTimes();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -44,9 +44,6 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
             audit.Property(entry => entry.TargetUserId).IsRequired().HasMaxLength(AccountAuditEntry.UserIdMaxLength);
             audit.Property(entry => entry.TargetEmail).IsRequired().HasMaxLength(AccountAuditEntry.EmailMaxLength);
             audit.Property(entry => entry.Action).HasConversion<string>().HasMaxLength(30);
-            // SQLite neukládá DateTimeKind – při načtení čas označíme jako UTC.
-            audit.Property(entry => entry.OccurredAtUtc)
-                .HasConversion(value => value, value => DateTime.SpecifyKind(value, DateTimeKind.Utc));
             // Detail uživatele čte jeho historii.
             audit.HasIndex(entry => entry.TargetUserId);
         });

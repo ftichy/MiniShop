@@ -7,8 +7,8 @@ namespace MiniShop.Application.Ordering.Catalog;
 /// E-shop krok 2: výloha nad kopií katalogu. Funguje i při výpadku skladu – na sklad se vůbec neptá.
 /// </summary>
 /// <remarks>
-/// Filtr (text, kategorie, „jen skladem“) dělá databáze; řazení a stránkování až tady v paměti – SQLite neumí řadit
-/// podle decimal (cena) a české řazení názvů. Katalog má jednotky až stovky produktů, takže to nevadí.
+/// Filtr (text, kategorie, „jen skladem“) dělá databáze; řazení a stránkování až tady v paměti – české řazení názvů
+/// databáze bez české kolace neumí (původně i cena – SQLite neřadilo decimal). Katalog má jednotky až stovky produktů, takže to nevadí.
 /// Při tisících produktů by cena šla ukládat i jako celé haléře (long) a řadit v SQL.
 /// </remarks>
 public sealed class CatalogQueryService(ICatalogProductRepository catalog) : ICatalogQueryService

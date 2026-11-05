@@ -89,7 +89,7 @@ public sealed class InventoryApiAuthenticationTests : IClassFixture<InventoryApi
     };
 }
 
-/// <summary>Inventory.Api v paměti: databáze z <see cref="TestDatabases"/> (SQLite nebo PostgreSQL), bez workerů (outbox, RabbitMQ).</summary>
+/// <summary>Inventory.Api v paměti: databáze PostgreSQL z <see cref="TestDatabases"/>, bez workerů (outbox, RabbitMQ).</summary>
 public sealed class InventoryApiFactory : WebApplicationFactory<ApiKeyAuthenticationHandler>
 {
     public static readonly string ApiKey = new('a', 64);
@@ -99,7 +99,7 @@ public sealed class InventoryApiFactory : WebApplicationFactory<ApiKeyAuthentica
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
-        _databases.Configure(builder, "Inventory");
+        _databases.Configure(builder);
         builder.UseSetting(ServiceApiKey.ConfigurationKey, ApiKey);
 
         builder.ConfigureTestServices(services =>

@@ -45,7 +45,7 @@ public static class InventoryDatabaseInitializer
         await inventory.SaveChangesAsync(cancellationToken);   // → 5× ProductUpdatedV1 + V2 do outboxu skladu
     }
 
-    /// <summary>Databázi z doby před migracemi pozná <see cref="DatabaseMigrator"/> podle tabulky Products.</summary>
+    /// <summary>Schéma modulu přes EF migrace (<see cref="DatabaseMigrator"/>).</summary>
     public static Task MigrateAsync(InventoryDbContext dbContext, CancellationToken cancellationToken = default) =>
-        DatabaseMigrator.MigrateAsync(dbContext, "Products", cancellationToken);
+        DatabaseMigrator.MigrateAsync(dbContext, cancellationToken);
 }

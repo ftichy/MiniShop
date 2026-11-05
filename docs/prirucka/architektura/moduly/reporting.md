@@ -1,12 +1,12 @@
 ---
 title: Modul Reporting
-summary: Přehled tržeb pro admina – čtecí model (CQRS) z událostí objednávek a plateb, vlastní reporting.db, přestavění ze snímků.
+summary: Přehled tržeb pro admina – čtecí model (CQRS) z událostí objednávek a plateb, vlastní schéma reporting, přestavění ze snímků.
 order: 7
 ---
 
 > **V jedné větě:** Reporting si z integračních událostí, které už posílají Ordering a Payments, skládá vlastní
 > tabulku pro dotazy admina (tržby za den, nejprodávanější produkty, počty podle stavu) – na objednávky se nikdy
-> neptá napřímo. Běží ve službě **Web**, data má v `reporting.db`. Vzniklo v e-shop kroku 11.
+> neptá napřímo. Běží ve službě **Web**, data má ve schématu `reporting`. Vzniklo v e-shop kroku 11.
 
 Princip a diagramy: [CQRS – přehled tržeb](../../eda/cqrs.md).
 
@@ -17,7 +17,7 @@ Princip a diagramy: [CQRS – přehled tržeb](../../eda/cqrs.md).
 | **SalesOrder** | řádek čtecího modelu: datum, stav (zjednodušený), částky, řádky; stav jen dopředu | [SalesOrder.cs](code:src/MiniShop.Domain/Reporting/SalesOrder.cs) |
 | **SalesProjectionHandler** | projekce – upsert z událostí a ze snímků | [SalesProjectionHandler.cs](code:src/MiniShop.Application/Reporting/SalesProjectionHandler.cs) |
 | **SalesReportService** | čtecí strana (součty po dnech, top 10, počty) a přestavění | [SalesReportService.cs](code:src/MiniShop.Application/Reporting/SalesReportService.cs) |
-| **ReportingDbContext** | `reporting.db`: `SalesOrders`, `SalesOrderLines`, inbox, outbox | [ReportingDbContext.cs](code:src/MiniShop.Infrastructure/Reporting/ReportingDbContext.cs) |
+| **ReportingDbContext** | schéma `reporting`: `SalesOrders`, `SalesOrderLines`, inbox, outbox | [ReportingDbContext.cs](code:src/MiniShop.Infrastructure/Reporting/ReportingDbContext.cs) |
 | **SalesReportOnStartupWorker** | prázdný přehled po startu → požádat o snímky | [SalesReportOnStartupWorker.cs](code:src/MiniShop.Web/BackgroundServices/SalesReportOnStartupWorker.cs) |
 | **Stránka Přehled** | `/Admin/Sales` (jen admin), tlačítko Přestavět | [Index.cshtml.cs](code:src/MiniShop.Web/Pages/Admin/Sales/Index.cshtml.cs) |
 

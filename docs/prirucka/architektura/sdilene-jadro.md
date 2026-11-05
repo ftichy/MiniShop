@@ -78,7 +78,7 @@ flowchart LR
 
 ## Migrace databází
 
-Každý modul má vlastní SQLite databázi a vlastní **EF Core migrace** – očíslované kroky „z verze N na N+1“
+Každý modul má vlastní schéma v PostgreSQL a vlastní **EF Core migrace** – očíslované kroky „z verze N na N+1“
 (složky `Ordering/Migrations`, `Inventory/Migrations`, `Journeys/Migrations`, `Accounts/Migrations` v Infrastructure).
 Přirovnání: stavební deník – místo stavby nového domu při každé přestavbě kuchyně se zapíše, co se upravilo.
 
@@ -96,8 +96,8 @@ Přirovnání: stavební deník – místo stavby nového domu při každé pře
   ```
 
   Vygenerovaný kód migrace je potřeba přečíst: přejmenování sloupce EF někdy pozná jako smazání a přidání (= ztráta dat).
-- Škálování krok 1: každý kontext má i druhou sadu migrací pro PostgreSQL (projekt `MiniShop.Infrastructure.PostgreSql`) –
-  nová migrace se přidává **pro oba providery**, viz [Databáze](databaze.md). Baseline se týká jen SQLite.
+- Škálování krok 3C: do přepnutí na PostgreSQL měl každý kontext dvě sady migrací (SQLite a PostgreSQL); dnes jen jednu,
+  PostgreSQL, viz [Databáze](databaze.md).
 
 ## Jak se jádro zapojí do modulu
 

@@ -24,9 +24,5 @@ internal sealed class CouponConfiguration : IEntityTypeConfiguration<Coupon>
         // Poslední použití ze dvou pokladen naráz: UPDATE … WHERE Version = původní – druhá transakce se zruší celá.
         builder.Property(c => c.Version).IsConcurrencyToken();
 
-        // SQLite neukládá DateTimeKind – při načtení čas označíme jako UTC.
-        builder.Property(c => c.CreatedAtUtc).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
-        builder.Property(c => c.ValidUntilUtc)
-            .HasConversion(v => v, v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
     }
 }

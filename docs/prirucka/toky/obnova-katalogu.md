@@ -4,7 +4,7 @@ summary: Když je kopie katalogu prázdná (nová databáze) nebo neúplná, Ord
 order: 6
 ---
 
-> **Shrnutí:** Události o produktech chodí jen při změně. Nová `ordering.db` by tak zůstala bez katalogu.
+> **Shrnutí:** Události o produktech chodí jen při změně. Nová schéma `ordering` by tak zůstala bez katalogu.
 > Proto Web po startu (nebo tlačítkem) pošle příkaz `SyncCatalogV1` a sklad odpoví `ProductUpdatedV1` a `ProductUpdatedV2`
 > pro každý produkt. E-shop krok 2: obnova proběhne i u **neúplné** kopie – produkty z doby před výlohou nemají
 > dostupnost a kategorii (migrace jim dala `Unknown`), po nasazení je tak Web doplní sám.
@@ -14,7 +14,7 @@ sequenceDiagram
     autonumber
     participant SW as CatalogSyncOnStartupWorker
     participant CS as CatalogSyncService
-    participant ODB as ordering.db
+    participant ODB as schéma ordering
     participant MQ as RabbitMQ
     participant SH as SyncCatalogHandler (sklad)
     participant CH as CatalogProjectionHandler

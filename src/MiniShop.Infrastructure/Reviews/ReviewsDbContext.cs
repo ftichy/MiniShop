@@ -14,7 +14,7 @@ namespace MiniShop.Infrastructure.Reviews;
 /// </summary>
 public sealed class ReviewsDbContext(DbContextOptions<ReviewsDbContext> options) : ModuleDbContext(options), IReviewsUnitOfWork
 {
-    /// <summary>Škálování krok 1: schéma modulu v PostgreSQL (SQLite schémata nezná).</summary>
+    /// <summary>Škálování krok 1: schéma modulu v PostgreSQL (vlastní tabulky i historie migrací).</summary>
     public const string Schema = "reviews";
 
     public DbSet<Review> Reviews => Set<Review>();

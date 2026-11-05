@@ -9,7 +9,7 @@ order: 6
 
 ## Jaký problém řeší
 
-Objednávka je v `ordering.db`, zásoby v `inventory.db` v jiné službě. Neexistuje transakce, která by obojí
+Objednávka je ve schématu `ordering`, zásoby ve schématu `inventory` v jiné službě. Neexistuje transakce, která by obojí
 potvrdila nebo vrátila najednou. Přitom chceme: **potvrdit objednávku, jen když se zboží podařilo zarezervovat**.
 
 > **Přirovnání:** Cestovka skládá zájezd – letenka, hotel, transfer. Každý krok je samostatná rezervace u jiné

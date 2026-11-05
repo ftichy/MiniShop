@@ -7,7 +7,7 @@
 - Identifikátory v kódu (třídy, metody, proměnné) piš **anglicky**, komentáře a texty pro uživatele česky.
 
 ## Projekt
-Výukový e-shop: ASP.NET Core (.NET 10), EF Core + SQLite, REST API + Razor Pages, xUnit.
+Výukový e-shop: ASP.NET Core (.NET 10), EF Core + PostgreSQL (schéma na modul), REST API + Razor Pages, xUnit.
 Cíl: postupně ho převést na EDA podle plánu v `docs/EDA-roadmap.md`.
 
 ```
@@ -25,33 +25,33 @@ src/MiniShop.Infrastructure  sdílené: Persistence/ModuleDbContext, Outbox, Inb
                              Observability/ (MessagingTelemetry – ActivitySource + Meter, OutboxHealthCheck),
                              Hosting/ (OutboxWorker, RabbitMqConsumersWorker, AddMessaging);
                              Ordering/ (OrderingDbContext, repozitáře, notifier, DB init), Inventory/ (InventoryDbContext, repozitáře, DB init + seed),
-                             Journeys/ (JourneysDbContext – journeys.db bez outboxu/inboxu, repozitář, DB init),
-                             Notifications/ (NotificationsDbContext – notifications.db s inboxem, repozitář příjemců, DB init),
-                             Payments/ (PaymentsDbContext – payments.db s outboxem + inboxem, FakePaymentGateway + simulátor),
-                             Reporting/ (ReportingDbContext – reporting.db s inboxem + outboxem, jen příkaz na přestavění),
-                             Reviews/ (ReviewsDbContext – reviews.db s inboxem + outboxem, hodnocení + kopie nákupů)
+                             Journeys/ (JourneysDbContext – schéma journeys bez outboxu/inboxu, repozitář, DB init),
+                             Notifications/ (NotificationsDbContext – schéma notifications s inboxem, repozitář příjemců, DB init),
+                             Payments/ (PaymentsDbContext – schéma payments s outboxem + inboxem, FakePaymentGateway + simulátor),
+                             Reporting/ (ReportingDbContext – schéma reporting s inboxem + outboxem, jen příkaz na přestavění),
+                             Reviews/ (ReviewsDbContext – schéma reviews s inboxem + outboxem, hodnocení + kopie nákupů)
 src/MiniShop.Web             služba Ordering (7180): API objednávek, Razor Pages (celé UI), Inventory/InventoryApiClient (HTTP na sklad),
                              OrderSagaTimeoutWorker, Program.cs (composition root); krok 12: JourneysController, Pages/Orders/Journey + Replay,
                              wwwroot/js/order-form-tracker.js + journey-player.js
-src/MiniShop.Inventory.Api   služba skladu (7181): ProductsController, CategoriesController, jen modul Inventory, inventory.db, fronta minishop.inventory
-src/MiniShop.Infrastructure.PostgreSql  jen EF migrace pro PostgreSQL (schéma na modul) + design-time továrny (škálování krok 1)
+src/MiniShop.Inventory.Api   služba skladu (7181): ProductsController, CategoriesController, jen modul Inventory, schéma inventory, fronta minishop.inventory
 src/MiniShop.ServiceDefaults AddServiceDefaults (service discovery, HTTP resilience, health checky /health, /alive, OpenTelemetry → OTLP)
 src/MiniShop.AppHost         .NET Aspire: RabbitMQ (persistentní kontejner) + inventory-api + web, dashboard
-tests/MiniShop.Tests         testy domény, OrderService + ságy + katalogu (2× SQLite in-memory, oba moduly v procesu), dispatcheru,
+tests/MiniShop.Tests         testy domény, OrderService + ságy + katalogu (PostgreSQL přes Testcontainers, oba moduly v procesu), dispatcheru,
                              outboxu, inboxu, kontraktů, architektury, InventoryApiClient
 docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), diagramy/
 ```
 
 ## Příkazy
 - Build: `dotnet build MiniShop.slnx`
-- Testy: `dotnet test MiniShop.slnx`
-- Spuštění (krok 10B): `dotnet run --project src/MiniShop.AppHost` – Aspire spustí RabbitMQ, Inventory.Api (7181) a Web (7180),
+- Testy: `dotnet test MiniShop.slnx` (potřebuje Docker – Testcontainers spustí PostgreSQL)
+- Spuštění (krok 10B): `dotnet run --project src/MiniShop.AppHost` – Aspire spustí RabbitMQ, PostgreSQL, Inventory.Api (7181) a Web (7180),
   dashboard https://localhost:17180 (přihlašovací odkaz v konzoli). Potřebuje Docker.
 - Bez Aspire: `docker start minishop-rabbit` (poprvé
   `docker run -d --name minishop-rabbit -p 5672:5672 -p 15672:15672 rabbitmq:4-management`; UI http://localhost:15672, guest/guest),
-  pak `dotnet run --project src/MiniShop.Inventory.Api` a `dotnet run --project src/MiniShop.Web`.
+  `docker start minishop-postgres` (poprvé `docker run -d --name minishop-postgres -e POSTGRES_DB=minishop -e POSTGRES_USER=minishop
+  -e POSTGRES_PASSWORD=minishop-vyvoj -p 5432:5432 postgres:18-alpine`), pak `dotnet run --project src/MiniShop.Inventory.Api` a `dotnet run --project src/MiniShop.Web`.
   Transport `InProcess` od 10B pro spuštění nejde (dva procesy) – jen v testech.
-- Při ověřování naživo pozor: zastavení AppHostu nechá běžet kontejner `messaging-…` (persistentní); procesy služeb ukončit.
+- Při ověřování naživo pozor: zastavení AppHostu nechá běžet kontejnery `messaging-…` a `postgres-…` (persistentní); procesy služeb ukončit.
 - Po každé změně kódu spusť build a testy a oprav chyby, než ohlásíš hotovo.
 
 ## Konvence a záměrná rozhodnutí
@@ -61,7 +61,7 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
 - **Modulární monolit (krok 10):** moduly Ordering (`…Domain.Orders`, `…Application.Ordering`, `…Infrastructure.Ordering`)
   a Inventory (`…Inventory` ve všech vrstvách) se navzájem **nereferencují** – hlídá `Architecture/ModuleBoundariesTests`.
   Sdílené jádro (`Domain.Common`, `Application.Abstractions`, `Infrastructure.Outbox/Inbox/Integration/Persistence/Events`) nezná žádný modul.
-  Každý modul má vlastní DB (`ordering.db`, `inventory.db`), vlastní outbox + inbox a vlastní `I…UnitOfWork` / `I…MessagePublisher`
+  Každý modul má vlastní DB (schéma `ordering`, `inventory` … v jedné PostgreSQL databázi), vlastní outbox + inbox a vlastní `I…UnitOfWork` / `I…MessagePublisher`
   (`IOrderingUnitOfWork`, `IInventoryMessagePublisher`, …) – handler modulu nikdy nebere obecné `IUnitOfWork`.
 - **Samostatné služby (krok 10B):** Web hostuje jen Ordering (`AddInfrastructureCore` + `AddOrderingInfrastructure`),
   Inventory.Api jen Inventory. `AddInfrastructure(ordering, inventory)` (oba moduly) používají jen testy.
@@ -79,7 +79,7 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   Inventory převádí doménové události produktu na integrační rovnou v `InventoryDbContext.ToOutboxMessages` (Ordering přes handler);
   jedna událost může dát víc zpráv – druhá má ID odvozené `MessageIds.Derive` (inbox by stejné ID zahodil jako duplicitu).
 - **Výloha (e-shop krok 2A):** veřejná `/Shop` čte jen kopii katalogu přes `ICatalogQueryService` (filtr v SQL, řazení a
-  stránkování v paměti – SQLite neřadí decimal; hledání přes `CatalogProduct.SearchText` = `CatalogSearchText.Normalize`).
+  stránkování v paměti – z doby SQLite, které neřadilo decimal; hledání přes `CatalogProduct.SearchText` = `CatalogSearchText.Normalize`).
   `ProductUpdatedV2` = celý stav produktu (popis, kategorie, `ImageFileName`, dostupnost jako snímek); sklad posílá zatím
   V1 i V2 (expand → contract), změna produktu/kategorie produktu = obě. `StockAvailabilityChangedV1` jen při změně pásma
   (`StockAvailabilityBands`, víc než 5 / 1–5 / 0) – `Product.AddStock/RemoveStock(quantity, čas)`. Dostupnost má v obou
@@ -92,7 +92,7 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   Pravidla v `ProductImageFormat` (typ podle bajtů JPEG/PNG/WebP, žádné SVG, 1 MB, jméno `ID-otisk.přípona`, čte se jen jméno
   podle vzoru). Veřejně jen přes Web `/media/products/{soubor}` (`ProductImageEndpoint`, `Cache-Control: immutable`).
   Pořadí: soubor → DB → smazat starý soubor. Testy: `InMemoryProductImageStore`, ve Webu `StubProductImageService`.
-- **Košík (e-shop krok 3):** agregát `Cart` + `CartLine` v Orderingu (`ordering.db`, unikátní `CustomerId` a `CartId+ProductId`),
+- **Košík (e-shop krok 3):** agregát `Cart` + `CartLine` v Orderingu (schéma `ordering`, unikátní `CustomerId` a `CartId+ProductId`),
   invarianty jen v metodách `Cart` (20 řádků, 1–100 ks, ne vyprodaný/stažený). Ukládá jen ID produktu, množství
   a `PriceWhenAdded` (upozornění na změnu); název/cenu/dostupnost bere `CartService` vždy z kopie katalogu.
   Zboží neblokuje, žádné doménové události (zprávu `CartAbandonedV1` posílá až připomínka, e-shop krok 10). Jen `RequireCustomer`; přidání z výlohy =
@@ -122,18 +122,16 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   (7 dní, v `.gitignore`). Úrovně a cíle v sekci `Serilog` v appsettings, ne v `Logging`. Ostatní vrstvy
   logují přes `ILogger<T>` a o Serilogu nevědí. `UseSerilogRequestLogging` musí být v pipeline **před** `UseExceptionHandler`
   (jinak loguje ošetřené 404/400 jako 500).
-- **Všechny databáze mají EF Core migrace** (`users.db` od účtů kroku 6, `ordering/inventory/journeys.db` od e-shop kroku 1) –
-  **žádnou DB nemazat**, změna schématu = nová migrace: `dotnet tool restore`, pak
-  `dotnet ef migrations add <Nazev> --project src/MiniShop.Infrastructure --context <Ordering|Inventory|Journeys|Accounts>DbContext --output-dir <Modul>/Migrations`.
-  Při startu je spustí `…DatabaseInitializer.MigrateAsync` → sdílený `Persistence/DatabaseMigrator` (baseline: DB z `EnsureCreated`
-  bez `__EFMigrationsHistory` pozná podle značkové tabulky a první migraci zapíše jako provedenou). `DatabaseMigrationTests` hlídají
-  zapomenutou migraci (`HasPendingModelChanges`) a shodu schématu migrace s `EnsureCreated`. Testy zakládají DB přes migrace.
+- **Všechny moduly mají EF Core migrace** (PostgreSQL, schéma na modul, historie migrací ve schématu modulu) –
+  **žádnou DB ani schéma nemazat**, změna schématu = nová migrace: `dotnet tool restore`, pak
+  `dotnet ef migrations add <Nazev> --project src/MiniShop.Infrastructure --context <X>DbContext --output-dir <Modul>/Migrations`
+  (design-time továrny `DesignTimeDbContextFactories.cs`). Při startu je spustí `…DatabaseInitializer.MigrateAsync` →
+  `Persistence/DatabaseMigrator`. **Jména migrací neměnit** (`…_InitialPostgres` atd. – produkce je má v historii; hlídá
+  `DatabaseMigrationTests.Migrace_ProdukcniHistorieZustavaPlatna`), stejně jako `HasPendingModelChanges` a tabulky jen ve schématu modulu.
+  Ruční SQL (data) v migraci EF nevygeneruje – dopsat ručně (tak chyběla kategorie „Nezařazeno“).
   Migrace nesmí ztratit data (pozor na přejmenování – EF z něj udělá DROP + ADD; zkontrolovat vygenerovaný kód).
-  **Od škálování kroku 1 každá změna schématu = migrace i pro PostgreSQL se stejným názvem:**
-  `dotnet ef migrations add <Nazev> --project src/MiniShop.Infrastructure.PostgreSql --context <X>DbContext --output-dir <Modul>/Migrations --namespace MiniShop.Infrastructure.PostgreSql.<Modul>.Migrations`
-  (design-time továrny v `PostgresDesignTimeFactories.cs`; snapshot ověřit, že leží v `<Modul>/Migrations`).
 - Testy OrderService používají skutečný dispatcher a skutečné handlery (testují celou cestu).
-  Služby skládají přes `AddInfrastructure` nad dvěma SQLite v paměti (`InMemoryDatabase` pro každý modul), každá akce
+  Služby skládají přes `AddInfrastructure` nad čerstvou PostgreSQL databází (`TestDatabases`), každá akce
   běží ve vlastním scope a outboxy všech modulů se zpracují ručně přes `ProcessOutboxAsync()` – žádné čekání na workera.
   Produkty se v testech zakládají přes `IProductService` (sklad) a do katalogu Orderingu se dostanou až zpracováním outboxu.
 - Handlery běží asynchronně (krok 5): `SaveChangesAsync` jen ukládá do outboxu, doručuje `OutboxWorker`.
@@ -163,7 +161,7 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   `Order.Version` = concurrency token → `ConcurrencyConflictException` (stránky: `Orders.IndexModel.ConcurrencyMessage`, API 409).
   `OrderShippedV1` = **událost** (choreografie): sklad `FulfilReservationHandler` → `StockReservation.Fulfil()`; sága jen
   `Reserved → Shipped → Completed`, nic neposílá. Aktivní rezervace = ani uvolněná, ani vydaná.
-- **Notifikace (e-shop krok 7):** modul Notifications (`…Notifications` ve všech vrstvách, hostuje Web, `notifications.db`
+- **Notifikace (e-shop krok 7):** modul Notifications (`…Notifications` ve všech vrstvách, hostuje Web, schéma `notifications`
   s inboxem, fronta `minishop.notifications`) – **Ordering zákazníkovi nepíše** (hlídá `ModuleBoundariesTests.Ordering_NeposilaEmaily`),
   jen překladač publikuje fakta: `OrderPlacedV1` + `OrderPlacedV2` (snímek: jméno, položky, doprava, adresa), `OrderConfirmedV1`,
   `OrderRejectedV1`, `OrderShippedV1`, `OrderCompletedV1`, `OrderCancelledV1`; smazání účtu `CustomerAnonymizedV1` (z `AnonymizeCustomerAsync`).
@@ -172,7 +170,7 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   kratší e-mail na adresu ze zprávy. Texty jen v `OrderEmailTemplates` (text + HTML, `WebUtility.HtmlEncode`), odkaz z
   `Notifications:PublicBaseUrl` (produkce `PUBLIC_BASE_URL` v `production.env`). **Nový e-mail o objednávce = šablona + handler
   v Notifications, ne v Orderingu.** Testy: `OrderServiceTests` mají modul Notifications + `RecordingEmailSender` (`FailNext`).
-- **Platba (e-shop krok 8):** modul Payments (`…Payments` ve všech vrstvách, hostuje Web, `payments.db` s outboxem + inboxem,
+- **Platba (e-shop krok 8):** modul Payments (`…Payments` ve všech vrstvách, hostuje Web, schéma `payments` s outboxem + inboxem,
   fronta `minishop.payments`) = druhý účastník ságy. Kartou (`Order.PaymentMethod`, volba v pokladně): `StockReserved` →
   saga `AwaitingPayment` (termín `Sagas:PaymentTimeoutMinutes`, 30) + `Order.AwaitPayment` + `RequestPaymentV1`; `PaymentSucceededV1`
   → `Confirm`; `PaymentFailedV1`/timeout → `RejectOrderAndReleaseStock` (nezaplaceno = **Rejected**, ne Cancelled); pozdní
@@ -193,10 +191,10 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   (Ordering): `Cart.IsAbandoned` (obsah, `Carts:AbandonedAfterHours` 24 beze změny, `ReminderSentAtUtc` null) →
   `MarkReminderSent` + `CartAbandonedV1` (jen ID účtu + položky) v jedné transakci; vyprázdnění košíku značku maže
   (jedna připomínka na nákup), `CheckoutId` se nemění. Bez doménové události. Notifications `CartReminderHandler` ověří
-  **až při odeslání** přes `ICustomerContacts` (implementace `Web/Accounts/IdentityCustomerContacts` nad `users.db`)
+  **až při odeslání** přes `ICustomerContacts` (implementace `Web/Accounts/IdentityCustomerContacts` nad schématem `accounts`)
   potvrzený e-mail a `ApplicationUser.CartRemindersConsent` (výchozí false, stránka `/Account/EmailPreferences`).
   Šablona `CartEmailTemplates`. Testy: `InMemoryCustomerContacts`, `RunCartReminderWorkerAsync`.
-- **Přehled tržeb (e-shop krok 11, CQRS):** modul Reporting (`…Reporting` ve všech vrstvách, hostuje Web, `reporting.db` s inboxem
+- **Přehled tržeb (e-shop krok 11, CQRS):** modul Reporting (`…Reporting` ve všech vrstvách, hostuje Web, schéma `reporting` s inboxem
   + outboxem, fronta `minishop.reporting`) = čtecí model `SalesOrder` z existujících událostí (`OrderPlacedV2`, `OrderConfirmedV1`,
   `OrderRejectedV1`, `OrderCancelledV1`, `OrderCompletedV1`, `PaymentRefundedV1`) – Ordering o něm neví. Zprávy mimo pořadí: upsert
   (`SalesOrder.Create`) + **stav jen dopředu** (`ApplyStatus`). Bez osobních údajů. Přestavění (`SalesReportService.RebuildAsync`,
@@ -218,7 +216,7 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   → hláška „kód mezitím použil někdo jiný“. Jeden zákazník jednou (`IOrderRepository.HasUsedCouponAsync`, jen platné objednávky).
   Kompenzace `ReleaseCouponHandler` na `OrderRejected`/`OrderCancelled` (vratka ne). Formulář kódu je mimo sledovaný formulář
   pokladny (do `Replay.cshtml` nepatří). Admin `/Admin/Coupons`. Testy: `CreateCouponAsync`, `PlaceWithCouponAsync`.
-- **Hodnocení produktů (e-shop krok 14):** modul Reviews (`…Reviews` ve všech vrstvách, hostuje Web, `reviews.db` s inboxem + outboxem,
+- **Hodnocení produktů (e-shop krok 14):** modul Reviews (`…Reviews` ve všech vrstvách, hostuje Web, schéma `reviews` s inboxem + outboxem,
   fronta `minishop.reviews`; **musí do zálohy** – nejde přestavět). Kopie nákupů `PurchasedOrder` z `OrderPlacedV2`, `OrderCompletedV1`
   (doručeno), `ReturnCompletedV1` (vráceno), `OrderSnapshotV2`, `CustomerAnonymizedV1` (smazat nákupy, autor „Smazaný zákazník“) – upsert,
   doručeno/vráceno jen zapnout. Hodnotí jen doručeno + nevráceno (`FindReviewableAsync`), jedno na zákazníka a produkt (filtrovaný unikátní
@@ -231,7 +229,7 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   přehled a „Zkusit znovu“. Outbox: `NextAttemptAtUtc` + `OutboxProcessor.RetryDelay`. Consumer (`RabbitMqQueueConsumer`): selhání = kopie
   s hlavičkou `x-minishop-attempt` zpět do fronty + ack originálu, po `RabbitMqDeadLetters.MaxDeliveryAttempts` (5) nebo u nečitelné
   zprávy do `minishop.{modul}.dead` (nové fronty – **existujícím frontám neměnit argumenty**). `/Admin/Messages`, health check `dead-letters`.
-- **Průběh objednávky (krok 12):** modul Journeys (`…Journeys` ve všech vrstvách, hostuje ho Web, vlastní `journeys.db`,
+- **Průběh objednávky (krok 12):** modul Journeys (`…Journeys` ve všech vrstvách, hostuje ho Web, vlastní schéma `journeys`,
   bez zpráv → `JourneysDbContext` nedědí z `ModuleDbContext`). Proud `JourneyEvents` = jen INSERT, idempotence přes unikátní `EventId`
   z prohlížeče, řazení podle `OffsetMs` (čas od otevření formuláře). `ValidationFailed`/`OrderSubmitted` zapisuje jen server
   (stránka `Checkout/Index` – od e-shop kroku 4B, dřív `Orders/Index`), Ordering o Journeys neví (hlídá `ModuleBoundariesTests`). Průběh = projekce při čtení
@@ -295,7 +293,7 @@ Cíl: Oracle Cloud Always Free (ARM VM) + Docker Compose + Caddy, CI/CD v GitHub
 Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v cloudové konzoli dělá uživatel sám.
 - Image: `docker build -f src/MiniShop.Web/Dockerfile -t minishop-web .` (z kořene; totéž `src/MiniShop.Inventory.Api/Dockerfile`).
   Nový projekt, na kterém služba závisí, přidat do `COPY *.csproj` v obou Dockerfile.
-- Konfigurace kontejneru jen proměnnými prostředí; výchozí cesty (`/data/*.db`, `/data/keys`, `/data/logs`) nastavuje
+- Konfigurace kontejneru jen proměnnými prostředí; výchozí cesty (`/data/keys`, `/data/logs`, sklad `/data/images`) nastavuje
   `ENV` v Dockerfile. RabbitMQ (`ConnectionStrings__messaging`) a adresu skladu (`Services__inventory-api__http__0`) dodá spouštěč.
 - Web ukládá Data Protection klíče do `DataProtection:KeysPath` (jen když je nastavené – lokálně ne).
 - Git Bash: u `docker exec … /cesta` použít `MSYS_NO_PATHCONV=1`.
@@ -350,7 +348,7 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   `<<: *otel-env` + `OTEL_SERVICE_NAME` v compose. Alarmy VM (CPU, paměť, chybějící metriky) + e-mail v `infra/monitoring.tf`
   (OCI Monitoring + Notifications, `alert_email` v `terraform.tfvars`).
 - Zálohy (krok 12): `minishop-backup.timer` (02:30 UTC, uživatel `deploy`) → `/opt/minishop/backup.sh` → `backup.py`
-  v kontejneru `ghcr.io/oracle/oci-cli:20261007` (online backup SQLite `ordering/journeys/notifications/payments/reporting/reviews/users/inventory.db` + `/data/keys` + obrázky skladu
+  v kontejneru `ghcr.io/oracle/oci-cli:20261007` (`minishop.pgdump` z `pg_dump` + `/data/keys` + obrázky skladu
   → `minishop-RRRRMMDDTHHMMSSZ.tar.gz` → bucket `minishop-backups`, lifecycle 7 dní). VM se přihlašuje jako instance principal
   (dynamická skupina `minishop-vm`, politika v `infra/backup.tf`: číst + vytvářet, ne mazat). Obnova:
   `sudo -u deploy /opt/minishop/restore.sh latest|<jméno>|list` (zastaví web + inventory-api, původní soubory nechá jako
@@ -360,7 +358,7 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   jednotky systemd cloud-init. Hlídač zálohy: healthchecks.io (`HEALTHCHECKS_BACKUP_URL`, volitelný secret).
   Od škálování kroku 3A `backup.sh` nejdřív `pg_dump --format=custom` (kontejner postgres) → `minishop.pgdump` v archivu (obnova = krok 4).
   Nová DB = `DATABASES`, nová složka s daty = `DIRECTORIES` v `backup.py` (od e-shop kroku 2B i `/inventory/images`). Před rizikovou akcí ruční záloha `sudo systemctl start minishop-backup`.
-- CI (krok 6): workflow „CI“, joby „Build a testy“ a „Testy PostgreSQL“ (škálování krok 2) = povinné status checky v rulesetu (jména jobů neměnit). Repozitář `ftichy/MiniShop` je veřejný –
+- CI (krok 6): workflow „CI“, job „Build a testy“ (= povinný status check v rulesetu, jméno neměnit; testy nad PostgreSQL – Testcontainers). Repozitář `ftichy/MiniShop` je veřejný –
   nic tajného do gitu. `main` jen přes PR se zeleným CI (bez přímého push). SDK určuje `global.json` (10.0.200, `latestFeature`).
   Nový projekt/závislost = ověřit, že CI na Linuxu projde.
 
@@ -382,7 +380,7 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
 
 ## Stav uživatelských účtů (viz `docs/Ucty-roadmap.md`)
 Role User (objednává, vidí a ruší jen své) a Admin (sklad, produkty, vyřízení, všechny objednávky a uživatelé, neobjednává).
-Modul Accounts (ASP.NET Core Identity, `users.db`). Souhrny kroků do `docs/kroky-ucty/`. Každý krok se nasadí do cloudu
+Modul Accounts (ASP.NET Core Identity, schéma `accounts`). Souhrny kroků do `docs/kroky-ucty/`. Každý krok se nasadí do cloudu
 (DB na volume, `backup.py`, secrets). Od kroku 9 je web veřejný (basic auth jen před Aspire dashboardem).
 - Fallback policy = přihlášený: **nová veřejná stránka/endpoint potřebuje `[AllowAnonymous]`**, admin/zákaznické
   `[Authorize(Policy = AuthorizationPolicies.RequireAdmin/RequireCustomer)]` (`Web/Accounts`). Handlery stránky
@@ -457,29 +455,22 @@ nové moduly Notifications (odběratel událostí) a Payments (účastník ságy
 ## Stav škálování (viz `docs/Skalovani-roadmap.md`)
 Cíl: víc instancí služeb (a později víc strojů). Nejdřív PostgreSQL (kontejner na Always Free VM, 0 Kč), pak víc instancí.
 Rozhodnutí: jeden PostgreSQL se **schématem pro každý modul**, testy proti skutečnému PostgreSQL (Testcontainers),
-převod produkčních dat s krátkou odstávkou, expand → contract (oba provideři, pak odebrat SQLite). Souhrny do `docs/kroky-skalovani/`.
-- **Provider (krok 1):** **produkce od kroku 3B na `Postgres`** (`deploy/production.env`). `Database:Provider` = `Sqlite` (výchozí – lokálně bez Aspire, testy, `ConnectionStrings:<Modul>`) / `Postgres`
-  (`ConnectionStrings:minishop`, jedna DB, schéma = `XxxDbContext.Schema`). Rozdíl jen v `Persistence/ModuleDatabase.cs`
-  (`FromConfiguration`, `UseModuleDatabase`, `UseModuleSchema` v `OnModelCreating`, `UseUtcDateTimes` v `ConfigureConventions` –
-  **nový DbContext je musí volat**). Moduly berou `ModuleDatabase` (implicitně ze `string` = SQLite – testy).
-  Unikátní index v PostgreSQL = SQLSTATE 23505 → `ConcurrencyConflictException`; baseline `DatabaseMigrator` jen SQLite.
-  AppHost výchozí PostgreSQL (persistentní kontejner, volume `minishop-postgres-data`; `-- --Database:Provider=Sqlite`),
-  Compose jen s profilem `postgres` (`DATABASE_PROVIDER`, `POSTGRES_PASSWORD` v `.env`). `PostgresMigrationTests` hlídají migrace PostgreSQL.
-- **Testy (krok 2):** databáze v testech jen přes `TestDatabases` (`_databases.Ordering` …, factory `_databases.Configure(builder, …)`),
-  `InMemoryDatabase` jen pro testy čistě SQLite (migrace/baseline). `MINISHOP_TEST_DATABASE=Postgres` = celá sada nad PostgreSQL
-  (Testcontainers, potřeba Docker; CI job „Testy PostgreSQL“). **Žádné ruční SQL v testech** (schéma, uvozovky) – `ExecuteUpdateAsync`.
-  **Ruční SQL v migraci SQLite (data) dopsat i do migrace PostgreSQL** (EF ho nevygeneruje – tak chyběla kategorie „Nezařazeno“).
-  Po změně kódu s databází spustit i variantu PostgreSQL.
-- **Převod dat (krok 3A):** `docker compose run --rm --no-deps <web|inventory-api> migrate-to-postgres [--replace]`
-  (`MigrateToPostgresCommand` – SQLite z `ConnectionStrings:<Modul>`, cíl `ConnectionStrings:minishop`, nezávisle na
-  `Database:Provider`). `SqliteToPostgresCopier` podle relačního modelu EF, jedna transakce na modul, stejná ID + `setval`,
-  porovná počty; značka `__MiniShopDataMigration` → podruhé jen s `--replace`, nové řádky aplikace odmítne vždy.
-  Testy `PostgresDataMigrationTests` (`[PostgresFact]`/`[PostgresTheory]` = jen s `MINISHOP_TEST_DATABASE=Postgres`) převádí
-  scénáře z `OrderServiceTests` (konstruktor s `TestDatabases`) a porovnávají obsah tabulek. **Nová tabulka/modul = přidat
-  do seznamu modulů v `Program.cs` služby (migrate-to-postgres) a do `PostgresDataMigrationTests.Modules`.**
-  Compose: `postgres:18-alpine` běží vždy (volume `postgres-data` na `/var/lib/postgresql`, `127.0.0.1:5432`, `mem_limit 1g`),
-  `POSTGRES_PASSWORD` povinný (i lokální `deploy/.env`); `deploy.sh` mění heslo v běžící DB (`ALTER USER` přes socket).
-  Npgsql: `GssEncryptionMode=Disable` (v `UseModuleDatabase`, jinak hláška o libgssapi_krb5). `/health`: `database-ordering`/`-inventory`.
+převod produkčních dat s krátkou odstávkou, expand → contract. Souhrny do `docs/kroky-skalovani/`.
+- **Databáze (od kroku 3C jen PostgreSQL):** jedna databáze `ConnectionStrings:minishop`, schéma = `XxxDbContext.Schema`.
+  Vše v `Persistence/ModuleDatabase.cs` (`ModuleDatabase.FromConfiguration`, `UseModuleDatabase` – historie migrací ve schématu,
+  `UseModuleSchema` v `OnModelCreating`, `UseUtcDateTimes` v `ConfigureConventions` – **nový DbContext je musí volat**;
+  časy jsou vždy UTC, per-property převodníky `SpecifyKind` už nejsou potřeba). Unikátní index = SQLSTATE 23505 →
+  `ConcurrencyConflictException`. Npgsql `GssEncryptionMode=Disable` (jinak hláška o libgssapi_krb5). `/health`: `database-ordering`/`-inventory`.
+  AppHost: persistentní kontejner `postgres` (volume `minishop-postgres-data`). Bez Aspire: kontejner `minishop-postgres`
+  (`appsettings.Development.json`, heslo `minishop-vyvoj`). Compose: `postgres:18-alpine` (volume `postgres-data` na
+  `/var/lib/postgresql`, `127.0.0.1:5432`, `mem_limit 1g`), `POSTGRES_PASSWORD` povinný (i lokální `deploy/.env`);
+  `deploy.sh` mění heslo v běžící DB (`ALTER USER` přes socket).
+- **Testy:** databáze jen přes `TestDatabases` (čerstvá kopie šablony s migracemi pro každý test, `PostgresTestServer` =
+  Testcontainers, **lokálně potřeba Docker**; factory `_databases.Configure(builder)`). **Žádné ruční SQL v testech**
+  (schéma, uvozovky) – `ExecuteUpdateAsync`. CI jen job „Build a testy“ (nad PostgreSQL).
+- **Historie přechodu:** krok 1–2 oba provideři (migrace SQLite + PostgreSQL), 3A/3B převod `migrate-to-postgres` (odstranění
+  v 3C, v historii gitu) 4. 11. 2026, 4 obnova (`restore.sh` s `pg_restore`), 3C odebrání SQLite (migrace PostgreSQL přesunuty
+  zpět do `MiniShop.Infrastructure`, jména migrací zachována).
 
 | Krok | Stav | Souhrn |
 | --- | --- | --- |
@@ -487,8 +478,8 @@ převod produkčních dat s krátkou odstávkou, expand → contract (oba provid
 | 2. Testy proti PostgreSQL (`MINISHOP_TEST_DATABASE=Postgres`, `TestDatabases` + `PostgresTestServer` – Testcontainers, šablona + kopie DB na test, CI job „Testy PostgreSQL“; oprava: kategorie „Nezařazeno“ v migraci PostgreSQL) | hotovo (lokálně obě varianty zelené) | `docs/kroky-skalovani/krok-02-testy-postgresql.md` |
 | 3A. Příprava převodu (`migrate-to-postgres` + `SqliteToPostgresCopier`, značka `__MiniShopDataMigration` / `--replace`, PostgreSQL 18 v produkčním Compose, secret `POSTGRES_PASSWORD`, `pg_dump` v `backup.sh`, `DatabaseHealthCheck`) | hotovo (generálka v Compose; nasazeno 4. 11. 2026 – prázdný PostgreSQL 18 na VM healthy, noční záloha obsahuje `minishop.pgdump`) | `docs/kroky-skalovani/krok-03a-priprava-prevodu.md` |
 | 3B. Přepnutí produkce (odstávka, `migrate-to-postgres` na VM, `DATABASE_PROVIDER=Postgres` v `production.env`) | hotovo (4. 11. 2026, odstávka ~25 min, 1 702 řádků ve 41 tabulkách, počty souhlasí; produkce na PostgreSQL ověřena v prohlížeči i novou objednávkou; SQLite soubory zůstávají jako cesta zpět do 3C) | `docs/kroky-skalovani/krok-03b-prepnuti-produkce.md` |
-| 3C. Odebrání SQLite – contract (provider, migrace SQLite, baseline, `backup.py` SQLite; testy výchozí PostgreSQL) | plán | — |
-| 4. Obnova ze zálohy (`restore.sh` s `pg_restore`, přejmenování původní DB, vrácení při chybě, odmítnutí staré zálohy; `pg_dump` už od 3A) | hotovo (generálka v Compose: obnova, stará záloha, poškozený snímek, vrácení; cvičná obnova v produkci čeká) | `docs/kroky-skalovani/krok-04-obnova.md` |
+| 3C. Odebrání SQLite – contract (provider, migrace SQLite, baseline, `migrate-to-postgres`, SQLite v zálohách; migrace PostgreSQL zpět do `MiniShop.Infrastructure`, testy jen PostgreSQL, CI jeden job) | hotovo (lokálně: produkční historie migrací bez čekajících migrací, testy zelené) | `docs/kroky-skalovani/krok-03c-odebrani-sqlite.md` |
+| 4. Obnova ze zálohy (`restore.sh` s `pg_restore`, přejmenování původní DB, vrácení při chybě, odmítnutí staré zálohy; `pg_dump` už od 3A) | hotovo (generálka v Compose; cvičná obnova v produkci 5. 11. 2026: záloha 165410Z, obnova 18 s, počty shodné, záložní DB smazána) | `docs/kroky-skalovani/krok-04-obnova.md` |
 | 5. Více instancí (leader lease přes advisory lock, `web` ve dvou kopiích za Caddy) | plán | — |
 | 6. Druhá VM (volitelně) | plán | — |
 

@@ -8,7 +8,7 @@ namespace MiniShop.Domain.Orders;
 /// Stejně se upraví uložený text produktu i to, co zákazník napíše, takže „mys“, „MYŠ“ i „myš“ najdou totéž.
 /// </summary>
 /// <remarks>
-/// Proč ne rovnou SQL: SQLite porovnává bez ohledu na velikost písmen jen ASCII a o diakritice neví.
+/// Proč ne rovnou SQL: databáze bez zvláštního nastavení (unaccent, kolace) neporovná „myš“ a „MYS“ jako shodu.
 /// Read model si proto drží text už připravený pro hledání (CQRS: data tvarovaná podle čtení).
 /// </remarks>
 public static class CatalogSearchText

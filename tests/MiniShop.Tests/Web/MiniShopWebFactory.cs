@@ -18,7 +18,7 @@ namespace MiniShop.Tests.Web;
 
 /// <summary>
 /// Účty krok 2: celý Web (Program.cs) v paměti – skutečné HTTP požadavky, skutečné přihlášení cookie,
-/// skutečné policies. Databáze jsou SQLite v paměti (nebo PostgreSQL – škálování krok 2, <see cref="TestDatabases"/>), workery (outbox, RabbitMQ, sága) neběží a sklad
+/// skutečné policies. Databáze je PostgreSQL z <see cref="TestDatabases"/> (Testcontainers), workery (outbox, RabbitMQ, sága) neběží a sklad
 /// nahrazuje <see cref="StubProductService"/>.
 /// </summary>
 /// <remarks>
@@ -40,12 +40,12 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
     /// <summary>Účty krok 8: všechno, co Web zapsal do logu.</summary>
     public RecordingLoggerProvider Logs { get; } = new();
 
-    private readonly TestDatabases _databases = new();   // škálování krok 2: SQLite (databáze na modul) nebo PostgreSQL
+    private readonly TestDatabases _databases = new();   // škálování krok 2 a 3C: PostgreSQL (Testcontainers)
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
-        _databases.Configure(builder, "Ordering", "Journeys", "Accounts", "Notifications", "Payments", "Reporting", "Reviews");
+        _databases.Configure(builder);
         // E-shop krok 8: tajemství webhooku platební brány (bez něj by se Web nespustil). Testy jím i podepisují.
         builder.UseSetting("Payments:WebhookSecret", WebhookSecret);
         // Účty krok 7: servisní klíč skladu (sklad tu nahrazuje StubProductService, ale bez klíče by se Web nespustil).

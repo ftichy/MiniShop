@@ -29,7 +29,7 @@ sequenceDiagram
     participant I as Inventory.Api
     participant MQ as RabbitMQ
     participant H as CatalogProjectionHandler
-    participant C as CatalogProducts (ordering.db)
+    participant C as CatalogProducts (schéma ordering)
 
     U->>I: změň cenu produktu
     I->>I: Product.Update → ProductChanged → ProductUpdatedV1 do outboxu
@@ -50,7 +50,7 @@ sequenceDiagram
 - **Smazaný produkt se nemaže, jen označí** (`IsRemoved`). Kdyby se smazal, pozdě doručená starší změna by ho „vzkřísila“.
 - **Cena v objednávce je snímek.** Položka si uloží název a cenu v okamžiku objednání – pozdější změna ceny
   starou objednávku neovlivní.
-- **Obnova:** když je kopie prázdná (nová `ordering.db`) nebo neúplná (produkt bez dostupnosti), Web po startu
+- **Obnova:** když je kopie prázdná (nová schéma `ordering`) nebo neúplná (produkt bez dostupnosti), Web po startu
   pošle `SyncCatalogV1` a sklad znovu pošle všechny produkty. Viz [Obnova katalogu](../toky/obnova-katalogu.md).
 
 ## Výloha: popis, kategorie a dostupnost (e-shop krok 2)
@@ -103,7 +103,7 @@ písmeny bez diakritiky ([CatalogSearchText](code:src/MiniShop.Domain/Orders/Cat
 upraví i hledaný text. To je podstata CQRS: data pro čtení jsou uložená tak, jak se z nich čte, ne jak se zapisují.
 
 - Filtr (text, kategorie, „jen skladem“) dělá databáze; řazení podle ceny a české řazení názvů až aplikace
-  (SQLite neřadí `decimal`) – u stovek produktů to nevadí.
+  (z doby SQLite, které neřadilo `decimal`) – u stovek produktů to nevadí.
 - Kategorie ve filtru vznikají z kopie (jen ty, ve kterých je něco v nabídce). Kategorie samotné spravuje sklad;
   Ordering zná jejich jméno jen ze zpráv o produktech – přejmenování kategorie proto sklad oznámí novou
   `ProductUpdatedV2` pro každý její produkt.
@@ -114,7 +114,7 @@ upraví i hledaný text. To je podstata CQRS: data pro čtení jsou uložená ta
 - Obnova produkty jen přidává/aktualizuje – zmeškané `ProductRemovedV1` neopraví.
 - Sklad zatím posílá V1 i V2 (dvojnásobek zpráv o produktech); odebrání V1 je samostatný krok.
 - Hledá se podřetězcem (`instr`) bez indexu a bez překlepů – pro stovky produktů stačí, pro tisíce by byl potřeba
-  fulltext (SQLite FTS5) nebo vyhledávací služba.
+  fulltext (PostgreSQL `tsvector`) nebo vyhledávací služba.
 
 ## Na internetu
 

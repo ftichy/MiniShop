@@ -23,10 +23,8 @@ dotnet run --project src/MiniShop.AppHost
 
 Potřeba: .NET SDK podle `global.json` a **Docker** (Docker Desktop) kvůli RabbitMQ a PostgreSQL.
 
-Škálování krok 1: přes AppHost běží obě služby na **PostgreSQL** (persistentní kontejner, data ve volume
-`minishop-postgres-data`, každý modul ve vlastním schématu). Dřívější SQLite soubory zůstávají beze změny – použít je jde
-přes `dotnet run --project src/MiniShop.AppHost -- --Database:Provider=Sqlite`. Bez Aspire služby jedou na SQLite
-z `appsettings.json`. Viz [Databáze](../architektura/databaze.md).
+Přes AppHost běží obě služby na **PostgreSQL** (persistentní kontejner, data ve volume
+`minishop-postgres-data`, každý modul ve vlastním schématu). Viz [Databáze](../architektura/databaze.md).
 
 ## Co AppHost dělá
 
@@ -53,17 +51,19 @@ flowchart LR
 
 ```text
 docker start minishop-rabbit        # poprvé: docker run -d --name minishop-rabbit -p 5672:5672 -p 15672:15672 rabbitmq:4-management
+docker start minishop-postgres      # poprvé: docker run -d --name minishop-postgres -e POSTGRES_DB=minishop -e POSTGRES_USER=minishop -e POSTGRES_PASSWORD=minishop-vyvoj -p 5432:5432 postgres:18-alpine
 dotnet run --project src/MiniShop.Inventory.Api
 dotnet run --project src/MiniShop.Web
 ```
 
-Adresu skladu najde Web v `Services:inventory-api` v `appsettings.Development.json`.
+Adresu skladu najde Web v `Services:inventory-api` a databázi v `ConnectionStrings:minishop` v `appsettings.Development.json`
+(vývojové heslo `minishop-vyvoj` jen pro tento lokální kontejner).
 
 ## Databáze
 
-SQLite soubory vznikají samy při startu vedle projektu: `ordering.db`, `journeys.db`, `users.db` (Web) a
-`inventory.db` (sklad, s ukázkovými produkty). Schéma spravují **EF Core migrace** – při startu se doplní jen chybějící
-změny, data zůstanou. Soubory proto **nemaž**; změna schématu = nová migrace
+Schémata modulů vznikají sama při startu v databázi `minishop`: `ordering`, `journeys`, `accounts`, `notifications`, `payments`, `reporting`, `reviews` (Web) a
+`inventory` (sklad, s ukázkovými produkty). Schéma spravují **EF Core migrace** – při startu se doplní jen chybějící
+změny, data zůstanou. Databázi proto **nemaž**; změna schématu = nová migrace
 (viz [Sdílené jádro – migrace databází](../architektura/sdilene-jadro.md)).
 
 ## Testy
@@ -73,7 +73,7 @@ dotnet build MiniShop.slnx
 dotnet test MiniShop.slnx
 ```
 
-Testy nepotřebují Docker ani RabbitMQ: obě databáze jsou SQLite v paměti a zprávy jdou přes `InProcessIntegrationBus`.
+Testy potřebují **Docker** (Testcontainers spustí PostgreSQL), RabbitMQ ne – zprávy jdou přes `InProcessIntegrationBus`.
 
 ## Proč Aspire
 

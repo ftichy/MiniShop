@@ -8,16 +8,12 @@ var messaging = builder.AddRabbitMQ("messaging")
     .WithManagementPlugin()
     .WithLifetime(ContainerLifetime.Persistent);
 
-// Škálování krok 1: databáze. Výchozí PostgreSQL v Dockeru (persistentní kontejner + volume s daty, heslo v user secrets
-// AppHostu) – jedna databáze "minishop", každý modul ve vlastním schématu. Služby dostanou ConnectionStrings:minishop
-// a Database:Provider=Postgres. Původní SQLite soubory zůstanou beze změny: dotnet run --project src/MiniShop.AppHost -- --Database:Provider=Sqlite
-var usePostgres = !string.Equals(builder.Configuration["Database:Provider"], "Sqlite", StringComparison.OrdinalIgnoreCase);
-var database = usePostgres
-    ? builder.AddPostgres("postgres")
-        .WithDataVolume("minishop-postgres-data")
-        .WithLifetime(ContainerLifetime.Persistent)
-        .AddDatabase("minishop")
-    : null;
+// Škálování krok 1 a 3C: databáze PostgreSQL v Dockeru (persistentní kontejner + volume s daty, heslo v user secrets
+// AppHostu) – jedna databáze "minishop", každý modul ve vlastním schématu. Služby dostanou ConnectionStrings:minishop.
+var database = builder.AddPostgres("postgres")
+    .WithDataVolume("minishop-postgres-data")
+    .WithLifetime(ContainerLifetime.Persistent)
+    .AddDatabase("minishop");
 
 // Účty krok 7: servisní klíč skladu. Aspire ho vygeneruje (jako heslo RabbitMQ) a uloží do user secrets AppHostu;
 // obě služby ho dostanou v InventoryApi__ApiKey – Web ho posílá, sklad ověřuje.
@@ -62,10 +58,8 @@ builder.Build().Run();
 
 internal static class ModuleDatabaseResourceExtensions
 {
-    /// <summary>Škálování krok 1: služba dostane PostgreSQL (connection string + provider) a počká na něj; bez něj SQLite z appsettings.</summary>
+    /// <summary>Škálování krok 1: služba dostane PostgreSQL (ConnectionStrings:minishop) a počká, až poběží.</summary>
     public static IResourceBuilder<ProjectResource> WithModuleDatabase(
-        this IResourceBuilder<ProjectResource> service, IResourceBuilder<PostgresDatabaseResource>? database) =>
-        database is null
-            ? service
-            : service.WithReference(database).WaitFor(database).WithEnvironment("Database__Provider", "Postgres");
+        this IResourceBuilder<ProjectResource> service, IResourceBuilder<PostgresDatabaseResource> database) =>
+        service.WithReference(database).WaitFor(database);
 }

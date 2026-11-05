@@ -22,7 +22,7 @@ namespace MiniShop.Infrastructure.Inventory;
 /// </remarks>
 public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> options) : ModuleDbContext(options), IInventoryUnitOfWork
 {
-    /// <summary>Škálování krok 1: schéma modulu v PostgreSQL (SQLite schémata nezná).</summary>
+    /// <summary>Škálování krok 1: schéma modulu v PostgreSQL (vlastní tabulky i historie migrací).</summary>
     public const string Schema = "inventory";
 
     public DbSet<Product> Products => Set<Product>();

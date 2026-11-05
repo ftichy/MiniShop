@@ -170,6 +170,15 @@ reload_caddy() {
     docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile
 }
 
+# Krok 11: Caddyfile je do kontejneru připojený jako soubor – Caddy jeho změnu sám nenačte a kontejner
+# se nerestartuje (image ani proměnné se nezměnily). Proto ho při změně načíst znovu (bez výpadku).
+reload_caddy_if_changed() {
+    if ! cmp -s Caddyfile previous/Caddyfile; then
+        log "Caddyfile se změnil – načítám ho v Caddy znovu"
+        reload_caddy || rollback
+    fi
+}
+
 rollback() {
     log "CHYBA – vracím ${previous_tag:-(nic – první nasazení)}"
     if [ "$rabbitmq_rotated" = true ]; then
@@ -215,18 +224,15 @@ if [ -f "$work/rolling-update.sh" ]; then
     # kopii po kopii bez výpadku (rolling-update.sh). Commit bez skriptu (starší) = dosavadní způsob.
     infra=$(docker compose config --services | grep -vx -e web -e inventory-api)
     docker compose up -d --no-deps --remove-orphans --wait --wait-timeout 180 $infra || rollback
+    # Nové nastavení Caddy (např. krátké dial_timeout) musí platit už během výměny kopií – při prvním nasazení
+    # kroku 5B se načetlo až po ní a požadavek na odstraněnou kopii čekal 3 s → 502.
+    reload_caddy_if_changed
     ./rolling-update.sh inventory-api 1 || rollback
     web_replicas=$(current WEB_REPLICAS)
     ./rolling-update.sh web "${web_replicas:-1}" || rollback
 else
     docker compose up -d --remove-orphans --wait --wait-timeout 180 || rollback
-fi
-
-# 6. Krok 11: Caddyfile je do kontejneru připojený jako soubor – Caddy jeho změnu sám nenačte a kontejner
-#    se nerestartuje (image ani proměnné se nezměnily). Proto ho při změně načíst znovu (bez výpadku).
-if ! cmp -s Caddyfile previous/Caddyfile; then
-    log "Caddyfile se změnil – načítám ho v Caddy znovu"
-    reload_caddy || rollback
+    reload_caddy_if_changed
 fi
 
 log "Hotovo: $tag"

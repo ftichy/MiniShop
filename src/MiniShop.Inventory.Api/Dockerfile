@@ -28,7 +28,7 @@ USER $APP_UID
 
 # Sklad nemá formuláře, takže Data Protection klíče nepotřebuje.
 ENV ASPNETCORE_HTTP_PORTS=8080 \
-    Serilog__WriteTo__1__Args__path=/data/logs/inventory-.log \
+    Serilog__WriteTo__1__Args__path=/data/logs/inventory-{Instance}-.log \
     ProductImages__Path=/data/images
 EXPOSE 8080
 

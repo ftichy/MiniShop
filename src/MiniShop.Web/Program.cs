@@ -76,18 +76,22 @@ try
     // Lokálně server dodá Aspire (Mailpit), v produkci Gmail (production.env + secret SMTP_PASSWORD).
     builder.Services.AddEmail(builder.Configuration);
 
+    // Škálování krok 5: Web může běžet ve víc kopiích – workery s časovačem jen na vedoucí (zámek v PostgreSQL).
+    // Musí být zaregistrovaná před workery (host ji zastaví až po nich).
+    builder.Services.AddLeaderElection(database, "minishop.web");
+
     // Krok 9: hlídání termínů ságy (sklad neodpověděl včas → zamítnout).
-    builder.Services.AddHostedService<OrderSagaTimeoutWorker>();
-    builder.Services.AddHostedService<CartReminderWorker>();   // e-shop krok 10: opuštěné košíky
+    builder.Services.AddLeaderOnlyHostedService<OrderSagaTimeoutWorker>();
+    builder.Services.AddLeaderOnlyHostedService<CartReminderWorker>();   // e-shop krok 10: opuštěné košíky
 
-    // Prázdná kopie katalogu po startu (nová ordering.db) → požádat sklad o celý katalog.
-    builder.Services.AddHostedService<CatalogSyncOnStartupWorker>();
+    // Prázdná kopie katalogu po startu (nové schéma ordering) → požádat sklad o celý katalog.
+    builder.Services.AddLeaderOnlyHostedService<CatalogSyncOnStartupWorker>();
 
-    // E-shop krok 11: prázdný přehled tržeb po startu (nová reporting.db) → postavit ho ze snímků objednávek.
-    builder.Services.AddHostedService<SalesReportOnStartupWorker>();
+    // E-shop krok 11: prázdný přehled tržeb po startu (nové schéma reporting) → postavit ho ze snímků objednávek.
+    builder.Services.AddLeaderOnlyHostedService<SalesReportOnStartupWorker>();
 
-    // E-shop krok 14: prázdná kopie nákupů po startu (nová reviews.db) → požádat Ordering o snímky objednávek.
-    builder.Services.AddHostedService<PurchasesSyncOnStartupWorker>();
+    // E-shop krok 14: prázdná kopie nákupů po startu (nové schéma reviews) → požádat Ordering o snímky objednávek.
+    builder.Services.AddLeaderOnlyHostedService<PurchasesSyncOnStartupWorker>();
 
     // Kroky 5 a 8: outbox worker + RabbitMQ (fronty minishop.ordering a minishop.audit), viz sekce "Messaging".
     builder.Services.AddMessaging(builder.Configuration);

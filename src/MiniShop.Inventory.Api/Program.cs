@@ -56,6 +56,9 @@ try
     builder.Services.AddFileSystemProductImages(
         Path.Combine(builder.Environment.ContentRootPath, builder.Configuration["ProductImages:Path"] ?? "images"));
 
+    // Škálování krok 5: vedoucí kopie skladu (outbox a úklid zpráv jen na ní) – vlastní zámek, jiné workery než Web.
+    builder.Services.AddLeaderElection(database, "minishop.inventory-api");
+
     // Outbox worker + RabbitMQ (fronta minishop.inventory).
     builder.Services.AddMessaging(builder.Configuration);
 

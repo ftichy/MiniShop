@@ -70,7 +70,8 @@ Kód:
 
 ## Známá omezení
 
-- Worker počítá s **jednou instancí** služby. Při více instancích by bylo potřeba zprávy zamykat.
+- Worker běží jen na **vedoucí kopii** služby (škálování krok 5, zámek v PostgreSQL) – při dvou kopiích Webu by jinak
+  stejnou zprávu odeslaly obě. Viz [Více instancí](../architektura/vice-instanci.md).
 - Zpracované zprávy se nemažou (tabulka roste) – pro výuku to nevadí, v produkci by se čistila.
 - Každý krok ságy čeká na kolo workeru, proto potvrzení objednávky trvá několik sekund.
 

@@ -40,6 +40,9 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
     /// <summary>Účty krok 8: všechno, co Web zapsal do logu.</summary>
     public RecordingLoggerProvider Logs { get; } = new();
 
+    /// <summary>Škálování krok 5: workery, které Web registruje (před odebráním pro testy) – hlídá je <c>WebWorkersTests</c>.</summary>
+    public List<Type> RegisteredWorkers { get; private set; } = [];
+
     private readonly TestDatabases _databases = new();   // škálování krok 2 a 3C: PostgreSQL (Testcontainers)
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -62,14 +65,7 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
         {
             // Workery MiniShopu pryč (outbox, consumery RabbitMQ, timeout ságy, obnova katalogu).
             // Server samotný je také IHostedService – ten musí zůstat.
-            var workers = services
-                .Where(d => d.ServiceType == typeof(IHostedService)
-                            && d.ImplementationType?.Namespace?.StartsWith("MiniShop", StringComparison.Ordinal) == true)
-                .ToList();
-            foreach (var worker in workers)
-            {
-                services.Remove(worker);
-            }
+            RegisteredWorkers = HostedServices.RemoveMiniShopWorkers(services);
 
             services.RemoveAll<IProductService>();
             services.AddSingleton<IProductService, StubProductService>();

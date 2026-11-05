@@ -96,6 +96,9 @@ public sealed class InventoryApiFactory : WebApplicationFactory<ApiKeyAuthentica
 
     private readonly TestDatabases _databases = new();   // škálování krok 2
 
+    /// <summary>Škálování krok 5: workery, které sklad registruje (před odebráním pro testy).</summary>
+    public List<Type> RegisteredWorkers { get; private set; } = [];
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
@@ -104,14 +107,7 @@ public sealed class InventoryApiFactory : WebApplicationFactory<ApiKeyAuthentica
 
         builder.ConfigureTestServices(services =>
         {
-            var workers = services
-                .Where(d => d.ServiceType == typeof(IHostedService)
-                            && d.ImplementationType?.Namespace?.StartsWith("MiniShop", StringComparison.Ordinal) == true)
-                .ToList();
-            foreach (var worker in workers)
-            {
-                services.Remove(worker);
-            }
+            RegisteredWorkers = HostedServices.RemoveMiniShopWorkers(services);
         });
     }
 

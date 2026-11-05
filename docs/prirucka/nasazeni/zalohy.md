@@ -56,12 +56,34 @@ sequenceDiagram
 ## Obnova
 
 ```text
-sudo -u deploy /opt/minishop/restore.sh list     # co je v bucketu
-sudo -u deploy /opt/minishop/restore.sh latest   # nejnovější záloha
+sudo -u deploy /opt/minishop/restore.sh list                       # co je v bucketu
+sudo -u deploy /opt/minishop/restore.sh latest                     # nejnovější záloha
+sudo -u deploy /opt/minishop/restore.sh /cesta/minishop-….tar.gz   # záloha z lokálního souboru (bucket nedostupný)
 ```
 
-Skript zastaví `web` a `inventory-api` (nikdo nezapisuje), stáhne zálohu, zkontroluje ji (`integrity_check`),
-vymění soubory ve volumes (původní nechá jako `*.before-restore-…`) a služby znovu spustí.
+Skript ([restore.sh](code:deploy/restore.sh)) **nejdřív všechno zkontroluje, teprve pak mění** (škálování krok 4):
+
+```mermaid
+flowchart TB
+    s["zastavit web + inventory-api"] --> f["backup.py fetch<br/>stáhnout, rozbalit,<br/>integrity_check SQLite"]
+    f --> p{"DATABASE_PROVIDER<br/>= Postgres?"}
+    p -->|ano| v{"minishop.pgdump čitelný<br/>(pg_restore --list)<br/>a s daty modulů?"}
+    v -->|ne| stop["konec – nic se nezměnilo"]
+    v -->|ano| r["minishop → minishop_before_restore_…<br/>nová minishop + pg_restore"]
+    r -->|chyba| back["nová pryč, původní<br/>přejmenovat zpět"]
+    r -->|ok| files
+    p -->|ne| files["backup.py restore-files<br/>SQLite, klíče, obrázky<br/>(původní *.before-restore-…)"]
+    files --> up["spustit služby"]
+    stop --> up
+    back --> up
+```
+
+- **PostgreSQL se nemaže, jen přejmenuje** – dosavadní databáze zůstane jako `minishop_before_restore_<čas>`.
+  Skript na konci vypíše příkaz `DROP DATABASE …`, kterým ji po ověření webu smažete.
+- **Záloha z doby před přepnutím na PostgreSQL** (do 4. 11. 2026 20:52 UTC) má prázdný snímek – skript ji nad PostgreSQL
+  odmítne (obnova by smazala všechna data). Když selže založení nebo nahrání databáze, vrátí původní.
+- Služby se spustí vždy, i po chybě – s původními daty.
+- Ověřeno nanečisto v Compose: úspěšná obnova, odmítnutá stará záloha, poškozený snímek, selhání uprostřed (vrácení).
 
 Po startu služby doplní obnoveným databázím chybějící **migrace** schématu
 ([Sdílené jádro – migrace databází](../architektura/sdilene-jadro.md)) – i záloze z doby před migracemi
@@ -71,8 +93,6 @@ Před rizikovou akcí ruční záloha: `sudo systemctl start minishop-backup`.
 
 **Nová databáze = přidat do `DATABASES`, nová složka s daty (jako obrázky) do `DIRECTORIES` v `backup.py`.**
 Nový modul nad PostgreSQL (jen nové schéma) zálohuje `pg_dump` automaticky – celou databázi `minishop`.
-
-Obnova z `minishop.pgdump` (`pg_restore`) zatím není v `restore.sh` – přijde ve škálování kroku 4 i s cvičnou obnovou.
 
 ## Cvičná havárie
 

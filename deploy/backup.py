@@ -2,9 +2,11 @@
 
 Běží v kontejneru ghcr.io/oracle/oci-cli (Python + OCI CLI) – spouští ho backup.sh / restore.sh na VM:
   python3 backup.py backup              → snímek všech DB a klíčů → minishop-RRRRMMDDTHHMMSSZ.tar.gz → bucket
-  python3 backup.py restore latest      → nejnovější záloha z bucketu → zpět do volumes (služby musí stát)
-  python3 backup.py restore <jméno>     → konkrétní záloha
+  python3 backup.py fetch latest|<jméno>|/restore-in/<soubor> <složka>
+                                        → stáhne zálohu, rozbalí do <složka>/content a zkontroluje (nic nemění)
+  python3 backup.py restore-files <složka> → SQLite, klíče a obrázky z rozbalené zálohy zpět do volumes (služby musí stát)
   python3 backup.py list                → seznam záloh v bucketu
+Škálování krok 4: obnovu řídí restore.sh – fetch → ověření a obnova PostgreSQL (pg_restore) → restore-files.
 
 Proč ne obyčejné kopírování souborů: SQLite soubor může být uprostřed zápisu a kopie by byla poškozená.
 Online backup API (sqlite3.Connection.backup = příkaz ".backup") udělá konzistentní snímek i za běhu aplikace.
@@ -115,60 +117,80 @@ def list_backups() -> list[str]:
     return sorted(item["name"] for item in data.get("data", []))
 
 
-def restore(name: str) -> None:
-    if name != "latest" and not re.fullmatch(r"minishop-\d{8}T\d{6}Z\.tar\.gz", name):
-        raise ValueError(f"Čekám 'latest' nebo jméno zálohy (minishop-RRRRMMDDTHHMMSSZ.tar.gz), ne '{name}'.")
-    if name == "latest":
-        backups = list_backups()
-        if not backups:
-            raise RuntimeError(f"V bucketu {BUCKET} není žádná záloha.")
-        name = backups[-1]
-    log(f"Obnovuji {BUCKET}/{name}")
+LOCAL_BACKUP_DIR = "/restore-in/"  # škálování krok 4: záloha z lokálního souboru (restore.sh ho sem připojí)
 
-    with tempfile.TemporaryDirectory() as work:
+
+def fetch(name: str, work: str) -> None:
+    """Škálování krok 4: stáhne (nebo vezme lokální) zálohu, rozbalí ji do work/content a zkontroluje SQLite.
+    Nic v produkci nemění – restore.sh mezitím ověří snímek PostgreSQL a teprve pak se obnovuje."""
+    if name.startswith(LOCAL_BACKUP_DIR) and os.path.isfile(name):
+        archive = name
+        log(f"Obnovuji z lokálního souboru {os.path.basename(name)}")
+    else:
+        if name != "latest" and not re.fullmatch(r"minishop-\d{8}T\d{6}Z\.tar\.gz", name):
+            raise ValueError(f"Čekám 'latest' nebo jméno zálohy (minishop-RRRRMMDDTHHMMSSZ.tar.gz), ne '{name}'.")
+        if name == "latest":
+            backups = list_backups()
+            if not backups:
+                raise RuntimeError(f"V bucketu {BUCKET} není žádná záloha.")
+            name = backups[-1]
+        log(f"Obnovuji {BUCKET}/{name}")
         archive = os.path.join(work, "backup.tar.gz")
         oci("os", "object", "get", "--bucket-name", BUCKET, "--name", name, "--file", archive)
-        content = os.path.join(work, "content")
-        with tarfile.open(archive) as tar:
-            tar.extractall(content, filter="data")
 
-        # Databáze přidaná později (users.db) ve starší záloze chybí – ta se přeskočí a zůstane současná.
-        databases = []
-        for destination, target in DATABASES:
-            if os.path.exists(os.path.join(content, target)):
-                databases.append((destination, target))
-            else:
-                log(f"  {target}: v záloze není, ponechávám současný stav")
+    content = os.path.join(work, "content")
+    with tarfile.open(archive) as tar:
+        tar.extractall(content, filter="data")
 
-        # Nejdřív zkontrolovat všechno – teprve pak cokoli měnit.
-        for _, target in databases:
+    # Nejdřív zkontrolovat všechno – teprve pak cokoli měnit.
+    for _, target in DATABASES:
+        if os.path.exists(os.path.join(content, target)):
             check_integrity(os.path.join(content, target))
 
-        stamp = f"{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}"
-        for destination, target in databases:
-            owner = os.stat(os.path.dirname(destination))  # vlastník volume = uživatel "app" z image
-            if os.path.exists(destination):
-                # Původní soubor nechat vedle (pro jistotu), WAL/SHM smazat – patří ke starému souboru.
-                os.replace(destination, f"{destination}.before-restore-{stamp}")
-            for suffix in ("-wal", "-shm", "-journal"):
-                if os.path.exists(destination + suffix):
-                    os.remove(destination + suffix)
-            shutil.copyfile(os.path.join(content, target), destination)
-            os.chown(destination, owner.st_uid, owner.st_gid)
-            log(f"  {target} → {destination}")
+    # Snímek PostgreSQL čte restore.sh (pg_restore v kontejneru databáze) – musí být čitelný i pro uživatele deploy.
+    for root, dirs, files in os.walk(work):
+        for entry in [root, *(os.path.join(root, f) for f in files)]:
+            os.chmod(entry, 0o755 if os.path.isdir(entry) else 0o644)
+    log("Záloha stažená a zkontrolovaná.")
 
-        for destination, target in DIRECTORIES:
-            if not os.path.isdir(os.path.join(content, target)):
-                log(f"  {target}/: v záloze není, ponechávám současný stav")
-                continue
-            owner = os.stat(os.path.dirname(destination))
-            if os.path.isdir(destination):
-                os.replace(destination, f"{destination}.before-restore-{stamp}")
-            shutil.copytree(os.path.join(content, target), destination)
-            for root, dirs, files in os.walk(destination):
-                for entry in [root, *(os.path.join(root, f) for f in files)]:
-                    os.chown(entry, owner.st_uid, owner.st_gid)
-            log(f"  {target}/ → {destination}")
+
+def restore_files(work: str) -> None:
+    """Vymění SQLite soubory, klíče a obrázky ve volumes za verzi ze zálohy (rozbalené přes fetch)."""
+    content = os.path.join(work, "content")
+
+    # Databáze přidaná později (users.db) ve starší záloze chybí – ta se přeskočí a zůstane současná.
+    databases = []
+    for destination, target in DATABASES:
+        if os.path.exists(os.path.join(content, target)):
+            databases.append((destination, target))
+        else:
+            log(f"  {target}: v záloze není, ponechávám současný stav")
+
+    stamp = f"{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}"
+    for destination, target in databases:
+        owner = os.stat(os.path.dirname(destination))  # vlastník volume = uživatel "app" z image
+        if os.path.exists(destination):
+            # Původní soubor nechat vedle (pro jistotu), WAL/SHM smazat – patří ke starému souboru.
+            os.replace(destination, f"{destination}.before-restore-{stamp}")
+        for suffix in ("-wal", "-shm", "-journal"):
+            if os.path.exists(destination + suffix):
+                os.remove(destination + suffix)
+        shutil.copyfile(os.path.join(content, target), destination)
+        os.chown(destination, owner.st_uid, owner.st_gid)
+        log(f"  {target} → {destination}")
+
+    for destination, target in DIRECTORIES:
+        if not os.path.isdir(os.path.join(content, target)):
+            log(f"  {target}/: v záloze není, ponechávám současný stav")
+            continue
+        owner = os.stat(os.path.dirname(destination))
+        if os.path.isdir(destination):
+            os.replace(destination, f"{destination}.before-restore-{stamp}")
+        shutil.copytree(os.path.join(content, target), destination)
+        for root, dirs, files in os.walk(destination):
+            for entry in [root, *(os.path.join(root, f) for f in files)]:
+                os.chown(entry, owner.st_uid, owner.st_gid)
+        log(f"  {target}/ → {destination}")
 
     log("Obnova souborů hotová.")
 
@@ -177,8 +199,10 @@ def main() -> None:
     command = sys.argv[1] if len(sys.argv) > 1 else ""
     if command == "backup":
         backup()
-    elif command == "restore" and len(sys.argv) == 3:
-        restore(sys.argv[2])
+    elif command == "fetch" and len(sys.argv) == 4:
+        fetch(sys.argv[2], sys.argv[3])
+    elif command == "restore-files" and len(sys.argv) == 3:
+        restore_files(sys.argv[2])
     elif command == "list":
         for name in list_backups():
             print(name)

@@ -101,6 +101,7 @@ Plán: [docs/Skalovani-roadmap.md](code:docs/Skalovani-roadmap.md) – víc inst
 | 2 | Testy nad PostgreSQL – celá sada i nad skutečným PostgreSQL (Testcontainers, šablona + kopie databáze pro každý test), druhý job v CI; našly chybějící kategorii „Nezařazeno“ v migracích PostgreSQL | [skalovani-02](code:docs/kroky-skalovani/krok-02-testy-postgresql.md) |
 | 3A | Příprava převodu – příkaz `migrate-to-postgres` (převod podle modelu EF, stejná ID, kontrola počtů, pojistky proti přepsání), PostgreSQL 18 v produkci, secret `POSTGRES_PASSWORD`, `pg_dump` v noční záloze, health check databáze; generálka v Compose | [skalovani-03a](code:docs/kroky-skalovani/krok-03a-priprava-prevodu.md) |
 | 3B | Přepnutí produkce – odstávka ~25 min: zastavit služby, záloha, `migrate-to-postgres` (1 702 řádků ve 41 tabulkách, počty souhlasí), `DATABASE_PROVIDER=Postgres`; SQLite zůstává jako cesta zpět | [skalovani-03b](code:docs/kroky-skalovani/krok-03b-prepnuti-produkce.md) |
+| 4 | Obnova ze zálohy – `restore.sh` obnoví i PostgreSQL z `pg_dump` (nejdřív ověří, původní databázi jen přejmenuje, při chybě ji vrátí, starou zálohu bez dat odmítne), obnova i z lokálního souboru; generálka nanečisto + cvičná obnova v produkci | [skalovani-04](code:docs/kroky-skalovani/krok-04-obnova.md) |
 
 ## Proč po krocích
 

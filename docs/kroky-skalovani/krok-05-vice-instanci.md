@@ -58,6 +58,14 @@ aby Web běžel ve víc kopiích: databáze je po síti a zprávy si consumery d
 - Obnova katalogu (POST na nové vedoucí) → `SyncCatalogV1` z outboxu Webu → sklad → `ProductUpdatedV1/V2` → consumery. Zpracováno.
 - Kopie znovu spuštěná = záložní. `docker kill` (tvrdý pád) vedoucí: **60× 200**, nejdelší 0,3 s, převzetí do 1 s.
 
+## Zkouška výpadku v produkci (5. 11. 2026, commit `cc43719`)
+
+- Po nasazení dvě kopie healthy, vedoucí `web-1`.
+- `docker stop minishop-web-1` během 60 požadavků na `https://minishop-tichy.cz/Shop`: **60× 200**,
+  `web-1 … už není vedoucí` (19:06:07) → `web-2 … je vedoucí` (19:06:10) – převzetí za **3 s**.
+- `docker compose up -d web` – `web-1` zpět healthy jako záložní, vedoucí dál `web-2`.
+- Objednávka na dobírku přes novou vedoucí kopii potvrzena (sága přes outbox `web-2`).
+
 ## Rozhodnutí
 
 - **Advisory lock, ne tabulka s nájmem ani Redis:** nic navíc k provozu, žádné vypršení ani hodiny – zámek zanikne

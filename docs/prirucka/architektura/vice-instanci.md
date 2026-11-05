@@ -86,14 +86,16 @@ transakce (`pg_advisory_xact_lock`), hlídá „posledního admina“ ve [správ
 
 - `web` má `deploy.replicas: ${WEB_REPLICAS:-1}`, produkce `WEB_REPLICAS=2` ([production.env](code:deploy/production.env)).
 - [Caddyfile](code:deploy/Caddyfile): snippet `web-upstream` – `dynamic a web 8080` (adresy kopií z DNS sítě Compose,
-  obnova po 5 s), `round_robin`, nedostupnou kopii vyřadí na 30 s a požadavek zkusí na jiné (`lb_try_duration 5s`).
+  obnova po 5 s), `round_robin`, nedostupnou kopii vyřadí na 5 s a požadavek zkusí na jiné (`lb_try_duration 10s`,
+  `dial_timeout 1s` – zmizelá kopie nemá IP, spojení by jinak dlouho čekalo).
 - Logy: každá kopie má vlastní soubor `/data/logs/minishop-<kontejner>-RRRRMMDD.log`
   ([PerInstanceLogFiles](code:src/MiniShop.ServiceDefaults/PerInstanceLogFiles.cs)); soubory zaniklých kopií se po 7 dnech smažou.
 - Která kopie je vedoucí: `docker compose logs web | grep Vedoucí`.
 
 ## Známá omezení
 
-- **Nasazení** restartuje obě kopie naráz – krátká odstávka při deployi zůstává (postupné nasazení = samostatné téma).
+- ~~Nasazení restartuje obě kopie naráz~~ – od kroku 5B se kopie mění postupně bez výpadku
+  ([CD – postupné nasazení](../github/cd.md)).
 - **Limit formulářů účtu** (rate limiting) počítá každá kopie zvlášť – skutečný limit je 2× vyšší.
 - **Sklad** (`inventory-api`) běží v jedné kopii; volbu vedoucí už má, víc kopií by potřebovalo jen balancování na straně Webu.
 - Obě kopie jsou na **jedné VM** – pád celého stroje je dál výpadek (druhá VM = škálování krok 6).

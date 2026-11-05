@@ -131,6 +131,8 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   `DatabaseMigrationTests.Migrace_ProdukcniHistorieZustavaPlatna`), stejně jako `HasPendingModelChanges` a tabulky jen ve schématu modulu.
   Ruční SQL (data) v migraci EF nevygeneruje – dopsat ručně (tak chyběla kategorie „Nezařazeno“).
   Migrace nesmí ztratit data (pozor na přejmenování – EF z něj udělá DROP + ADD; zkontrolovat vygenerovaný kód).
+  **Migrace musí fungovat i se starší verzí kódu** (škálování krok 5B – postupné nasazení: stará a nová verze běží chvíli
+  souběžně): přidat sloupec (nullable/s výchozí hodnotou) nebo tabulku ano, přejmenovat/smazat jen ve dvou nasazeních (expand → contract).
 - Testy OrderService používají skutečný dispatcher a skutečné handlery (testují celou cestu).
   Služby skládají přes `AddInfrastructure` nad čerstvou PostgreSQL databází (`TestDatabases`), každá akce
   běží ve vlastním scope a outboxy všech modulů se zpracují ručně přes `ProcessOutboxAsync()` – žádné čekání na workera.
@@ -480,6 +482,11 @@ převod produkčních dat s krátkou odstávkou, expand → contract. Souhrny do
   a krátký překryv se starým vedoucím (idempotence). Sdílené `web-data` = společné klíče Data Protection. V paměti kopie
   (rate limiting) = limit na kopii. Testy: workery odebírá `HostedServices.RemoveMiniShopWorkers` (i registrované továrnou).
   Vedoucí zjistit `docker compose logs web | grep Vedoucí`.
+- **Postupné nasazení (krok 5B):** `deploy.sh` → infrastruktura `up --no-deps` (jinak `depends_on` caddy → web vymění Web naráz),
+  pak `deploy/rolling-update.sh inventory-api 1` a `… web $WEB_REPLICAS` (`--scale` staré+nové `--no-recreate`, `--wait`,
+  nezdravé nové `docker rm -f` = rollback bez výpadku, 15 s pauza, staré `docker stop --time 30` + `rm`). Caddy `web-upstream`:
+  `fail_duration 5s` (nová kopie je v DNS dřív, než otevře port), `dial_timeout 1s` (odstraněná kopie nemá IP), `lb_try_duration 10s`.
+  Jména kontejnerů se po nasazení mění (`minishop-web-<N>`). Lokální zkouška: `WEB_PORT` rozsah aspoň 2× kopií (`8080-8083`).
 
 | Krok | Stav | Souhrn |
 | --- | --- | --- |
@@ -489,7 +496,8 @@ převod produkčních dat s krátkou odstávkou, expand → contract. Souhrny do
 | 3B. Přepnutí produkce (odstávka, `migrate-to-postgres` na VM, `DATABASE_PROVIDER=Postgres` v `production.env`) | hotovo (4. 11. 2026, odstávka ~25 min, 1 702 řádků ve 41 tabulkách, počty souhlasí; produkce na PostgreSQL ověřena v prohlížeči i novou objednávkou; SQLite soubory zůstávají jako cesta zpět do 3C) | `docs/kroky-skalovani/krok-03b-prepnuti-produkce.md` |
 | 3C. Odebrání SQLite – contract (provider, migrace SQLite, baseline, `migrate-to-postgres`, SQLite v zálohách; migrace PostgreSQL zpět do `MiniShop.Infrastructure`, testy jen PostgreSQL, CI jeden job) | hotovo (nasazeno 5. 11. 2026; oprava souběhu „poslední admin“ a dvojkliku v pokladně; záloha bez SQLite, staré `.db` na VM smazány) | `docs/kroky-skalovani/krok-03c-odebrani-sqlite.md` |
 | 4. Obnova ze zálohy (`restore.sh` s `pg_restore`, přejmenování původní DB, vrácení při chybě, odmítnutí staré zálohy; `pg_dump` už od 3A) | hotovo (generálka v Compose; cvičná obnova v produkci 5. 11. 2026: záloha 165410Z, obnova 18 s, počty shodné, záložní DB smazána) | `docs/kroky-skalovani/krok-04-obnova.md` |
-| 5. Více instancí (`LeaderElection` přes advisory lock, `LeaderOnlyHostedService` pro workery s časovačem, `web` ve dvou kopiích za Caddy – `WEB_REPLICAS`, `dynamic a`, log pro každou kopii, TCP keepalive PostgreSQL) | implementováno (generálka v Compose: zastavení i `docker kill` vedoucí kopie – 60/60 požadavků OK, převzetí do 1 s); čeká na nasazení | `docs/kroky-skalovani/krok-05-vice-instanci.md` |
+| 5. Více instancí (`LeaderElection` přes advisory lock, `LeaderOnlyHostedService` pro workery s časovačem, `web` ve dvou kopiích za Caddy – `WEB_REPLICAS`, `dynamic a`, log pro každou kopii, TCP keepalive PostgreSQL) | hotovo (nasazeno 5. 11. 2026; zkouška výpadku v produkci: `docker stop` vedoucí kopie → 60/60 požadavků 200, převzetí za 3 s, vrácená kopie zůstala záložní, objednávka přes novou vedoucí potvrzena) | `docs/kroky-skalovani/krok-05-vice-instanci.md` |
+| 5B. Postupné nasazení (`deploy/rolling-update.sh` – nové kopie vedle starých, pak staré pryč, nezdravé nové zahodit; infrastruktura zvlášť; Caddy `fail_duration 5s`, `dial_timeout 1s`; migrace kompatibilní se starší verzí) | implementováno (generálka: 3 nasazení po sobě 522× 200, nezdravá verze zahozena 153× 200); čeká na nasazení | `docs/kroky-skalovani/krok-05b-postupne-nasazeni.md` |
 | 6. Druhá VM (volitelně) | plán | — |
 
 ## Postup práce na dalším kroku EDA

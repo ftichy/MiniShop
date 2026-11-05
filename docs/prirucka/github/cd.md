@@ -29,12 +29,12 @@ sequenceDiagram
     VM->>VM: změnilo se heslo RabbitMQ? → rabbitmqctl change_password
     VM->>R: docker compose pull (sha-…)
     VM->>VM: infrastruktura: up --no-deps --wait (postgres, rabbitmq, caddy, dashboard)
+    VM->>VM: změnil se Caddyfile? → caddy reload (ještě před výměnou kopií)
     VM->>VM: rolling-update.sh inventory-api, pak web – nové kopie vedle starých, pak staré pryč
     alt něco selhalo
         Note over VM: nezdravé nové kopie rolling-update.sh odstraní sám – staré běží dál
         VM->>VM: rollback na předchozí .env a soubory
     end
-    VM->>VM: změnil se Caddyfile? → caddy reload
     GA->>GA: smoke test zvenku – HTTPS 401/200, /health = Healthy
 ```
 
@@ -69,6 +69,8 @@ sequenceDiagram
 - Vedoucí kopie ([Více instancí](../architektura/vice-instanci.md)) se vymění sama: stará pustí zámek, nová ho převezme.
 - **Stará a nová verze běží chvíli souběžně nad stejnou databází.** Migrace proto musí fungovat i se starší verzí kódu:
   přidat sloupec/tabulku ano, přejmenovat nebo smazat jen ve dvou nasazeních (expand → contract, jako kontrakty zpráv).
+- **Změněný Caddyfile se načte před výměnou kopií** – nové nastavení (krátké `dial_timeout`) musí platit už během ní.
+  První nasazení kroku 5B ho načetlo až po výměně a jeden požadavek na odstraněnou kopii skončil po 3 s chybou 502.
 - Kontejnery se po každém nasazení jmenují jinak (`minishop-web-3`, `-4`…) – Compose čísluje dál.
 - Generálka: tři nasazení po sobě během smyčky požadavků přes Caddy – 522× 200, nejdelší 1,3 s; nezdravá verze
   se sama zahodila (153× 200).

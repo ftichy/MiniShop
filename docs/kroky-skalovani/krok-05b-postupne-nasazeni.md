@@ -30,7 +30,8 @@ Vedoucí kopie (krok 5) se vymění sama – stará při zastavení pustí záme
 
 ## Změněné soubory
 
-- `deploy/deploy.sh` – infrastruktura zvlášť, sklad a Web přes `rolling-update.sh` (volitelný soubor z gitu).
+- `deploy/deploy.sh` – infrastruktura zvlášť, sklad a Web přes `rolling-update.sh` (volitelný soubor z gitu);
+  změněný Caddyfile se načte před výměnou kopií (oprava po prvním nasazení).
 - `deploy/Caddyfile` – `fail_duration 5s` (dřív 30 s), `lb_try_duration 10s`, `transport http { dial_timeout 1s }`.
 - Příručka: CD (sekce Postupné nasazení + diagram), databáze (pravidlo pro migrace), více instancí, monitoring, historie.
 
@@ -52,6 +53,16 @@ každých 0,2 s.
 (proto `dial_timeout 1s`); (b) nová kopie je v DNS hned po startu, ale port otevře o pár sekund později – Caddy ji
 po prvním odmítnutí vyřadil na celých 30 s, a když staré kopie odešly, neměl kam posílat (proto `fail_duration 5s`
 a pauza 15 s). Odhalil to až debug log Caddy (`refreshing A upstreams`, `selected upstream`).
+
+## Produkce – první nasazení (5. 11. 2026)
+
+Nový `deploy.sh` nainstalovaný na VM před sloučením PR #66, během nasazení smyčka `GET /Shop` každých 0,3 s z VM.
+
+- Sklad 1 + 1 kopie, Web 2 + 2 kopie (`web-3`, `web-4`), staré pryč – celá výměna ~50 s, smoke test zelený.
+- **1223× 200, 1× 502** (20:53:35, po 3 s). Log Caddy: `dial tcp 172.18.0.6:8080: i/o timeout` – požadavek na odstraněnou
+  kopii. Příčina: `deploy.sh` načítal změněný Caddyfile (`caddy reload`) **až po** výměně kopií, takže celé nasazení běželo
+  se starým nastavením Caddy (výchozí dial timeout 3 s, `fail_duration 30s`) – stejný případ jako pokus 2 generálky.
+- Oprava: `reload_caddy_if_changed` hned po kroku s infrastrukturou, před `rolling-update.sh`.
 
 ## Rozhodnutí
 

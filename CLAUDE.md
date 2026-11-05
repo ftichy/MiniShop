@@ -483,6 +483,7 @@ převod produkčních dat s krátkou odstávkou, expand → contract. Souhrny do
   (rate limiting) = limit na kopii. Testy: workery odebírá `HostedServices.RemoveMiniShopWorkers` (i registrované továrnou).
   Vedoucí zjistit `docker compose logs web | grep Vedoucí`.
 - **Postupné nasazení (krok 5B):** `deploy.sh` → infrastruktura `up --no-deps` (jinak `depends_on` caddy → web vymění Web naráz),
+  změněný Caddyfile `caddy reload` hned potom (ne až po výměně kopií – první nasazení tak dostalo 1× 502),
   pak `deploy/rolling-update.sh inventory-api 1` a `… web $WEB_REPLICAS` (`--scale` staré+nové `--no-recreate`, `--wait`,
   nezdravé nové `docker rm -f` = rollback bez výpadku, 15 s pauza, staré `docker stop --time 30` + `rm`). Caddy `web-upstream`:
   `fail_duration 5s` (nová kopie je v DNS dřív, než otevře port), `dial_timeout 1s` (odstraněná kopie nemá IP), `lb_try_duration 10s`.

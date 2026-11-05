@@ -354,7 +354,9 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   → `minishop-RRRRMMDDTHHMMSSZ.tar.gz` → bucket `minishop-backups`, lifecycle 7 dní). VM se přihlašuje jako instance principal
   (dynamická skupina `minishop-vm`, politika v `infra/backup.tf`: číst + vytvářet, ne mazat). Obnova:
   `sudo -u deploy /opt/minishop/restore.sh latest|<jméno>|list` (zastaví web + inventory-api, původní soubory nechá jako
-  `*.before-restore-…`). Skripty záloh přináší `deploy.sh` z gitu (volitelné soubory – starší commity je nemají),
+  `*.before-restore-…`; škálování krok 4: `backup.py fetch` → ověření `minishop.pgdump` (pg_restore --list, schéma `ordering`) →
+  `minishop` přejmenuje na `minishop_before_restore_<čas>` + `pg_restore` (chyba = vrácení) → `restore-files`; stará záloha bez dat odmítnuta;
+  i z lokálního souboru `restore.sh /cesta/….tar.gz`; zkouška nanečisto: `MINISHOP_APP_DIR`, `COMPOSE_PROJECT_NAME` v .env). Skripty záloh přináší `deploy.sh` z gitu (volitelné soubory – starší commity je nemají),
   jednotky systemd cloud-init. Hlídač zálohy: healthchecks.io (`HEALTHCHECKS_BACKUP_URL`, volitelný secret).
   Od škálování kroku 3A `backup.sh` nejdřív `pg_dump --format=custom` (kontejner postgres) → `minishop.pgdump` v archivu (obnova = krok 4).
   Nová DB = `DATABASES`, nová složka s daty = `DIRECTORIES` v `backup.py` (od e-shop kroku 2B i `/inventory/images`). Před rizikovou akcí ruční záloha `sudo systemctl start minishop-backup`.
@@ -486,7 +488,7 @@ převod produkčních dat s krátkou odstávkou, expand → contract (oba provid
 | 3A. Příprava převodu (`migrate-to-postgres` + `SqliteToPostgresCopier`, značka `__MiniShopDataMigration` / `--replace`, PostgreSQL 18 v produkčním Compose, secret `POSTGRES_PASSWORD`, `pg_dump` v `backup.sh`, `DatabaseHealthCheck`) | hotovo (generálka v Compose; nasazeno 4. 11. 2026 – prázdný PostgreSQL 18 na VM healthy, noční záloha obsahuje `minishop.pgdump`) | `docs/kroky-skalovani/krok-03a-priprava-prevodu.md` |
 | 3B. Přepnutí produkce (odstávka, `migrate-to-postgres` na VM, `DATABASE_PROVIDER=Postgres` v `production.env`) | hotovo (4. 11. 2026, odstávka ~25 min, 1 702 řádků ve 41 tabulkách, počty souhlasí; produkce na PostgreSQL ověřena v prohlížeči i novou objednávkou; SQLite soubory zůstávají jako cesta zpět do 3C) | `docs/kroky-skalovani/krok-03b-prepnuti-produkce.md` |
 | 3C. Odebrání SQLite – contract (provider, migrace SQLite, baseline, `backup.py` SQLite; testy výchozí PostgreSQL) | plán | — |
-| 4. Obnova ze zálohy (`restore.sh` s `pg_restore`, cvičná obnova; `pg_dump` už od 3A) | plán | — |
+| 4. Obnova ze zálohy (`restore.sh` s `pg_restore`, přejmenování původní DB, vrácení při chybě, odmítnutí staré zálohy; `pg_dump` už od 3A) | hotovo (generálka v Compose: obnova, stará záloha, poškozený snímek, vrácení; cvičná obnova v produkci čeká) | `docs/kroky-skalovani/krok-04-obnova.md` |
 | 5. Více instancí (leader lease přes advisory lock, `web` ve dvou kopiích za Caddy) | plán | — |
 | 6. Druhá VM (volitelně) | plán | — |
 

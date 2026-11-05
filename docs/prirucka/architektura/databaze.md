@@ -111,7 +111,7 @@ flowchart LR
   scénářů (objednávky přes celou ságu, platby, kupony, expedice, vratky, hodnocení, přehled tržeb, notifikace, účty
   se zablokovaným uživatelem) a porovnají **obsah každé tabulky**, ne jen počty.
 
-Po přepnutí běží zálohy `pg_dump` (viz [Zálohy](../nasazeni/zalohy.md)) a `/health` hlídá i dostupnost databáze
+Po přepnutí běží zálohy `pg_dump` a obnova `restore.sh` s `pg_restore` (viz [Zálohy](../nasazeni/zalohy.md)) a `/health` hlídá i dostupnost databáze
 (kontrola `database-ordering`, `database-inventory` – [DatabaseHealthCheck](code:src/MiniShop.Infrastructure/Observability/DatabaseHealthCheck.cs)).
 
 ## Dvě sady migrací

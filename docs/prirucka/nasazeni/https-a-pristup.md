@@ -17,7 +17,7 @@ sequenceDiagram
     participant D as WEDOS DNS
     participant SL as Security list OCI
     participant C as Caddy
-    participant W as web:8080
+    participant W as web:8080 (2 kopie)
 
     U->>D: minishop-tichy.cz?
     D-->>U: 141.144.255.238 (reserved IP)
@@ -43,7 +43,7 @@ sequenceDiagram
 | **Doména `minishop-tichy.cz`** (Wedos) | vlastní doména druhého řádu; DNS hostuje Wedos zdarma – dva záznamy A (`@` a `dashboard`) na reserved IP, TTL 300, bez AAAA | sdílené domény zdarma (DuckDNS) mají u antivirů a firemních filtrů špatnou pověst – stejnou adresu zneužívají i podvodníci. Vlastní doména `.cz` stojí řádově stovky Kč ročně. |
 | **DuckDNS** (dřívější) | původní adresa `minishop-tichy.duckdns.org` – Caddy z ní trvale (301) přesměruje na novou doménu i s cestou | staré záložky a odkazy z e-mailů (potvrzení účtu, reset hesla) dál fungují. Záznam u DuckDNS musí dál ukazovat na reserved IP. |
 | **Reserved IP** | pevná veřejná adresa | DNS na ni ukazuje; nová VM ji převezme |
-| **Caddy** | reverse proxy: HTTPS, obnova certifikátu, přesměrování http → https, basic auth (dashboard), komprese, skrytí hlaviček `Server` a `Via` | certifikát bez jediného řádku konfigurace navíc (oproti Nginx + certbot) |
+| **Caddy** | reverse proxy: HTTPS, obnova certifikátu, přesměrování http → https, basic auth (dashboard), komprese, skrytí hlaviček `Server` a `Via`; od škálování kroku 5 i **rozdělování zátěže** mezi kopie Webu (round robin, nedostupnou kopii obejde – [Více instancí](../architektura/vice-instanci.md)) | certifikát bez jediného řádku konfigurace navíc (oproti Nginx + certbot) |
 | **Let's Encrypt** | bezplatné certifikáty, ověření přes port 80 (HTTP-01) | standard; Caddy se o obnovu stará sám |
 | **Basic auth** | jedno heslo (uživatel `minishop`) – od účtů kroku 9 jen před Aspire dashboardem | web má vlastní přihlášení a role ([Accounts](../architektura/moduly/accounts.md)), proto `BASIC_AUTH=off` v `production.env`; `on` web znovu zamkne |
 | **Tailscale** | soukromá síť (WireGuard) mezi PC správce, VM a runnerem GitHub Actions | SSH (22) nemusí být otevřené do internetu |

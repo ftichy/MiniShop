@@ -32,14 +32,16 @@ public static class MessagingServiceCollectionExtensions
         options.ConnectionString ??= configuration.GetConnectionString("messaging");
 
         services.AddRabbitMq(options);
+        // Škálování krok 5: consumery ve všech kopiích (fronta zprávy rozdělí, duplicitu zahodí inbox),
+        // outbox a úklid jen na vedoucí kopii (jinak by stejnou zprávu odeslaly obě). Volba vedoucí = AddLeaderElection.
         services.AddHostedService<RabbitMqConsumersWorker>();
-        services.AddHostedService<OutboxWorker>();
+        services.AddLeaderOnlyHostedService<OutboxWorker>();
 
         // EDA krok 13: úklid zpracovaných zpráv v databázích modulů této služby.
         services.AddSingleton(new MessageRetentionSettings(
             TimeSpan.FromDays(configuration.GetValue("Messaging:Retention:OutboxDays", 7)),
             TimeSpan.FromDays(configuration.GetValue("Messaging:Retention:InboxDays", 30))));
-        services.AddHostedService<MessageRetentionWorker>();
+        services.AddLeaderOnlyHostedService<MessageRetentionWorker>();
 
         return services;
     }

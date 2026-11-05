@@ -38,9 +38,10 @@ USER $APP_UID
 
 # Výchozí nastavení pro kontejner (12-factor: jde přepsat proměnnou prostředí při spuštění).
 # "__" v názvu = ":" v konfiguraci, WriteTo__1 = druhý cíl Serilogu (soubor) v appsettings.json.
+# Škálování krok 5: {Instance} = jméno kontejneru – každá kopie Webu píše do vlastního souboru (PerInstanceLogFiles).
 ENV ASPNETCORE_HTTP_PORTS=8080 \
     DataProtection__KeysPath=/data/keys \
-    Serilog__WriteTo__1__Args__path=/data/logs/minishop-.log
+    Serilog__WriteTo__1__Args__path=/data/logs/minishop-{Instance}-.log
 EXPOSE 8080
 
 COPY --from=build /app/publish .

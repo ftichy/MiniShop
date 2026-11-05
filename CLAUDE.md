@@ -119,7 +119,8 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
 - Entity mění stav jen přes metody s business pravidly; čas se předává parametrem (z `TimeProvider`),
   doména nevolá `DateTime.UtcNow`.
 - Logování přes **Serilog** (jen ve službách – Web a Inventory.Api, ten do `logs/inventory-RRRRMMDD.log`): konzole + denní soubor `src/MiniShop.Web/logs/minishop-RRRRMMDD.log`
-  (7 dní, v `.gitignore`). Úrovně a cíle v sekci `Serilog` v appsettings, ne v `Logging`. Ostatní vrstvy
+  (7 dní, v `.gitignore`; v kontejneru `/data/logs/minishop-{Instance}-.log` – škálování krok 5: `PerInstanceLogFiles` dosadí jméno
+  kontejneru, každá kopie vlastní soubor). Úrovně a cíle v sekci `Serilog` v appsettings, ne v `Logging`. Ostatní vrstvy
   logují přes `ILogger<T>` a o Serilogu nevědí. `UseSerilogRequestLogging` musí být v pipeline **před** `UseExceptionHandler`
   (jinak loguje ošetřené 404/400 jako 500).
 - **Všechny moduly mají EF Core migrace** (PostgreSQL, schéma na modul, historie migrací ve schématu modulu) –
@@ -273,7 +274,7 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
 | 13. Úklid a odolnost zpráv (`MessageRetentionWorker` – outbox 7 / inbox 30 dní, `OutboxMessage.NextAttemptAtUtc` backoff, consumer: počet pokusů v hlavičce + `minishop.{modul}.dead`, `/Admin/Messages`, health check `dead-letters`) | hotovo (nasazeno 4. 11. 2026, stránka Zprávy a dead-letter fronty ověřeny v produkci) | `docs/kroky/krok-13-uklid-a-odolnost-zprav.md` |
 
 Známé omezení po kroku 11: vnější akce (notifikace) nejsou v transakci – při pádu mezi odesláním a zápisem
-do inboxu odejdou znovu. Inbox i outbox uklízí `MessageRetentionWorker` (EDA krok 13). Worker počítá s jednou instancí aplikace.
+do inboxu odejdou znovu. Inbox i outbox uklízí `MessageRetentionWorker` (EDA krok 13). Workery s časovačem běží jen na vedoucí kopii služby (škálování krok 5).
 `OrderingDomainEventReader` převádí payload zpět na událost načtením `Order` podle `OrderId` (handlery vidí aktuální stav).
 Integrační zprávy jdou do RabbitMQ (`RabbitMqIntegrationBus`), nedostupný broker (`IntegrationBusUnavailableException`)
 se nepočítá jako pokus. Od EDA kroku 13: outbox opakuje s backoffem (5/10/20/40 s), consumer nejvýš 5× (2/4/8/16 s) a pak do `minishop.{modul}.dead`.
@@ -471,6 +472,14 @@ převod produkčních dat s krátkou odstávkou, expand → contract. Souhrny do
 - **Historie přechodu:** krok 1–2 oba provideři (migrace SQLite + PostgreSQL), 3A/3B převod `migrate-to-postgres` (odstranění
   v 3C, v historii gitu) 4. 11. 2026, 4 obnova (`restore.sh` s `pg_restore`), 3C odebrání SQLite (migrace PostgreSQL přesunuty
   zpět do `MiniShop.Infrastructure`, jména migrací zachována).
+- **Více instancí (krok 5):** Web v `WEB_REPLICAS` kopiích (produkce 2, `production.env`), Caddy `web-upstream` (`dynamic a web 8080`,
+  round robin, nedostupnou kopii obejde). Vedoucí kopie = `LeaderElection` (Infrastructure/Hosting; advisory lock
+  `minishop.web` / `minishop.inventory-api` na vlastním spojení bez poolu, `AddLeaderElection` před workery).
+  **Nový worker s časovačem = `AddLeaderOnlyHostedService<T>()`, ne `AddHostedService`** (hlídá `WorkerRegistrationTests`);
+  ve všech kopiích jen `RabbitMqConsumersWorker`. Worker musí snést zastavení a nové spuštění (nová instance na každé vedení)
+  a krátký překryv se starým vedoucím (idempotence). Sdílené `web-data` = společné klíče Data Protection. V paměti kopie
+  (rate limiting) = limit na kopii. Testy: workery odebírá `HostedServices.RemoveMiniShopWorkers` (i registrované továrnou).
+  Vedoucí zjistit `docker compose logs web | grep Vedoucí`.
 
 | Krok | Stav | Souhrn |
 | --- | --- | --- |
@@ -478,9 +487,9 @@ převod produkčních dat s krátkou odstávkou, expand → contract. Souhrny do
 | 2. Testy proti PostgreSQL (`MINISHOP_TEST_DATABASE=Postgres`, `TestDatabases` + `PostgresTestServer` – Testcontainers, šablona + kopie DB na test, CI job „Testy PostgreSQL“; oprava: kategorie „Nezařazeno“ v migraci PostgreSQL) | hotovo (lokálně obě varianty zelené) | `docs/kroky-skalovani/krok-02-testy-postgresql.md` |
 | 3A. Příprava převodu (`migrate-to-postgres` + `SqliteToPostgresCopier`, značka `__MiniShopDataMigration` / `--replace`, PostgreSQL 18 v produkčním Compose, secret `POSTGRES_PASSWORD`, `pg_dump` v `backup.sh`, `DatabaseHealthCheck`) | hotovo (generálka v Compose; nasazeno 4. 11. 2026 – prázdný PostgreSQL 18 na VM healthy, noční záloha obsahuje `minishop.pgdump`) | `docs/kroky-skalovani/krok-03a-priprava-prevodu.md` |
 | 3B. Přepnutí produkce (odstávka, `migrate-to-postgres` na VM, `DATABASE_PROVIDER=Postgres` v `production.env`) | hotovo (4. 11. 2026, odstávka ~25 min, 1 702 řádků ve 41 tabulkách, počty souhlasí; produkce na PostgreSQL ověřena v prohlížeči i novou objednávkou; SQLite soubory zůstávají jako cesta zpět do 3C) | `docs/kroky-skalovani/krok-03b-prepnuti-produkce.md` |
-| 3C. Odebrání SQLite – contract (provider, migrace SQLite, baseline, `migrate-to-postgres`, SQLite v zálohách; migrace PostgreSQL zpět do `MiniShop.Infrastructure`, testy jen PostgreSQL, CI jeden job) | hotovo (lokálně: produkční historie migrací bez čekajících migrací, testy zelené) | `docs/kroky-skalovani/krok-03c-odebrani-sqlite.md` |
+| 3C. Odebrání SQLite – contract (provider, migrace SQLite, baseline, `migrate-to-postgres`, SQLite v zálohách; migrace PostgreSQL zpět do `MiniShop.Infrastructure`, testy jen PostgreSQL, CI jeden job) | hotovo (nasazeno 5. 11. 2026; oprava souběhu „poslední admin“ a dvojkliku v pokladně; záloha bez SQLite, staré `.db` na VM smazány) | `docs/kroky-skalovani/krok-03c-odebrani-sqlite.md` |
 | 4. Obnova ze zálohy (`restore.sh` s `pg_restore`, přejmenování původní DB, vrácení při chybě, odmítnutí staré zálohy; `pg_dump` už od 3A) | hotovo (generálka v Compose; cvičná obnova v produkci 5. 11. 2026: záloha 165410Z, obnova 18 s, počty shodné, záložní DB smazána) | `docs/kroky-skalovani/krok-04-obnova.md` |
-| 5. Více instancí (leader lease přes advisory lock, `web` ve dvou kopiích za Caddy) | plán | — |
+| 5. Více instancí (`LeaderElection` přes advisory lock, `LeaderOnlyHostedService` pro workery s časovačem, `web` ve dvou kopiích za Caddy – `WEB_REPLICAS`, `dynamic a`, log pro každou kopii, TCP keepalive PostgreSQL) | implementováno (generálka v Compose: zastavení i `docker kill` vedoucí kopie – 60/60 požadavků OK, převzetí do 1 s); čeká na nasazení | `docs/kroky-skalovani/krok-05-vice-instanci.md` |
 | 6. Druhá VM (volitelně) | plán | — |
 
 ## Postup práce na dalším kroku EDA

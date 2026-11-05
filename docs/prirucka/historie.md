@@ -103,6 +103,7 @@ Plán: [docs/Skalovani-roadmap.md](code:docs/Skalovani-roadmap.md) – víc inst
 | 3B | Přepnutí produkce – odstávka ~25 min: zastavit služby, záloha, `migrate-to-postgres` (1 702 řádků ve 41 tabulkách, počty souhlasí), `DATABASE_PROVIDER=Postgres`; SQLite zůstává jako cesta zpět | [skalovani-03b](code:docs/kroky-skalovani/krok-03b-prepnuti-produkce.md) |
 | 4 | Obnova ze zálohy – `restore.sh` obnoví i PostgreSQL z `pg_dump` (nejdřív ověří, původní databázi jen přejmenuje, při chybě ji vrátí, starou zálohu bez dat odmítne), obnova i z lokálního souboru; generálka nanečisto + cvičná obnova v produkci | [skalovani-04](code:docs/kroky-skalovani/krok-04-obnova.md) |
 | 3C | Odebrání SQLite (contract) – jeden provider, migrace PostgreSQL zpět v `MiniShop.Infrastructure` (jména zachována, ověřeno proti produkční historii), testy jen nad PostgreSQL, CI jeden job, zálohy bez SQLite | [skalovani-03c](code:docs/kroky-skalovani/krok-03c-odebrani-sqlite.md) |
+| 5 | Více instancí – Web ve dvou kopiích za Caddy (round robin), vedoucí kopie přes PostgreSQL advisory lock (outbox, termíny ság, úklid a kontroly po startu jen na ní, consumery všude), log pro každou kopii; zkouška výpadku i tvrdého pádu vedoucí kopie | [skalovani-05](code:docs/kroky-skalovani/krok-05-vice-instanci.md) |
 
 ## Proč po krocích
 

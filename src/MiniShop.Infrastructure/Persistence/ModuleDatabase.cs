@@ -20,6 +20,17 @@ public sealed record ModuleDatabase(string ConnectionString)
         new(configuration.GetConnectionString(ConnectionName)
             ?? throw new InvalidOperationException($"Chybí connection string '{ConnectionName}' (databáze PostgreSQL)."));
 
+    /// <summary>
+    /// Škálování krok 5: samostatné spojení mimo EF Core (zámek vedoucí instance drží vlastní spojení po celou dobu vedení).
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="pooling"/> = false: zavření spojení ho opravdu zavře (a server uvolní zámky relace). Ze sdíleného
+    /// poolu by se spojení jen vrátilo – zámek by zůstal držený, dokud by ho Npgsql znovu nepoužil.
+    /// </remarks>
+    public NpgsqlConnection CreateConnection(bool pooling = true) =>
+        new(new NpgsqlConnectionStringBuilder(ModuleDatabaseExtensions.ConnectionString(ConnectionString)) { Pooling = pooling }
+            .ConnectionString);
+
     public override string ToString() => "PostgreSQL";   // connection string obsahuje heslo – do logu nepatří
 }
 
@@ -39,7 +50,7 @@ public static class ModuleDatabaseExtensions
     /// Škálování krok 3: Npgsql by se jinak při každém připojení pokusil o šifrování přes Kerberos (GSSAPI) – v image
     /// služeb knihovna libgssapi_krb5 není a do konzole by psal chybu. MiniShop se přihlašuje heslem, Kerberos nepoužívá.
     /// </summary>
-    private static string ConnectionString(string connectionString) =>
+    internal static string ConnectionString(string connectionString) =>
         new NpgsqlConnectionStringBuilder(connectionString) { GssEncryptionMode = GssEncryptionMode.Disable }.ConnectionString;
 
     /// <summary>

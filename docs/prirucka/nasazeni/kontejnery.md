@@ -43,14 +43,14 @@ Sestavení ručně (z kořene repozitáře): `docker build -f src/MiniShop.Web/D
 ```mermaid
 flowchart TB
     subgraph net["síť Compose 'minishop'"]
-        web["web :8080"]
+        web["web :8080<br/>(WEB_REPLICAS kopií, produkce 2)"]
         inv["inventory-api :8080<br/>(zvenku nedostupný)"]
         mq["rabbitmq :5672"]
         dash["aspire-dashboard<br/>OTLP :18889"]
         pg["postgres :5432<br/>(jen z VM 127.0.0.1)"]
     end
-    wv[("web-data<br/>schéma ordering, schéma journeys,<br/>schéma accounts, klíče, logy")]
-    iv[("inventory-data<br/>schéma inventory, images/")]
+    wv[("web-data<br/>klíče Data Protection (sdílené kopiemi),<br/>logy (soubor pro každou kopii)")]
+    iv[("inventory-data<br/>images/, logy")]
     rv[("rabbitmq-data<br/>fronty")]
     pv[("postgres-data<br/>schéma na modul")]
     web --- wv

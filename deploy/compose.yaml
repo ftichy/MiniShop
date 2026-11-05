@@ -50,6 +50,9 @@ services:
       POSTGRES_DB: minishop
       POSTGRES_USER: minishop
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Chybí POSTGRES_PASSWORD v .env}
+    # Škálování krok 5: zámek vedoucí kopie drží spojení. Když kopie zmizí bez rozloučení (pád stroje, síť),
+    # TCP keepalive ho serveru ohlásí jako mrtvé do ~1 min (30 s + 3× 10 s) a zámek se uvolní – výchozí jsou 2 hodiny.
+    command: ["postgres", "-c", "tcp_keepalives_idle=30", "-c", "tcp_keepalives_interval=10", "-c", "tcp_keepalives_count=3"]
     volumes:
       # PostgreSQL 18: volume na /var/lib/postgresql (data v podsložce 18/docker – usnadní budoucí upgrade verze).
       - postgres-data:/var/lib/postgresql
@@ -157,8 +160,15 @@ services:
       Email__FromAddress: ${EMAIL_FROM_ADDRESS:-minishop@localhost}
       # E-shop krok 7: odkazy v e-mailech o objednávce (modul Notifications). Produkce: PUBLIC_BASE_URL v production.env.
       Notifications__PublicBaseUrl: ${PUBLIC_BASE_URL:-http://localhost:8080}
+    # Škálování krok 5: víc kopií Webu (produkce 2 – production.env). Všechny sdílí volume web-data: klíče Data Protection
+    # musí být společné (cookie přihlášení a formuláře z jedné kopie platí i v druhé), logy má každá vlastní soubor.
+    # Workery s časovačem běží jen na vedoucí kopii (zámek v PostgreSQL), požadavky rozděluje Caddy (compose.cloud.yaml).
+    deploy:
+      replicas: ${WEB_REPLICAS:-1}
     volumes:
       - web-data:/data
+    # Lokálně: jedna kopie = port 8080. Víc kopií lokálně = rozsah (WEB_PORT=8080-8081), každá dostane jeden port.
+    # V cloudu Web publikovaný není (compose.cloud.yaml), požadavky přichází jen přes Caddy.
     ports:
       - "${WEB_PORT:-8080}:8080"
     depends_on:

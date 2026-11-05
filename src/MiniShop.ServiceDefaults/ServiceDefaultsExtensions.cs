@@ -26,6 +26,9 @@ public static class ServiceDefaultsExtensions
     /// </summary>
     public static IHostApplicationBuilder AddServiceDefaults(this IHostApplicationBuilder builder)
     {
+        // Škálování krok 5: každá kopie služby vlastní soubor s logy (jméno kontejneru v cestě, viz PerInstanceLogFiles).
+        PerInstanceLogFiles.Apply(builder.Configuration, Environment.MachineName, DateTime.UtcNow);
+
         builder.Services.AddServiceDiscovery();
 
         builder.Services.ConfigureHttpClientDefaults(http =>

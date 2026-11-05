@@ -49,8 +49,11 @@ flowchart LR
 
 ## Logy
 
-- Serilog píše do konzole kontejneru (`docker compose logs web`), do souboru `/data/logs/minishop-RRRRMMDD.log`
-  (7 dní) a přes **OpenTelemetry** do dashboardu, propojené s trasou.
+- Serilog píše do konzole kontejneru (`docker compose logs web` – obě kopie Webu, řádky mají předponu `web-1`/`web-2`),
+  do souboru `/data/logs/minishop-<kontejner>-RRRRMMDD.log` (škálování krok 5: každá kopie vlastní soubor, 7 dní)
+  a přes **OpenTelemetry** do dashboardu, propojené s trasou.
+- Která kopie je vedoucí (spouští outbox a další workery): `docker compose logs web | grep Vedoucí` –
+  viz [Více instancí](../architektura/vice-instanci.md).
 - Úrovně a cíle se nastavují v sekci `Serilog` v `appsettings.json`.
 
 ## Na internetu

@@ -77,6 +77,9 @@ order: 80
 | **Container / image** | běžící instance aplikace / neměnný balík aplikace se vším potřebným | [Kontejnery](nasazeni/kontejnery.md) |
 | **Environment (GitHub)** | sada secrets a pravidel pro nasazení do jednoho prostředí (`production`) | [CD](github/cd.md) |
 | **Health check** | adresa (`/health`), na které služba hlásí svůj stav | [Monitoring](nasazeni/monitoring.md) |
+| **Advisory lock** | pojmenovaný zámek v PostgreSQL bez vazby na tabulku – patří spojení (nebo transakci) a sám se uvolní, když spojení zanikne | [Více instancí](architektura/vice-instanci.md) |
+| **Vedoucí kopie (leader election)** | z několika kopií služby jen jedna dělá práci, která se nesmí dělat dvakrát (outbox, termíny); po jejím pádu převezme vedení jiná | [Více instancí](architektura/vice-instanci.md) |
+| **Load balancing (round robin)** | rozdělování požadavků mezi kopie služby – Caddy je posílá střídavě a nedostupnou kopii obejde | [Více instancí](architektura/vice-instanci.md) |
 | **IaC** | infrastruktura popsaná kódem (OpenTofu) místo klikání | [Infrastruktura jako kód](nasazeni/infrastruktura-jako-kod.md) |
 | **IAM politika** | pravidlo „kdo smí co a kde“ v cloudu | [Oracle Cloud](nasazeni/cloud-oci.md) |
 | **Instance principal** | identita VM – přihlásí se ke službám cloudu bez klíče | [Zálohy](nasazeni/zalohy.md) |

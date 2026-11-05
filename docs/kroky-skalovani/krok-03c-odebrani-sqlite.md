@@ -42,6 +42,13 @@ Oprava: na začátku transakce `pg_advisory_xact_lock(hashtext('minishop.account
 proběhnou postupně, druhá počká a pak už vidí výsledek první (a odmítne se). Zámek drží transakce, při commitu
 se sám uvolní. Produkce chybou ohrožená nebyla (jeden admin), oprava jde s tímto krokem.
 
+**Druhá chyba – dvojklik v pokladně** (našlo CI na PR tohoto kroku): dva současné požadavky se stejným `CheckoutId`.
+Se SQLite skončil druhý vždy až při ukládání (`ConcurrencyConflictException` → služba vrátí objednávku prvního).
+V PostgreSQL může druhý načíst košík až **po** commitu prvního – košík má novou verzi a `Cart.CheckOut` odmítne
+(„Košík se mezitím změnil“), i když objednávka vznikla. Oprava v `CheckoutService.PlaceOrderAsync`: když kontrola košíku
+selže, ještě se ověří objednávka se stejným `CheckoutId` a vrátí se. Test `Pokladna_SoubezneOdeslani_JednaObjednavka`
+běží 10 kol (souběh závisí na načasování – lokálně se okno netrefí, na CI ano).
+
 Ostatní místa „nejdřív kontrola, pak zápis“ (kupony, pokladna, košík, ságy, hodnocení) chrání concurrency token nebo
 unikátní index – souběh zachytí databáze i v PostgreSQL (test `Kupon_PosledniPouzitiNaraz_ProjdeJenJednaObjednavka`).
 

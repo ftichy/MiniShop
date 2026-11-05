@@ -2091,17 +2091,23 @@ public sealed class OrderServiceTests : IDisposable
     [Fact]
     public async Task Pokladna_SoubezneOdeslani_JednaObjednavka()
     {
-        var product = await AddProductAsync(price: 100m, stock: 10);
-        await Cart(s => s.AddItemAsync(Jan.CustomerId, product.Id, 1));
-        var checkoutId = (await Checkout(s => s.GetAsync(Jan.CustomerId))).CheckoutId;
+        var product = await AddProductAsync(price: 100m, stock: 50);
 
-        // Dva požadavky naráz (každý ve vlastním scope a DbContextu) – druhý narazí na verzi košíku nebo na unikátní index.
-        var results = await Task.WhenAll(
-            Checkout(s => s.PlaceOrderAsync(Pickup(checkoutId), Jan)),
-            Checkout(s => s.PlaceOrderAsync(Pickup(checkoutId), Jan)));
+        // Dva požadavky naráz (každý ve vlastním scope a DbContextu) – druhý narazí na verzi košíku nebo na unikátní index,
+        // nebo (PostgreSQL, škálování krok 3C) načte košík až po commitu prvního. Vždy dostane objednávku prvního.
+        // Víc kol – souběh závisí na načasování, jedno kolo by chybu chytilo jen náhodou.
+        for (var round = 1; round <= 10; round++)
+        {
+            await Cart(s => s.AddItemAsync(Jan.CustomerId, product.Id, 1));
+            var checkoutId = (await Checkout(s => s.GetAsync(Jan.CustomerId))).CheckoutId;
 
-        Assert.Equal(results[0].Id, results[1].Id);
-        Assert.Equal(1, await OrderingDb(db => db.Orders.CountAsync()));
+            var results = await Task.WhenAll(
+                Checkout(s => s.PlaceOrderAsync(Pickup(checkoutId), Jan)),
+                Checkout(s => s.PlaceOrderAsync(Pickup(checkoutId), Jan)));
+
+            Assert.Equal(results[0].Id, results[1].Id);
+            Assert.Equal(round, await OrderingDb(db => db.Orders.CountAsync()));
+        }
     }
 
     [Fact]

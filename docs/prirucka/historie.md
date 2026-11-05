@@ -104,6 +104,7 @@ Plán: [docs/Skalovani-roadmap.md](code:docs/Skalovani-roadmap.md) – víc inst
 | 4 | Obnova ze zálohy – `restore.sh` obnoví i PostgreSQL z `pg_dump` (nejdřív ověří, původní databázi jen přejmenuje, při chybě ji vrátí, starou zálohu bez dat odmítne), obnova i z lokálního souboru; generálka nanečisto + cvičná obnova v produkci | [skalovani-04](code:docs/kroky-skalovani/krok-04-obnova.md) |
 | 3C | Odebrání SQLite (contract) – jeden provider, migrace PostgreSQL zpět v `MiniShop.Infrastructure` (jména zachována, ověřeno proti produkční historii), testy jen nad PostgreSQL, CI jeden job, zálohy bez SQLite | [skalovani-03c](code:docs/kroky-skalovani/krok-03c-odebrani-sqlite.md) |
 | 5 | Více instancí – Web ve dvou kopiích za Caddy (round robin), vedoucí kopie přes PostgreSQL advisory lock (outbox, termíny ság, úklid a kontroly po startu jen na ní, consumery všude), log pro každou kopii; zkouška výpadku i tvrdého pádu vedoucí kopie | [skalovani-05](code:docs/kroky-skalovani/krok-05-vice-instanci.md) |
+| 5B | Postupné nasazení – `rolling-update.sh`: nové kopie vedle starých, po healthchecku staré pryč; nezdravá verze se sama zahodí (rollback bez výpadku); Caddy krátké vyřazení a timeout spojení; pravidlo: migrace kompatibilní se starší verzí | [skalovani-05b](code:docs/kroky-skalovani/krok-05b-postupne-nasazeni.md) |
 
 ## Proč po krocích
 

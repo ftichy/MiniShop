@@ -81,6 +81,10 @@ dotnet ef migrations add <Nazev> --project src/MiniShop.Infrastructure --context
 - Design-time továrny pro `dotnet ef` jsou v [DesignTimeDbContextFactories.cs](code:src/MiniShop.Infrastructure/DesignTimeDbContextFactories.cs).
 - První migrace se jmenují `…_InitialPostgres` (vznikly ve škálování kroku 1). **Jména migrací se nemění** – produkce
   je má zapsané v historii a EF podle jména pozná, co už proběhlo.
+- **Migrace musí fungovat i se starší verzí kódu** (škálování krok 5B): při postupném nasazení nová kopie spustí migraci,
+  zatímco stará kopie ještě chvíli obsluhuje. Přidat sloupec (s výchozí hodnotou nebo nullable) či tabulku ano;
+  přejmenovat nebo smazat jen ve dvou nasazeních – nejdřív přidat nové a přestat používat staré, v dalším nasazení
+  staré odebrat (expand → contract). Viz [CD – postupné nasazení](../github/cd.md).
 - Ruční SQL v migraci (data, ne schéma – např. kategorie „Nezařazeno“ v `UncategorizedCategory`) EF nevygeneruje, je
   potřeba ho dopsat ručně.
 - [DatabaseMigrationTests](code:tests/MiniShop.Tests/Infrastructure/DatabaseMigrationTests.cs) hlídají zapomenutou migraci,

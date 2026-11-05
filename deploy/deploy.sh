@@ -22,13 +22,15 @@
 #
 # Postup: ověří vstup → stáhne deploy/ z GitHubu přesně pro daný commit → sestaví .env (IMAGE_TAG=sha-<7 znaků>)
 #         → docker compose pull → up --wait (čeká na healthchecky) → při chybě vrátí předchozí verzi.
+#         Škálování krok 5B: sklad a Web postupně (rolling-update.sh) – nové kopie vedle starých, pak staré pryč.
 set -euo pipefail
 
 APP_DIR=/opt/minishop
 REPO=ftichy/MiniShop
 FILES=(compose.yaml compose.cloud.yaml Caddyfile production.env)
 # Krok 12: skripty záloh. Volitelné – starší commity (ruční rollback přes Deploy) je ještě nemají.
-OPTIONAL_FILES=(backup.py backup.sh restore.sh)
+# Škálování krok 5B: postupné nasazení (rolling-update.sh) – starší commity ho nemají, pak se nasazuje naráz.
+OPTIONAL_FILES=(backup.py backup.sh restore.sh rolling-update.sh)
 
 sha="${SSH_ORIGINAL_COMMAND:-${1:-}}"
 # Jen celý SHA commitu (40 malých hexa znaků). Nic jiného – žádné mezery, středníky, cesty.
@@ -207,7 +209,18 @@ cp -p "$work/.env" .env
 
 # 5. Image a spuštění. --wait = počkat, až budou kontejnery healthy (smoke test na VM).
 docker compose pull --quiet || rollback
-docker compose up -d --remove-orphans --wait --wait-timeout 180 || rollback
+if [ -f "$work/rolling-update.sh" ]; then
+    # Škálování krok 5B: postupné nasazení – infrastruktura (postgres, rabbitmq, caddy, dashboard) obvyklým způsobem
+    # (--no-deps: jinak by Compose kvůli depends_on caddy → web vyměnil Web naráz), pak sklad a Web
+    # kopii po kopii bez výpadku (rolling-update.sh). Commit bez skriptu (starší) = dosavadní způsob.
+    infra=$(docker compose config --services | grep -vx -e web -e inventory-api)
+    docker compose up -d --no-deps --remove-orphans --wait --wait-timeout 180 $infra || rollback
+    ./rolling-update.sh inventory-api 1 || rollback
+    web_replicas=$(current WEB_REPLICAS)
+    ./rolling-update.sh web "${web_replicas:-1}" || rollback
+else
+    docker compose up -d --remove-orphans --wait --wait-timeout 180 || rollback
+fi
 
 # 6. Krok 11: Caddyfile je do kontejneru připojený jako soubor – Caddy jeho změnu sám nenačte a kontejner
 #    se nerestartuje (image ani proměnné se nezměnily). Proto ho při změně načíst znovu (bez výpadku).

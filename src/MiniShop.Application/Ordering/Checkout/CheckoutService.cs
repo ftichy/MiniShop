@@ -151,7 +151,23 @@ public sealed class CheckoutService(
 
         // 2. Pravidla pokladny hlídá košík: stejná verze, nic staženého/vyprodaného, žádná nepotvrzená změna ceny.
         var couponCode = cart.CouponCode;   // CheckOut košík vyprázdní i s kódem – zapamatovat si ho předem
-        var lines = cart.CheckOut(request.CheckoutId, await catalog.GetForCartAsync(cart, cancellationToken), UtcNow);
+        IReadOnlyList<(CatalogProduct Product, int Quantity)> lines;
+        try
+        {
+            lines = cart.CheckOut(request.CheckoutId, await catalog.GetForCartAsync(cart, cancellationToken), UtcNow);
+        }
+        catch (DomainException)
+        {
+            // Škálování krok 3C: souběžné odeslání (dvojklik) – v PostgreSQL může tenhle požadavek načíst košík až PO
+            // commitu prvního (verze košíku se změnila → CheckOut odmítne). Objednávku ale založil první se stejným
+            // CheckoutId – vrátíme ji. Jinak jde o skutečnou změnu košíku a chyba platí.
+            if (await orders.GetByCheckoutIdAsync(customer.CustomerId, request.CheckoutId, cancellationToken) is { } concurrent)
+            {
+                return concurrent.ToDto();
+            }
+
+            throw;
+        }
 
         var order = new Order(customer.CustomerId, customer.Name, customer.Email, UtcNow, request.CheckoutId);
         foreach (var (product, quantity) in lines)

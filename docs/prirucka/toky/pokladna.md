@@ -22,7 +22,7 @@ sequenceDiagram
     participant P as Checkout/Index
     participant CS as CheckoutService
     participant C as Cart (agregát)
-    participant ODB as ordering.db
+    participant ODB as schéma ordering
 
     Z->>P: GET /Checkout
     P->>CS: GetAsync(zákazník)
@@ -50,7 +50,7 @@ sequenceDiagram
     actor Z as Zákazník
     participant A as Požadavek 1
     participant B as Požadavek 2
-    participant ODB as ordering.db
+    participant ODB as schéma ordering
 
     Z->>A: klik „Objednat“
     Z->>B: klik znovu (dvojklik)

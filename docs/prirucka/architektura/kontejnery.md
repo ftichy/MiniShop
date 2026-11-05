@@ -5,7 +5,7 @@ order: 1
 ---
 
 > **V jedné větě:** Běží dvě .NET služby – **Web** (objednávky + celé UI) a **Inventory.Api** (sklad) –
-> a mezi nimi **RabbitMQ**. Každá služba má vlastní SQLite databáze a posílá telemetrii do **Aspire dashboardu**.
+> a mezi nimi **RabbitMQ**. Moduly mají data v **PostgreSQL** (každý své schéma) a posílají telemetrii do **Aspire dashboardu**.
 
 ## Diagram
 
@@ -17,16 +17,16 @@ flowchart TB
         direction TB
         ui["Razor Pages UI<br/>+ REST API /api/orders, /api/journeys"]
         ow1["OutboxWorker<br/>+ consumer fronty minishop.ordering"]
-        odb[("ordering.db<br/>objednávky, ságy, kopie katalogu,<br/>outbox, inbox")]
-        jdb[("journeys.db<br/>proud událostí formuláře")]
-        udb[("users.db<br/>uživatelské účty")]
+        odb[("schéma ordering<br/>objednávky, ságy, kopie katalogu,<br/>outbox, inbox")]
+        jdb[("schéma journeys<br/>proud událostí formuláře")]
+        udb[("schéma accounts<br/>uživatelské účty")]
     end
 
     subgraph invSvc["Inventory.Api – služba skladu (port 7181 lokálně)"]
         direction TB
         api["REST API /api/products"]
         ow2["OutboxWorker<br/>+ consumer fronty minishop.inventory"]
-        idb[("inventory.db<br/>produkty, rezervace,<br/>outbox, inbox")]
+        idb[("schéma inventory<br/>produkty, rezervace,<br/>outbox, inbox")]
     end
 
     mq[["RabbitMQ<br/>exchange pro každý kontrakt,<br/>fronty minishop.ordering / inventory / audit"]]
@@ -60,7 +60,7 @@ flowchart TB
 | **Web** ([MiniShop.Web](code:src/MiniShop.Web/)) | UI pro celý obchod, REST API objednávek, sága objednávky, kopie katalogu, sledování formuláře, účty a přihlášení | Hostuje moduly Ordering, Journeys a Accounts. UI je jedno pro celý e-shop, i když data skladu patří jiné službě. |
 | **Inventory.Api** ([MiniShop.Inventory.Api](code:src/MiniShop.Inventory.Api/)) | Produkty a zásoby, vyřizuje příkazy rezervace a uvolnění | Sklad je samostatná služba: může se nasadit, restartovat či spadnout nezávisle na objednávkách. |
 | **RabbitMQ** | Doručuje zprávy mezi službami, drží je, když příjemce neběží | Služby se nevolají přímo – odesílatel nemusí vědět, kdo zprávu čte, ani čekat, až příjemce odpoví. Viz [Broker](../eda/broker.md). |
-| **SQLite databáze** | Jeden soubor na modul | Žádná sdílená databáze = žádné skryté závislosti mezi moduly. Outbox a inbox leží v DB modulu, aby byly v téže transakci jako data. |
+| **PostgreSQL, schéma na modul** | Jedna databáze, každý modul vlastní schéma (škálování krok 3C) | Žádné sdílené tabulky = žádné skryté závislosti mezi moduly. Outbox a inbox leží v DB modulu, aby byly v téže transakci jako data. |
 | **Aspire dashboard** | Zobrazuje trasy, metriky a logy obou služeb | Bez něj by se tok přes dvě služby a broker ladil velmi těžko. Viz [Observabilita](../eda/observabilita.md). |
 
 ## Kdo s kým mluví a jak

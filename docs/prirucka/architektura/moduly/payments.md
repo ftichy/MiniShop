@@ -6,7 +6,7 @@ order: 6
 
 > **V jedné větě:** Payments je druhý **účastník ságy** objednávky. Na příkaz `RequestPaymentV1` založí platbu
 > u brány, výsledek z brány přijme **podepsaným webhookem** a oznámí ho událostí `PaymentSucceededV1` /
-> `PaymentFailedV1`. Na `RefundPaymentV1` vrátí peníze (pozdní platba, zrušení, od e-shop kroku 12 i vratka – Payments neví proč). Běží ve službě **Web**, data má v `payments.db`.
+> `PaymentFailedV1`. Na `RefundPaymentV1` vrátí peníze (pozdní platba, zrušení, od e-shop kroku 12 i vratka – Payments neví proč). Běží ve službě **Web**, data má ve schématu `payments`.
 
 ## Komponentní diagram
 
@@ -23,7 +23,7 @@ flowchart TB
     subgraph domain["Domain/Payments"]
         pay["Payment<br/>Pending → Succeeded / Failed → Refunded"]
     end
-    db[("PaymentsDbContext<br/>payments.db + outbox + inbox")]
+    db[("PaymentsDbContext<br/>schéma payments + outbox + inbox")]
 
     mq -->|"RequestPaymentV1, RefundPaymentV1"| cmd
     cmd --> port
@@ -50,7 +50,7 @@ flowchart TB
 | **IPaymentGateway** / **FakePaymentGateway** | Rozhraní brány (DIP) a simulace: „založí“ platbu a pošle zákazníka na `/Pay/{objednávka}`. `FakePaymentGatewaySimulator` po kliknutí vyrobí webhook stejně jako skutečná brána (JSON + podpis) a předá ho stejnému zpracování jako HTTP endpoint. | [IPaymentGateway.cs](code:src/MiniShop.Application/Payments/IPaymentGateway.cs), [FakePaymentGateway.cs](code:src/MiniShop.Infrastructure/Payments/FakePaymentGateway.cs) |
 | **Stránka brány** | `/Pay/{objednávka}` – jen zákazník a jen svou platbu (cizí = 404); tlačítka Zaplatit / Zamítnout, po termínu „vypršelo“. | [Pay/Index.cshtml.cs](code:src/MiniShop.Web/Pages/Pay/Index.cshtml.cs) |
 | **Webhook** | `POST /api/payments/webhook` – `[AllowAnonymous]` (brána nemá účet), chrání ho podpis v hlavičce `X-MiniShop-Signature`. | [PaymentsWebhookController.cs](code:src/MiniShop.Web/Controllers/PaymentsWebhookController.cs) |
-| **PaymentsDbContext** | `payments.db`: tabulka `Payments`, outbox a inbox. | [PaymentsDbContext.cs](code:src/MiniShop.Infrastructure/Payments/PaymentsDbContext.cs) |
+| **PaymentsDbContext** | schéma `payments`: tabulka `Payments`, outbox a inbox. | [PaymentsDbContext.cs](code:src/MiniShop.Infrastructure/Payments/PaymentsDbContext.cs) |
 
 ## Jaké zprávy modul posílá a přijímá
 

@@ -15,13 +15,6 @@ internal sealed class StockReservationConfiguration : IEntityTypeConfiguration<S
         // OrderId záměrně bez cizího klíče na Orders: sklad objednávky nezná (příprava na samostatnou službu, krok 10).
         builder.HasIndex(r => r.OrderId);
 
-        builder.Property(r => r.ReservedAtUtc).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
-        builder.Property(r => r.ReleasedAtUtc)
-            .HasConversion(v => v, v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
-        builder.Property(r => r.FulfilledAtUtc)   // e-shop krok 6: výdej po odeslání
-            .HasConversion(v => v, v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
-        builder.Property(r => r.ReturnedAtUtc)    // e-shop krok 12: vratka zpět na sklad
-            .HasConversion(v => v, v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
         builder.Ignore(r => r.CanBeReturned);
     }
 }

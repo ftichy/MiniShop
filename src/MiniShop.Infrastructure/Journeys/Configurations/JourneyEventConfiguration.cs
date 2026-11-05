@@ -23,6 +23,5 @@ internal sealed class JourneyEventConfiguration : IEntityTypeConfiguration<Journ
         builder.Property(e => e.Label).HasMaxLength(JourneyEvent.MaxTextLength);
         builder.Property(e => e.Value).HasMaxLength(JourneyEvent.MaxTextLength);
         builder.Property(e => e.ValueText).HasMaxLength(JourneyEvent.MaxTextLength);
-        builder.Property(e => e.RecordedAtUtc).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
     }
 }

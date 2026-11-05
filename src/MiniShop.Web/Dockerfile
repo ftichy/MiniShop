@@ -18,7 +18,6 @@ COPY src/MiniShop.Contracts/MiniShop.Contracts.csproj src/MiniShop.Contracts/
 COPY src/MiniShop.Domain/MiniShop.Domain.csproj src/MiniShop.Domain/
 COPY src/MiniShop.Application/MiniShop.Application.csproj src/MiniShop.Application/
 COPY src/MiniShop.Infrastructure/MiniShop.Infrastructure.csproj src/MiniShop.Infrastructure/
-COPY src/MiniShop.Infrastructure.PostgreSql/MiniShop.Infrastructure.PostgreSql.csproj src/MiniShop.Infrastructure.PostgreSql/
 COPY src/MiniShop.ServiceDefaults/MiniShop.ServiceDefaults.csproj src/MiniShop.ServiceDefaults/
 COPY src/MiniShop.Web/MiniShop.Web.csproj src/MiniShop.Web/
 RUN dotnet restore src/MiniShop.Web/MiniShop.Web.csproj -a $TARGETARCH
@@ -32,7 +31,7 @@ RUN dotnet publish src/MiniShop.Web/MiniShop.Web.csproj -c Release -a $TARGETARC
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 
-# /data = místo pro trvalá data (SQLite, klíče, logy); v kroku 2 se na něj připojí volume.
+# /data = místo pro trvalá data (klíče, logy; databáze je od škálování kroku 3C v PostgreSQL); v kroku 2 se na něj připojí volume.
 # Aplikace neběží jako root, ale jako uživatel "app" ($APP_UID z base image) – proto mu složku předáme.
 RUN mkdir -p /data && chown $APP_UID /data
 USER $APP_UID
@@ -40,13 +39,6 @@ USER $APP_UID
 # Výchozí nastavení pro kontejner (12-factor: jde přepsat proměnnou prostředí při spuštění).
 # "__" v názvu = ":" v konfiguraci, WriteTo__1 = druhý cíl Serilogu (soubor) v appsettings.json.
 ENV ASPNETCORE_HTTP_PORTS=8080 \
-    ConnectionStrings__Ordering="Data Source=/data/ordering.db" \
-    ConnectionStrings__Journeys="Data Source=/data/journeys.db" \
-    ConnectionStrings__Notifications="Data Source=/data/notifications.db" \
-    ConnectionStrings__Payments="Data Source=/data/payments.db" \
-    ConnectionStrings__Reporting="Data Source=/data/reporting.db" \
-    ConnectionStrings__Reviews="Data Source=/data/reviews.db" \
-    ConnectionStrings__Accounts="Data Source=/data/users.db" \
     DataProtection__KeysPath=/data/keys \
     Serilog__WriteTo__1__Args__path=/data/logs/minishop-.log
 EXPOSE 8080

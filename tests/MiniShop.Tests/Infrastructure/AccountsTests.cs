@@ -8,13 +8,13 @@ namespace MiniShop.Tests.Infrastructure;
 
 /// <summary>
 /// Účty krok 1: registrace a ověření hesla přes UserManager se stejnými pravidly jako v aplikaci
-/// (AddAccountsInfrastructure) nad SQLite v paměti. Každá akce běží ve vlastním scope jako HTTP požadavek.
+/// (AddAccountsInfrastructure) nad PostgreSQL (Testcontainers). Každá akce běží ve vlastním scope jako HTTP požadavek.
 /// </summary>
 public sealed class AccountsTests : IDisposable
 {
     private const string GoodPassword = "dlouhe heslo bez cisel";
 
-    private readonly TestDatabases _databases = new();   // škálování krok 2: SQLite nebo PostgreSQL
+    private readonly TestDatabases _databases = new();   // škálování krok 2 a 3C: PostgreSQL (Testcontainers)
     private readonly ServiceProvider _services;
 
     public AccountsTests()

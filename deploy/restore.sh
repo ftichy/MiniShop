@@ -7,12 +7,12 @@
 #
 # Postup (škálování krok 4 – nejdřív všechno zkontrolovat, teprve pak měnit):
 #   1. zastaví web a inventory-api (nikdo nezapisuje),
-#   2. backup.py fetch – stáhne zálohu, rozbalí ji, zkontroluje SQLite (integrity_check),
-#   3. běží-li produkce na PostgreSQL (DATABASE_PROVIDER v .env): ověří snímek minishop.pgdump (pg_restore --list,
-#      musí obsahovat data modulů – záloha z doby před přepnutím je prázdná a obnova by data smazala),
+#   2. backup.py fetch – stáhne zálohu a rozbalí ji,
+#   3. ověří snímek minishop.pgdump (pg_restore --list, musí obsahovat data modulů – záloha z doby před přepnutím
+#      na PostgreSQL je prázdná a obnova by data smazala),
 #      dosavadní databázi PŘEJMENUJE na minishop_before_restore_<čas>, založí novou a nahraje do ní zálohu;
 #      když pg_restore selže, novou smaže a původní vrátí,
-#   4. backup.py restore-files – SQLite soubory, klíče, obrázky (původní nechá jako *.before-restore-…),
+#   4. backup.py restore-files – klíče a obrázky (původní nechá jako *.before-restore-…),
 #   5. služby znovu spustí (i při chybě – s původními daty).
 # RabbitMQ běží dál – zprávy jsou dočasné, pravda je v outboxech obnovených databází.
 set -euo pipefail
@@ -27,8 +27,6 @@ what="${1:?Použití: restore.sh latest | <jméno zálohy> | <cesta k souboru z�
 env_value() { grep "^$1=" .env 2>/dev/null | tail -n 1 | cut -d= -f2- | tr -d "'" || true; }
 project="$(env_value COMPOSE_PROJECT_NAME)"
 project="${project:-minishop}"
-provider="$(env_value DATABASE_PROVIDER)"
-provider="${provider:-Sqlite}"
 
 work=$(mktemp -d)
 extra=()
@@ -93,18 +91,14 @@ trap 'echo "Spouštím služby…"; docker compose up -d --wait --wait-timeout 1
 
 run_backup_py fetch "$source_name" /restore
 
-if [ "$provider" = "Postgres" ]; then
-    dump="$work/content/minishop.pgdump"
-    [ -s "$dump" ] || { echo "Záloha neobsahuje snímek PostgreSQL (minishop.pgdump) – produkce běží na PostgreSQL, obnova se nespustí." >&2; exit 1; }
-    toc=$(docker compose exec -T postgres pg_restore --list < "$dump") \
-        || { echo "Snímek PostgreSQL je poškozený (pg_restore --list selhal) – obnova se nespustí." >&2; exit 1; }
-    grep -q "SCHEMA - ordering " <<< "$toc" \
-        || { echo "Snímek PostgreSQL neobsahuje data modulů – záloha je z doby před přepnutím na PostgreSQL (4. 11. 2026)." >&2
-             echo "Obnovit ji nad PostgreSQL by data smazalo. Vyberte novější zálohu (restore.sh list)." >&2; exit 1; }
-    restore_postgres
-else
-    echo "DATABASE_PROVIDER=$provider – PostgreSQL se neobnovuje."
-fi
+dump="$work/content/minishop.pgdump"
+[ -s "$dump" ] || { echo "Záloha neobsahuje snímek PostgreSQL (minishop.pgdump) – obnova se nespustí." >&2; exit 1; }
+toc=$(docker compose exec -T postgres pg_restore --list < "$dump") \
+    || { echo "Snímek PostgreSQL je poškozený (pg_restore --list selhal) – obnova se nespustí." >&2; exit 1; }
+grep -q "SCHEMA - ordering " <<< "$toc" \
+    || { echo "Snímek PostgreSQL neobsahuje data modulů – záloha je z doby před přepnutím na PostgreSQL (4. 11. 2026)." >&2
+         echo "Obnovit ji by data smazalo. Vyberte novější zálohu (restore.sh list)." >&2; exit 1; }
+restore_postgres
 
 run_backup_py restore-files /restore
 

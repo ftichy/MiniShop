@@ -17,10 +17,10 @@ sequenceDiagram
     participant UI as Web – stránka Produkty
     participant API as Inventory.Api
     participant PS as ProductService
-    participant IDB as inventory.db
+    participant IDB as schéma inventory
     participant MQ as RabbitMQ
     participant CH as CatalogProjectionHandler
-    participant ODB as ordering.db
+    participant ODB as schéma ordering
 
     O->>UI: přidat produkt
     UI->>API: POST /api/products (InventoryApiClient)

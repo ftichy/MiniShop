@@ -17,7 +17,7 @@ sequenceDiagram
     participant JC as JourneysController
     participant P as Checkout/Index (server)
     participant JS as JourneyService
-    participant DB as journeys.db
+    participant DB as schéma journeys
 
     Z->>T: otevře pokladnu → FormOpened (journeyId = nové GUID, target = checkout)
     Z->>T: píše, kliká → FieldFocused, FieldChanged, Clicked…
@@ -61,7 +61,7 @@ sequenceDiagram
 
 ## Co si všimnout
 
-- **Sledování nesmí rozbít objednávku** – chyba zápisu do `journeys.db` se jen zaloguje.
+- **Sledování nesmí rozbít objednávku** – chyba zápisu do schématu `journeys` se jen zaloguje.
 - Čas událostí je relativní k otevření formuláře – dávky můžou dorazit v libovolném pořadí.
 - Prvky, které má přehrávač najít, mají atribut `data-track` nebo jméno pole; `Replay.cshtml` má ruční kopii
   pokladny (nové pole pokladny je potřeba přidat i tam) a kopii původního formuláře pro staré proudy.

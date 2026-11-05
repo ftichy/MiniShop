@@ -35,11 +35,8 @@ x-dotnet-healthcheck: &dotnet-healthcheck
 x-otel-env: &otel-env
   OTEL_EXPORTER_OTLP_ENDPOINT: http://aspire-dashboard:18889
 
-# Škálování krok 1 a 3: databáze služeb. DATABASE_PROVIDER=Sqlite (výchozí – soubory ve volume /data) nebo Postgres.
-# PostgreSQL běží vždy (krok 3A) – data do něj převede příkaz migrate-to-postgres, služby na něj přepne
-# DATABASE_PROVIDER=Postgres (produkce: deploy/production.env, krok 3B). Connection string SQLite zůstává (převod, cesta zpět).
+# Škálování krok 1 a 3C: databáze služeb = PostgreSQL (služba "postgres"), každý modul ve vlastním schématu.
 x-database-env: &database-env
-  Database__Provider: ${DATABASE_PROVIDER:-Sqlite}
   ConnectionStrings__minishop: Host=postgres;Database=minishop;Username=minishop;Password=${POSTGRES_PASSWORD}
 
 services:

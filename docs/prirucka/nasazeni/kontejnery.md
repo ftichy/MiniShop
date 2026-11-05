@@ -49,8 +49,8 @@ flowchart TB
         dash["aspire-dashboard<br/>OTLP :18889"]
         pg["postgres :5432<br/>(jen z VM 127.0.0.1)"]
     end
-    wv[("web-data<br/>ordering.db, journeys.db,<br/>users.db, klíče, logy")]
-    iv[("inventory-data<br/>inventory.db, images/")]
+    wv[("web-data<br/>schéma ordering, schéma journeys,<br/>schéma accounts, klíče, logy")]
+    iv[("inventory-data<br/>schéma inventory, images/")]
     rv[("rabbitmq-data<br/>fronty")]
     pv[("postgres-data<br/>schéma na modul")]
     web --- wv

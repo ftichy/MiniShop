@@ -51,7 +51,7 @@ using MiniShop.Tests.TestDoubles;
 namespace MiniShop.Tests.Application;
 
 /// <summary>
-/// Testy OrderService a ságy objednávky nad skutečnou SQLite databází v paměti.
+/// Testy OrderService a ságy objednávky nad skutečnou databází PostgreSQL (Testcontainers).
 /// Skládají stejné služby jako aplikace (handlery, orchestrátor ságy, modul Inventory) a každá akce běží
 /// ve vlastním scope jako HTTP požadavek. Integrační zprávy doručuje InProcessIntegrationBus (bez RabbitMQ).
 /// Handlery neběží hned – test po akci "zavolá pošťáka" (<see cref="ProcessOutboxAsync"/>), jako OutboxWorker.
@@ -69,7 +69,7 @@ public sealed class OrderServiceTests : IDisposable
     private static readonly TimeSpan ReturnWindow = TimeSpan.FromDays(14);           // e-shop krok 12
     private const string WebhookSecret = "testovaci-tajemstvi-webhooku-plateb-0123456789";
 
-    private readonly TestDatabases _databases;   // škálování krok 2: SQLite (databáze na modul) nebo PostgreSQL (schéma na modul)
+    private readonly TestDatabases _databases = new();   // škálování krok 2 a 3C: PostgreSQL (Testcontainers), schéma na modul
     private readonly FixedTimeProvider _time = new(Now);
     private readonly RecordingEmailSender _emails = new();
     private readonly InMemoryCustomerContacts _contacts = new();   // e-shop krok 10: účty se souhlasem
@@ -78,14 +78,8 @@ public sealed class OrderServiceTests : IDisposable
     private readonly ServiceProvider _services;
     private readonly RecordingIntegrationBus _bus;
 
-    public OrderServiceTests() : this(new TestDatabases())
+    public OrderServiceTests()
     {
-    }
-
-    /// <summary>Škálování krok 3: scénáře nad zadanými databázemi – test převodu je pouští nad SQLite a výsledek převádí.</summary>
-    internal OrderServiceTests(TestDatabases databases)
-    {
-        _databases = databases;
         var services = new ServiceCollection();
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         services.AddSingleton<TimeProvider>(_time);
@@ -1053,8 +1047,8 @@ public sealed class OrderServiceTests : IDisposable
     }
 
     /// <summary>
-    /// Škálování krok 2: dvě pokladny s posledním použitím kuponu opravdu naráz. Nad PostgreSQL (MINISHOP_TEST_DATABASE=Postgres)
-    /// běží obě transakce souběžně – projde jen jedna, druhá dostane hlášku a nic neuloží (SQLite zápisy seřadí za sebe).
+    /// Škálování krok 2: dvě pokladny s posledním použitím kuponu opravdu naráz – v PostgreSQL běží obě transakce
+    /// souběžně, projde jen jedna, druhá dostane hlášku a nic neuloží (concurrency token Coupon.Version).
     /// </summary>
     [Fact]
     public async Task Kupon_PosledniPouzitiNaraz_ProjdeJenJednaObjednavka()
@@ -1645,7 +1639,7 @@ public sealed class OrderServiceTests : IDisposable
     public async Task NeuplnaKopieKatalogu_PoStartuSeDoplniZeSkladu()
     {
         await AddProductAsync(price: 120m, stock: 50);
-        // Škálování krok 2: přes EF (ne ruční SQL) – stejný příkaz pro SQLite i PostgreSQL (schéma, uvozovky).
+        // Škálování krok 2: přes EF (ne ruční SQL) – EF sám doplní schéma modulu a uvozovky u jmen.
         await OrderingDb(db => db.CatalogProducts.ExecuteUpdateAsync(setters => setters
             .SetProperty(p => p.Availability, CatalogAvailability.Unknown)
             .SetProperty(p => p.CategoryId, (int?)null)
@@ -1857,7 +1851,7 @@ public sealed class OrderServiceTests : IDisposable
         // Ordering nezná tabulky skladu a naopak – jediná cesta mezi nimi jsou zprávy.
         Assert.Null(await OrderingDb(db => Task.FromResult(db.Model.FindEntityType(typeof(MiniShop.Domain.Inventory.Product)))));
         Assert.Null(await InventoryDb(db => Task.FromResult(db.Model.FindEntityType(typeof(MiniShop.Domain.Orders.Order)))));
-        // SQLite: každý modul vlastní soubor. PostgreSQL (škálování krok 1): jedna databáze, ale každý modul vlastní schéma.
+        // Škálování krok 1: jedna databáze PostgreSQL, ale každý modul vlastní schéma.
         var ordering = await OrderingDb(db => Task.FromResult((db.Database.GetConnectionString(), db.Model.GetDefaultSchema())));
         var inventory = await InventoryDb(db => Task.FromResult((db.Database.GetConnectionString(), db.Model.GetDefaultSchema())));
         Assert.NotEqual(ordering, inventory);
@@ -2097,17 +2091,23 @@ public sealed class OrderServiceTests : IDisposable
     [Fact]
     public async Task Pokladna_SoubezneOdeslani_JednaObjednavka()
     {
-        var product = await AddProductAsync(price: 100m, stock: 10);
-        await Cart(s => s.AddItemAsync(Jan.CustomerId, product.Id, 1));
-        var checkoutId = (await Checkout(s => s.GetAsync(Jan.CustomerId))).CheckoutId;
+        var product = await AddProductAsync(price: 100m, stock: 50);
 
-        // Dva požadavky naráz (každý ve vlastním scope a DbContextu) – druhý narazí na verzi košíku nebo na unikátní index.
-        var results = await Task.WhenAll(
-            Checkout(s => s.PlaceOrderAsync(Pickup(checkoutId), Jan)),
-            Checkout(s => s.PlaceOrderAsync(Pickup(checkoutId), Jan)));
+        // Dva požadavky naráz (každý ve vlastním scope a DbContextu) – druhý narazí na verzi košíku nebo na unikátní index,
+        // nebo (PostgreSQL, škálování krok 3C) načte košík až po commitu prvního. Vždy dostane objednávku prvního.
+        // Víc kol – souběh závisí na načasování, jedno kolo by chybu chytilo jen náhodou.
+        for (var round = 1; round <= 10; round++)
+        {
+            await Cart(s => s.AddItemAsync(Jan.CustomerId, product.Id, 1));
+            var checkoutId = (await Checkout(s => s.GetAsync(Jan.CustomerId))).CheckoutId;
 
-        Assert.Equal(results[0].Id, results[1].Id);
-        Assert.Equal(1, await OrderingDb(db => db.Orders.CountAsync()));
+            var results = await Task.WhenAll(
+                Checkout(s => s.PlaceOrderAsync(Pickup(checkoutId), Jan)),
+                Checkout(s => s.PlaceOrderAsync(Pickup(checkoutId), Jan)));
+
+            Assert.Equal(results[0].Id, results[1].Id);
+            Assert.Equal(round, await OrderingDb(db => db.Orders.CountAsync()));
+        }
     }
 
     [Fact]

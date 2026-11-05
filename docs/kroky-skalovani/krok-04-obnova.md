@@ -65,7 +65,9 @@ a chybějící vrácení, když selže už založení nové databáze (opraveno 
 bash -n deploy/restore.sh
 ```
 
-Cvičná obnova v produkci: ruční záloha → počty řádků → `restore.sh latest` → stejné počty, web → `DROP DATABASE …`.
+Cvičná obnova v produkci (5. 11. 2026): ruční záloha `minishop-20261105T165410Z.tar.gz` (`minishop.pgdump` 166 573 B) →
+počty (19 objednávek, 35 položek, 2 účty, 7 produktů, 1 hodnocení, 543 událostí formulářů) →
+`restore.sh minishop-20261105T165410Z.tar.gz` (18 s) → stejné počty, web v pořádku → `DROP DATABASE minishop_before_restore_…`.
 
 ## Vyzkoušejte sami
 

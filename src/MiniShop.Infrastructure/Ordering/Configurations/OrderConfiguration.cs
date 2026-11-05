@@ -24,15 +24,12 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.HasIndex(o => new { o.CustomerId, o.CouponId });   // „jeden zákazník jednou“
         builder.Ignore(o => o.DeliveredAtUtc);
 
-        // SQLite neukládá DateTimeKind – při načtení čas označíme jako UTC.
-        builder.Property(o => o.CreatedAtUtc)
-            .HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
         builder.Ignore(o => o.TotalPrice);
         builder.Ignore(o => o.ItemsTotal);
         builder.Ignore(o => o.DomainEvents);
 
         // E-shop krok 4: idempotence pokladny – stejné odeslání nesmí dát dvě objednávky ani při souběhu.
-        // Starší objednávky mají NULL (SQLite v unikátním indexu NULL nepočítá jako shodu).
+        // Starší objednávky mají NULL (PostgreSQL v unikátním indexu NULL nepočítá jako shodu).
         builder.HasIndex(o => o.CheckoutId).IsUnique();
         builder.Property(o => o.ShippingMethod).HasConversion<string>().HasMaxLength(20);
         builder.Property(o => o.ShippingPrice).HasPrecision(18, 2);
@@ -79,9 +76,6 @@ internal sealed class OrderStatusChangeConfiguration : IEntityTypeConfiguration<
         builder.Property(c => c.Status).HasConversion<string>().HasMaxLength(20);
         builder.Property(c => c.Note).HasMaxLength(500);
 
-        // SQLite neukládá DateTimeKind – při načtení čas označíme jako UTC (null = starší objednávka bez známého času).
-        builder.Property(c => c.ChangedAtUtc)
-            .HasConversion(v => v, v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
     }
 }
 

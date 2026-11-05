@@ -26,7 +26,7 @@ public interface ICatalogProductRepository
     Task<IReadOnlyList<CatalogProduct>> GetAvailableByIdsAsync(IEnumerable<int> ids, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// E-shop krok 2: hledání ve výloze (bez odebraných). Filtruje databáze; řadí volající (SQLite neřadí decimal).
+    /// E-shop krok 2: hledání ve výloze (bez odebraných). Filtruje databáze; řadí volající (z doby SQLite, které neřadilo decimal).
     /// </summary>
     /// <param name="searchText">Už normalizovaný text (<see cref="CatalogSearchText"/>); prázdný = bez hledání.</param>
     Task<IReadOnlyList<CatalogProduct>> SearchAsync(string searchText, int? categoryId, bool inStockOnly,

@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.DependencyInjection;
 using MiniShop.Application;
 using MiniShop.Application.Reviews;
@@ -42,15 +41,5 @@ public static class ReviewsDatabaseInitializer
     }
 
     public static Task MigrateAsync(ReviewsDbContext dbContext, CancellationToken cancellationToken = default) =>
-        DatabaseMigrator.MigrateAsync(dbContext, "Reviews", cancellationToken);
-}
-
-/// <summary>
-/// E-shop krok 14: jen pro nástroj <c>dotnet ef</c>. Nová migrace (z kořene repozitáře):
-/// <code>dotnet ef migrations add &lt;Nazev&gt; --project src/MiniShop.Infrastructure --context ReviewsDbContext --output-dir Reviews/Migrations</code>
-/// </summary>
-internal sealed class ReviewsDesignTimeDbContextFactory : IDesignTimeDbContextFactory<ReviewsDbContext>
-{
-    public ReviewsDbContext CreateDbContext(string[] args) =>
-        new(new DbContextOptionsBuilder<ReviewsDbContext>().UseSqlite("Data Source=reviews.db").Options);
+        DatabaseMigrator.MigrateAsync(dbContext, cancellationToken);
 }

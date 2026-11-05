@@ -20,7 +20,7 @@ public sealed class IdempotentHandlerTests : IDisposable
 {
     private static readonly DateTimeOffset Now = new(2026, 1, 15, 10, 0, 0, TimeSpan.Zero);
 
-    private readonly TestDatabases _databases = new();   // škálování krok 2: SQLite nebo PostgreSQL
+    private readonly TestDatabases _databases = new();   // škálování krok 2 a 3C: PostgreSQL (Testcontainers)
     private readonly Switch _switch = new();
     private readonly ServiceProvider _services;
 

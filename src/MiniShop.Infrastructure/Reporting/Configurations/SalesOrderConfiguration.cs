@@ -14,12 +14,7 @@ internal sealed class SalesOrderConfiguration : IEntityTypeConfiguration<SalesOr
         builder.HasKey(o => o.OrderId);
         builder.Property(o => o.OrderId).ValueGeneratedNever();
 
-        // SQLite neukládá DateTimeKind – při načtení čas označíme jako UTC.
-        builder.Property(o => o.PlacedAtUtc)
-            .HasConversion(v => v, v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
         builder.HasIndex(o => o.PlacedAtUtc);   // přehled bere posledních 30 dní
-        builder.Property(o => o.UpdatedAtUtc)
-            .HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
 
         builder.Property(o => o.Status).HasConversion<string>().HasMaxLength(20);
         builder.Property(o => o.TotalPrice).HasPrecision(18, 2);

@@ -14,7 +14,7 @@ sequenceDiagram
     autonumber
     participant SG as OrderSagaOrchestrator
     participant TW as OrderSagaTimeoutWorker
-    participant ODB as ordering.db
+    participant ODB as schéma ordering
     participant MQ as RabbitMQ
     participant I as Inventory.Api (nejede)
 

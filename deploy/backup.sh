@@ -3,7 +3,7 @@
 # Spouští ho systemd timer minishop-backup.timer (02:30 UTC) jako uživatel deploy; ručně:
 #   sudo -u deploy /opt/minishop/backup.sh
 #
-# Vlastní práci dělá backup.py v kontejneru s OCI CLI (online backup SQLite + pg_dump PostgreSQL → tar.gz → bucket minishop-backups).
+# Vlastní práci dělá backup.py v kontejneru s OCI CLI (pg_dump PostgreSQL + klíče + obrázky → tar.gz → bucket minishop-backups).
 # Volitelně hlásí průběh na healthchecks.io (HEALTHCHECKS_BACKUP_URL v .env, secret z GitHubu) – když noční
 # záloha neproběhne nebo selže, healthchecks.io pošle e-mail.
 set -euo pipefail

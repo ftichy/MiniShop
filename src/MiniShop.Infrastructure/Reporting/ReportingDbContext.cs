@@ -14,7 +14,7 @@ namespace MiniShop.Infrastructure.Reporting;
 /// </summary>
 public sealed class ReportingDbContext(DbContextOptions<ReportingDbContext> options) : ModuleDbContext(options), IReportingUnitOfWork
 {
-    /// <summary>Škálování krok 1: schéma modulu v PostgreSQL (SQLite schémata nezná).</summary>
+    /// <summary>Škálování krok 1: schéma modulu v PostgreSQL (vlastní tabulky i historie migrací).</summary>
     public const string Schema = "reporting";
 
     public DbSet<SalesOrder> SalesOrders => Set<SalesOrder>();

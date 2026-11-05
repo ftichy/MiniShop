@@ -16,7 +16,7 @@ sequenceDiagram
     autonumber
     actor O as Zákazník / admin
     participant S as OrderService
-    participant ODB as ordering.db
+    participant ODB as schéma ordering
     participant OW as OutboxWorker
     participant SG as OrderSagaOrchestrator
     participant H as Překladač (integrační události)
@@ -67,7 +67,7 @@ sequenceDiagram
     participant S as OrderService
     participant B as Brána (Payments)
     participant SG as OrderSagaOrchestrator
-    participant ODB as ordering.db
+    participant ODB as schéma ordering
 
     Z->>S: Zrušit (objednávka čeká na platbu)
     S->>ODB: COMMIT: Order Cancelled + Outbox[OrderCancelled]

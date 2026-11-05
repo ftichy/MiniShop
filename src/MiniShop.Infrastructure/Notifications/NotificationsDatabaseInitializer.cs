@@ -12,7 +12,7 @@ public static class NotificationsDatabaseInitializer
         await MigrateAsync(scope.ServiceProvider.GetRequiredService<NotificationsDbContext>(), cancellationToken);
     }
 
-    /// <summary>Databáze vznikla až s migracemi – značková tabulka jen pro jednotné volání <see cref="DatabaseMigrator"/>.</summary>
+    /// <summary>Schéma modulu přes EF migrace (<see cref="DatabaseMigrator"/>).</summary>
     public static Task MigrateAsync(NotificationsDbContext dbContext, CancellationToken cancellationToken = default) =>
-        DatabaseMigrator.MigrateAsync(dbContext, "OrderRecipients", cancellationToken);
+        DatabaseMigrator.MigrateAsync(dbContext, cancellationToken);
 }

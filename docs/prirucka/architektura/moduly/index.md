@@ -70,14 +70,14 @@ flowchart LR
 
 | Modul | Odpovídá za | Databáze | Kde v kódu |
 | --- | --- | --- | --- |
-| [Ordering](ordering.md) | objednávky, jejich stavy, ságu, kopii katalogu, košík, pokladnu, expedici | `ordering.db` | `Domain/Orders`, `Application/Ordering`, `Infrastructure/Ordering` |
-| [Inventory](inventory.md) | produkty, skladové zásoby, rezervace | `inventory.db` | `Domain/Inventory`, `Application/Inventory`, `Infrastructure/Inventory` |
-| [Journeys](journeys.md) | co uživatel dělal ve formuláři objednávky | `journeys.db` | `Domain/Journeys`, `Application/Journeys`, `Infrastructure/Journeys` |
-| [Accounts](accounts.md) | uživatelské účty, registrace a přihlášení (ASP.NET Core Identity) | `users.db` | `Infrastructure/Accounts`, stránky `Pages/Account` ve Webu |
-| [Notifications](notifications.md) | e-maily zákazníkovi podle událostí objednávky (e-shop krok 7) – jen poslouchá | `notifications.db` | `Domain/Notifications`, `Application/Notifications`, `Infrastructure/Notifications` |
-| [Payments](payments.md) | platby kartou přes bránu – účastník ságy, podepsaný webhook, vrácení peněz (e-shop krok 8) | `payments.db` | `Domain/Payments`, `Application/Payments`, `Infrastructure/Payments` |
-| [Reporting](reporting.md) | přehled tržeb pro admina – čtecí model (CQRS) z událostí, přestavění ze snímků (e-shop krok 11) | `reporting.db` | `Domain/Reporting`, `Application/Reporting`, `Infrastructure/Reporting` |
-| [Reviews](reviews.md) | hodnocení produktů – hodnotí jen ten, kdo zboží dostal (kopie nákupů z událostí), souhrn do výlohy (e-shop krok 14) | `reviews.db` | `Domain/Reviews`, `Application/Reviews`, `Infrastructure/Reviews` |
+| [Ordering](ordering.md) | objednávky, jejich stavy, ságu, kopii katalogu, košík, pokladnu, expedici | schéma `ordering` | `Domain/Orders`, `Application/Ordering`, `Infrastructure/Ordering` |
+| [Inventory](inventory.md) | produkty, skladové zásoby, rezervace | schéma `inventory` | `Domain/Inventory`, `Application/Inventory`, `Infrastructure/Inventory` |
+| [Journeys](journeys.md) | co uživatel dělal ve formuláři objednávky | schéma `journeys` | `Domain/Journeys`, `Application/Journeys`, `Infrastructure/Journeys` |
+| [Accounts](accounts.md) | uživatelské účty, registrace a přihlášení (ASP.NET Core Identity) | schéma `accounts` | `Infrastructure/Accounts`, stránky `Pages/Account` ve Webu |
+| [Notifications](notifications.md) | e-maily zákazníkovi podle událostí objednávky (e-shop krok 7) – jen poslouchá | schéma `notifications` | `Domain/Notifications`, `Application/Notifications`, `Infrastructure/Notifications` |
+| [Payments](payments.md) | platby kartou přes bránu – účastník ságy, podepsaný webhook, vrácení peněz (e-shop krok 8) | schéma `payments` | `Domain/Payments`, `Application/Payments`, `Infrastructure/Payments` |
+| [Reporting](reporting.md) | přehled tržeb pro admina – čtecí model (CQRS) z událostí, přestavění ze snímků (e-shop krok 11) | schéma `reporting` | `Domain/Reporting`, `Application/Reporting`, `Infrastructure/Reporting` |
+| [Reviews](reviews.md) | hodnocení produktů – hodnotí jen ten, kdo zboží dostal (kopie nákupů z událostí), souhrn do výlohy (e-shop krok 14) | schéma `reviews` | `Domain/Reviews`, `Application/Reviews`, `Infrastructure/Reviews` |
 
 ## Pravidla hranic
 

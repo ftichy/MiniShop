@@ -20,7 +20,7 @@ dvou služeb a brokeru – a mezi kroky jsou sekundy. Bez trasování by se hled
 sequenceDiagram
     participant B as Prohlížeč
     participant W as Web
-    participant O as ordering.db (outbox)
+    participant O as schéma ordering (outbox)
     participant MQ as RabbitMQ
     participant I as Inventory.Api
 

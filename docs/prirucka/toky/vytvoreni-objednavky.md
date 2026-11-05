@@ -40,7 +40,7 @@ sequenceDiagram
     box rgb(232,242,255) Web – modul Ordering
     participant P as Orders/Index
     participant S as OrderService
-    participant ODB as ordering.db
+    participant ODB as schéma ordering
     participant OW as OutboxWorker
     participant SG as OrderSagaOrchestrator
     participant TR as Překladač + log
@@ -50,7 +50,7 @@ sequenceDiagram
     box rgb(234,248,238) Inventory.Api
     participant IC as Consumer inventory
     participant RH as ReserveStockHandler
-    participant IDB as inventory.db
+    participant IDB as schéma inventory
     participant IW as OutboxWorker
     end
 

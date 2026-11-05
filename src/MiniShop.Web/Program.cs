@@ -52,21 +52,20 @@ try
 
     // Každý modul má vlastní databázi: Ordering (krok 10B – sklad má vlastní službu), Journeys (krok 12), Accounts
     // (účty krok 1), Notifications, Payments, Reporting, Reviews (e-shop kroky 7, 8, 11, 14).
-    // Škálování krok 1: Database:Provider = Sqlite (soubor pro každý modul, ConnectionStrings:Ordering …)
-    // nebo Postgres (jedna databáze ConnectionStrings:minishop, každý modul ve vlastním schématu).
-    ModuleDatabase Database(string module) => ModuleDatabase.FromConfiguration(builder.Configuration, module);
+    // Škálování krok 1 a 3C: jedna PostgreSQL databáze (ConnectionStrings:minishop), každý modul ve vlastním schématu.
+    var database = ModuleDatabase.FromConfiguration(builder.Configuration);
 
     // Registrace vrstev (composition root).
     builder.Services.AddApplication(builder.Configuration);
     builder.Services.AddInfrastructureCore();
-    builder.Services.AddOrderingInfrastructure(Database("Ordering"));
-    builder.Services.AddJourneysInfrastructure(Database("Journeys"));
-    builder.Services.AddNotificationsInfrastructure(Database("Notifications"));
+    builder.Services.AddOrderingInfrastructure(database);
+    builder.Services.AddJourneysInfrastructure(database);
+    builder.Services.AddNotificationsInfrastructure(database);
     // Bez tajemství webhooku (Payments:WebhookSecret, min. 32 znaků) se Web nespustí – jako se servisním klíčem skladu.
-    builder.Services.AddPaymentsInfrastructure(Database("Payments"), builder.Configuration["Payments:WebhookSecret"]);
-    builder.Services.AddReportingInfrastructure(Database("Reporting"));
-    builder.Services.AddReviewsInfrastructure(Database("Reviews"));
-    builder.Services.AddAccounts(Database("Accounts"));
+    builder.Services.AddPaymentsInfrastructure(database, builder.Configuration["Payments:WebhookSecret"]);
+    builder.Services.AddReportingInfrastructure(database);
+    builder.Services.AddReviewsInfrastructure(database);
+    builder.Services.AddAccounts(database);
 
     // Účty krok 8: zpevnění – limit odeslání formulářů účtu z jedné IP a HSTS (prohlížeč pak chodí jen přes HTTPS).
     builder.Services.AddAccountRateLimiting(builder.Configuration);
@@ -121,22 +120,6 @@ try
     if (CreateAdminCommand.IsRequested(args))
     {
         Environment.ExitCode = await CreateAdminCommand.RunAsync(app.Services, args);
-        return;
-    }
-
-    // Škálování krok 3: "dotnet MiniShop.Web.dll migrate-to-postgres" převede data modulů Webu ze SQLite do PostgreSQL a skončí.
-    if (MigrateToPostgresCommand.IsRequested(args))
-    {
-        Environment.ExitCode = await MigrateToPostgresCommand.RunAsync(app.Configuration, Console.Out,
-        [
-            ModuleDataMigration.For<OrderingDbContext>("Ordering", OrderingDbContext.Schema),
-            ModuleDataMigration.For<JourneysDbContext>("Journeys", JourneysDbContext.Schema),
-            ModuleDataMigration.For<NotificationsDbContext>("Notifications", NotificationsDbContext.Schema),
-            ModuleDataMigration.For<PaymentsDbContext>("Payments", PaymentsDbContext.Schema),
-            ModuleDataMigration.For<ReportingDbContext>("Reporting", ReportingDbContext.Schema),
-            ModuleDataMigration.For<ReviewsDbContext>("Reviews", ReviewsDbContext.Schema),
-            ModuleDataMigration.For<AccountsDbContext>("Accounts", AccountsDbContext.Schema)
-        ], MigrateToPostgresCommand.IsReplace(args));
         return;
     }
 

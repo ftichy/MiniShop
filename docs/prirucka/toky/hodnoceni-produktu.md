@@ -19,7 +19,7 @@ sequenceDiagram
     participant O as Ordering
     participant MQ as RabbitMQ
     participant R as Reviews (Web)
-    participant RDB as reviews.db
+    participant RDB as schéma reviews
     actor Z as Zákazník
     participant C as Kopie katalogu (Ordering)
 

@@ -36,9 +36,8 @@ try
         // Krok 11: logy i do OpenTelemetry (Aspire dashboard → Structured logs, propojené s trasou).
         writeToProviders: true);
 
-    // Škálování krok 1: SQLite (ConnectionStrings:Inventory) nebo PostgreSQL (ConnectionStrings:minishop, schéma inventory)
-    // podle Database:Provider.
-    var database = ModuleDatabase.FromConfiguration(builder.Configuration, "Inventory");
+    // Škálování krok 1 a 3C: PostgreSQL (ConnectionStrings:minishop), schéma inventory.
+    var database = ModuleDatabase.FromConfiguration(builder.Configuration);
 
     // Jen modul Inventory: aplikační služba, handlery příkazů ságy a infrastruktura (inventory.db, outbox, inbox).
     builder.Services.AddSingleton(TimeProvider.System);
@@ -75,14 +74,6 @@ try
     builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
     var app = builder.Build();
-
-    // Škálování krok 3: "dotnet MiniShop.Inventory.Api.dll migrate-to-postgres" převede inventory.db do PostgreSQL a skončí.
-    if (MigrateToPostgresCommand.IsRequested(args))
-    {
-        Environment.ExitCode = await MigrateToPostgresCommand.RunAsync(app.Configuration, Console.Out,
-            [ModuleDataMigration.For<InventoryDbContext>("Inventory", InventoryDbContext.Schema)], MigrateToPostgresCommand.IsReplace(args));
-        return;
-    }
 
     await InventoryDatabaseInitializer.InitializeAsync(app.Services, app.Services.GetRequiredService<TimeProvider>());
 

@@ -14,7 +14,7 @@ Uložit objednávku do databáze a poslat zprávu do RabbitMQ jsou **dvě různ�
 - uložím objednávku → aplikace spadne → zpráva nikdy neodejde (sklad o objednávce neví),
 - pošlu zprávu → uložení selže → sklad rezervuje zboží pro objednávku, která neexistuje.
 
-Distribuovaná transakce přes DB a broker v praxi nefunguje (a SQLite ani RabbitMQ ji neumí).
+Distribuovaná transakce přes DB a broker v praxi nefunguje (a PostgreSQL s RabbitMQ ji spolu neumí).
 
 > **Přirovnání:** Podací kniha na poště. Dopis nenesete rovnou adresátovi – zapíšete ho do knihy spolu s ostatními
 > papíry v jedné složce. Pošťák chodí každé dvě sekundy, bere zápisy z knihy a odškrtává doručené.
@@ -24,7 +24,7 @@ Distribuovaná transakce přes DB a broker v praxi nefunguje (a SQLite ani Rabbi
 ```mermaid
 sequenceDiagram
     participant S as OrderService
-    participant DB as ordering.db
+    participant DB as schéma ordering
     participant W as OutboxWorker (každé 2 s)
     participant P as OutboxProcessor
     participant T as Cíl (handler / RabbitMQ)

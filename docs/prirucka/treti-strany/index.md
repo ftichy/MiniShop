@@ -13,7 +13,7 @@ order: 60
 flowchart TB
     subgraph lib["V kódu (knihovny)"]
         aspnet[".NET, ASP.NET Core"]
-        ef["EF Core + SQLite"]
+        ef["EF Core + PostgreSQL"]
         rmqc["RabbitMQ.Client"]
         otel["OpenTelemetry, Serilog"]
         ui["Bootstrap, Mermaid, Markdig"]

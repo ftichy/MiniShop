@@ -13,19 +13,15 @@ Kód: [ci.yml](code:.github/workflows/ci.yml)
 
 ```mermaid
 flowchart LR
-    t["build-and-test<br/>'Build a testy'<br/>SQLite"] --> i["images (matrix)<br/>web, inventory-api"]
-    p["test-postgres<br/>'Testy PostgreSQL'<br/>Testcontainers"] --> i
+    t["build-and-test<br/>'Build a testy'<br/>PostgreSQL (Testcontainers)"] --> i["images (matrix)<br/>web, inventory-api"]
     i --> d["deploy<br/>jen main"]
-
-    click p "/Docs/architektura/databaze"
 
     click d "/Docs/github/cd"
 ```
 
 | Job | Co dělá | Detaily |
 | --- | --- | --- |
-| **Build a testy** | `restore` → `build -c Release` → `test` | cache NuGet balíčků (klíč = otisk `.csproj`, `.props`, `global.json`), výsledky testů jako artefakt `.trx` (14 dní) |
-| **Testy PostgreSQL** | stejné testy s `MINISHOP_TEST_DATABASE=Postgres` – Testcontainers spustí `postgres:18-alpine` v Dockeru runneru | škálování krok 2; souběžně s „Build a testy“, image se sestaví až po obou. Viz [Databáze – testy](../architektura/databaze.md) |
+| **Build a testy** | `restore` → `build -c Release` → `test` (nad PostgreSQL – Testcontainers spustí `postgres:18-alpine` v Dockeru runneru, [Databáze – testy](../architektura/databaze.md)) | cache NuGet balíčků (klíč = otisk `.csproj`, `.props`, `global.json`), výsledky testů jako artefakt `.trx` (14 dní) |
 | **Image web / inventory-api** | Docker Buildx | PR: jen x86, nic se neukládá (rozbitý Dockerfile se pozná před sloučením). `main`: **amd64 + arm64** (QEMU) a push do GHCR |
 | **Nasazení** | volá `deploy.yml` | jen na `main`, až po úspěšných image – viz [CD](cd.md) |
 

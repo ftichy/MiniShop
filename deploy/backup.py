@@ -1,15 +1,17 @@
-"""Cloud krok 12: záloha a obnova dat MiniShopu (SQLite, Data Protection klíče, obrázky produktů) do/z OCI Object Storage.
+"""Cloud krok 12: záloha a obnova dat MiniShopu do/z OCI Object Storage.
+Obsah zálohy: snímek PostgreSQL (minishop.pgdump), Data Protection klíče, obrázky produktů.
 
 Běží v kontejneru ghcr.io/oracle/oci-cli (Python + OCI CLI) – spouští ho backup.sh / restore.sh na VM:
-  python3 backup.py backup              → snímek všech DB a klíčů → minishop-RRRRMMDDTHHMMSSZ.tar.gz → bucket
+  python3 backup.py backup              → snímek + klíče + obrázky → minishop-RRRRMMDDTHHMMSSZ.tar.gz → bucket
   python3 backup.py fetch latest|<jméno>|/restore-in/<soubor> <složka>
-                                        → stáhne zálohu, rozbalí do <složka>/content a zkontroluje (nic nemění)
-  python3 backup.py restore-files <složka> → SQLite, klíče a obrázky z rozbalené zálohy zpět do volumes (služby musí stát)
+                                        → stáhne zálohu a rozbalí ji do <složka>/content (nic nemění)
+  python3 backup.py restore-files <složka> → klíče a obrázky z rozbalené zálohy zpět do volumes (služby musí stát)
   python3 backup.py list                → seznam záloh v bucketu
 Škálování krok 4: obnovu řídí restore.sh – fetch → ověření a obnova PostgreSQL (pg_restore) → restore-files.
 
-Proč ne obyčejné kopírování souborů: SQLite soubor může být uprostřed zápisu a kopie by byla poškozená.
-Online backup API (sqlite3.Connection.backup = příkaz ".backup") udělá konzistentní snímek i za běhu aplikace.
+Snímek databáze dělá backup.sh (pg_dump v kontejneru postgres – konzistentní stav k jednomu okamžiku i za běhu)
+a sem ho připojí jako soubor. Do škálování kroku 3C se zálohovaly i SQLite soubory (*.db) – starší zálohy je
+ještě mají, obnova je přeskočí.
 
 Přihlášení k OCI: instance principal – VM má identitu (dynamická skupina), žádný klíč ani heslo na disku.
 Smí do bucketu zapisovat a číst, ale NE mazat (politika v infra/backup.tf); staré zálohy maže lifecycle pravidlo.
@@ -20,7 +22,6 @@ import json
 import os
 import re
 import shutil
-import sqlite3
 import subprocess
 import sys
 import tarfile
@@ -30,25 +31,15 @@ from datetime import datetime, timezone
 BUCKET = os.environ.get("BACKUP_BUCKET", "minishop-backups")
 PREFIX = "minishop-"
 
-# Co se zálohuje: (cesta ve volume, jméno v archivu). RabbitMQ ne – zprávy jsou dočasné, pravda je v outboxech.
-DATABASES = [
-    ("/web/ordering.db", "ordering.db"),
-    ("/web/journeys.db", "journeys.db"),
-    ("/web/notifications.db", "notifications.db"),  # e-shop krok 7 – starší zálohy ho nemají, obnova ho pak přeskočí
-    ("/web/payments.db", "payments.db"),  # e-shop krok 8
-    ("/web/reporting.db", "reporting.db"),  # e-shop krok 11 – čtecí model (jde i přestavět tlačítkem v přehledu)
-    ("/web/reviews.db", "reviews.db"),  # e-shop krok 14 – hodnocení produktů (jediná kopie – musí do zálohy)
-    ("/web/users.db", "users.db"),  # účty krok 1 – starší zálohy ho nemají, obnova ho pak přeskočí
-    ("/inventory/inventory.db", "inventory.db"),
-]
-# Škálování krok 3: snímek PostgreSQL (pg_dump --format=custom) – vytvoří ho backup.sh, sem ho připojí jako soubor.
-# Obnova z něj (pg_restore) přijde ve škálování kroku 4; restore() ho zatím jen nechá v archivu.
+# Snímek PostgreSQL (pg_dump --format=custom, škálování krok 3A): vytvoří ho backup.sh, sem ho připojí jako soubor.
+# RabbitMQ se nezálohuje – zprávy jsou dočasné, pravda je v outboxech v databázi.
 PG_DUMP = ("/pgdump/minishop.pgdump", "minishop.pgdump")
 # Složky s daty: (cesta ve volume, jméno v archivu). Chybějící složka se přeskočí – ve starších zálohách i na disku.
 DIRECTORIES = [
     ("/web/keys", "keys"),  # Data Protection klíče Webu (cookies, antiforgery)
-    ("/inventory/images", "images"),  # e-shop krok 2B: obrázky produktů (jména souborů jsou v inventory.db)
+    ("/inventory/images", "images"),  # e-shop krok 2B: obrázky produktů (jména souborů jsou v databázi)
 ]
+LOCAL_BACKUP_DIR = "/restore-in/"  # škálování krok 4: záloha z lokálního souboru (restore.sh ho sem připojí)
 
 
 def log(message: str) -> None:
@@ -62,39 +53,22 @@ def oci(*args: str) -> str:
     return result.stdout
 
 
-def check_integrity(path: str) -> None:
-    with sqlite3.connect(path) as db:
-        status = db.execute("PRAGMA integrity_check").fetchone()[0]
-    if status != "ok":
-        raise RuntimeError(f"{os.path.basename(path)}: integrity_check = {status}")
-
-
 def backup() -> None:
     name = f"{PREFIX}{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}.tar.gz"
     with tempfile.TemporaryDirectory() as work:
         content = os.path.join(work, "content")
         os.makedirs(content)
 
-        for source, target in DATABASES:
-            if not os.path.exists(source):
-                raise FileNotFoundError(f"Chybí {source} – běží služby? (docker compose ps)")
-            destination = os.path.join(content, target)
-            # Online backup: konzistentní snímek, i když aplikace právě zapisuje.
-            with sqlite3.connect(source) as src, sqlite3.connect(destination) as dst:
-                src.backup(dst)
-            check_integrity(destination)
-            log(f"  {target}: {os.path.getsize(destination) // 1024} kB")
+        source, target = PG_DUMP
+        if not os.path.isfile(source) or os.path.getsize(source) == 0:
+            raise FileNotFoundError(f"Chybí snímek PostgreSQL {source} – spouští se záloha přes backup.sh?")
+        shutil.copyfile(source, os.path.join(content, target))
+        log(f"  {target}: {os.path.getsize(source)} B")
 
         for source, target in DIRECTORIES:
             if os.path.isdir(source):
                 shutil.copytree(source, os.path.join(content, target))
                 log(f"  {target}/: {len(os.listdir(source))} souborů")
-
-        source, target = PG_DUMP
-        if not os.path.isfile(source) or os.path.getsize(source) == 0:
-            raise FileNotFoundError(f"Chybí snímek PostgreSQL {source} – spouští se záloha přes backup.sh?")
-        shutil.copyfile(source, os.path.join(content, target))
-        log(f"  {target}: {os.path.getsize(source)} B")   # prázdná databáze má jen pár set bajtů
 
         with open(os.path.join(content, "manifest.json"), "w") as manifest:
             json.dump({"created_utc": datetime.now(timezone.utc).isoformat(),
@@ -117,11 +91,8 @@ def list_backups() -> list[str]:
     return sorted(item["name"] for item in data.get("data", []))
 
 
-LOCAL_BACKUP_DIR = "/restore-in/"  # škálování krok 4: záloha z lokálního souboru (restore.sh ho sem připojí)
-
-
 def fetch(name: str, work: str) -> None:
-    """Škálování krok 4: stáhne (nebo vezme lokální) zálohu, rozbalí ji do work/content a zkontroluje SQLite.
+    """Škálování krok 4: stáhne (nebo vezme lokální) zálohu a rozbalí ji do work/content.
     Nic v produkci nemění – restore.sh mezitím ověří snímek PostgreSQL a teprve pak se obnovuje."""
     if name.startswith(LOCAL_BACKUP_DIR) and os.path.isfile(name):
         archive = name
@@ -142,48 +113,22 @@ def fetch(name: str, work: str) -> None:
     with tarfile.open(archive) as tar:
         tar.extractall(content, filter="data")
 
-    # Nejdřív zkontrolovat všechno – teprve pak cokoli měnit.
-    for _, target in DATABASES:
-        if os.path.exists(os.path.join(content, target)):
-            check_integrity(os.path.join(content, target))
-
     # Snímek PostgreSQL čte restore.sh (pg_restore v kontejneru databáze) – musí být čitelný i pro uživatele deploy.
     for root, dirs, files in os.walk(work):
         for entry in [root, *(os.path.join(root, f) for f in files)]:
             os.chmod(entry, 0o755 if os.path.isdir(entry) else 0o644)
-    log("Záloha stažená a zkontrolovaná.")
+    log("Záloha stažená.")
 
 
 def restore_files(work: str) -> None:
-    """Vymění SQLite soubory, klíče a obrázky ve volumes za verzi ze zálohy (rozbalené přes fetch)."""
+    """Vymění klíče a obrázky ve volumes za verzi ze zálohy (rozbalené přes fetch); původní nechá vedle."""
     content = os.path.join(work, "content")
-
-    # Databáze přidaná později (users.db) ve starší záloze chybí – ta se přeskočí a zůstane současná.
-    databases = []
-    for destination, target in DATABASES:
-        if os.path.exists(os.path.join(content, target)):
-            databases.append((destination, target))
-        else:
-            log(f"  {target}: v záloze není, ponechávám současný stav")
-
     stamp = f"{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}"
-    for destination, target in databases:
-        owner = os.stat(os.path.dirname(destination))  # vlastník volume = uživatel "app" z image
-        if os.path.exists(destination):
-            # Původní soubor nechat vedle (pro jistotu), WAL/SHM smazat – patří ke starému souboru.
-            os.replace(destination, f"{destination}.before-restore-{stamp}")
-        for suffix in ("-wal", "-shm", "-journal"):
-            if os.path.exists(destination + suffix):
-                os.remove(destination + suffix)
-        shutil.copyfile(os.path.join(content, target), destination)
-        os.chown(destination, owner.st_uid, owner.st_gid)
-        log(f"  {target} → {destination}")
-
     for destination, target in DIRECTORIES:
         if not os.path.isdir(os.path.join(content, target)):
             log(f"  {target}/: v záloze není, ponechávám současný stav")
             continue
-        owner = os.stat(os.path.dirname(destination))
+        owner = os.stat(os.path.dirname(destination))  # vlastník volume = uživatel "app" z image
         if os.path.isdir(destination):
             os.replace(destination, f"{destination}.before-restore-{stamp}")
         shutil.copytree(os.path.join(content, target), destination)

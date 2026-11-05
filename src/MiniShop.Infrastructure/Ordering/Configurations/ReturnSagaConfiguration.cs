@@ -18,10 +18,6 @@ internal sealed class ReturnSagaConfiguration : IEntityTypeConfiguration<ReturnS
         // Admin převezme zboží ve chvíli, kdy vyprší termín: druhý zápis narazí na verzi a zpracuje se znovu.
         builder.Property(s => s.Version).IsConcurrencyToken();
 
-        // SQLite neukládá DateTimeKind – při načtení čas označíme jako UTC.
-        builder.Property(s => s.StartedAtUtc).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
-        builder.Property(s => s.UpdatedAtUtc).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
-        builder.Property(s => s.GoodsDeadlineUtc).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
 
         // Timeout worker hledá: WHERE State = 'AwaitingGoods' AND GoodsDeadlineUtc <= now.
         builder.HasIndex(s => new { s.State, s.GoodsDeadlineUtc });

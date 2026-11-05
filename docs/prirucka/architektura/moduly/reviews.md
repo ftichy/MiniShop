@@ -6,7 +6,7 @@ order: 8
 
 > **V jedné větě:** Reviews si z událostí objednávek drží **vlastní kopii nákupů** (kdo co dostal, co vrátil),
 > podle ní pouští zákazníky k hodnocení a po každé změně oznámí **souhrn hodnocení** – výloha (Ordering) si ho uloží
-> do kopie katalogu. Na Ordering se nikdy neptá. Běží ve službě **Web**, data má v `reviews.db`. Vznikl v e-shop kroku 14.
+> do kopie katalogu. Na Ordering se nikdy neptá. Běží ve službě **Web**, data má ve schématu `reviews`. Vznikl v e-shop kroku 14.
 
 Tok a diagramy: [Hodnocení produktu](../../toky/hodnoceni-produktu.md).
 
@@ -18,7 +18,7 @@ Tok a diagramy: [Hodnocení produktu](../../toky/hodnoceni-produktu.md).
 | **PurchasedOrder** | kopie objednávky: zákazník, produkty, doručeno, vráceno – `AllowsReviewOf` | [PurchasedOrder.cs](code:src/MiniShop.Domain/Reviews/PurchasedOrder.cs) |
 | **PurchaseProjectionHandler** | plní kopii nákupů z událostí (upsert – zprávy mimo pořadí), zapomene zákazníka po smazání účtu | [PurchaseProjectionHandler.cs](code:src/MiniShop.Application/Reviews/PurchaseProjectionHandler.cs) |
 | **ReviewService** | stránka produktu, odeslání/úprava, moderace; po každé změně souhrn do outboxu ve stejné transakci | [ReviewService.cs](code:src/MiniShop.Application/Reviews/ReviewService.cs) |
-| **ReviewsDbContext** | `reviews.db`: `Reviews`, `PurchasedOrders` (+ `PurchasedProducts`), inbox, outbox | [ReviewsDbContext.cs](code:src/MiniShop.Infrastructure/Reviews/ReviewsDbContext.cs) |
+| **ReviewsDbContext** | schéma `reviews`: `Reviews`, `PurchasedOrders` (+ `PurchasedProducts`), inbox, outbox | [ReviewsDbContext.cs](code:src/MiniShop.Infrastructure/Reviews/ReviewsDbContext.cs) |
 | **PurchasesSyncOnStartupWorker** | prázdná kopie nákupů po startu → `SyncPurchasesV1` (nákupy z doby před modulem) | [PurchasesSyncOnStartupWorker.cs](code:src/MiniShop.Web/BackgroundServices/PurchasesSyncOnStartupWorker.cs) |
 | **Stránky** | detail produktu `/Shop/{id}` (veřejný, formulář jen zákazníkovi), moderace `/Admin/Reviews` | [Shop/Detail](code:src/MiniShop.Web/Pages/Shop/Detail.cshtml.cs), [Admin/Reviews](code:src/MiniShop.Web/Pages/Admin/Reviews/Index.cshtml.cs) |
 

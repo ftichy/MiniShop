@@ -9,7 +9,7 @@ namespace MiniShop.Application.Reporting;
 /// </summary>
 /// <remarks>
 /// Dny se počítají v českém čase (objednávka v 0:30 patří do „dneška“, i když v UTC je to včera).
-/// Součty v paměti – SQLite neumí sčítat decimal přesně a dat je málo (posledních 30 dní).
+/// Součty v paměti – dat je málo (posledních 30 dní); z doby SQLite, které neumělo sčítat decimal přesně.
 /// </remarks>
 public sealed class SalesReportService(
     ISalesOrderRepository orders,

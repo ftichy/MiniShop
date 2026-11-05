@@ -60,7 +60,7 @@ hláška „Objednávka se mezitím změnila“). Vyhraje jen jeden a data zůst
 
 Každý přechod (i vznik jako `Pending`) zapíše řádek `OrderStatusChange` – stav, čas a u zamítnutí důvod.
 Dělá to jediná privátní metoda `ChangeStatus`, takže stav a historie se mění **vždy spolu** a uloží se v jedné
-transakci (tabulka `OrderStatusChanges` v `ordering.db`). Zákazník ji vidí na detailu objednávky `/Orders/{id}`
+transakci (tabulka `OrderStatusChanges` ve schématu `ordering`). Zákazník ji vidí na detailu objednávky `/Orders/{id}`
 jako časovou osu – podobně jako sledování zásilky u přepravce.
 
 Proč ne projekce z proudu událostí (jako [Journeys](moduly/journeys.md))? Události objednávky se trvale neukládají

@@ -42,8 +42,8 @@ public sealed record AccountAdminResult(bool Succeeded, string Message)
 /// <item>Admin nemůže odebrat roli ani zablokovat sám sebe (aby se omylem nezamkl).</item>
 /// <item>Role jsou výhradní: User ↔ Admin (admin neobjednává).</item>
 /// </list>
-/// Kontrola i změna běží v jedné transakci – dvě souběžné změny (dva admini odebírají jeden druhého) SQLite
-/// nepustí najednou, druhá skončí chybou. Každá změna vymění security stamp: staré přihlášení (cookie)
+/// Kontrola i změna běží v jedné transakci pod zámkem (pg_advisory_xact_lock) – dvě souběžné změny (dva admini
+/// odebírají jeden druhého) proběhnou postupně a druhá už vidí výsledek první. Každá změna vymění security stamp: staré přihlášení (cookie)
 /// dotyčného do minuty přestane platit (SecurityStampValidator ve Webu) a zapíše se auditní záznam.
 /// </remarks>
 public sealed class AccountAdministration(
@@ -92,6 +92,12 @@ public sealed class AccountAdministration(
         CancellationToken cancellationToken)
     {
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        // Škálování krok 3C: změny správy uživatelů jedna po druhé. PostgreSQL pouští transakce souběžně – dva admini,
+        // kteří se naráz navzájem vracejí na usera, by oba prošli kontrolou „zůstane jiný admin“. Zámek drží transakce
+        // (uvolní se při commitu/rollbacku); druhá počká a pak už vidí změnu té první.
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "SELECT pg_advisory_xact_lock(hashtext('minishop.account-administration'))", cancellationToken);
 
         var actor = await userManager.FindByIdAsync(actorId);
         if (actor is null || !await IsActiveAdminAsync(actor))
@@ -225,7 +231,7 @@ public sealed class AccountAdministration(
         where role.Name == AccountRoles.Admin
         select userRole.UserId;
 
-    /// <summary>Zámek se počítá v paměti – SQLite neumí v dotazu porovnávat DateTimeOffset (LockoutEnd).</summary>
+    /// <summary>Zámek se počítá v paměti (z doby SQLite, které neumělo v dotazu porovnávat DateTimeOffset; uživatelů je málo).</summary>
     private AccountSummary ToSummary(ApplicationUser user, bool isAdmin)
     {
         var blocked = IsBlocked(user);

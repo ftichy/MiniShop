@@ -20,8 +20,6 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
 
         // Pásmo dostupnosti se počítá ze zásoby, ukládá se jen čas jeho poslední změny.
         builder.Ignore(p => p.Availability);
-        builder.Property(p => p.AvailabilityChangedAtUtc)
-            .HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
 
         // Doménové události se neukládají jako sloupce – InventoryDbContext je převede na zprávy v outboxu.
         builder.Ignore(p => p.DomainEvents);

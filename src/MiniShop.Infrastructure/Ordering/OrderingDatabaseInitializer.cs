@@ -18,7 +18,7 @@ public static class OrderingDatabaseInitializer
         await MigrateAsync(scope.ServiceProvider.GetRequiredService<OrderingDbContext>(), cancellationToken);
     }
 
-    /// <summary>Databázi z doby před migracemi pozná <see cref="DatabaseMigrator"/> podle tabulky Orders.</summary>
+    /// <summary>Schéma modulu přes EF migrace (<see cref="DatabaseMigrator"/>).</summary>
     public static Task MigrateAsync(OrderingDbContext dbContext, CancellationToken cancellationToken = default) =>
-        DatabaseMigrator.MigrateAsync(dbContext, "Orders", cancellationToken);
+        DatabaseMigrator.MigrateAsync(dbContext, cancellationToken);
 }

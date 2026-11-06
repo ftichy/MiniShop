@@ -27,6 +27,7 @@ public static class AccountsInfrastructure
         services.AddScoped<AccountsSeeder>();
         services.AddScoped<AccountAdministration>();   // účty krok 6: správa uživatelů adminem
         services.AddScoped<AccountDeletion>();         // účty krok 9: smazání vlastního účtu
+        services.AddScoped<ExternalAccountLinker>();   // účty krok 10: přihlášení přes Google
         services.TryAddSingleton(TimeProvider.System);
 
         return services.AddIdentityCore<ApplicationUser>(ConfigureIdentity)

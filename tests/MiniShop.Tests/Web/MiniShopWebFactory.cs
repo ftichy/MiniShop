@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -13,6 +14,7 @@ using MiniShop.Domain.Orders;
 using MiniShop.Infrastructure.Accounts;
 using MiniShop.Infrastructure.Ordering;
 using MiniShop.Tests.TestDoubles;
+using MiniShop.Web.Accounts;
 
 namespace MiniShop.Tests.Web;
 
@@ -39,6 +41,9 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
 
     /// <summary>Účty krok 8: všechno, co Web zapsal do logu.</summary>
     public RecordingLoggerProvider Logs { get; } = new();
+
+    /// <summary>Účty krok 10: falešný Google (<see cref="FakeGoogleHandler"/>).</summary>
+    public FakeGoogle Google { get; } = new();
 
     /// <summary>Škálování krok 5: workery, které Web registruje (před odebráním pro testy) – hlídá je <c>WebWorkersTests</c>.</summary>
     public List<Type> RegisteredWorkers { get; private set; } = [];
@@ -80,6 +85,11 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
 
             // Účty krok 8: log do paměti testu.
             services.AddSingleton<ILoggerProvider>(Logs);
+
+            // Účty krok 10: „Google“ bez internetu – testy projdou přihlášením, propojením i smazáním přes stránky.
+            services.AddSingleton(Google);
+            services.AddAuthentication()
+                .AddScheme<AuthenticationSchemeOptions, FakeGoogleHandler>(GoogleLogin.Scheme, GoogleLogin.DisplayName, _ => { });
         });
     }
 

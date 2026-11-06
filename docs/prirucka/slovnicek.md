@@ -61,6 +61,8 @@ order: 80
 | **Fallback policy (secure by default)** | pravidlo pro vše, co nemá vlastní: v MiniShopu „musí být přihlášen“ – zapomenutá stránka je zamčená | [Accounts](architektura/moduly/accounts.md) |
 | **IDOR** | chyba: k cizím datům se dostanu jen změnou čísla v adrese (`/api/orders/43`) – brání filtr podle vlastníka a 404 | [Ordering](architektura/moduly/ordering.md) |
 | **Open redirect** | chyba: web po přihlášení přesměruje na adresu, kterou podstrčil útočník | [Accounts](architektura/moduly/accounts.md) |
+| **OpenID Connect (OAuth 2.0)** | „přihlášení přes někoho jiného“: web pošle uživatele na poskytovatele (Google), ten ho ověří a vrátí podepsanou identitu; heslo k poskytovateli web nevidí | [Accounts](architektura/moduly/accounts.md#přihlášení-přes-google) |
+| **Pre-account hijacking** | útok: účet s cizím e-mailem založený dopředu se později spojí s přihlášením majitele (Google) – proto se propojuje jen potvrzený e-mail | [Accounts](architektura/moduly/accounts.md#přihlášení-přes-google) |
 | **Policy** | pojmenované pravidlo autorizace (`RequireAdmin`), používané na stránkách i v API | [Accounts](architektura/moduly/accounts.md) |
 | **Přihlašovací cookie** | zašifrovaná identita v prohlížeči; `HttpOnly`, `Secure`, `SameSite` | [Accounts](architektura/moduly/accounts.md) |
 | **Resource-based authorization** | rozhodnutí podle konkrétního záznamu („objednávka patří přihlášenému“), ne jen podle role | [Ordering](architektura/moduly/ordering.md) |

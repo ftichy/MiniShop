@@ -1,10 +1,10 @@
 ---
 title: Online služby
-summary: Oracle Cloud, GitHub, Tailscale, DuckDNS, Let's Encrypt, UptimeRobot, healthchecks.io a Gmail – všechny zdarma.
+summary: Oracle Cloud, GitHub, Tailscale, DuckDNS, Let's Encrypt, UptimeRobot, healthchecks.io, Gmail a přihlášení přes Google – všechny zdarma.
 order: 3
 ---
 
-> **V jedné větě:** MiniShop využívá sedm online služeb a všechny jsou ve **free tarifu** – výsledná cena
+> **V jedné větě:** MiniShop využívá řadu online služeb (tabulka níže) a všechny jsou ve **free tarifu** – výsledná cena
 > provozu je **0 Kč měsíčně**.
 
 | Služba | K čemu ji používáme | Proč právě ona | Tarif | Odkazy |
@@ -20,6 +20,7 @@ order: 3
 | **UptimeRobot** | každých 5 minut zvenku kontroluje `/health` a `/health/inventory`, e-mail při výpadku | aktivní kontrola zvenku pozná i výpadek sítě, DNS či certifikátu ([detail](../nasazeni/monitoring.md)) | Free | [uptimerobot.com](https://uptimerobot.com/) |
 | **healthchecks.io** | hlídá, že noční záloha proběhla (*dead man's switch*) | ozve se, když se záloha **neozve** ([detail](../nasazeni/zalohy.md)) | Hobbyist (free) | [healthchecks.io](https://healthchecks.io/) |
 | **Gmail (SMTP)** | odesílání e-mailů z produkce – potvrzení e-mailu, nové heslo, stav objednávky; účet `ftichy.gemini@gmail.com` s heslem aplikace | zdarma (~500 e-mailů/den), dobrá doručitelnost i bez vlastní domény ([detail](../architektura/emaily.md)) | free | [heslo aplikace](https://support.google.com/accounts/answer/185833) |
+| **Google Cloud (OAuth klient)** | přihlášení přes Google (účty krok 10) – projekt MiniShop, *OAuth consent screen* a klient typu *Web application* s adresou návratu `/signin-google` | většina lidí účet Google má; jen rozsahy `openid email profile`, ověření aplikace Googlem pro ně není potřeba ([detail](../architektura/moduly/accounts.md#přihlášení-přes-google)) | free | [Google Cloud Console](https://console.cloud.google.com/apis/credentials), [docs](https://developers.google.com/identity/protocols/oauth2/web-server) |
 
 ## Účty a jejich ochrana
 
@@ -35,3 +36,4 @@ automaty (OAuth klient Tailscale, SSH klíč nasazení, API klíč OCI), jsou po
 | Tailscale | dočasně SSH z vlastní IP v security listu; nebo jiná VPN (WireGuard) |
 | UptimeRobot, healthchecks.io | jiný free monitoring (např. Better Stack); kód se nemění |
 | Gmail | jiný SMTP (Brevo, Mailjet, OCI Email Delivery) – jen `EMAIL_*` v `production.env` a secret `SMTP_PASSWORD` |
+| Google (přihlášení) | prázdné `GOOGLE_CLIENT_ID` tlačítko skryje; účty dál fungují heslem (účet bez hesla si ho nastaví přes *Zapomenuté heslo*) |

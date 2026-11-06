@@ -264,6 +264,10 @@ Heslo k Googlu MiniShop nikdy nevidí.
 
 **Hotovo, když:** nový i existující uživatel se přihlásí Googlem, role zůstávají v MiniShopu.
 
+*Implementováno 6. 11. 2026 (čeká na nasazení): propojení jen s potvrzeným e-mailem, účet bez hesla (Nastavit heslo),
+smazání účtu bez hesla po novém přihlášení u Googlu. Client ID je v `production.env` (není tajné), secret jen
+`GOOGLE_CLIENT_SECRET`. Souhrn: [krok-10-google](kroky-ucty/krok-10-google.md).*
+
 ## Volitelně: kam dál
 
 - **Dvoufázové ověření (TOTP)** pro adminy – Identity ho umí (`AuthenticatorTokenProvider`).

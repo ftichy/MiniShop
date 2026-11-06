@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using MiniShop.Application.Ordering;
@@ -13,7 +14,10 @@ namespace MiniShop.Web.Pages.Admin.Users;
 /// zablokovat, odblokovat). Pravidla (poslední admin, sám sebe) hlídá <see cref="AccountAdministration"/>.
 /// </summary>
 [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
-public sealed class DetailModel(AccountAdministration accounts, IOrderService orderService) : PageModel
+public sealed class DetailModel(
+    AccountAdministration accounts,
+    IOrderService orderService,
+    UserManager<ApplicationUser> userManager) : PageModel
 {
     private const int AuditCount = 50;
 
@@ -21,6 +25,9 @@ public sealed class DetailModel(AccountAdministration accounts, IOrderService or
     public IReadOnlyList<OrderDto> Orders { get; private set; } = [];
     public IReadOnlyList<AccountAuditItem> Audit { get; private set; } = [];
     public bool IsCurrentUser { get; private set; }
+
+    /// <summary>Účty krok 10: jak se uživatel přihlašuje – „heslo“, „Google“ (jen pro informaci).</summary>
+    public IReadOnlyList<string> SignInMethods { get; private set; } = [];
 
     [TempData]
     public string? StatusMessage { get; set; }
@@ -41,7 +48,26 @@ public sealed class DetailModel(AccountAdministration accounts, IOrderService or
         // Stejné pravidlo jako zákazník na stránce Objednávky – jen objednávky tohoto uživatele (filtr v SQL).
         Orders = await orderService.GetAllAsync(OrderAccess.Customer(id), cancellationToken);
         Audit = await accounts.GetAuditAsync(id, AuditCount, cancellationToken);
+        SignInMethods = await SignInMethodsAsync(id);
         return Page();
+    }
+
+    private async Task<IReadOnlyList<string>> SignInMethodsAsync(string id)
+    {
+        var user = await userManager.FindByIdAsync(id);
+        if (user is null)
+        {
+            return [];
+        }
+
+        var methods = new List<string>();
+        if (await userManager.HasPasswordAsync(user))
+        {
+            methods.Add("heslo");
+        }
+
+        methods.AddRange((await userManager.GetLoginsAsync(user)).Select(login => login.ProviderDisplayName ?? login.LoginProvider));
+        return methods;
     }
 
     public Task<IActionResult> OnPostPromoteAsync(string id, CancellationToken cancellationToken) =>

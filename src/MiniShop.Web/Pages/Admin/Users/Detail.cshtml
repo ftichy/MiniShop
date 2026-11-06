@@ -20,6 +20,9 @@
     <dd class="col-sm-9"><partial name="_RoleBadge" model="account.IsAdmin" /></dd>
     <dt class="col-sm-3">Stav</dt>
     <dd class="col-sm-9"><partial name="_LockBadge" model="account" /></dd>
+    @* Účty krok 10: heslo, Google – změnit to může jen uživatel sám. *@
+    <dt class="col-sm-3">Přihlášení</dt>
+    <dd class="col-sm-9">@(Model.SignInMethods.Count > 0 ? string.Join(", ", Model.SignInMethods) : "žádné (jen přes zapomenuté heslo)")</dd>
 </dl>
 
 @if (Model.IsCurrentUser)

@@ -1,0 +1,66 @@
+@page
+@model MiniShop.Web.Pages.Account.ExternalLoginsModel
+@{
+    ViewData["Title"] = "Přihlášení přes Google";
+}
+<h1>Přihlášení přes Google</h1>
+
+<partial name="_StatusMessage" model="Model.StatusMessage" />
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger">@Model.ErrorMessage</div>
+}
+
+<div class="row">
+    <div class="col-md-7 col-lg-6">
+        <p>
+            Propojený účet Google slouží jen k přihlášení – heslo ke Googlu MiniShop nevidí, ukládá jen jeho ID účtu.
+            Role a objednávky zůstávají v MiniShopu.
+        </p>
+
+        @if (Model.Logins.Count > 0)
+        {
+            <table class="table align-middle">
+                <tbody>
+                    @foreach (var login in Model.Logins)
+                    {
+                        <tr>
+                            <td>@(login.ProviderDisplayName ?? login.LoginProvider)</td>
+                            <td><span class="badge text-bg-success">propojeno</span></td>
+                            <td class="text-end">
+                                @if (Model.HasPassword || Model.Logins.Count > 1)
+                                {
+                                    <form method="post" asp-page-handler="Unlink" class="d-inline">
+                                        <input type="hidden" name="provider" value="@login.LoginProvider" />
+                                        <input type="hidden" name="providerKey" value="@login.ProviderKey" />
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" data-track="account-external-unlink">Odpojit</button>
+                                    </form>
+                                }
+                                else
+                                {
+                                    <span class="text-muted small">Odpojit jde, až si <a asp-page="/Account/SetPassword">nastavíte heslo</a>.</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else
+        {
+            <p class="text-muted">Účet zatím není propojený.</p>
+        }
+
+        @foreach (var scheme in Model.AvailableSchemes)
+        {
+            <form method="post" asp-page-handler="Link" class="mb-2">
+                <button type="submit" name="provider" value="@scheme.Name" class="btn btn-outline-secondary"
+                        data-track="account-external-link">
+                    Propojit s @scheme.DisplayName
+                </button>
+            </form>
+        }
+
+        <a asp-page="/Account/ChangePassword" class="btn btn-link px-0">Zpět na účet</a>
+    </div>
+</div>

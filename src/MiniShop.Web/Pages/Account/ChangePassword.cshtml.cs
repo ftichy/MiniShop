@@ -26,8 +26,13 @@ public sealed class ChangePasswordModel(
 
     public bool MustChangePassword => User.HasClaim(claim => claim.Type == AccountClaimTypes.MustChangePassword);
 
-    public void OnGet()
+    public async Task<IActionResult> OnGetAsync()
     {
+        // Účty krok 10: účet založený přes Google heslo nemá – nejdřív ho nastavit (bez „současného hesla“).
+        var user = await userManager.GetUserAsync(User);
+        return user is not null && !await userManager.HasPasswordAsync(user)
+            ? RedirectToPage("./SetPassword")
+            : Page();
     }
 
     public async Task<IActionResult> OnPostAsync()

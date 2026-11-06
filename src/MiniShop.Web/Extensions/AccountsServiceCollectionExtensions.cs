@@ -14,7 +14,7 @@ namespace MiniShop.Web.Extensions;
 /// </summary>
 public static class AccountsServiceCollectionExtensions
 {
-    public static IServiceCollection AddAccounts(this IServiceCollection services, ModuleDatabase database)
+    public static IServiceCollection AddAccounts(this IServiceCollection services, ModuleDatabase database, IConfiguration configuration)
     {
         services.AddAccountsInfrastructure(database)
             .AddSignInManager()
@@ -29,8 +29,10 @@ public static class AccountsServiceCollectionExtensions
         // byla odebrána role, tak přijde o přihlášení do minuty – ne až za 14 dní, kdy cookie vyprší.
         services.Configure<SecurityStampValidatorOptions>(options => options.ValidationInterval = TimeSpan.FromMinutes(1));
 
+        // AddIdentityCookies = přihlašovací cookie MiniShopu + dočasná cookie pro identitu z Googlu (účty krok 10).
         services.AddAuthentication(IdentityConstants.ApplicationScheme)
             .AddIdentityCookies();
+        services.AddAuthentication().AddGoogleLogin(configuration);
 
         services.AddAuthorizationBuilder()
             .AddPolicy(AuthorizationPolicies.RequireAdmin, policy => policy.RequireRole(AccountRoles.Admin))

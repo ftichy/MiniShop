@@ -1,6 +1,6 @@
 ---
 title: Modul Accounts
-summary: Uživatelské účty a role – registrace, přihlášení, role User/Admin, kdo smí co, první admin, správa uživatelů a audit. Data ve schématu accounts (migrace).
+summary: Uživatelské účty a role – registrace, přihlášení (i přes Google), role User/Admin, kdo smí co, první admin, správa uživatelů a audit. Data ve schématu accounts (migrace).
 order: 4
 ---
 
@@ -10,8 +10,8 @@ order: 4
 
 Modul vzniká postupně podle plánu [Uživatelské účty a role](code:docs/Ucty-roadmap.md). Hotové jsou kroky 1
 (registrace, přihlášení), 2 (role, oprávnění, první admin), 3 (vlastník objednávky – zákazník vidí jen své,
-viz [Ordering](ordering.md)), 5 ([e-maily](../emaily.md)), 6 (správa uživatelů a audit), 8 ([zpevnění](#zpevnění))
-a 9 ([otevřený web](#otevřený-web-a-osobní-údaje)); krok 7 zabezpečil sklad ([Inventory](inventory.md)).
+viz [Ordering](ordering.md)), 5 ([e-maily](../emaily.md)), 6 (správa uživatelů a audit), 8 ([zpevnění](#zpevnění)),
+9 ([otevřený web](#otevřený-web-a-osobní-údaje)) a 10 ([přihlášení přes Google](#přihlášení-přes-google)); krok 7 zabezpečil sklad ([Inventory](inventory.md)).
 
 ## Role a oprávnění
 
@@ -25,7 +25,8 @@ a 9 ([otevřený web](#otevřený-web-a-osobní-údaje)); krok 7 zabezpečil skl
 | Expedice – balit, odeslat, doručeno (`/Admin/Fulfilment`, e-shop krok 6), obnovit katalog | ❌ | ❌ | ✅ |
 | Produkty – přidat, naskladnit, upravit, smazat | ❌ | ❌ | ✅ |
 | Průběh a přehrání objednávky (stránky i `GET /api/journeys/…`) | ❌ | ❌ | ✅ |
-| Změna hesla | ❌ | ✅ | ✅ |
+| Změna hesla (účet bez hesla: Nastavit heslo, účty krok 10) | ❌ | ✅ | ✅ |
+| Přihlášení přes Google – propojit, odpojit (`/Account/ExternalLogins`, účty krok 10) | přihlásit se ✅ | ✅ | ✅ |
 | Nastavení e-mailů – souhlas s připomínkou košíku (`/Account/EmailPreferences`, e-shop krok 10, výchozí vypnuto) | ❌ | ✅ | ❌ |
 | Uživatelé – přehled, detail, povýšit / vrátit na usera, zablokovat / odblokovat (`/Admin/…`) | ❌ | ❌ | ✅ (ne sám sobě) |
 
@@ -149,7 +150,8 @@ Prohlížet může každý, ale:
 
 - **Objednávat jde až s potvrzeným e-mailem.** Policy `RequireCustomer` = role User **a** claim
   `minishop:email_confirmed`. Robot s vymyšlenou adresou nic neobjedná a e-maily o objednávkách nechodí cizím lidem.
-- **Smazání účtu** (*právo být zapomenut*, GDPR): jméno v hlavičce → *Smazat účet* → znovu heslo.
+- **Smazání účtu** (*právo být zapomenut*, GDPR): jméno v hlavičce → *Smazat účet* → znovu heslo (účet bez hesla:
+  nové přihlášení u Googlu, viz [Přihlášení přes Google](#přihlášení-přes-google)).
 
 ```mermaid
 sequenceDiagram
@@ -188,6 +190,82 @@ Kód: [Delete.cshtml.cs](code:src/MiniShop.Web/Pages/Account/Delete.cshtml.cs),
 [AccountDeletion.cs](code:src/MiniShop.Infrastructure/Accounts/AccountDeletion.cs), `Order.Anonymize`
 v [Order.cs](code:src/MiniShop.Domain/Orders/Order.cs).
 
+## Přihlášení přes Google
+
+Účty krok 10. Tlačítko **Přihlásit přes Google** na přihlášení i registraci. Protokol je **OpenID Connect**
+(postavený na OAuth 2.0). Přirovnání: vrátný (MiniShop) tě nezná, ale uzná občanku (Google). Pošle tě na úřad,
+úřad tě ověří a dá ti potvrzení s razítkem, vrátný zkontroluje razítko. Heslo ke Googlu MiniShop nikdy nevidí.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Prohlížeč
+    participant E as Account/ExternalLogin (Web)
+    participant H as handler Googlu (/signin-google)
+    participant G as Google
+    participant L as ExternalAccountLinker
+    participant DB as schéma accounts
+
+    U->>E: POST „Přihlásit přes Google“ (antiforgery)
+    E-->>U: 302 na accounts.google.com (client_id, state, korelační cookie)
+    U->>G: přihlášení u Googlu, souhlas se sdílením jména a e-mailu
+    G-->>U: 302 na /signin-google?code=…&state=…
+    U->>H: kód + state
+    H->>H: state sedí s korelační cookie (podvržený návrat neprojde)
+    H->>G: kód + client secret → identita (sub, e-mail, email_verified, jméno)
+    H-->>U: dočasná cookie s identitou (5 minut), 302 na ExternalLogin?handler=Callback
+    U->>E: návrat
+    E->>DB: ExternalLoginSignInAsync – propojený účet? (AspNetUserLogins)
+    alt propojený
+        E-->>U: cookie .MiniShop.Auth (zámek a blokace se kontrolují jako u hesla)
+    else nepropojený
+        E->>L: LinkOrCreateAsync
+        L->>DB: účet se stejným e-mailem?
+        L-->>E: propojit / založit / odmítnout (tabulka níže)
+        E-->>U: cookie .MiniShop.Auth, nebo stránka s důvodem
+    end
+```
+
+| Situace po návratu z Googlu | Co MiniShop udělá |
+| --- | --- |
+| Google účet už je propojený | přihlásí (zablokovaný nebo zamčený účet ne – stejná hláška jako u hesla) |
+| Účet se stejným e-mailem, e-mail **potvrzený** | propojí a přihlásí |
+| Účet se stejným e-mailem, e-mail **nepotvrzený** | **odmítne** – „přihlaste se heslem a potvrďte e-mail“ |
+| Žádný účet | založí nový **bez hesla**, role User, e-mail rovnou potvrzený (ověřil ho Google) |
+| Google e-mail neověřil (`email_verified=false`) | odmítne |
+| Uživatel na Googlu klikl na Zrušit | stránka s hláškou (`OnRemoteFailure` – jinak by handler skončil chybou 500) |
+
+- **Proč odmítnout nepotvrzený e-mail** (*pre-account hijacking*): útočník by si mohl předem založit účet s cizím
+  e-mailem a vlastním heslem. Až by se majitel e-mailu přihlásil Googlem, účty by se spojily a útočník by znal heslo
+  k cizímu účtu. Potvrzený e-mail dokazuje, že účet založil majitel schránky. Přihlášený uživatel si ale Google propojit
+  smí vždy (stránka *Přihlášení přes Google* v nastavení účtu) – je to jeho účet.
+- **Propojení** = řádek v `AspNetUserLogins` (`LoginProvider = Google`, `ProviderKey = sub` – stálé ID účtu Google;
+  e-mail se u Googlu změnit může, `sub` ne). Tabulku vytvořil Identity už v kroku 1, **migrace nebyla potřeba**.
+- **Role zůstávají v MiniShopu** – Google jen potvrzuje, kdo uživatel je. Admin se přes Google přihlásí se stejnými pravidly.
+- **Účet bez hesla:** *Změna hesla* pošle na **Nastavit heslo** (`AddPasswordAsync`); Google jde odpojit, jen když účet
+  má heslo (jinak by se k němu už nikdo nepřihlásil). Zapomenuté heslo funguje i pro něj.
+- **Smazání účtu bez hesla** potvrdí uživatel novým přihlášením u Googlu (`prompt=login` – Google se zeptá znovu,
+  nepustí ho ze své otevřené relace). Smaže se, jen když se vrátí stejný účet Google, který je s účtem propojený; ID
+  účtu MiniShopu je ve `state` (návrat patří jen k tomuto přihlášení). Propojení zmizí s účtem (kaskáda).
+- **CSP:** `form-action 'self' https://accounts.google.com` – formulář jde na MiniShop, ten odpoví přesměrováním na Google
+  a prohlížeč `form-action` kontroluje i u přesměrování po odeslání formuláře.
+- **Víc kopií Webu:** dočasnou a korelační cookie přečte kterákoli kopie – klíče Data Protection jsou společné.
+  Za Caddy se adresa návratu sestaví jako `https://` díky `ASPNETCORE_FORWARDEDHEADERS_ENABLED`.
+- **Konfigurace:** `Authentication:Google:ClientId` + `ClientSecret` (lokálně user secrets Webu, Compose `GOOGLE_CLIENT_ID` +
+  `GOOGLE_CLIENT_SECRET`, produkce Client ID v `deploy/production.env`, tajemství jako [secret](../../github/secrets.md)).
+  Bez nich se tlačítko neukáže. OAuth klient v [Google Cloud Console](../../treti-strany/sluzby.md) má povolené adresy návratu
+  `https://minishop-tichy.cz/signin-google` a `https://localhost:7180/signin-google`.
+- **Testy** nahrazují Google falešným schématem
+  ([FakeGoogle.cs](code:tests/MiniShop.Tests/TestDoubles/FakeGoogle.cs)) – projdou celou cestu přes stránky bez internetu
+  ([GoogleLoginTests](code:tests/MiniShop.Tests/Web/GoogleLoginTests.cs)).
+
+Kód: [GoogleLogin.cs](code:src/MiniShop.Web/Accounts/GoogleLogin.cs),
+[ExternalAccountLinker.cs](code:src/MiniShop.Infrastructure/Accounts/ExternalAccountLinker.cs),
+stránky [ExternalLogin](code:src/MiniShop.Web/Pages/Account/ExternalLogin.cshtml.cs),
+[ExternalLogins](code:src/MiniShop.Web/Pages/Account/ExternalLogins.cshtml.cs),
+[SetPassword](code:src/MiniShop.Web/Pages/Account/SetPassword.cshtml.cs) a
+[Delete](code:src/MiniShop.Web/Pages/Account/Delete.cshtml.cs).
+
 ## Databáze a migrace
 
 Účty jako první přešly na **EF Core migrace** (účty krok 6 – jsou v ní účty, nesmí se mazat;
@@ -220,7 +298,7 @@ flowchart LR
         adminPages["Admin/Users, Detail"]
         administration["AccountAdministration<br/>role, blokace, audit"]
         stamp["SecurityStampValidator<br/>cookie ↔ databáze každou minutu"]
-        db[("schéma accounts<br/>AspNetUsers, AspNetRoles,<br/>AspNetUserRoles, AspNetUserClaims,<br/>AccountAuditEntries")]
+        db[("schéma accounts<br/>AspNetUsers, AspNetRoles,<br/>AspNetUserRoles, AspNetUserClaims,<br/>AspNetUserLogins, AccountAuditEntries")]
     end
 
     browser -->|"POST formulář"| pages
@@ -274,6 +352,8 @@ sequenceDiagram
 | **AccountAdministration** | Správa uživatelů adminem: role, blokace, pravidla (poslední admin, sám sebe), security stamp, audit. | [AccountAdministration.cs](code:src/MiniShop.Infrastructure/Accounts/AccountAdministration.cs) |
 | **AccountAuditEntry** | Auditní záznam: kdo, komu, co, kdy (tabulka `AccountAuditEntries`). | [AccountAuditEntry.cs](code:src/MiniShop.Infrastructure/Accounts/AccountAuditEntry.cs) |
 | **AccountDeletion** | Smazání vlastního účtu (účty krok 9): admin ne, e-mail z auditu pryč, účet i role a claimy smazané. | [AccountDeletion.cs](code:src/MiniShop.Infrastructure/Accounts/AccountDeletion.cs) |
+| **ExternalAccountLinker** | Přihlášení přes Google (účty krok 10): propojit podle potvrzeného e-mailu, založit účet bez hesla, nebo odmítnout; propojení z nastavení a odpojení. | [ExternalAccountLinker.cs](code:src/MiniShop.Infrastructure/Accounts/ExternalAccountLinker.cs) |
+| **GoogleLogin** | Ve Webu: `AddGoogle` jen s nastaveným OAuth klientem, `email_verified` do claimu, chyba z Googlu → stránka s hláškou, `prompt=login` pro smazání účtu. | [GoogleLogin.cs](code:src/MiniShop.Web/Accounts/GoogleLogin.cs) |
 | **CzechIdentityErrorDescriber** | České chybové hlášky Identity. | [CzechIdentityErrorDescriber.cs](code:src/MiniShop.Infrastructure/Accounts/CzechIdentityErrorDescriber.cs) |
 | **AccountClaimsPrincipalFactory** | Co se uloží do cookie – navíc zobrazované jméno (role a claimy uživatele přidá Identity). | [AccountClaimsPrincipalFactory.cs](code:src/MiniShop.Infrastructure/Accounts/AccountClaimsPrincipalFactory.cs) |
 | **AddAccounts** | Ve Webu: `SignInManager`, cookie, policies, fallback policy; `/api/*` dostane 401/403 místo přesměrování. | [AccountsServiceCollectionExtensions.cs](code:src/MiniShop.Web/Extensions/AccountsServiceCollectionExtensions.cs) |
@@ -281,8 +361,8 @@ sequenceDiagram
 
 ## Zajímavá rozhodnutí
 
-- **Žádná vlastní kryptografie.** Hashování hesel (PBKDF2 se solí), security stamp, role i budoucí zámek účtu
-  a přihlášení přes Google dodává ASP.NET Core Identity.
+- **Žádná vlastní kryptografie.** Hashování hesel (PBKDF2 se solí), security stamp, role, zámek účtu
+  i přihlášení přes Google (účty krok 10) dodává ASP.NET Core Identity.
 - **Cookie** je `HttpOnly` (JavaScript ji nepřečte), `Secure` (jen HTTPS) a `SameSite=Lax` (cizí web s ní nepošle
   formulář). Šifruje se klíči Data Protection – v cloudu leží na volume, takže přihlášení přežije nasazení.
 - **Role jsou v cookie.** Proto každá změna role nebo blokace vymění security stamp a Web cookie každou minutu porovná

@@ -13,7 +13,7 @@ order: 4
 flowchart LR
     pe["deploy/production.env<br/>(git, netajné)"] --> sh["deploy.sh na VM"]
     tag["IMAGE_TAG = sha-…<br/>(nasazovaný commit)"] --> sh
-    sec["GitHub environment production<br/>RABBITMQ_PASSWORD, BASIC_AUTH_HASH,<br/>HEALTHCHECKS_BACKUP_URL, SMTP_PASSWORD,<br/>INVENTORY_API_KEY, PAYMENTS_WEBHOOK_SECRET,<br/>POSTGRES_PASSWORD"] -->|"stdin přes SSH"| sh
+    sec["GitHub environment production<br/>RABBITMQ_PASSWORD, BASIC_AUTH_HASH,<br/>HEALTHCHECKS_BACKUP_URL, SMTP_PASSWORD,<br/>INVENTORY_API_KEY, PAYMENTS_WEBHOOK_SECRET,<br/>POSTGRES_PASSWORD, GOOGLE_CLIENT_SECRET"] -->|"stdin přes SSH"| sh
     sh --> env[".env na VM<br/>práva 600, vlastník deploy"]
     env --> compose["docker compose"]
     compose --> cont["proměnné prostředí kontejnerů"]
@@ -36,6 +36,7 @@ flowchart LR
 | `INVENTORY_API_KEY` | servisní klíč – Web ho posílá skladu, sklad bez něj vrátí 401 ([Inventory](../architektura/moduly/inventory.md)); povinný | GitHub `production` → `.env` na VM → oba kontejnery |
 | `PAYMENTS_WEBHOOK_SECRET` | sdílené tajemství s platební bránou – podpis HMAC webhooku, bez něj 401 ([Payments](../architektura/moduly/payments.md)); povinný, bez něj se Web nespustí (e-shop krok 8) | GitHub `production` → `.env` na VM → kontejner `web` |
 | `POSTGRES_PASSWORD` | heslo databáze PostgreSQL ([Databáze](../architektura/databaze.md)); povinný (škálování krok 3), výměnu v běžící databázi udělá `deploy.sh` | GitHub `production` → `.env` na VM → kontejnery `postgres`, `web`, `inventory-api` |
+| `GOOGLE_CLIENT_SECRET` | tajemství OAuth klienta Googlu pro přihlášení přes Google ([Accounts](../architektura/moduly/accounts.md#přihlášení-přes-google)); volitelný (účty krok 10) – Client ID není tajné, je v `deploy/production.env` (`GOOGLE_CLIENT_ID`) | GitHub `production` → `.env` na VM → kontejner `web` |
 | `DEPLOY_SSH_KEY` | soukromý klíč pro spuštění `minishop-deploy` | GitHub `production` |
 | `TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET` | připojení runneru do Tailscale | GitHub `production` |
 | `GITHUB_TOKEN` | push image do GHCR | vytváří ho GitHub pro každý běh |

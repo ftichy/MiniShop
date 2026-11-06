@@ -14,10 +14,13 @@ public static class SecurityHeaders
     /// Kdyby se do stránky přece jen dostal cizí skript (XSS), prohlížeč ho nespustí – inline skripty proto
     /// v MiniShopu nejsou, jen soubory ve wwwroot/js. Styly 'unsafe-inline': Mermaid kreslí diagramy s inline styly
     /// a pár atributů style="" v šablonách (styl nespouští kód).
+    /// Účty krok 10: form-action i accounts.google.com – formulář „Přihlásit přes Google“ odejde na MiniShop, ale ten
+    /// odpoví přesměrováním na Google a prohlížeč form-action kontroluje i u přesměrování po odeslání formuláře.
     /// </summary>
     public const string ContentSecurityPolicy =
         "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; " +
-        "font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
+        "font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; " +
+        "form-action 'self' https://accounts.google.com; frame-ancestors 'none'";
 
     /// <summary>Vývoj: hot reload / obnovení prohlížeče z Visual Studia mluví přes WebSocket na jiném portu.</summary>
     private const string DevelopmentConnectSources = " ws://localhost:* wss://localhost:*";

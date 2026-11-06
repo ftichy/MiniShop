@@ -319,7 +319,7 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   (**před** sloučením, pokud na změně závisí její vlastní nasazení). Změněný `Caddyfile` `deploy.sh` načte přes `caddy reload`.
   Port 22 je z internetu zavřený – SSH jen přes Tailscale. Nouzově: pravidlo 22 v security listu vrátit.
   Secrets/proměnné jen v environmentu `production`: `TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`, `DEPLOY_SSH_KEY`,
-  `RABBITMQ_PASSWORD`, `BASIC_AUTH_HASH` (krok 10), `SMTP_PASSWORD` (účty krok 5), `INVENTORY_API_KEY` (účty krok 7), `PAYMENTS_WEBHOOK_SECRET` (e-shop krok 8), `POSTGRES_PASSWORD` (škálování krok 3), `DEPLOY_HOST`, `DEPLOY_KNOWN_HOSTS`.
+  `RABBITMQ_PASSWORD`, `BASIC_AUTH_HASH` (krok 10), `SMTP_PASSWORD` (účty krok 5), `INVENTORY_API_KEY` (účty krok 7), `PAYMENTS_WEBHOOK_SECRET` (e-shop krok 8), `POSTGRES_PASSWORD` (škálování krok 3), `GOOGLE_CLIENT_SECRET` (účty krok 10, volitelný), `DEPLOY_HOST`, `DEPLOY_KNOWN_HOSTS`.
 - Doména (krok 13): `https://minishop-tichy.cz` (Wedos: registrace + DNS, záznamy A `@` a `dashboard` → reserved IP, TTL 300,
   žádné AAAA – zadává uživatel ručně v client.wedos.com, pak *Aplikovat změny*). `DOMAIN` + `LEGACY_DOMAIN` v `production.env`;
   stará `minishop-tichy.duckdns.org` (i `dashboard.`) = 301 na novou doménu (Caddyfile), smoke test hlídá obojí (doména
@@ -418,6 +418,12 @@ Modul Accounts (ASP.NET Core Identity, schéma `accounts`). Souhrny kroků do `d
   `CreateUserAsync(emailConfirmed: true)`). Smazání účtu `/Account/Delete`: heslo → `IOrderService.AnonymizeCustomerAsync`
   (Ordering, nevyřízená objednávka = DomainException) → `AccountDeletion.DeleteAsync` (Accounts; admin ne, audit
   `ForgetUser`) → odhlásit. **Nový osobní údaj = doplnit anonymizaci a stránku `/Privacy`.** Kestrel bez hlavičky `Server`.
+- Google (krok 10): `GoogleLogin.AddGoogleLogin` jen s `Authentication:Google:ClientId` + `ClientSecret` (lokálně user secrets Webu,
+  Compose `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`), jinak tlačítko zmizí. Pravidla v `ExternalAccountLinker` (Infrastructure/Accounts):
+  **nepotvrzený e-mail se automaticky nepropojí** (pre-account hijacking), nový účet bez hesla s `EmailConfirmed`; přihlášení
+  přes `ExternalLoginSignInAsync` (zámek/blokace). Návrat z Googlu s ID účtu ve `state` (`ConfigureExternalAuthenticationProperties(…, userId)`)
+  pro propojení a smazání (`prompt=login`). Chyba z Googlu → `OnRemoteFailure` (jinak 500). **Nová akce s přesměrováním na cizí
+  web = doplnit CSP `form-action`.** Testy: `FakeGoogleHandler` (identita z hlaviček `X-Fake-Google-*`), `web.Google.LastPrompt`.
 
 | Krok | Stav | Souhrn |
 | --- | --- | --- |
@@ -430,7 +436,7 @@ Modul Accounts (ASP.NET Core Identity, schéma `accounts`). Souhrny kroků do `d
 | 7. Zabezpečení skladu (servisní klíč `X-Api-Key` pro celé `/api` Inventory.Api, secret `INVENTORY_API_KEY`, fail fast; JWT odloženo) | hotovo | `docs/kroky-ucty/krok-07-zabezpeceni-skladu.md` |
 | 8. Zpevnění (zámek 5 pokusů / 15 min, rate limiting formulářů účtu 10/min/IP → 429, CSP a bezpečnostní hlavičky, Bootstrap lokálně, `enduser.id`, logy bez e-mailů) | hotovo | `docs/kroky-ucty/krok-08-zpevneni.md` |
 | 9. Otevření webu (`BASIC_AUTH=off`, objednávka jen s potvrzeným e-mailem, smazání účtu + anonymizace objednávek, `/Privacy`, bez hlaviček `Server`/`Via`; CAPTCHA odložena) | hotovo | `docs/kroky-ucty/krok-09-otevreni-webu.md` |
-| 10. Přihlášení přes Google | plán | — |
+| 10. Přihlášení přes Google (OpenID Connect, `ExternalAccountLinker`: propojení jen s potvrzeným e-mailem, účet bez hesla + `SetPassword`, smazání po `prompt=login`, `/Account/ExternalLogins`, CSP `form-action` + Google, `GOOGLE_CLIENT_ID` v `production.env` + secret `GOOGLE_CLIENT_SECRET`) | implementováno (testy s falešným Googlem); čeká na OAuth klienta a nasazení | `docs/kroky-ucty/krok-10-google.md` |
 
 ## Stav e-shopu (viz `docs/Eshop-roadmap.md`)
 Výloha → košík → pokladna → platba → expedice → doručení. Košík je agregát v modulu Ordering (checkout = jedna transakce),

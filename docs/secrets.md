@@ -19,6 +19,7 @@ Pravidla:
 | `INVENTORY_API_KEY` | servisní klíč mezi Webem a skladem (účty krok 7) – kdo ho zná a dostane se do sítě Dockeru, může měnit produkty a zásoby. 64 hex znaků, povinný | `.env` na VM → proměnná `InventoryApi__ApiKey` v kontejnerech `web` a `inventory-api` | [R9](#r9-servisní-klíč-skladu) | při podezření, jinak 1× ročně |
 | `PAYMENTS_WEBHOOK_SECRET` | sdílené tajemství s platební bránou (e-shop krok 8) – HMAC podpis webhooku `/api/payments/webhook`. Kdo ho zná, může „zaplatit“ libovolnou objednávku. 64 hex znaků, povinný (bez něj se Web nespustí) | `.env` na VM → proměnná `Payments__WebhookSecret` v kontejneru `web` | [R10](#r10-tajemství-webhooku-plateb) | při podezření, jinak 1× ročně |
 | `POSTGRES_PASSWORD` | heslo účtu `minishop` v PostgreSQL (škálování krok 3) – Web a sklad se jím přihlašují k databázi se všemi daty (objednávky, účty). Databáze je dostupná jen uvnitř sítě Compose a z VM (`127.0.0.1:5432`). 24–128 písmen/číslic, povinný | `.env` na VM → `POSTGRES_PASSWORD` kontejneru `postgres` a connection string `ConnectionStrings__minishop` ve `web` a `inventory-api` | [R11](#r11-heslo-postgresql) | při podezření, jinak 1× ročně |
+| `GOOGLE_CLIENT_SECRET` | tajemství OAuth klienta Googlu (účty krok 10) – s Client ID (`GOOGLE_CLIENT_ID` v `deploy/production.env`, není tajné) Web u Googlu vyměňuje kód za identitu uživatele. Kdo ho zná, může se za MiniShop vydávat vůči Googlu (vlastní stránka s přihlášením „do MiniShopu“), k účtům MiniShopu ani Googlu se jím nedostane. Tvar `GOCSPX-…`, volitelný: prázdný = přihlášení přes Google vypnuté | `.env` na VM → `Authentication__Google__ClientSecret` ve `web` | [R12](#r12-tajemství-oauth-klienta-googlu) | při podezření |
 
 ## Secrets nasazení (GitHub → Environments → `production`)
 
@@ -149,6 +150,15 @@ Nový klíč (`ssh-keygen`), veřejnou část přidat na VM do `/home/ubuntu/.ss
    spustí služby s novým connection stringem. Při chybě nasazení vrátí i staré heslo.
    (`POSTGRES_PASSWORD` v Compose platí jen při založení prázdného volume – samotná změna proměnné heslo nezmění.)
 3. Ověření: `/health` = Healthy (kontrola `database-ordering`), výloha a objednávky se načtou.
+
+### R12. Tajemství OAuth klienta Googlu
+
+1. [Google Cloud Console](https://console.cloud.google.com/) → projekt MiniShop → *APIs & Services* → *Credentials* →
+   OAuth klient „MiniShop“ → *Add secret* (staré tajemství zatím nechat).
+2. GitHub → *Environments* → `production` → `GOOGLE_CLIENT_SECRET` → nové tajemství → *Actions → Deploy → Run workflow*.
+3. Ověření: odhlásit se → *Přihlásit přes Google* → přihlášený. Pak v konzoli staré tajemství *Disable* → *Delete*.
+4. Únik celého klienta: v konzoli klienta smazat a založit nový – nové Client ID do `deploy/production.env` (PR),
+   tajemství do secretu. Propojené účty zůstanou (ID účtu Google se nemění).
 
 ### Které SHA nasadit
 

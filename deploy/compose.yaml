@@ -160,6 +160,10 @@ services:
       Email__FromAddress: ${EMAIL_FROM_ADDRESS:-minishop@localhost}
       # E-shop krok 7: odkazy v e-mailech o objednávce (modul Notifications). Produkce: PUBLIC_BASE_URL v production.env.
       Notifications__PublicBaseUrl: ${PUBLIC_BASE_URL:-http://localhost:8080}
+      # Účty krok 10: přihlášení přes Google (OAuth klient z Google Cloud Console). Bez obou hodnot se tlačítko neukáže.
+      # Produkce: Client ID v production.env (není tajné), tajemství je secret GOOGLE_CLIENT_SECRET.
+      Authentication__Google__ClientId: ${GOOGLE_CLIENT_ID:-}
+      Authentication__Google__ClientSecret: ${GOOGLE_CLIENT_SECRET:-}
     # Škálování krok 5: víc kopií Webu (produkce 2 – production.env). Všechny sdílí volume web-data: klíče Data Protection
     # musí být společné (cookie přihlášení a formuláře z jedné kopie platí i v druhé), logy má každá vlastní soubor.
     # Workery s časovačem běží jen na vedoucí kopii (zámek v PostgreSQL), požadavky rozděluje Caddy (compose.cloud.yaml).

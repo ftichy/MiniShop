@@ -19,6 +19,12 @@
             <td>do smazání účtu</td>
         </tr>
         <tr>
+            @* Účty krok 10 *@
+            <td>Přihlášení přes Google (jen když ho použijete): ID účtu Google – jméno a e-mail přebíráme do účtu, heslo ke Googlu nevidíme</td>
+            <td>přihlášení bez hesla</td>
+            <td>do odpojení nebo smazání účtu</td>
+        </tr>
+        <tr>
             <td>Objednávky: jméno a e-mail (kopie z účtu), doručovací adresa (jen u kurýra), položky, ceny, doprava, stav</td>
             <td>vyřízení a doručení objednávky; adresa z poslední objednávky předvyplní pokladnu</td>
             <td>jméno, e-mail a adresa do smazání účtu, zbytek trvale (bez osobních údajů)</td>
@@ -65,7 +71,7 @@
 
 <h2 class="h4 mt-4">Cookies</h2>
 <p>
-    Jen nezbytné: přihlášení (<code>.MiniShop.Auth</code>), ochrana formulářů a jednorázové zprávy na stránce.
+    Jen nezbytné: přihlášení (<code>.MiniShop.Auth</code>), krátce při přihlášení přes Google dočasná cookie s odpovědí Googlu (nejvýš 5 minut), ochrana formulářů a jednorázové zprávy na stránce.
     Žádné reklamní ani analytické cookies, žádné sledování třetími stranami.
 </p>
 
@@ -73,6 +79,7 @@
 <ul>
     <li><strong>Oracle Cloud</strong> (server ve Frankfurtu, EU) – kde MiniShop běží a kde jsou zálohy.</li>
     <li><strong>Google (Gmail)</strong> – odesílá e-maily MiniShopu (potvrzení e-mailu, nové heslo, stav objednávky).</li>
+    <li><strong>Google (přihlášení)</strong> – ověří vás, když zvolíte <em>Přihlásit přes Google</em>; MiniShopu předá jen ID účtu, jméno a e-mail.</li>
 </ul>
 
 <h2 class="h4 mt-4">Vaše práva</h2>

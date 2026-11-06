@@ -1,0 +1,13 @@
+@page
+@model MiniShop.Web.Pages.Account.ExternalLoginModel
+@{
+    ViewData["Title"] = "Přihlášení přes Google";
+}
+<h1>Přihlášení přes Google</h1>
+
+<div class="row">
+    <div class="col-md-7 col-lg-6">
+        <div class="alert alert-warning">@Model.ErrorMessage</div>
+        <a asp-page="/Account/Login" asp-route-returnUrl="@Model.ReturnUrl" class="btn btn-primary">Zpět na přihlášení</a>
+    </div>
+</div>

@@ -1,0 +1,27 @@
+@* Účty krok 10: „Přihlásit přes Google“ na přihlášení a registraci. Bez nastaveného OAuth klienta se neukáže nic.
+   Model = returnUrl (kam se po přihlášení vrátit). *@
+@using Microsoft.AspNetCore.Identity
+@using MiniShop.Infrastructure.Accounts
+@model string?
+@inject SignInManager<ApplicationUser> SignInManager
+@{
+    var schemes = (await SignInManager.GetExternalAuthenticationSchemesAsync()).ToList();
+}
+@if (schemes.Count > 0)
+{
+    <div class="mt-4 pt-3 border-top">
+        <form method="post" asp-page="/Account/ExternalLogin" asp-route-returnUrl="@Model">
+            @foreach (var scheme in schemes)
+            {
+                <button type="submit" name="provider" value="@scheme.Name" class="btn btn-outline-secondary"
+                        data-track="login-external-@scheme.Name.ToLowerInvariant()">
+                    Přihlásit přes @scheme.DisplayName
+                </button>
+            }
+        </form>
+        <p class="form-text">
+            Účet MiniShopu se propojí podle e-mailu, případně se založí nový – bez hesla, heslo ke Googlu MiniShop nevidí.
+            Víc v <a asp-page="/Privacy">Ochraně osobních údajů</a>.
+        </p>
+    </div>
+}

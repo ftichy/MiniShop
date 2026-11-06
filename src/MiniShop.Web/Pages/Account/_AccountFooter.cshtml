@@ -1,0 +1,24 @@
+@* Odkazy pod změnou/nastavením hesla (stránka „účet“). Účty krok 9: smazání účtu, e-shop krok 10: e-maily,
+   účty krok 10: přihlášení přes Google (jen když je nastavené). *@
+@using Microsoft.AspNetCore.Identity
+@using MiniShop.Infrastructure.Accounts
+@inject SignInManager<ApplicationUser> SignInManager
+@{
+    var hasExternalLogins = (await SignInManager.GetExternalAuthenticationSchemesAsync()).Any();
+}
+<hr class="my-4" />
+<p class="text-muted small">
+    @* E-shop krok 10: souhlas s připomínkou košíku (jen zákazník – admin košík nemá). *@
+    @if (User.IsInRole(AccountRoles.User))
+    {
+        <a asp-page="/Account/EmailPreferences" data-track="nav-account-email">Nastavení e-mailů</a>
+        <text>·</text>
+    }
+    @if (hasExternalLogins)
+    {
+        <a asp-page="/Account/ExternalLogins" data-track="nav-account-external">Přihlášení přes Google</a>
+        <text>·</text>
+    }
+    Účet už nechcete? <a asp-page="/Account/Delete" data-track="nav-account-delete">Smazat účet</a>
+    · <a asp-page="/Privacy">Ochrana osobních údajů</a>
+</p>

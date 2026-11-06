@@ -59,6 +59,20 @@ dotnet run --project src/MiniShop.Web
 Adresu skladu najde Web v `Services:inventory-api` a databázi v `ConnectionStrings:minishop` v `appsettings.Development.json`
 (vývojové heslo `minishop-vyvoj` jen pro tento lokální kontejner).
 
+## Přihlášení přes Google lokálně
+
+Volitelné (účty krok 10) – bez nastavení se tlačítko *Přihlásit přes Google* neukáže. OAuth klient z Google Cloud Console
+musí mít povolenou adresu návratu `https://localhost:7180/signin-google`. Client ID a tajemství patří do **user secrets**
+Webu (mimo repozitář, platí s Aspire i bez něj):
+
+```text
+dotnet user-secrets set "Authentication:Google:ClientId" "<client id>" --project src/MiniShop.Web
+dotnet user-secrets set "Authentication:Google:ClientSecret" "<tajemství>" --project src/MiniShop.Web
+```
+
+V Compose (`deploy/.env`) totéž jako `GOOGLE_CLIENT_ID` a `GOOGLE_CLIENT_SECRET` s adresou návratu
+`http://localhost:8080/signin-google`. Víc v [Accounts – přihlášení přes Google](../architektura/moduly/accounts.md#přihlášení-přes-google).
+
 ## Databáze
 
 Schémata modulů vznikají sama při startu v databázi `minishop`: `ordering`, `journeys`, `accounts`, `notifications`, `payments`, `reporting`, `reviews` (Web) a

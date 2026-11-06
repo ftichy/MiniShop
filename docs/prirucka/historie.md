@@ -67,6 +67,7 @@ Plán (role User a Admin, best practice): [docs/Ucty-roadmap.md](code:docs/Ucty-
 | 7 | Zabezpečení skladu – servisní klíč mezi Webem a Inventory.Api (zero trust) | [ucty-07](code:docs/kroky-ucty/krok-07-zabezpeceni-skladu.md) |
 | 8 | Zpevnění – zámek účtu, rate limiting, CSP a bezpečnostní hlavičky, logy bez osobních údajů | [ucty-08](code:docs/kroky-ucty/krok-08-zpevneni.md) |
 | 9 | Otevření webu – bez basic auth, objednávka jen s potvrzeným e-mailem, smazání účtu, ochrana osobních údajů | [ucty-09](code:docs/kroky-ucty/krok-09-otevreni-webu.md) |
+| 10 | Přihlášení přes Google (OpenID Connect) – propojení jen s potvrzeným e-mailem, účet bez hesla, smazání po novém přihlášení u Googlu | [ucty-10](code:docs/kroky-ucty/krok-10-google.md) |
 
 ## Dokončení e-shopu
 

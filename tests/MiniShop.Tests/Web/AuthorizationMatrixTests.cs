@@ -51,6 +51,18 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.User, "/Account/Delete", Expect.Allowed },
         { Who.Admin, "/Account/Delete", Expect.Allowed },
 
+        // Účty krok 10: přihlášení přes Google – návrat z Googlu veřejný, propojení, nastavení hesla a smazání jen přihlášený
+        { Who.Anonymous, "/Account/ExternalLogin?handler=Callback", Expect.Allowed },
+        { Who.Anonymous, "/Account/ExternalLogins", Expect.Login },
+        { Who.User, "/Account/ExternalLogins", Expect.Allowed },
+        { Who.Admin, "/Account/ExternalLogins", Expect.Allowed },
+        { Who.Anonymous, "/Account/ExternalLogins?handler=LinkCallback", Expect.Login },
+        { Who.User, "/Account/ExternalLogins?handler=LinkCallback", Expect.Allowed },
+        { Who.Anonymous, "/Account/SetPassword", Expect.Login },
+        { Who.User, "/Account/SetPassword", Expect.Allowed },
+        { Who.Anonymous, "/Account/Delete?handler=GoogleConfirmed", Expect.Login },
+        { Who.User, "/Account/Delete?handler=GoogleConfirmed", Expect.Allowed },
+
         // Objednávky: jen přihlášení
         { Who.Anonymous, "/Orders", Expect.Login },
         { Who.User, "/Orders", Expect.Allowed },
@@ -193,6 +205,17 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         // Účty krok 9: smazání účtu (bez hesla – neprojde validací, nic se nesmaže)
         { Who.Anonymous, "/Account/Delete", Expect.Login },
         { Who.User, "/Account/Delete", Expect.Allowed },
+
+        // Účty krok 10: Google (bez poskytovatele 404 – projde autorizací, nic se nestane)
+        { Who.Anonymous, "/Account/ExternalLogin", Expect.Allowed },
+        { Who.Anonymous, "/Account/ExternalLogins?handler=Link", Expect.Login },
+        { Who.User, "/Account/ExternalLogins?handler=Link", Expect.Allowed },
+        { Who.Anonymous, "/Account/ExternalLogins?handler=Unlink", Expect.Login },
+        { Who.User, "/Account/ExternalLogins?handler=Unlink", Expect.Allowed },
+        { Who.Anonymous, "/Account/SetPassword", Expect.Login },
+        { Who.User, "/Account/SetPassword", Expect.Allowed },
+        { Who.Anonymous, "/Account/Delete?handler=Google", Expect.Login },
+        { Who.User, "/Account/Delete?handler=Google", Expect.Allowed },
 
         // Produkty a sklad: jen admin
         { Who.User, "/Products?handler=AddStock&id=1&quantity=5", Expect.Denied },

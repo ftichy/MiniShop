@@ -15,6 +15,7 @@
 #   INVENTORY_API_KEY=<64 hex znaků>                  (účty krok 7, povinný – servisní klíč skladu)
 #   PAYMENTS_WEBHOOK_SECRET=<64 hex znaků>            (e-shop krok 8, povinný – podpis webhooku platební brány)
 #   POSTGRES_PASSWORD=<24–128 písmen/číslic>          (škálování krok 3, povinný – databáze PostgreSQL)
+#   GOOGLE_CLIENT_SECRET=GOCSPX-…                     (účty krok 10, volitelný – OAuth klient Googlu pro přihlášení)
 # Co na vstupu chybí (ruční spuštění z terminálu), vezme se z dosavadního .env. Netajná konfigurace je v gitu
 # (deploy/production.env). Soubor .env na VM skript pokaždé sestaví znovu – ruční změny v něm nepřežijí.
 # Změněné heslo RabbitMQ nejdřív vymění v běžícím RabbitMQ (RABBITMQ_DEFAULT_PASS platí jen při prvním startu).
@@ -49,6 +50,7 @@ smtp_password=""
 inventory_api_key=""
 payments_webhook_secret=""
 postgres_password=""
+google_client_secret=""
 if [ ! -t 0 ]; then
     while IFS= read -r line || [ -n "$line" ]; do
         [ -z "$line" ] && continue
@@ -82,6 +84,10 @@ if [ ! -t 0 ]; then
                 # Škálování krok 3: jen písmena a číslice – heslo je součástí connection stringu (znaky ; = by ho rozbily).
                 [[ "$value" =~ ^[A-Za-z0-9]{24,128}$ ]] || { echo "Chybný POSTGRES_PASSWORD (24–128 písmen/číslic)." >&2; exit 2; }
                 postgres_password="$value" ;;
+            GOOGLE_CLIENT_SECRET)
+                # Účty krok 10: tajemství OAuth klienta Googlu (GOCSPX-…). Prázdné = přihlášení přes Google vypnuté.
+                [[ -z "$value" || "$value" =~ ^GOCSPX-[A-Za-z0-9_-]{20,64}$ ]] || { echo "Chybný GOOGLE_CLIENT_SECRET (čekám GOCSPX-…)." >&2; exit 2; }
+                google_client_secret="$value" ;;
             *)
                 echo "Neznámý klíč na vstupu: $key" >&2
                 exit 2 ;;
@@ -106,6 +112,7 @@ healthchecks_backup_url="${healthchecks_backup_url:-$(current HEALTHCHECKS_BACKU
 smtp_password="${smtp_password:-$(current SMTP_PASSWORD)}"
 inventory_api_key="${inventory_api_key:-$(current INVENTORY_API_KEY)}"
 payments_webhook_secret="${payments_webhook_secret:-$(current PAYMENTS_WEBHOOK_SECRET)}"
+google_client_secret="${google_client_secret:-$(current GOOGLE_CLIENT_SECRET)}"
 [ -n "$rabbitmq_password" ] || { echo "Chybí RABBITMQ_PASSWORD (na vstupu ani v .env)." >&2; exit 2; }
 [ -n "$basic_auth_hash" ] || { echo "Chybí BASIC_AUTH_HASH (na vstupu ani v .env)." >&2; exit 2; }
 [ -n "$inventory_api_key" ] || { echo "Chybí INVENTORY_API_KEY (na vstupu ani v .env)." >&2; exit 2; }
@@ -143,6 +150,7 @@ chmod 755 "$work"/*.sh 2>/dev/null || true
         echo "INVENTORY_API_KEY=$inventory_api_key"
         echo "PAYMENTS_WEBHOOK_SECRET=$payments_webhook_secret"
         echo "POSTGRES_PASSWORD=$postgres_password"
+        [ -n "$google_client_secret" ] && echo "GOOGLE_CLIENT_SECRET=$google_client_secret"
         true
     } > "$work/.env"
 )

@@ -65,7 +65,7 @@ try
     builder.Services.AddPaymentsInfrastructure(database, builder.Configuration["Payments:WebhookSecret"]);
     builder.Services.AddReportingInfrastructure(database);
     builder.Services.AddReviewsInfrastructure(database);
-    builder.Services.AddAccounts(database);
+    builder.Services.AddAccounts(database, builder.Configuration);
 
     // Účty krok 8: zpevnění – limit odeslání formulářů účtu z jedné IP a HSTS (prohlížeč pak chodí jen přes HTTPS).
     builder.Services.AddAccountRateLimiting(builder.Configuration);

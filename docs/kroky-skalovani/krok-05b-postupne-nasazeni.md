@@ -64,6 +64,9 @@ Nový `deploy.sh` nainstalovaný na VM před sloučením PR #66, během nasazen�
   se starým nastavením Caddy (výchozí dial timeout 3 s, `fail_duration 30s`) – stejný případ jako pokus 2 generálky.
 - Oprava: `reload_caddy_if_changed` hned po kroku s infrastrukturou, před `rolling-update.sh`.
 
+**Druhé nasazení (PR #67, s opravou):** sklad 1 + 1, Web 2 + 2 (`web-5`, `web-6`), výměna ~50 s – **968× 200**,
+žádná chyba ani odpověď nad 2 s (171 požadavků během výměny). ✔
+
 ## Rozhodnutí
 
 - **Vlastní skript místo Swarmu / Kubernetes / pluginu docker-rollout:** pár řádků bashe, nic dalšího na VM, jde

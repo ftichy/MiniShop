@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using MiniShop.Application.Exceptions;
 using MiniShop.Domain.Exceptions;
 using MiniShop.Application.Ordering;
+using MiniShop.Application.Invoicing;
 using MiniShop.Application.Ordering.Saga;
 using MiniShop.Web.Accounts;
 
@@ -16,7 +17,11 @@ namespace MiniShop.Web.Pages.Orders;
 /// Jen přihlášený (fallback policy). Zákazník vidí jen svou objednávku – cizí se tváří jako neexistující (404),
 /// admin jakoukoli. Zrušení a vyřízení posílají formuláře na stránku Objednávky (tam jsou handlery i kontrola práv).
 /// </remarks>
-public sealed class DetailModel(IOrderService orderService, IAuthorizationService authorization, OrderSagaSettings sagaSettings)
+public sealed class DetailModel(
+    IOrderService orderService,
+    IAuthorizationService authorization,
+    OrderSagaSettings sagaSettings,
+    InvoiceService invoices)
     : PageModel
 {
     public OrderDetailDto Detail { get; private set; } = null!;
@@ -28,6 +33,9 @@ public sealed class DetailModel(IOrderService orderService, IAuthorizationServic
 
     /// <summary>E-shop krok 8: kolik minut má zákazník na platbu kartou (termín ságy).</summary>
     public int PaymentMinutes => (int)sagaSettings.PaymentTimeout.TotalMinutes;
+
+    /// <summary>E-shop krok 15: číslo faktury (odkaz na PDF), null = zatím nevystavená.</summary>
+    public string? InvoiceNumber { get; private set; }
 
     /// <summary>Hláška z pokladny („Objednávka č. 5 přijata…“) – pokladna sem po odeslání přesměruje.</summary>
     [TempData]
@@ -78,6 +86,7 @@ public sealed class DetailModel(IOrderService orderService, IAuthorizationServic
         }
 
         CanManageOrders = (await authorization.AuthorizeAsync(User, AuthorizationPolicies.RequireAdmin)).Succeeded;
+        InvoiceNumber = await invoices.GetNumberAsync(id, await InvoiceAccess.CustomerIdOrAdminAsync(User, authorization), cancellationToken);
         return true;
     }
 

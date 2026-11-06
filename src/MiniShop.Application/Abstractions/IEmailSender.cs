@@ -1,7 +1,15 @@
 namespace MiniShop.Application.Abstractions;
 
-/// <summary>Jeden e-mail. Text je povinný (čtečky bez HTML), HTML volitelné.</summary>
-public sealed record EmailMessage(string To, string Subject, string TextBody, string? HtmlBody = null);
+/// <summary>
+/// Jeden e-mail. Text je povinný (čtečky bez HTML), HTML volitelné. E-shop krok 15: přílohy (faktura v PDF).
+/// </summary>
+public sealed record EmailMessage(string To, string Subject, string TextBody, string? HtmlBody = null)
+{
+    public IReadOnlyList<EmailAttachment> Attachments { get; init; } = [];
+}
+
+/// <summary>E-shop krok 15: příloha e-mailu – jméno souboru, typ (MIME) a obsah.</summary>
+public sealed record EmailAttachment(string FileName, string ContentType, byte[] Content);
 
 /// <summary>
 /// Účty krok 5: odeslání e-mailu. Sdílené jádro – používají ho účty (potvrzení, reset hesla) i objednávky (oznámení).

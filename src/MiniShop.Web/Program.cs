@@ -9,6 +9,7 @@ using MiniShop.Infrastructure.Journeys;
 using MiniShop.Infrastructure.Notifications;
 using MiniShop.Infrastructure.Payments;
 using MiniShop.Infrastructure.Reporting;
+using MiniShop.Infrastructure.Invoicing;
 using MiniShop.Infrastructure.Reviews;
 using MiniShop.Infrastructure.Ordering;
 using MiniShop.Infrastructure.Persistence;
@@ -51,7 +52,7 @@ try
         writeToProviders: true);
 
     // Každý modul má vlastní databázi: Ordering (krok 10B – sklad má vlastní službu), Journeys (krok 12), Accounts
-    // (účty krok 1), Notifications, Payments, Reporting, Reviews (e-shop kroky 7, 8, 11, 14).
+    // (účty krok 1), Notifications, Payments, Reporting, Reviews, Invoicing (e-shop kroky 7, 8, 11, 14, 15).
     // Škálování krok 1 a 3C: jedna PostgreSQL databáze (ConnectionStrings:minishop), každý modul ve vlastním schématu.
     var database = ModuleDatabase.FromConfiguration(builder.Configuration);
 
@@ -65,6 +66,7 @@ try
     builder.Services.AddPaymentsInfrastructure(database, builder.Configuration["Payments:WebhookSecret"]);
     builder.Services.AddReportingInfrastructure(database);
     builder.Services.AddReviewsInfrastructure(database);
+    builder.Services.AddInvoicingInfrastructure(database);   // e-shop krok 15: faktury
     builder.Services.AddAccounts(database, builder.Configuration);
 
     // Účty krok 8: zpevnění – limit odeslání formulářů účtu z jedné IP a HSTS (prohlížeč pak chodí jen přes HTTPS).
@@ -133,6 +135,7 @@ try
     await PaymentsDatabaseInitializer.InitializeAsync(app.Services);
     await ReportingDatabaseInitializer.InitializeAsync(app.Services);
     await ReviewsDatabaseInitializer.InitializeAsync(app.Services);
+    await InvoicingDatabaseInitializer.InitializeAsync(app.Services);
 
     // Účty krok 2: role + první admin. AdminBootstrap je nastavený jen ve vývoji (appsettings.Development.json),
     // v produkci admina založí příkaz create-admin.

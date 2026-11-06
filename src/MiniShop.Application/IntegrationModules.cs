@@ -23,4 +23,7 @@ public static class IntegrationModules
 
     /// <summary>E-shop krok 14: hodnocení produktů – kopie nákupů z událostí objednávek, souhrn hodnocení pro výlohu.</summary>
     public const string Reviews = "reviews";
+
+    /// <summary>E-shop krok 15: faktury – kopie objednávek z událostí, vystavení po zaplacení, PDF.</summary>
+    public const string Invoicing = "invoicing";
 }

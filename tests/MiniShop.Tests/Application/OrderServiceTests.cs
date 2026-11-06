@@ -12,6 +12,7 @@ using MiniShop.Application.Ordering.Carts;
 using MiniShop.Application.Ordering.Coupons;
 using MiniShop.Application.Ordering.Catalog;
 using MiniShop.Application.Ordering.Checkout;
+using MiniShop.Application.Invoicing;
 using MiniShop.Application.Notifications;
 using MiniShop.Application.Payments;
 using MiniShop.Application.Reporting;
@@ -26,6 +27,7 @@ using MiniShop.Contracts.Inventory;
 using MiniShop.Contracts.Orders;
 using MiniShop.Contracts.Payments;
 using MiniShop.Contracts.Reporting;
+using MiniShop.Contracts.Invoicing;
 using MiniShop.Contracts.Reviews;
 using MiniShop.Domain.Common;
 using MiniShop.Domain.Exceptions;
@@ -35,6 +37,7 @@ using MiniShop.Domain.Orders.Events;
 using MiniShop.Domain.Orders.Saga;
 using MiniShop.Domain.Payments;
 using MiniShop.Domain.Reporting;
+using MiniShop.Domain.Invoicing;
 using MiniShop.Domain.Reviews;
 using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Events;
@@ -44,9 +47,11 @@ using MiniShop.Infrastructure.Inventory;
 using MiniShop.Infrastructure.Notifications;
 using MiniShop.Infrastructure.Payments;
 using MiniShop.Infrastructure.Reporting;
+using MiniShop.Infrastructure.Invoicing;
 using MiniShop.Infrastructure.Reviews;
 using MiniShop.Infrastructure.Ordering;
 using MiniShop.Tests.TestDoubles;
+using MiniShop.Web.Invoicing;
 
 namespace MiniShop.Tests.Application;
 
@@ -192,6 +197,20 @@ public sealed class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<SyncPurchasesV1, SyncPurchasesHandler>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<ProductRatingChangedV1, CatalogProjectionHandler>(IntegrationModules.Ordering);
 
+        // E-shop krok 15: modul Invoicing (faktury z událostí) – jako AddInvoicingModule + AddInvoicingInfrastructure ve Webu,
+        // a v Notifications e-mail s PDF v příloze (most InvoiceDocuments z Webu).
+        services.AddInvoicingInfrastructure(_databases.Invoicing);
+        services.AddSingleton(InvoiceSeller.Default);
+        services.AddScoped<InvoiceService>();
+        services.AddIntegrationMessageHandler<OrderPlacedV2, InvoicingHandler>(IntegrationModules.Invoicing);
+        services.AddIntegrationMessageHandler<PaymentSucceededV1, InvoicingHandler>(IntegrationModules.Invoicing);
+        services.AddIntegrationMessageHandler<OrderCompletedV1, InvoicingHandler>(IntegrationModules.Invoicing);
+        services.AddIntegrationMessageHandler<OrderRejectedV1, InvoicingHandler>(IntegrationModules.Invoicing);
+        services.AddIntegrationMessageHandler<OrderCancelledV1, InvoicingHandler>(IntegrationModules.Invoicing);
+        services.AddIntegrationMessageHandler<CustomerAnonymizedV1, InvoicingHandler>(IntegrationModules.Invoicing);
+        services.AddScoped<IInvoiceDocuments, InvoiceDocuments>();
+        services.AddIntegrationMessageHandler<InvoiceIssuedV1, InvoiceEmailHandler>(IntegrationModules.Notifications);
+
         // Testovací náhrady: notifikace do seznamu, "broker" si zprávy zapamatuje a doručí je v procesu,
         // skutečný dispatcher obalený záznamníkem.
         services.AddSingleton<IEmailSender>(_emails);
@@ -208,6 +227,7 @@ public sealed class OrderServiceTests : IDisposable
         PaymentsDatabaseInitializer.InitializeAsync(_services).GetAwaiter().GetResult();
         ReportingDatabaseInitializer.InitializeAsync(_services).GetAwaiter().GetResult();
         ReviewsDatabaseInitializer.InitializeAsync(_services).GetAwaiter().GetResult();
+        InvoicingDatabaseInitializer.InitializeAsync(_services).GetAwaiter().GetResult();
         InventoryDb(async db => { await InventoryDatabaseInitializer.MigrateAsync(db); return true; }).GetAwaiter().GetResult();
     }
 
@@ -842,6 +862,169 @@ public sealed class OrderServiceTests : IDisposable
         Assert.Equal(2, _emails.Sent.Count(e => e.Subject.Contains("košíku")));
     }
 
+    // ---------- E-shop krok 15: faktury ----------
+
+    [Fact]
+    public async Task Faktura_PlatbaKartou_VystavenaAEmailSPdfVPriloze()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await PlaceCardOrderAsync(product.Id, quantity: 2);
+        await ProcessOutboxAsync();
+        Assert.Null(await InvoiceAsync(order.Id));   // nezaplaceno = žádná faktura
+
+        await SimulateGatewayAsync(order.Id, paid: true);
+        await ProcessOutboxAsync();   // PaymentSucceededV1 → Invoicing vystaví → InvoiceIssuedV1 → Notifications e-mail
+
+        var invoice = await InvoiceAsync(order.Id) ?? throw new InvalidOperationException("Faktura nevznikla.");
+        Assert.Matches(@"^\d{4}000001$", invoice.Number);
+        Assert.Equal((order.TotalPrice, "Jan Novák", InvoicingHandler.PaidByCard), (invoice.Total, invoice.CustomerName, invoice.PaymentNote));
+        Assert.Equal(("Testovací produkt", 2), (Assert.Single(invoice.Lines).ProductName, invoice.Lines.Single().Quantity));
+        var issued = Assert.Single(_bus.Published.OfType<InvoiceIssuedV1>());
+        Assert.Equal((order.Id, invoice.Number), (issued.OrderId, issued.InvoiceNumber));
+
+        var email = Assert.Single(_emails.Sent, e => NotifierEvent(e) == $"invoice:{order.Id}");
+        Assert.Equal("jan@example.com", email.To);
+        var pdf = Assert.Single(email.Attachments);
+        Assert.Equal(($"faktura-{invoice.Number}.pdf", "application/pdf"), (pdf.FileName, pdf.ContentType));
+        Assert.Equal("%PDF"u8.ToArray(), pdf.Content[..4]);
+    }
+
+    [Fact]
+    public async Task Faktura_Dobirka_AzPoDoruceni()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await PlaceCardOrderAsync(product.Id, quantity: 1, PaymentMethod.CashOnDelivery);
+        await ProcessOutboxAsync();
+        Assert.Equal("Confirmed", await StatusAsync(order.Id));
+        Assert.Null(await InvoiceAsync(order.Id));   // dobírka se platí až při převzetí
+
+        await ShipAsync(order.Id);
+        await Orders(s => s.CompleteAsync(order.Id));
+        await ProcessOutboxAsync();
+
+        Assert.Equal(InvoicingHandler.PaidOnDelivery, (await InvoiceAsync(order.Id))?.PaymentNote);
+    }
+
+    [Fact]
+    public async Task Faktura_DalsiZpravyOZaplaceni_DruhaNevznikne()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await PlaceCardOrderAsync(product.Id, quantity: 1);
+        await ProcessOutboxAsync();
+        await SimulateGatewayAsync(order.Id, paid: true);
+        await ProcessOutboxAsync();
+
+        // Jiná zpráva o zaplacení (nové EventId – inbox ji nezahodí) a pak doručení: faktura zůstane jedna.
+        await RedeliverAsync(new PaymentSucceededV1(Guid.NewGuid(), Now.UtcDateTime, order.Id, order.TotalPrice), IntegrationModules.Invoicing);
+        await ShipAsync(order.Id);
+        await Orders(s => s.CompleteAsync(order.Id));
+        await ProcessOutboxAsync();
+
+        Assert.Equal(1, await InvoicingDb(db => db.Invoices.CountAsync(i => i.OrderId == order.Id)));
+        Assert.Single(_bus.Published.OfType<InvoiceIssuedV1>());
+    }
+
+    [Fact]
+    public async Task Faktura_PlatbaPredbehlaVznikObjednavky_VystaviSeAzSUdaji()
+    {
+        await RedeliverAsync(new PaymentSucceededV1(Guid.NewGuid(), Now.UtcDateTime, 777, 250m), IntegrationModules.Invoicing);
+        Assert.Null(await InvoiceAsync(777));   // komu a co fakturovat zatím nevíme
+
+        await RedeliverAsync(new OrderPlacedV2(Guid.NewGuid(), Now.UtcDateTime, 777, Jan.CustomerId, "Jan Novák", "jan@example.com",
+            [new OrderItemV2(1, "Myš", 2, 100m, 0m, 200m)], "Courier", 50m, "Dlouhá 5, 110 00 Praha", 250m), IntegrationModules.Invoicing);
+
+        var invoice = await InvoiceAsync(777);
+        Assert.Equal((250m, "Dlouhá 5, 110 00 Praha"), (invoice?.Total, invoice?.DeliveryAddress));
+    }
+
+    [Fact]
+    public async Task Faktura_CiselnaRadaBezDer_SoubeznaZmenaRadyJeKonflikt()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 10);
+        var first = await PaidCardOrderAsync(product.Id);
+        var second = await PaidCardOrderAsync(product.Id);
+
+        var numbers = new[] { (await InvoiceAsync(first.Id))!.Number, (await InvoiceAsync(second.Id))!.Number };
+        Assert.Equal(["000001", "000002"], numbers.Select(n => n[4..]));
+
+        // Dvě kopie Webu přidělují číslo naráz: obě načtou řadu, první uloží, druhá narazí na verzi → nic se neuloží
+        // a consumer zprávu zopakuje s dalším číslem. Řada tak nemá díry ani dvě stejná čísla.
+        var year = int.Parse(numbers[0][..4]);
+        await using var slowScope = _services.CreateAsyncScope();
+        var slowDb = slowScope.ServiceProvider.GetRequiredService<InvoicingDbContext>();
+        var slowSeries = await slowDb.InvoiceNumberSeries.SingleAsync(s => s.Year == year);
+        slowSeries.Next();
+
+        await InvoicingDb(async db =>
+        {
+            (await db.InvoiceNumberSeries.SingleAsync(s => s.Year == year)).Next();
+            return await db.SaveChangesAsync();
+        });
+
+        await Assert.ThrowsAsync<ConcurrencyConflictException>(() => slowDb.SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task Faktura_ZamitnutaObjednavka_PozdniPlatbaFakturuNevystavi()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await PlaceCardOrderAsync(product.Id, quantity: 1);
+        await ProcessOutboxAsync();
+        _time.Advance(PaymentTimeout);
+        Assert.True(await Saga(s => s.TimeOutAsync(order.Id, CancellationToken.None)));
+        await ProcessOutboxAsync();
+
+        await SimulateGatewayAsync(order.Id, paid: true, ignoreExpiry: true);   // peníze vrátí sága
+        await ProcessOutboxAsync();
+
+        Assert.Equal("Rejected", await StatusAsync(order.Id));
+        Assert.Null(await InvoiceAsync(order.Id));
+    }
+
+    [Fact]
+    public async Task Faktura_SmazaniUctu_FakturaZustava_PdfJenVlastnikovi()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await PaidCardOrderAsync(product.Id);
+        Assert.NotNull(await InvoicePdfAsync(order.Id, Jan.CustomerId));
+        Assert.Null(await InvoicePdfAsync(order.Id, Petra.CustomerId));   // cizí = jako by neexistovala
+        Assert.NotNull(await InvoicePdfAsync(order.Id, customerId: null));   // admin
+
+        await ShipAsync(order.Id);
+        await Orders(s => s.CompleteAsync(order.Id));
+        await ProcessOutboxAsync();
+        await Orders(s => s.AnonymizeCustomerAsync(Jan.CustomerId));
+        await ProcessOutboxAsync();
+
+        Assert.NotNull(await InvoiceAsync(order.Id));   // zákonná povinnost – faktura zůstává
+        Assert.Equal(0, await InvoicingDb(db => db.BillableOrders.CountAsync(o => o.CustomerId == Jan.CustomerId)));
+    }
+
+    /// <summary>E-shop krok 15: objednávka kartou, zaplacená a vyfakturovaná.</summary>
+    private async Task<OrderDto> PaidCardOrderAsync(int productId)
+    {
+        var order = await PlaceCardOrderAsync(productId, quantity: 1);
+        await ProcessOutboxAsync();
+        await SimulateGatewayAsync(order.Id, paid: true);
+        await ProcessOutboxAsync();
+        return order;
+    }
+
+    private Task<Invoice?> InvoiceAsync(int orderId) =>
+        InvoicingDb(db => db.Invoices.AsNoTracking().FirstOrDefaultAsync(i => i.OrderId == orderId));
+
+    private async Task<InvoicePdf?> InvoicePdfAsync(int orderId, string? customerId)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<InvoiceService>().GetPdfAsync(orderId, customerId);
+    }
+
+    private async Task<T> InvoicingDb<T>(Func<InvoicingDbContext, Task<T>> action)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await action(scope.ServiceProvider.GetRequiredService<InvoicingDbContext>());
+    }
+
     // ---------- E-shop krok 14: hodnocení produktů ----------
 
     [Fact]
@@ -1314,7 +1497,7 @@ public sealed class OrderServiceTests : IDisposable
         await ProcessOutboxAsync();   // další kola nic nového nepošlou (inbox)
 
         Assert.Equal(
-            [$"placed:{order.Id}", $"confirmed:{order.Id}", $"shipped:{order.Id}", $"completed:{order.Id}"],
+            [$"placed:{order.Id}", $"confirmed:{order.Id}", $"shipped:{order.Id}", $"completed:{order.Id}", $"invoice:{order.Id}"],   // e-shop krok 15: doručeno = zaplaceno
             NotifierEvents);
         var placed = _emails.Sent[0];
         Assert.Equal("jan@example.com", placed.To);
@@ -2215,7 +2398,9 @@ public sealed class OrderServiceTests : IDisposable
     /// E-shop krok 7: e-maily, které modul Notifications „odeslal“, jako krátké záznamy „confirmed:5“, „shipped:5“…
     /// (podle předmětu šablony) – testy se tak ptají na typ oznámení, ne na přesné znění.
     /// </summary>
-    private IReadOnlyList<string> NotifierEvents => _emails.Sent.Select(email =>
+    private IReadOnlyList<string> NotifierEvents => _emails.Sent.Select(NotifierEvent).ToList();
+
+    private static string NotifierEvent(EmailMessage email)
     {
         var orderId = System.Text.RegularExpressions.Regex.Match(email.Subject, @"č\. (\d+)").Groups[1].Value;
         var kind = email.Subject switch
@@ -2226,10 +2411,11 @@ public sealed class OrderServiceTests : IDisposable
             var s when s.Contains("je na cestě") || s.Contains("k vyzvednutí") => "shipped",
             var s when s.Contains("je doručená") || s.Contains("je vyzvednutá") => "completed",
             var s when s.Contains("je zrušená") => "cancelled",
+            var s when s.StartsWith("MiniShop: Faktura") => "invoice",   // e-shop krok 15
             _ => email.Subject
         };
         return $"{kind}:{orderId}";
-    }).ToList();
+    }
 
     /// <summary>
     /// Zpracuje outboxy všech modulů jako několik kol OutboxWorkeru: pokračuje, dokud byla dávka plná nebo

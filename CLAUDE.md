@@ -13,14 +13,14 @@ Cíl: postupně ho převést na EDA podle plánu v `docs/EDA-roadmap.md`.
 ```
 src/MiniShop.Contracts       integrační zprávy – události (OrderPlacedV1, StockReservedV1, …) a příkazy (ReserveStockV1, …), žádné závislosti
 src/MiniShop.Domain          Common/ (Entity, IDomainEvent), Orders/ (Order, CatalogProduct, CatalogSearchText, Carts/Cart, Coupons/Coupon, Saga/OrderSaga + ReturnSaga), Inventory/ (Product, Category, StockAvailability, StockReservation),
-                             Journeys/ (JourneyEvent, JourneyEventType), Notifications/ (OrderRecipient), Payments/ (Payment), Reporting/ (SalesOrder – čtecí model), Reviews/ (Review, PurchasedOrder)
+                             Journeys/ (JourneyEvent, JourneyEventType), Notifications/ (OrderRecipient), Payments/ (Payment), Reporting/ (SalesOrder – čtecí model), Reviews/ (Review, PurchasedOrder), Invoicing/ (BillableOrder, Invoice, InvoiceNumberSeries)
 src/MiniShop.Application     Abstractions/ (sdílené: IUnitOfWork, IDomainEvent*, IIntegrationMessage*, TraceTags),
                              Ordering/ (OrderService, DTO, Saga, Catalog projekce + CatalogQueryService, Carts/CartService, Checkout/CheckoutService, IntegrationEvents (překladač), Pricing), Inventory/ (ProductService, CategoryService, Reserve/ReleaseStock),
                              Journeys/ (JourneyService, OrderJourneyProjection, JourneyReplayProjection, DTO),
                              Notifications/ (OrderNotificationsHandler, OrderEmailTemplates, NotificationSettings, CartReminderHandler, ICustomerContacts),
                              Payments/ (PaymentCommandHandlers, PaymentWebhookProcessor, WebhookSignature, IPaymentGateway),
                              Reporting/ (SalesProjectionHandler, SalesReportService),
-                             Reviews/ (ReviewService, PurchaseProjectionHandler)
+                             Reviews/ (ReviewService, PurchaseProjectionHandler), Invoicing/ (InvoicingHandler, InvoiceService, IInvoicePdfRenderer)
 src/MiniShop.Infrastructure  sdílené: Persistence/ModuleDbContext, Outbox, Inbox (InboxGuard), Integration (bus, routing, dispatcher, RabbitMq/), Events,
                              Observability/ (MessagingTelemetry – ActivitySource + Meter, OutboxHealthCheck),
                              Hosting/ (OutboxWorker, RabbitMqConsumersWorker, AddMessaging);
@@ -29,7 +29,8 @@ src/MiniShop.Infrastructure  sdílené: Persistence/ModuleDbContext, Outbox, Inb
                              Notifications/ (NotificationsDbContext – schéma notifications s inboxem, repozitář příjemců, DB init),
                              Payments/ (PaymentsDbContext – schéma payments s outboxem + inboxem, FakePaymentGateway + simulátor),
                              Reporting/ (ReportingDbContext – schéma reporting s inboxem + outboxem, jen příkaz na přestavění),
-                             Reviews/ (ReviewsDbContext – schéma reviews s inboxem + outboxem, hodnocení + kopie nákupů)
+                             Reviews/ (ReviewsDbContext – schéma reviews s inboxem + outboxem, hodnocení + kopie nákupů),
+                             Invoicing/ (InvoicingDbContext – schéma invoicing s inboxem + outboxem, QuestPdfInvoiceRenderer)
 src/MiniShop.Web             služba Ordering (7180): API objednávek, Razor Pages (celé UI), Inventory/InventoryApiClient (HTTP na sklad),
                              OrderSagaTimeoutWorker, Program.cs (composition root); krok 12: JourneysController, Pages/Orders/Journey + Replay,
                              wwwroot/js/order-form-tracker.js + journey-player.js
@@ -219,6 +220,15 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   → hláška „kód mezitím použil někdo jiný“. Jeden zákazník jednou (`IOrderRepository.HasUsedCouponAsync`, jen platné objednávky).
   Kompenzace `ReleaseCouponHandler` na `OrderRejected`/`OrderCancelled` (vratka ne). Formulář kódu je mimo sledovaný formulář
   pokladny (do `Replay.cshtml` nepatří). Admin `/Admin/Coupons`. Testy: `CreateCouponAsync`, `PlaceWithCouponAsync`.
+- **Faktury (e-shop krok 15):** modul Invoicing (`…Invoicing` ve všech vrstvách, hostuje Web, schéma `invoicing` s inboxem + outboxem,
+  fronta `minishop.invoicing`; **musí do zálohy** – čísla nejde přestavět). Kopie `BillableOrder` z `OrderPlacedV2`; zaplaceno =
+  `PaymentSucceededV1` (karta) nebo `OrderCompletedV1` (dobírka/API, platí první); `OrderRejectedV1`/`OrderCancelledV1` před vystavením =
+  nefakturovat. Faktura + číslo z `InvoiceNumberSeries` (řádek na rok, `Version` = concurrency token, **ne sekvence** – díry) +
+  `InvoiceIssuedV1` v **jedné transakci**; souběh = konflikt → consumer zopakuje. Faktura se nemění (dobropis = krok 15B), po smazání účtu
+  zůstává (10 let). PDF `QuestPdfInvoiceRenderer` (QuestPDF, `LicenseType.Community`, písmo Lato v knihovně) při stažení
+  `/Orders/{id}/Invoice` (vlastník/admin, jinak 404) a do přílohy: Notifications `InvoiceEmailHandler` → `IInvoiceDocuments`
+  (implementace `Web/Invoicing/InvoiceDocuments`) → `EmailMessage.Attachments`. Admin `/Admin/Invoices`. Prodávající `InvoiceSeller`
+  (`Invoicing:Seller:*`, fiktivní, neplátce DPH). Testy: `PaidCardOrderAsync`, `InvoiceAsync`, `NotifierEvent` = `invoice:{id}`.
 - **Hodnocení produktů (e-shop krok 14):** modul Reviews (`…Reviews` ve všech vrstvách, hostuje Web, schéma `reviews` s inboxem + outboxem,
   fronta `minishop.reviews`; **musí do zálohy** – nejde přestavět). Kopie nákupů `PurchasedOrder` z `OrderPlacedV2`, `OrderCompletedV1`
   (doručeno), `ReturnCompletedV1` (vráceno), `OrderSnapshotV2`, `CustomerAnonymizedV1` (smazat nákupy, autor „Smazaný zákazník“) – upsert,
@@ -460,6 +470,7 @@ nové moduly Notifications (odběratel událostí) a Payments (účastník ságy
 | 12. Vrácení zboží (druhá sága `ReturnSaga`, `/Admin/Returns`, `RestockReturnedGoodsV1` → `ReturnedGoodsRestockedV1`, `RefundPaymentV1`, `ReturnRequested/Rejected/CompletedV1`, dobírka ručně) | hotovo (nasazeno 3. 11. 2026, vratka kartou, zamítnutí i dobírka ověřeny v produkci) | `docs/kroky-eshop/krok-12-vraceni-zbozi.md` |
 | 13. Slevové kódy (agregát `Coupon`, `/Admin/Coupons`, použití ve stejné transakci jako objednávka, `Version` proti souběhu o poslední použití, sleva v položkách, `ReleaseCouponHandler`) | hotovo (nasazeno 4. 11. 2026, uplatnění, limit použití a vrácení po zrušení ověřeny v produkci) | `docs/kroky-eshop/krok-13-slevove-kody.md` |
 | 14. Hodnocení produktů (modul Reviews, `reviews.db`, kopie nákupů z událostí, `ProductRatingChangedV1` do kopie katalogu, `/Shop/{id}`, `/Admin/Reviews`, `SyncPurchasesV1` → `OrderSnapshotV2`) | hotovo (nasazeno 4. 11. 2026, hodnocení, hvězdičky ve výloze, starší objednávky ze snímků i moderace ověřeny v produkci) | `docs/kroky-eshop/krok-14-hodnoceni-produktu.md` |
+| 15. Faktury (modul Invoicing, schéma `invoicing`, kopie objednávek z událostí, faktura po zaplacení/doručení, číselná řada bez děr, PDF QuestPDF, `InvoiceIssuedV1` → e-mail s PDF v příloze přes `IInvoiceDocuments`, `/Admin/Invoices`) | implementováno; čeká na nasazení | `docs/kroky-eshop/krok-15-faktury.md` |
 
 ## Stav škálování (viz `docs/Skalovani-roadmap.md`)
 Cíl: víc instancí služeb (a později víc strojů). Nejdřív PostgreSQL (kontejner na Always Free VM, 0 Kč), pak víc instancí.

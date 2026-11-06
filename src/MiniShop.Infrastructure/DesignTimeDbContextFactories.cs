@@ -8,6 +8,7 @@ using MiniShop.Infrastructure.Ordering;
 using MiniShop.Infrastructure.Payments;
 using MiniShop.Infrastructure.Persistence;
 using MiniShop.Infrastructure.Reporting;
+using MiniShop.Infrastructure.Invoicing;
 using MiniShop.Infrastructure.Reviews;
 
 namespace MiniShop.Infrastructure;
@@ -58,6 +59,11 @@ internal sealed class ReportingDesignTimeFactory : IDesignTimeDbContextFactory<R
 internal sealed class ReviewsDesignTimeFactory : IDesignTimeDbContextFactory<ReviewsDbContext>
 {
     public ReviewsDbContext CreateDbContext(string[] args) => new(DesignTimeDatabase.Options<ReviewsDbContext>(ReviewsDbContext.Schema));
+}
+
+internal sealed class InvoicingDesignTimeFactory : IDesignTimeDbContextFactory<InvoicingDbContext>
+{
+    public InvoicingDbContext CreateDbContext(string[] args) => new(DesignTimeDatabase.Options<InvoicingDbContext>(InvoicingDbContext.Schema));
 }
 
 internal sealed class AccountsDesignTimeFactory : IDesignTimeDbContextFactory<AccountsDbContext>

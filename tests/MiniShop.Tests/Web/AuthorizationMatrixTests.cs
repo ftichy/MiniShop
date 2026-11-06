@@ -70,6 +70,12 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Anonymous, "/Orders/1", Expect.Login },                  // e-shop krok 5: detail (cizí = 404, řeší služba)
         { Who.User, "/Orders/1", Expect.Allowed },
         { Who.Admin, "/Orders/1", Expect.Allowed },
+        { Who.Anonymous, "/Orders/1/Invoice", Expect.Login },         // e-shop krok 15: PDF faktury (cizí/nevystavená = 404)
+        { Who.User, "/Orders/1/Invoice", Expect.Allowed },
+        { Who.Admin, "/Orders/1/Invoice", Expect.Allowed },
+        { Who.Anonymous, "/Admin/Invoices", Expect.Login },             // e-shop krok 15: přehled faktur – jen admin
+        { Who.User, "/Admin/Invoices", Expect.Denied },
+        { Who.Admin, "/Admin/Invoices", Expect.Allowed },
 
         // E-shop krok 3: košík – jen zákazník (admin neobjednává)
         { Who.Anonymous, "/Cart", Expect.Login },

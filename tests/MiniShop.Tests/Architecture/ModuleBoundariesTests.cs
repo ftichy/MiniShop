@@ -29,6 +29,7 @@ public sealed class ModuleBoundariesTests
     private const string Payments = "Payments";
     private const string Reporting = "Reporting";
     private const string Reviews = "Reviews";
+    private const string Invoicing = "Invoicing";
 
     /// <summary>Namespace modulu v každé vrstvě (Domain používá "Orders"; Accounts je zatím jen v Infrastructure).</summary>
     private static readonly IReadOnlyDictionary<string, string[]> ModuleNamespaces = new Dictionary<string, string[]>
@@ -40,7 +41,8 @@ public sealed class ModuleBoundariesTests
         [Notifications] = ["MiniShop.Domain.Notifications", "MiniShop.Application.Notifications", "MiniShop.Infrastructure.Notifications"],
         [Payments] = ["MiniShop.Domain.Payments", "MiniShop.Application.Payments", "MiniShop.Infrastructure.Payments"],
         [Reporting] = ["MiniShop.Domain.Reporting", "MiniShop.Application.Reporting", "MiniShop.Infrastructure.Reporting"],
-        [Reviews] = ["MiniShop.Domain.Reviews", "MiniShop.Application.Reviews", "MiniShop.Infrastructure.Reviews"]
+        [Reviews] = ["MiniShop.Domain.Reviews", "MiniShop.Application.Reviews", "MiniShop.Infrastructure.Reviews"],
+        [Invoicing] = ["MiniShop.Domain.Invoicing", "MiniShop.Application.Invoicing", "MiniShop.Infrastructure.Invoicing"]
     };
 
     [Theory]
@@ -79,6 +81,15 @@ public sealed class ModuleBoundariesTests
     [InlineData(Reviews, Notifications)]
     [InlineData(Reviews, Reporting)]
     [InlineData(Reviews, Inventory)]
+    [InlineData(Invoicing, Ordering)]       // e-shop krok 15: faktury znají objednávky jen ze zpráv (kopie objednávek)
+    [InlineData(Ordering, Invoicing)]       // … a Ordering o fakturách neví vůbec
+    [InlineData(Invoicing, Payments)]       // zaplaceno = PaymentSucceededV1, ne pohled do plateb
+    [InlineData(Payments, Invoicing)]
+    [InlineData(Invoicing, Notifications)]  // e-mail s fakturou posílá Notifications …
+    [InlineData(Notifications, Invoicing)]  // … a PDF dostane přes IInvoiceDocuments (most ve Webu)
+    [InlineData(Invoicing, Accounts)]
+    [InlineData(Invoicing, Reporting)]
+    [InlineData(Invoicing, Inventory)]
     public void Modul_NezavisiNaJinemModulu(string module, string forbiddenModule)
     {
         foreach (var moduleNamespace in ModuleNamespaces[module])
@@ -103,6 +114,8 @@ public sealed class ModuleBoundariesTests
         var result = Types.InAssemblies(SourceAssemblies)
             .That().ResideInNamespace("MiniShop.Application.Ordering")
             .Or().ResideInNamespace("MiniShop.Infrastructure.Ordering")
+            .Or().ResideInNamespace("MiniShop.Application.Invoicing")   // e-shop krok 15: faktury také jen oznamují
+            .Or().ResideInNamespace("MiniShop.Infrastructure.Invoicing")
             .ShouldNot().HaveDependencyOnAny("MiniShop.Application.Abstractions.IEmailSender", "MiniShop.Infrastructure.Email")
             .GetResult();
 

@@ -91,6 +91,7 @@ Plán (výloha, košík, pokladna, expedice, platba, notifikace): [docs/Eshop-ro
 | 12 | Vrácení zboží – druhá sága (`ReturnSaga`) s krokem člověka uprostřed: žádost do 14 dní, převzetí adminem, naskladnění podle vydaných rezervací, vrácení peněz stávajícím `RefundPaymentV1`, zamítnutí a vypršení; přehled tržeb vratku odečte | [eshop-12](code:docs/kroky-eshop/krok-12-vraceni-zbozi.md) |
 | 13 | Slevové kódy – agregát `Coupon` v Orderingu, použití ve stejné transakci jako objednávka, souběh o poslední použití hlídá verze kuponu, sleva rozpočítaná do položek (bez nového kontraktu), vrácení použití po zamítnutí/zrušení | [eshop-13](code:docs/kroky-eshop/krok-13-slevove-kody.md) |
 | 14 | Hodnocení produktů – modul Reviews s vlastní kopií nákupů z událostí (hodnotí jen ten, kdo zboží dostal), souhrn `ProductRatingChangedV1` do kopie katalogu (hvězdičky a řazení ve výloze), detail produktu `/Shop/{id}`, nákupy z doby před modulem přes `SyncPurchasesV1` → `OrderSnapshotV2` | [eshop-14](code:docs/kroky-eshop/krok-14-hodnoceni-produktu.md) |
+| 15 | Faktury – modul Invoicing s kopií objednávek z událostí, faktura po zaplacení (karta) nebo doručení (dobírka), číselná řada bez děr (číslo ve stejné transakci, konflikt verze při souběhu), PDF přes QuestPDF, e-mail s PDF v příloze (Notifications přes `IInvoiceDocuments`), `/Admin/Invoices` | [eshop-15](code:docs/kroky-eshop/krok-15-faktury.md) |
 
 ## Škálování
 

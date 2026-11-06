@@ -84,6 +84,12 @@ public sealed class OrderEmailTemplates(NotificationSettings settings)
                 : string.Format(Czech, "vrácené zboží jsme převzali. Částku {0:N2} Kč vám pošleme převodem – " +
                     "odpovězte prosím na tento e-mail s číslem účtu.", amount));
 
+    /// <summary>E-shop krok 15: faktura k zaplacené objednávce – PDF v příloze.</summary>
+    public EmailMessage Invoice(OrderMailRecipient to, string invoiceNumber, EmailAttachment pdf) =>
+        Build(to, $"Faktura {invoiceNumber} k objednávce č. {to.OrderId}",
+            $"v příloze posíláme fakturu č. {invoiceNumber}. Objednávka je zaplacená, nic dalšího platit nemusíte.")
+        with { Attachments = [pdf] };
+
     public EmailMessage Cancelled(OrderMailRecipient to) =>
         Build(to, $"Objednávka č. {to.OrderId} je zrušená", "objednávka byla zrušena, rezervované zboží se vrací na sklad.");
 

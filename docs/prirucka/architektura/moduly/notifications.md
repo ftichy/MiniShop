@@ -40,6 +40,7 @@ flowchart TB
 | --- | --- | --- |
 | **OrderNotificationsHandler** | Odběratel integračních událostí. `OrderPlacedV2` → uloží příjemce a pošle „přijali jsme“; ostatní události → najde příjemce podle čísla objednávky a pošle e-mail. `CustomerAnonymizedV1` → smaže všechny řádky zákazníka. | [OrderNotificationsHandler.cs](code:src/MiniShop.Application/Notifications/OrderNotificationsHandler.cs) |
 | **CartReminderHandler** + **CartEmailTemplates** | E-shop krok 10: připomínka opuštěného košíku z `CartAbandonedV1`. Kontakt a souhlas nekopíruje, ptá se přes `ICustomerContacts` (implementace `IdentityCustomerContacts` ve Webu) až při odeslání. | [CartReminderHandler.cs](code:src/MiniShop.Application/Notifications/CartReminderHandler.cs) |
+| **InvoiceEmailHandler** | E-shop krok 15: e-mail s fakturou v příloze z `InvoiceIssuedV1`. Příjemce z kopie `OrderPlacedV2`, PDF přes `IInvoiceDocuments` (Notifications modul Invoicing neznají). | [InvoiceEmailHandler.cs](code:src/MiniShop.Application/Notifications/InvoiceEmailHandler.cs) |
 | **OrderEmailTemplates** | Texty e-mailů: prostý text a jednoduché HTML (vše kódované), souhrn položek, číslo zásilky, odkaz na detail. Osobní odběr má vlastní texty. | [OrderEmailTemplates.cs](code:src/MiniShop.Application/Notifications/OrderEmailTemplates.cs) |
 | **OrderRecipient** | Komu a o čem psát u jedné objednávky: jméno, e-mail, položky, doprava, adresa – kopie z `OrderPlacedV2`. | [OrderRecipient.cs](code:src/MiniShop.Domain/Notifications/OrderRecipient.cs) |
 | **NotificationsDbContext** | schéma `notifications`: tabulky `OrderRecipients`, `OrderRecipientItems` a inbox. Outbox má (dědí z `ModuleDbContext`), ale nepoužívá – modul nic neposílá. | [NotificationsDbContext.cs](code:src/MiniShop.Infrastructure/Notifications/NotificationsDbContext.cs) |
@@ -59,6 +60,7 @@ flowchart TB
 | `PaymentRefundedV1` | „Platbu vracíme“ – pozdní platba nebo zrušená zaplacená objednávka (e-shop krok 8 a 9, zprávu posílá modul Payments) |
 | `ReturnRequestedV1`, `ReturnRejectedV1`, `ReturnCompletedV1` | E-shop krok 12: „pošlete nám zboží do …“, „vrácení nebylo přijato“ (důvod), „objednávka je vrácená“ (kartou / převodem) – viz [Vrácení zboží](../../toky/vraceni-zbozi.md) |
 | `CartAbandonedV1` | „Ve vašem košíku zůstalo zboží“ – jen se souhlasem a potvrzeným e-mailem, které `CartReminderHandler` ověří přes `ICustomerContacts` až při odeslání (e-shop krok 10, [opuštěný košík](../../toky/opusteny-kosik.md)) |
+| `InvoiceIssuedV1` | E-shop krok 15: „Faktura … k objednávce č. …“ s **PDF v příloze** – PDF si `InvoiceEmailHandler` vezme přes `IInvoiceDocuments` (implementace `InvoiceDocuments` ve Webu nad modulem [Invoicing](invoicing.md)), PDF tak nejde přes RabbitMQ ([Vystavení faktury](../../toky/faktura.md)) |
 
 Neposílá nic. Ordering o modulu neví – hlídají to
 [ModuleBoundariesTests](code:tests/MiniShop.Tests/Architecture/ModuleBoundariesTests.cs) (včetně pravidla, že Ordering

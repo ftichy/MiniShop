@@ -30,6 +30,7 @@ public sealed class TestDatabases : IDisposable
     public ModuleDatabase Payments => Database;
     public ModuleDatabase Reporting => Database;
     public ModuleDatabase Reviews => Database;
+    public ModuleDatabase Invoicing => Database;
 
     /// <summary>Konfigurace služby v paměti (WebApplicationFactory) – stejný klíč jako v produkci: <c>ConnectionStrings:minishop</c>.</summary>
     public void Configure(IWebHostBuilder builder) =>

@@ -28,6 +28,7 @@ order: 30
 | [Vrácení zboží](vraceni-zbozi.md) | druhá sága: žádost → převzetí adminem → naskladnění → vrácení peněz; zamítnutí a vypršení |
 | [Slevové kódy](slevove-kody.md) | kód v pokladně, poslední použití při souběhu (verze kuponu), vrácení použití po zamítnutí/zrušení |
 | [Hodnocení produktu](hodnoceni-produktu.md) | kopie nákupů rozhodne, kdo smí hodnotit; souhrn hodnocení do kopie katalogu a výlohy |
+| [Vystavení faktury](faktura.md) | po zaplacení (karta) nebo doručení (dobírka) faktura z nepřerušené řady, e-mail s PDF v příloze |
 
 Diagramy v Markdownu jsou psané v [Mermaidu](https://mermaid.js.org/syntax/sequenceDiagram.html). Velký diagram
 zvětšíte tlačítkem **Plná velikost** v jeho pravém horním rohu.

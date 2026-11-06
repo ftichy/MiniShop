@@ -49,6 +49,7 @@ sequenceDiagram
 | **Bucket mimo VM**, `prevent_destroy` | záloha musí přežít smazání VM i omyl v OpenTofu |
 | Zálohuje se i `/data/keys` | bez Data Protection klíčů by po obnově neplatily otevřené formuláře |
 | Zálohují se i obrázky produktů (`/data/images` skladu, e-shop krok 2B) | jména souborů jsou ve schématu `inventory` – bez souborů by výloha ukazovala chybějící obrázky. Složky se zálohují jako celek (`DIRECTORIES` v `backup.py`); starší záloha bez nich obnovu nezastaví |
+| Faktury (schéma `invoicing`, e-shop krok 15) jsou v `pg_dump` celé databáze automaticky | z událostí je přestavět nejde (čísla z řady, zákonná lhůta 10 let) – na rozdíl od čtecích modelů (Reporting) se bez zálohy ztratí |
 | RabbitMQ se nezálohuje | zprávy jsou dočasné; pravda je v outboxech obnovených databází |
 | **healthchecks.io** (dead man's switch) | ozve se, když záloha **neproběhne** – to zevnitř VM nikdo nepozná |
 | Image `oci-cli` připnutý na verzi | záloha se nesmí rozbít tím, že se změní nástroj |

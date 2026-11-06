@@ -8,6 +8,7 @@ using MiniShop.Infrastructure.Ordering;
 using MiniShop.Infrastructure.Payments;
 using MiniShop.Infrastructure.Persistence;
 using MiniShop.Infrastructure.Reporting;
+using MiniShop.Infrastructure.Invoicing;
 using MiniShop.Infrastructure.Reviews;
 using MiniShop.Tests.TestDoubles;
 
@@ -21,7 +22,7 @@ namespace MiniShop.Tests.Infrastructure;
 public sealed class DatabaseMigrationTests
 {
     public static TheoryData<string> Modules =>
-        ["Ordering", "Inventory", "Journeys", "Notifications", "Payments", "Reporting", "Reviews", "Accounts"];
+        ["Ordering", "Inventory", "Journeys", "Notifications", "Payments", "Reporting", "Reviews", "Accounts", "Invoicing"];
 
     /// <summary>Migrace, které má produkční databáze zapsané v __EFMigrationsHistory (převod 4. 11. 2026).</summary>
     private static readonly Dictionary<string, string[]> ProductionHistory = new()
@@ -33,7 +34,8 @@ public sealed class DatabaseMigrationTests
         ["Payments"] = ["20261104174544_InitialPostgres"],
         ["Reporting"] = ["20261104174549_InitialPostgres"],
         ["Reviews"] = ["20261104174553_InitialPostgres"],
-        ["Accounts"] = ["20261104174558_InitialPostgres"]
+        ["Accounts"] = ["20261104174558_InitialPostgres"],
+        ["Invoicing"] = ["20261106132908_InitialInvoicing"]   // e-shop krok 15 (nové schéma)
     };
 
     [Theory]
@@ -108,6 +110,7 @@ public sealed class DatabaseMigrationTests
         "Reporting" => Create<ReportingDbContext>(database, ReportingDbContext.Schema),
         "Reviews" => Create<ReviewsDbContext>(database, ReviewsDbContext.Schema),
         "Accounts" => Create<AccountsDbContext>(database, AccountsDbContext.Schema),
+        "Invoicing" => Create<InvoicingDbContext>(database, InvoicingDbContext.Schema),
         _ => throw new ArgumentOutOfRangeException(nameof(module))
     };
 

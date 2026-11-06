@@ -1,6 +1,6 @@
 ---
 title: Moduly
-summary: Ordering, Inventory, Journeys, Accounts, Notifications, Payments, Reporting a Reviews – business oblasti s vlastními daty, které se navzájem neznají.
+summary: Ordering, Inventory, Journeys, Accounts, Notifications, Payments, Reporting, Reviews a Invoicing – business oblasti s vlastními daty, které se navzájem neznají.
 order: 3
 ---
 
@@ -51,6 +51,12 @@ flowchart LR
     end
     o1 -->|"OrderPlacedV2, OrderCompletedV1, ReturnCompletedV1, OrderSnapshotV2"| v1
     v1 -->|"ProductRatingChangedV1, SyncPurchasesV1"| o3
+    subgraph fak["Invoicing (služba Web)"]
+        f1[Faktury + kopie objednávek]
+    end
+    o1 -->|"OrderPlacedV2, OrderCompletedV1, OrderRejectedV1, OrderCancelledV1"| f1
+    p1 -->|PaymentSucceededV1| f1
+    f1 -->|InvoiceIssuedV1| n1
 
     jou -.-|"spojené jen číslem objednávky (zapíše UI)"| ord
 
@@ -66,6 +72,7 @@ flowchart LR
     click p1 "/Docs/architektura/moduly/payments"
     click r1 "/Docs/architektura/moduly/reporting"
     click v1 "/Docs/architektura/moduly/reviews"
+    click f1 "/Docs/architektura/moduly/invoicing"
 ```
 
 | Modul | Odpovídá za | Databáze | Kde v kódu |
@@ -78,6 +85,7 @@ flowchart LR
 | [Payments](payments.md) | platby kartou přes bránu – účastník ságy, podepsaný webhook, vrácení peněz (e-shop krok 8) | schéma `payments` | `Domain/Payments`, `Application/Payments`, `Infrastructure/Payments` |
 | [Reporting](reporting.md) | přehled tržeb pro admina – čtecí model (CQRS) z událostí, přestavění ze snímků (e-shop krok 11) | schéma `reporting` | `Domain/Reporting`, `Application/Reporting`, `Infrastructure/Reporting` |
 | [Reviews](reviews.md) | hodnocení produktů – hodnotí jen ten, kdo zboží dostal (kopie nákupů z událostí), souhrn do výlohy (e-shop krok 14) | schéma `reviews` | `Domain/Reviews`, `Application/Reviews`, `Infrastructure/Reviews` |
+| [Invoicing](invoicing.md) | faktury – vystavení po zaplacení z událostí, číselná řada bez děr, PDF, e-mail s přílohou přes Notifications (e-shop krok 15) | schéma `invoicing` | `Domain/Invoicing`, `Application/Invoicing`, `Infrastructure/Invoicing` |
 
 ## Pravidla hranic
 

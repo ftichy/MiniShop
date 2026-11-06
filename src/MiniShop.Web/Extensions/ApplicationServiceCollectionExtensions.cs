@@ -18,7 +18,9 @@ using MiniShop.Contracts.Orders;
 using MiniShop.Contracts.Payments;
 using MiniShop.Contracts.Reporting;
 using MiniShop.Application.Reporting;
+using MiniShop.Application.Invoicing;
 using MiniShop.Application.Reviews;
+using MiniShop.Contracts.Invoicing;
 using MiniShop.Contracts.Reviews;
 using MiniShop.Domain.Orders.Events;
 using MiniShop.Infrastructure;
@@ -26,6 +28,7 @@ using MiniShop.Infrastructure.Ordering;
 using MiniShop.ServiceDefaults;
 using MiniShop.Web.Accounts;
 using MiniShop.Web.Inventory;
+using MiniShop.Web.Invoicing;
 
 namespace MiniShop.Web.Extensions;
 
@@ -45,6 +48,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddPaymentsModule();
         services.AddReportingModule();
         services.AddReviewsModule();
+        services.AddInvoicingModule(configuration);
         services.AddInventoryApiClient(configuration);
 
         return services;
@@ -64,6 +68,32 @@ public static class ApplicationServiceCollectionExtensions
         services.AddIntegrationMessageHandler<ReturnCompletedV1, PurchaseProjectionHandler>(IntegrationModules.Reviews);
         services.AddIntegrationMessageHandler<OrderSnapshotV2, PurchaseProjectionHandler>(IntegrationModules.Reviews);
         services.AddIntegrationMessageHandler<CustomerAnonymizedV1, PurchaseProjectionHandler>(IntegrationModules.Reviews);
+        return services;
+    }
+
+    /// <summary>
+    /// E-shop krok 15: modul Invoicing – faktury z existujících událostí (vznik objednávky, platba kartou, doručení,
+    /// zamítnutí/zrušení). Vystavení oznámí InvoiceIssuedV1 (Notifications pošle e-mail s PDF). Databázi a PDF
+    /// registruje AddInvoicingInfrastructure.
+    /// </summary>
+    public static IServiceCollection AddInvoicingModule(this IServiceCollection services, IConfiguration configuration)
+    {
+        // Prodávající na faktuře (fiktivní – výukový projekt); přepsat jde v sekci Invoicing:Seller.
+        var seller = InvoiceSeller.Default;
+        services.AddSingleton(seller with
+        {
+            Name = configuration["Invoicing:Seller:Name"] ?? seller.Name,
+            Address = configuration["Invoicing:Seller:Address"] ?? seller.Address,
+            CompanyId = configuration["Invoicing:Seller:CompanyId"] ?? seller.CompanyId,
+            Note = configuration["Invoicing:Seller:Note"] ?? seller.Note
+        });
+        services.AddScoped<InvoiceService>();
+        services.AddIntegrationMessageHandler<OrderPlacedV2, InvoicingHandler>(IntegrationModules.Invoicing);
+        services.AddIntegrationMessageHandler<PaymentSucceededV1, InvoicingHandler>(IntegrationModules.Invoicing);
+        services.AddIntegrationMessageHandler<OrderCompletedV1, InvoicingHandler>(IntegrationModules.Invoicing);
+        services.AddIntegrationMessageHandler<OrderRejectedV1, InvoicingHandler>(IntegrationModules.Invoicing);
+        services.AddIntegrationMessageHandler<OrderCancelledV1, InvoicingHandler>(IntegrationModules.Invoicing);
+        services.AddIntegrationMessageHandler<CustomerAnonymizedV1, InvoicingHandler>(IntegrationModules.Invoicing);
         return services;
     }
 
@@ -118,6 +148,10 @@ public static class ApplicationServiceCollectionExtensions
         services.AddSingleton<CartEmailTemplates>();
         services.AddScoped<ICustomerContacts, IdentityCustomerContacts>();
         services.AddIntegrationMessageHandler<CartAbandonedV1, CartReminderHandler>(IntegrationModules.Notifications);
+
+        // E-shop krok 15: e-mail s fakturou v příloze – PDF z modulu Invoicing přes most ve Webu.
+        services.AddScoped<IInvoiceDocuments, InvoiceDocuments>();
+        services.AddIntegrationMessageHandler<InvoiceIssuedV1, InvoiceEmailHandler>(IntegrationModules.Notifications);
         return services;
     }
 

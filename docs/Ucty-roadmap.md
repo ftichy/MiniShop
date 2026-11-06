@@ -105,7 +105,7 @@ a posilovnu, ne kancelář ředitele (autorizace). Recepce kartu vydá jednou, d
 | 7. Zabezpečení skladu | C | Inventory.Api přijme zápis jen od Webu | servisní klíč | 0 |
 | 8. Zpevnění | D – provoz | Lockout, rate limiting, bezpečnostní hlavičky | `RateLimiter`, Caddy | 0 |
 | 9. Otevření webu | D | Vypnutý basic auth, ochrana registrace, smazání účtu | Cloudflare Turnstile (volitelně) | 0 |
-| 10. Přihlášení přes Google | D | „Přihlásit přes Google“ | Google OAuth | 0 |
+| 10. Přihlášení přes Google (hotovo) | D | „Přihlásit přes Google“ | Google OAuth | 0 |
 
 ---
 
@@ -264,7 +264,7 @@ Heslo k Googlu MiniShop nikdy nevidí.
 
 **Hotovo, když:** nový i existující uživatel se přihlásí Googlem, role zůstávají v MiniShopu.
 
-*Implementováno 6. 11. 2026 (čeká na nasazení): propojení jen s potvrzeným e-mailem, účet bez hesla (Nastavit heslo),
+*Hotovo – nasazeno a ověřeno v produkci 6. 11. 2026: propojení jen s potvrzeným e-mailem, účet bez hesla (Nastavit heslo),
 smazání účtu bez hesla po novém přihlášení u Googlu. Client ID je v `production.env` (není tajné), secret jen
 `GOOGLE_CLIENT_SECRET`. Souhrn: [krok-10-google](kroky-ucty/krok-10-google.md).*
 

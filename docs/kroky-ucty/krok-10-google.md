@@ -98,6 +98,12 @@ Další cesty:
 3. Nový `deploy.sh` na VM **před sloučením** (starý by neznámý klíč `GOOGLE_CLIENT_SECRET` odmítl).
 4. Nový účet přes Google, propojení existujícího účtu, nastavení hesla, smazání účtu bez hesla.
 
+**Provedeno 6. 11. 2026:** projekt MiniShop v Google Cloud (consent screen External, rozsahy `openid` + e-mail + profil,
+Branding s doménou `minishop-tichy.cz` a odkazem na `/Privacy`, aplikace publikovaná), klient s návraty pro produkci,
+Aspire i Compose. Lokálně ověřeno se skutečným Googlem. Tajemství, které se při nastavování dostalo mimo správce hesel,
+bylo hned vyměněno (*Add secret* → nové do user secrets a GitHubu → staré *Disable* + *Delete*). PR #69 nasazen
+postupně (nový `deploy.sh` na VM předem), v produkci funguje přihlášení přes Google, účet bez hesla i smazání.
+
 ## Vyzkoušejte sami
 
 1. Odhlaste se → *Přihlásit přes Google* → nový účet; v hlavičce jméno z Googlu, rovnou jde objednávat (e-mail potvrzený).

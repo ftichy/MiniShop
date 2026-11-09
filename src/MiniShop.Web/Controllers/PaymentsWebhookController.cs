@@ -16,11 +16,17 @@ namespace MiniShop.Web.Controllers;
 [ApiController]
 [Route("api/payments/webhook")]
 [AllowAnonymous]
-public sealed class PaymentsWebhookController(PaymentWebhookProcessor processor) : ControllerBase
+public sealed class PaymentsWebhookController(PaymentWebhookProcessor processor, PaymentGatewayInfo gateway) : ControllerBase
 {
     [HttpPost]
     public async Task<IActionResult> Receive(CancellationToken cancellationToken)
     {
+        // E-shop krok 16: se Stripem platí jen jeho webhook (/api/payments/stripe-webhook) – formát simulace se nepřijímá.
+        if (gateway.IsStripe)
+        {
+            return NotFound();
+        }
+
         using var reader = new StreamReader(Request.Body);
         var body = await reader.ReadToEndAsync(cancellationToken);
         var signature = Request.Headers[WebhookSignature.HeaderName].FirstOrDefault();

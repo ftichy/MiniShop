@@ -32,6 +32,8 @@ order: 80
 | **Handler** | třída, která reaguje na jednu událost nebo zprávu | [Doménové události](eda/domenove-udalosti.md) |
 | **Immutable cache** | soubor se pod jednou adresou nikdy nemění (nový obsah = nové jméno), proto si ho prohlížeč smí uložit natrvalo | [Kopie katalogu](eda/kopie-katalogu.md) |
 | **Idempotence** | provést operaci jednou nebo víckrát má stejný výsledek | [Inbox](eda/inbox.md) |
+| **Idempotency key** | ID požadavku na cizí API (Stripe): stejný klíč podruhé = brána vrátí výsledek prvního volání, nic nového nezaloží – ochrana při opakování po chybě | [Payments](architektura/moduly/payments.md#stripe-e-shop-krok-16) |
+| **Adaptér** | třída, která překládá naše rozhraní na API cizího systému (`StripePaymentGateway` : `IPaymentGateway`) – zbytek aplikace cizí systém nezná | [Payments](architektura/moduly/payments.md#stripe-e-shop-krok-16) |
 | **Idempotentní příkaz** | požadavek s vlastním ID (`CheckoutId`) – opakované odeslání nic nového nezaloží, vrátí výsledek prvního | [Pokladna](toky/pokladna.md) |
 | **Inbox** | tabulka zpracovaných zpráv – ochrana před dvojím zpracováním | [Inbox](eda/inbox.md) |
 | **Integrační zpráva / kontrakt** | veřejná, verzovaná zpráva mezi službami (`ReserveStockV1`) | [Integrační zprávy](eda/integracni-zpravy.md) |

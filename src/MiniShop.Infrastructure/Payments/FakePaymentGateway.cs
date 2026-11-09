@@ -10,8 +10,11 @@ namespace MiniShop.Infrastructure.Payments;
 /// </summary>
 public sealed class FakePaymentGateway : IPaymentGateway
 {
-    public Task<GatewayPayment> CreateAsync(Payment payment, CancellationToken cancellationToken = default) =>
+    public Task<GatewayPayment> CreateAsync(Payment payment, Guid requestId, CancellationToken cancellationToken = default) =>
         Task.FromResult(new GatewayPayment($"FAKE-{payment.Id:N}"[..17], $"/Pay/{payment.OrderId}"));
+
+    /// <summary>Simulace peníze nedrží – vrácení je jen změna stavu platby (handler).</summary>
+    public Task RefundAsync(Payment payment, CancellationToken cancellationToken = default) => Task.CompletedTask;
 }
 
 /// <summary>

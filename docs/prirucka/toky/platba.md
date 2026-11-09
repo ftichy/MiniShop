@@ -59,8 +59,15 @@ Zákazník zaplatí ve 30. minutě a 1. vteřině – sága už objednávku zam�
 vzala a `PaymentSucceededV1` dorazí. Sága ve stavu `Rejected` / `ReleasingStock` / `Released` pošle
 **`RefundPaymentV1`** (kompenzace, jen jednou – `RefundRequested`), Payments vrátí peníze a oznámí
 `PaymentRefundedV1`, zákazník dostane e-mail „platbu vracíme“. Stejný vzor jako pozdní rezervace po timeoutu
-skladu ([Timeout a kompenzace](timeout-a-kompenzace.md)). Simulovaná brána po termínu zaplatit nepustí, skutečná
-by mohla.
+skladu ([Timeout a kompenzace](timeout-a-kompenzace.md)). Simulovaná brána po termínu zaplatit nepustí;
+u **Stripu** (e-shop krok 16) session vyprší až 30 minut po našem termínu, takže pozdní platba opravdu nastat může
+a `RefundPaymentV1` peníze vrátí skutečným refundem přes API Stripu.
+
+## Stripe (e-shop krok 16)
+
+Se Stripem je tok stejný – jen „brána“ je stránka `checkout.stripe.com` a webhook přichází na
+`/api/payments/stripe-webhook` s podpisem `Stripe-Signature`. Diagram a pasti (idempotency key, události celého
+účtu, termín session) jsou v [modulu Payments](../architektura/moduly/payments.md#stripe-e-shop-krok-16).
 
 ## Co si všimnout
 

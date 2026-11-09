@@ -1,12 +1,24 @@
 @page "/Pay/{orderId:int}"
 @model MiniShop.Web.Pages.Pay.IndexModel
+@using MiniShop.Application.Payments
 @{
-    ViewData["Title"] = "Platební brána (simulace)";
+    ViewData["Title"] = Model.IsStripe ? "Platba kartou" : "Platební brána (simulace)";
 }
-<div class="alert alert-secondary small">
-    <strong>Simulace platební brány.</strong> Ve skutečném e-shopu by tahle stránka byla na webu banky.
-    Tlačítko pošle MiniShopu podepsaný webhook – stejně jako skutečná brána. Nic se neplatí.
-</div>
+@if (Model.IsStripe)
+{
+    @* E-shop krok 16: platit se dá přímo u Stripu (GET sem přesměruje); tady jen čekání na platbu a její stav. *@
+    <div class="alert alert-secondary small">
+        <strong>Platební brána Stripe v testovacím režimu</strong> – nic se neplatí. Použijte kartu
+        <code>@PaymentGatewayInfo.StripeTestCard</code>, libovolné budoucí datum a libovolný CVC.
+    </div>
+}
+else
+{
+    <div class="alert alert-secondary small">
+        <strong>Simulace platební brány.</strong> Ve skutečném e-shopu by tahle stránka byla na webu banky.
+        Tlačítko pošle MiniShopu podepsaný webhook – stejně jako skutečná brána. Nic se neplatí.
+    </div>
+}
 
 <div class="card mx-auto" style="max-width: 32rem">
     <div class="card-body">
@@ -32,6 +44,11 @@
                         : "Objednávka je zrušená – platit už nic nemusíte.")
                 </div>
             }
+            else if (Model.CanPay && Model.IsStripe)
+            {
+                @* Stripe: platba ještě nemá adresu brány (nemělo by nastat) – stránka se obnoví a přesměruje. *@
+                <p class="text-muted" data-reload-when-idle>Připravujeme platební bránu – stránka se za chvilku sama obnoví…</p>
+            }
             else if (Model.CanPay)
             {
                 <p class="text-muted small">Zaplatit můžete do @payment.ExpiresAtUtc.ToLocalTime().ToString("g").</p>
@@ -48,6 +65,10 @@
             else if (payment.Status == "Pending")
             {
                 <div class="alert alert-warning">Čas na zaplacení vypršel – objednávku jsme zrušili a zboží vrátili na sklad.</div>
+            }
+            else if (payment.Status == "Succeeded" && Model.IsStripe)
+            {
+                <div class="alert alert-success">Zaplaceno – potvrzení objednávky přijde během pár sekund.</div>
             }
             else if (payment.Status == "Succeeded")
             {

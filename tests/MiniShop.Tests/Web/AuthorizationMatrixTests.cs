@@ -283,6 +283,8 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         // E-shop krok 8: webhook brány je bez přihlášení (brána účet nemá) – chrání ho podpis HMAC: bez něj 401.
         { Who.Anonymous, "POST", "/api/payments/webhook", Expect.Unauthorized },
         { Who.User, "POST", "/api/payments/webhook", Expect.Unauthorized },
+        // E-shop krok 16: webhook Stripu – také bez přihlášení (chrání ho podpis Stripe-Signature); bez Stripu 404.
+        { Who.Anonymous, "POST", "/api/payments/stripe-webhook", Expect.Allowed },
     };
 
     [Theory]

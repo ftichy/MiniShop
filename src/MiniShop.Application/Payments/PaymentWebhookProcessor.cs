@@ -1,6 +1,7 @@
 using System.Text.Json;
 using MiniShop.Application.Abstractions;
 using MiniShop.Domain.Exceptions;
+using MiniShop.Domain.Payments;
 
 namespace MiniShop.Application.Payments;
 
@@ -49,16 +50,25 @@ public sealed class PaymentWebhookProcessor(
             return PaymentWebhookResult.UnknownPayment;
         }
 
+        return payload.Status switch
+        {
+            PaymentWebhookPayload.Succeeded => await ApplyResultAsync(payment, failureReason: null, cancellationToken),
+            PaymentWebhookPayload.Failed => await ApplyResultAsync(payment, payload.Reason ?? "Platba byla zamítnuta.", cancellationToken),
+            _ => PaymentWebhookResult.Invalid
+        };
+    }
+
+    /// <summary>
+    /// Výsledek platby z ověřeného webhooku (simulace i Stripe – e-shop krok 16): <paramref name="failureReason"/> null =
+    /// zaplaceno, jinak nezaplaceno s důvodem. Opakovaný výsledek nic nezmění.
+    /// </summary>
+    public async Task<PaymentWebhookResult> ApplyResultAsync(Payment payment, string? failureReason, CancellationToken cancellationToken = default)
+    {
         TraceTags.TagOrder(payment.OrderId);
         var now = timeProvider.GetUtcNow().UtcDateTime;
         try
         {
-            var changed = payload.Status switch
-            {
-                PaymentWebhookPayload.Succeeded => payment.Succeed(now),
-                PaymentWebhookPayload.Failed => payment.Fail(payload.Reason ?? "Platba byla zamítnuta.", now),
-                _ => throw new DomainException($"Neznámý výsledek platby „{payload.Status}“.")
-            };
+            var changed = failureReason is null ? payment.Succeed(now) : payment.Fail(failureReason, now);
 
             if (changed)
             {

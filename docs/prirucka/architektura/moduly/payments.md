@@ -111,6 +111,11 @@ Na co si dát pozor:
   `/Pay` po termínu na Stripe nepustí; kdo zaplatí na otevřené stránce Stripu po timeoutu ságy, dostane peníze
   zpět (pozdní platba → `RefundPaymentV1` → skutečný refund).
 - **Simulace se Stripem nejde použít** – tlačítka `/Pay` i `/api/payments/webhook` vrací 404 (jinak by šlo „zaplatit“ bez peněz).
+- **Webhook ve Stripe Dashboardu musí mít Payload style _Snapshot_** (4 události `checkout.session.completed`,
+  `.expired`, `.async_payment_succeeded`, `.async_payment_failed`). Zpráva *Thin* nenese data session (jen odkaz) –
+  MiniShop z ní nepozná objednávku a platba by se nepotvrdila. Styl u existujícího cíle změnit nejde → nový cíl,
+  nové `whsec_…` do `STRIPE_WEBHOOK_SECRET`, *Run workflow* Deploy. Zmeškanou událost jde ve Stripu poslat znovu
+  (*Events* → událost → *Resend* na nový cíl).
 - **Lokálně:** user secrets Webu (`Payments:Gateway`, `Payments:Stripe:SecretKey`, `Payments:Stripe:WebhookSecret`)
   a Stripe CLI, které webhooky přepošle na localhost:
   `docker run --rm -it stripe/stripe-cli listen --api-key sk_test_… --events checkout.session.completed,checkout.session.expired,checkout.session.async_payment_succeeded,checkout.session.async_payment_failed --forward-to https://host.docker.internal:7180/api/payments/stripe-webhook --skip-verify`

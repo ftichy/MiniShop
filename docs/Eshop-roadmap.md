@@ -396,7 +396,7 @@ Nereagujeme na událost, ale na to, že po `CartItemAdded` do 24 hodin nepřiše
 
 - ~~**Slevové kódy**~~ – **hotovo jako krok 13** ([souhrn](kroky-eshop/krok-13-slevove-kody.md)): agregát `Coupon`, limit použití hlídá verze kuponu, sleva rozpočítaná do položek.
 - ~~**Kategorie, vyhledávání a filtrování** ve výloze; obrázky produktů~~ – hotovo v krocích 2A a 2B.
-- ~~**Skutečná platební brána**~~ – **krok 16** ([souhrn](kroky-eshop/krok-16-stripe.md)): Stripe Checkout v testovacím režimu jako další implementace `IPaymentGateway`, webhook se `Stripe-Signature`, idempotency key, skutečný refund.
+- ~~**Skutečná platební brána**~~ – **hotovo jako krok 16** ([souhrn](kroky-eshop/krok-16-stripe.md)): Stripe Checkout v testovacím režimu jako další implementace `IPaymentGateway`, webhook se `Stripe-Signature`, idempotency key, skutečný refund.
 - ~~**Vrácení zboží / reklamace**~~ – **hotovo jako krok 12** ([souhrn](kroky-eshop/krok-12-vraceni-zbozi.md)): druhá sága `ReturnSaga`, převzetí adminem, naskladnění, refundace.
 - ~~**Faktura PDF**~~ – **hotovo jako krok 15** ([souhrn](kroky-eshop/krok-15-faktury.md)): modul Invoicing, faktura z událostí po zaplacení, číselná řada bez děr, PDF (QuestPDF, licence Community) v příloze e-mailu. Dobropis při zrušení/vrácení = **krok 15B** ([souhrn](kroky-eshop/krok-15b-dobropisy.md)): dobropis z kopie faktury, vlastní řada `D…`, `CreditNoteIssuedV1` → e-mail s PDF.
 - ~~**Hodnocení produktů**~~ – **hotovo jako krok 14** ([souhrn](kroky-eshop/krok-14-hodnoceni-produktu.md)): modul Reviews s vlastní kopií nákupů z událostí, souhrn do výlohy.

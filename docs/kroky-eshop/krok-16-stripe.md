@@ -81,6 +81,12 @@ Banka má vlastní formuláře, vlastní razítka (podpis webhooku) a někdy ná
 - V produkci: objednávka kartou → *Zaplatit* → Stripe → `4242 4242 4242 4242` → objednávka potvrzená, faktura;
   zrušení → refund ve Stripe Dashboardu (*Payments* → stav *Refunded*) a dobropis.
 
+**Nasazeno 9. 11. 2026** (PR #77; nový `deploy.sh` nainstalovaný na VM předem, secrets `STRIPE_SECRET_KEY`
+a `STRIPE_WEBHOOK_SECRET`, webhook ve Stripe Dashboardu). Lokálně se Stripe CLI ověřena platba, potvrzení, zrušení →
+refund + dobropis. V produkci první webhook selhal: cíl ve Stripu se uložil s Payload style **Thin** (zpráva bez dat
+session). Oprava: nový cíl se stylem **Snapshot**, nové `whsec_…` do secretu, *Run workflow* Deploy, zmeškaná
+událost poslána znovu (*Resend*), starý cíl smazán. Pak platba kartou `4242…` v produkci prošla celou cestou.
+
 ## Vyzkoušejte sami
 
 1. Zaplaťte kartou `4242 4242 4242 4242` – za pár sekund je objednávka potvrzená, ve Stripe Dashboardu je platba

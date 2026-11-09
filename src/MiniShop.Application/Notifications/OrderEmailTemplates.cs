@@ -90,6 +90,13 @@ public sealed class OrderEmailTemplates(NotificationSettings settings)
             $"v příloze posíláme fakturu č. {invoiceNumber}. Objednávka je zaplacená, nic dalšího platit nemusíte.")
         with { Attachments = [pdf] };
 
+    /// <summary>E-shop krok 15B: dobropis k faktuře v příloze (zrušená, zamítnutá nebo vrácená zaplacená objednávka).</summary>
+    public EmailMessage CreditNote(OrderMailRecipient to, string creditNoteNumber, string invoiceNumber, EmailAttachment pdf) =>
+        Build(to, $"Dobropis {creditNoteNumber} k objednávce č. {to.OrderId}",
+            $"v příloze posíláme dobropis č. {creditNoteNumber}, který ruší fakturu č. {invoiceNumber}. "
+            + "Jak vám peníze vracíme, najdete v dokladu.")
+        with { Attachments = [pdf] };
+
     public EmailMessage Cancelled(OrderMailRecipient to) =>
         Build(to, $"Objednávka č. {to.OrderId} je zrušená", "objednávka byla zrušena, rezervované zboží se vrací na sklad.");
 

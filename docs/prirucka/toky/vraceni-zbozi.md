@@ -69,6 +69,10 @@ Vrátit jde objednávku **jen jednou**. Po zamítnutí nebo vypršení tlačítk
 - **Přehled tržeb** (Reporting) dostane `ReturnCompletedV1` a vrácenou objednávku z tržby odečte – ani o tom Ordering neví.
 - Rozpracovaná vratka blokuje smazání účtu (`Order.IsActive`).
 
+**Dobropis (e-shop krok 15B):** `ReturnCompletedV1` poslouchá i modul Invoicing – k faktuře vystaví dobropis
+(„Vráceno na kartu“, u dobírky „Vrátíme převodem na účet“) a zákazník ho dostane e-mailem v PDF
+([Vystavení faktury a dobropisu](faktura.md)).
+
 ## Kód
 
 [Order](code:src/MiniShop.Domain/Orders/Order.cs) ·

@@ -58,10 +58,39 @@ public class InvoiceTests
     public void ZamitnutaNeboZrusena_SeNefakturuje()
     {
         var order = Placed(5);
-        order.MarkVoided();
+        order.MarkVoided(CreditNoteReason.Rejected, "Vráceno na kartu");
         order.MarkPaid(Now, "Kartou");   // pozdní platba – vrátí ji sága
 
         Assert.False(order.IsReadyToInvoice);
+    }
+
+    [Fact]
+    public void Vratka_FakturovatDalJde_DuvodDobropisuPlatiPrvni()
+    {
+        var order = Placed(5);
+        order.MarkPaid(Now, "Kartou");
+
+        order.MarkReturned("Vráceno na kartu");
+        order.MarkVoided(CreditNoteReason.Cancelled, "jiný text");   // pozdní zpráva důvod nepřepíše
+
+        Assert.True(order.IsVoided);
+        Assert.Equal((CreditNoteReason.Returned, "Vráceno na kartu"), (order.CreditReason, order.RefundNote));
+    }
+
+    [Fact]
+    public void Dobropis_KopieFakturyVlastniRada()
+    {
+        var order = Placed(5);
+        order.MarkPaid(Now, "Kartou");
+        var invoice = Invoice.Issue(order, "2026000007", Now);
+        var series = CreditNoteNumberSeries.Start(2026);
+
+        var creditNote = CreditNote.Issue(invoice, series.Next(), CreditNoteReason.Returned, "Vrátíme převodem na účet", Now.AddDays(3));
+
+        Assert.Equal(("D2026000001", "2026000007", 5, "Eva", 250m), (creditNote.Number, creditNote.InvoiceNumber,
+            creditNote.OrderId, creditNote.CustomerName, creditNote.Total));
+        Assert.Equal(invoice.Lines, creditNote.Lines);
+        Assert.Throws<DomainException>(() => CreditNote.Issue(invoice, "D2026000002", CreditNoteReason.Cancelled, "x", Now.AddDays(-1)));
     }
 
     private static BillableOrder Placed(int orderId)

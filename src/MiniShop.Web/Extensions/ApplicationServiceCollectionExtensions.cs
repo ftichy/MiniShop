@@ -73,7 +73,8 @@ public static class ApplicationServiceCollectionExtensions
 
     /// <summary>
     /// E-shop krok 15: modul Invoicing – faktury z existujících událostí (vznik objednávky, platba kartou, doručení,
-    /// zamítnutí/zrušení). Vystavení oznámí InvoiceIssuedV1 (Notifications pošle e-mail s PDF). Databázi a PDF
+    /// zamítnutí/zrušení). Vystavení oznámí InvoiceIssuedV1 (Notifications pošle e-mail s PDF). Krok 15B: zrušení,
+    /// zamítnutí nebo vrácení po vystavení faktury = dobropis (CreditNoteIssuedV1). Databázi a PDF
     /// registruje AddInvoicingInfrastructure.
     /// </summary>
     public static IServiceCollection AddInvoicingModule(this IServiceCollection services, IConfiguration configuration)
@@ -93,6 +94,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddIntegrationMessageHandler<OrderCompletedV1, InvoicingHandler>(IntegrationModules.Invoicing);
         services.AddIntegrationMessageHandler<OrderRejectedV1, InvoicingHandler>(IntegrationModules.Invoicing);
         services.AddIntegrationMessageHandler<OrderCancelledV1, InvoicingHandler>(IntegrationModules.Invoicing);
+        services.AddIntegrationMessageHandler<ReturnCompletedV1, InvoicingHandler>(IntegrationModules.Invoicing);   // e-shop krok 15B: dobropis
         services.AddIntegrationMessageHandler<CustomerAnonymizedV1, InvoicingHandler>(IntegrationModules.Invoicing);
         return services;
     }
@@ -152,6 +154,7 @@ public static class ApplicationServiceCollectionExtensions
         // E-shop krok 15: e-mail s fakturou v příloze – PDF z modulu Invoicing přes most ve Webu.
         services.AddScoped<IInvoiceDocuments, InvoiceDocuments>();
         services.AddIntegrationMessageHandler<InvoiceIssuedV1, InvoiceEmailHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<CreditNoteIssuedV1, InvoiceEmailHandler>(IntegrationModules.Notifications);   // e-shop krok 15B
         return services;
     }
 

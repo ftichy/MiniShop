@@ -4,8 +4,8 @@ using MiniShop.Contracts.Invoicing;
 namespace MiniShop.Application.Notifications;
 
 /// <summary>
-/// E-shop krok 15: faktura je vystavená → e-mail s PDF v příloze. Příjemce z kopie <c>OrderPlacedV2</c> (jako ostatní
-/// e-maily o objednávce), PDF přes <see cref="IInvoiceDocuments"/>.
+/// E-shop krok 15: faktura je vystavená → e-mail s PDF v příloze. E-shop krok 15B: totéž pro dobropis.
+/// Příjemce z kopie <c>OrderPlacedV2</c> (jako ostatní e-maily o objednávce), PDF přes <see cref="IInvoiceDocuments"/>.
 /// </summary>
 /// <remarks>
 /// Zpráva mimo pořadí (příjemce zatím neznáme) = výjimka a opakování, nejvýš <see cref="OrderNotificationsHandler.MaxWaitForPlacedOrder"/>.
@@ -16,24 +16,13 @@ public sealed class InvoiceEmailHandler(
     IInvoiceDocuments documents,
     IEmailSender emailSender,
     OrderEmailTemplates templates,
-    TimeProvider timeProvider) : IIntegrationMessageHandler<InvoiceIssuedV1>
+    TimeProvider timeProvider) :
+    IIntegrationMessageHandler<InvoiceIssuedV1>,
+    IIntegrationMessageHandler<CreditNoteIssuedV1>
 {
     public async Task HandleAsync(InvoiceIssuedV1 message, CancellationToken cancellationToken)
     {
-        TraceTags.TagOrder(message.OrderId);
-        var recipient = await recipients.GetAsync(message.OrderId, cancellationToken);
-        if (recipient is null)
-        {
-            if (timeProvider.GetUtcNow().UtcDateTime - message.OccurredAtUtc < OrderNotificationsHandler.MaxWaitForPlacedOrder)
-            {
-                throw new InvalidOperationException(
-                    $"Pro objednávku {message.OrderId} ještě nedorazilo OrderPlacedV2 (zpráva mimo pořadí) – zkusí se znovu.");
-            }
-
-            return;   // objednávka bez příjemce (smazaný účet, starší než Notifications)
-        }
-
-        if (string.IsNullOrEmpty(recipient.CustomerEmail))
+        if (await FindRecipientAsync(message.OrderId, message.OccurredAtUtc, cancellationToken) is not { } recipient)
         {
             return;
         }
@@ -41,7 +30,40 @@ public sealed class InvoiceEmailHandler(
         var pdf = await documents.GetInvoiceAsync(message.OrderId, cancellationToken)
             ?? throw new InvalidOperationException($"Faktura {message.InvoiceNumber} k objednávce {message.OrderId} nebyla nalezena.");
 
+        await emailSender.SendAsync(templates.Invoice(recipient, message.InvoiceNumber, pdf), cancellationToken);
+    }
+
+    /// <summary>E-shop krok 15B: dobropis v příloze.</summary>
+    public async Task HandleAsync(CreditNoteIssuedV1 message, CancellationToken cancellationToken)
+    {
+        if (await FindRecipientAsync(message.OrderId, message.OccurredAtUtc, cancellationToken) is not { } recipient)
+        {
+            return;
+        }
+
+        var pdf = await documents.GetCreditNoteAsync(message.OrderId, cancellationToken)
+            ?? throw new InvalidOperationException($"Dobropis {message.CreditNoteNumber} k objednávce {message.OrderId} nebyl nalezen.");
+
         await emailSender.SendAsync(
-            templates.Invoice(OrderMailRecipient.From(recipient), message.InvoiceNumber, pdf), cancellationToken);
+            templates.CreditNote(recipient, message.CreditNoteNumber, message.InvoiceNumber, pdf), cancellationToken);
+    }
+
+    /// <summary>Příjemce e-mailu, nebo null (nikomu neposílat). Ještě neznámý příjemce = výjimka → opakování.</summary>
+    private async Task<OrderMailRecipient?> FindRecipientAsync(int orderId, DateTime occurredAtUtc, CancellationToken cancellationToken)
+    {
+        TraceTags.TagOrder(orderId);
+        var recipient = await recipients.GetAsync(orderId, cancellationToken);
+        if (recipient is null)
+        {
+            if (timeProvider.GetUtcNow().UtcDateTime - occurredAtUtc < OrderNotificationsHandler.MaxWaitForPlacedOrder)
+            {
+                throw new InvalidOperationException(
+                    $"Pro objednávku {orderId} ještě nedorazilo OrderPlacedV2 (zpráva mimo pořadí) – zkusí se znovu.");
+            }
+
+            return null;   // objednávka bez příjemce (smazaný účet, starší než Notifications)
+        }
+
+        return string.IsNullOrEmpty(recipient.CustomerEmail) ? null : OrderMailRecipient.From(recipient);
     }
 }

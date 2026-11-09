@@ -42,7 +42,8 @@ order: 80
 | **Outbox** | tabulka odchozích zpráv ukládaná v téže transakci jako data | [Outbox](eda/outbox.md) |
 | **Poison message** | zpráva, jejíž zpracování opakovaně selhává; po 5 pokusech se odloží | [Outbox](eda/outbox.md) |
 | **Projekce (read model)** | pohled na data poskládaný z událostí (kopie katalogu, časová osa) | [Kopie katalogu](eda/kopie-katalogu.md) |
-| **Číselná řada bez děr** | čísla dokladů 1, 2, 3… bez vynechání (faktury) – číslo se přidělí ve stejné transakci jako doklad, sekvence databáze by při rollbacku nechala díru | [Vystavení faktury](toky/faktura.md) |
+| **Dobropis** | opravný doklad k faktuře – faktura se po vystavení nemění, zrušení nebo vrácení se zapíše novým dokladem se zápornou částkou | [Vystavení faktury a dobropisu](toky/faktura.md) |
+| **Číselná řada bez děr** | čísla dokladů 1, 2, 3… bez vynechání (faktury, dobropisy) – číslo se přidělí ve stejné transakci jako doklad, sekvence databáze by při rollbacku nechala díru | [Vystavení faktury](toky/faktura.md) |
 | **Příkaz (command)** | zpráva „udělej“ s právě jedním příjemcem | [Integrační zprávy](eda/integracni-zpravy.md) |
 | **Sága** | dlouhý proces přes více služeb složený z lokálních transakcí s kompenzacemi | [Sága](eda/saga.md) |
 | **SOLID** | pět principů objektového návrhu | [SOLID](architektura/solid.md) |

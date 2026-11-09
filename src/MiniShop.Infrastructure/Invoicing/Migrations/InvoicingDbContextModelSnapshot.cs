@@ -28,6 +28,10 @@ namespace MiniShop.Infrastructure.Invoicing.Migrations
                     b.Property<int>("OrderId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("CreditReason")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<string>("CustomerId")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
@@ -53,6 +57,10 @@ namespace MiniShop.Infrastructure.Invoicing.Migrations
                     b.Property<DateTime?>("PlacedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("RefundNote")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<string>("ShippingMethod")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
@@ -70,6 +78,97 @@ namespace MiniShop.Infrastructure.Invoicing.Migrations
                     b.HasIndex("CustomerId");
 
                     b.ToTable("BillableOrders", "invoicing");
+                });
+
+            modelBuilder.Entity("MiniShop.Domain.Invoicing.CreditNote", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CustomerId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("CustomerName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("DeliveryAddress")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("InvoiceNumber")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("IssuedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int>("OrderId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("RefundNote")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ShippingMethod")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<decimal>("ShippingPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("Total")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("Number")
+                        .IsUnique();
+
+                    b.HasIndex("OrderId")
+                        .IsUnique();
+
+                    b.ToTable("CreditNotes", "invoicing");
+                });
+
+            modelBuilder.Entity("MiniShop.Domain.Invoicing.CreditNoteNumberSeries", b =>
+                {
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("LastSequence")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.HasKey("Year");
+
+                    b.ToTable("CreditNoteNumberSeries", "invoicing");
                 });
 
             modelBuilder.Entity("MiniShop.Domain.Invoicing.Invoice", b =>
@@ -263,6 +362,52 @@ namespace MiniShop.Infrastructure.Invoicing.Migrations
 
                             b1.WithOwner()
                                 .HasForeignKey("OrderId");
+                        });
+
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("MiniShop.Domain.Invoicing.CreditNote", b =>
+                {
+                    b.OwnsMany("MiniShop.Domain.Invoicing.InvoiceLine", "Lines", b1 =>
+                        {
+                            b1.Property<int>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer");
+
+                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+
+                            b1.Property<int>("CreditNoteId")
+                                .HasColumnType("integer");
+
+                            b1.Property<decimal>("Discount")
+                                .HasPrecision(18, 2)
+                                .HasColumnType("numeric(18,2)");
+
+                            b1.Property<decimal>("LineTotal")
+                                .HasPrecision(18, 2)
+                                .HasColumnType("numeric(18,2)");
+
+                            b1.Property<string>("ProductName")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("character varying(200)");
+
+                            b1.Property<int>("Quantity")
+                                .HasColumnType("integer");
+
+                            b1.Property<decimal>("UnitPrice")
+                                .HasPrecision(18, 2)
+                                .HasColumnType("numeric(18,2)");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("CreditNoteId");
+
+                            b1.ToTable("CreditNoteLines", "invoicing");
+
+                            b1.WithOwner()
+                                .HasForeignKey("CreditNoteId");
                         });
 
                     b.Navigation("Lines");

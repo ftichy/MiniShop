@@ -22,6 +22,8 @@ public static class InvoicingInfrastructure
         services.AddScoped<IBillableOrderRepository, BillableOrderRepository>();
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
         services.AddScoped<IInvoiceNumberSeriesRepository, InvoiceNumberSeriesRepository>();
+        services.AddScoped<ICreditNoteRepository, CreditNoteRepository>();                       // e-shop krok 15B
+        services.AddScoped<ICreditNoteNumberSeriesRepository, CreditNoteNumberSeriesRepository>();
         services.AddSingleton<IInvoicePdfRenderer, QuestPdfInvoiceRenderer>();
 
         services.AddSingleton<IOutboxProcessor, OutboxProcessor<InvoicingDbContext>>();

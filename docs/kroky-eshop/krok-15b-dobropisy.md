@@ -76,6 +76,10 @@ Zprávy mimo pořadí: zrušení **před** fakturou = faktura nevznikne vůbec (
 - Lokálně (AppHost + Mailpit): objednávka kartou → *Zaplatit* → faktura → *Zrušit* → za pár sekund e-mail „Dobropis …“
   s PDF, na detailu objednávky odkaz *Dobropis č. D… – stáhnout PDF*; v `/Admin/Invoices` sloupec Dobropis.
 
+**Nasazeno 9. 11. 2026** (PR #75, postupné nasazení bez ručního kroku na VM, migrace `CreditNotes` při startu).
+V produkci ověřeno: zaplacená objednávka kartou zrušená → dobropis `D2026…`, e-mail s PDF v příloze, odkaz na detailu
+objednávky a sloupec Dobropis v `/Admin/Invoices`.
+
 ## Vyzkoušejte sami
 
 1. Objednejte kartou, zaplaťte, počkejte na fakturu a objednávku zrušte. Na detailu přibude *Dobropis č. D2026000001*;

@@ -7,7 +7,7 @@
 <h1>Faktury</h1>
 <p class="text-muted">
     Vystavené faktury (modul Invoicing) – po zaplacení kartou, u dobírky po doručení. Faktura se nemění ani nemaže;
-    zrušení zaplacené objednávky zatím řeší ručně (dobropis = e-shop krok 15B).
+    zrušení, zamítnutí nebo vrácení zaplacené objednávky vystaví automaticky dobropis (řada <code>D…</code>).
 </p>
 
 @if (Model.Invoices.Count == 0)
@@ -25,6 +25,7 @@ else
                 <th class="text-end">Částka</th>
                 <th>Objednávka</th>
                 <th></th>
+                <th>Dobropis</th>
             </tr>
         </thead>
         <tbody>
@@ -37,6 +38,13 @@ else
                     <td class="text-end">@invoice.Total.ToString("N2", czech) Kč</td>
                     <td><a asp-page="/Orders/Detail" asp-route-id="@invoice.OrderId">č. @invoice.OrderId</a></td>
                     <td><a asp-page="/Orders/Invoice" asp-route-id="@invoice.OrderId" data-track="admin-invoice-pdf">PDF</a></td>
+                    <td>
+                        @if (invoice.CreditNoteNumber is not null)
+                        {
+                            @* E-shop krok 15B *@
+                            <a asp-page="/Orders/CreditNote" asp-route-id="@invoice.OrderId" data-track="admin-credit-note-pdf">@invoice.CreditNoteNumber</a>
+                        }
+                    </td>
                 </tr>
             }
         </tbody>

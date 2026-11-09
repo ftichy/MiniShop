@@ -35,7 +35,8 @@ public sealed class DetailModel(
     public int PaymentMinutes => (int)sagaSettings.PaymentTimeout.TotalMinutes;
 
     /// <summary>E-shop krok 15: číslo faktury (odkaz na PDF), null = zatím nevystavená.</summary>
-    public string? InvoiceNumber { get; private set; }
+    /// <summary>E-shop krok 15/15B: čísla faktury a dobropisu (null = zatím není).</summary>
+    public OrderDocumentsDto Documents { get; private set; } = new(null, null);
 
     /// <summary>Hláška z pokladny („Objednávka č. 5 přijata…“) – pokladna sem po odeslání přesměruje.</summary>
     [TempData]
@@ -86,7 +87,7 @@ public sealed class DetailModel(
         }
 
         CanManageOrders = (await authorization.AuthorizeAsync(User, AuthorizationPolicies.RequireAdmin)).Succeeded;
-        InvoiceNumber = await invoices.GetNumberAsync(id, await InvoiceAccess.CustomerIdOrAdminAsync(User, authorization), cancellationToken);
+        Documents = await invoices.GetDocumentsAsync(id, await InvoiceAccess.CustomerIdOrAdminAsync(User, authorization), cancellationToken);
         return true;
     }
 

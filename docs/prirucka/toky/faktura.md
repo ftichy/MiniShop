@@ -1,6 +1,6 @@
 ---
-title: Vystavení faktury
-summary: Po zaplacení (karta) nebo doručení (dobírka) vystaví modul Invoicing fakturu s číslem z nepřerušené řady a Notifications pošle e-mail s PDF v příloze.
+title: Vystavení faktury a dobropisu
+summary: Po zaplacení (karta) nebo doručení (dobírka) vystaví modul Invoicing fakturu s číslem z nepřerušené řady, po zrušení nebo vrácení k ní dobropis; Notifications pošle e-mail s PDF v příloze.
 order: 17
 ---
 
@@ -58,11 +58,45 @@ sequenceDiagram
 
 Proč ne sekvence databáze: ta číslo při rollbacku nevrátí a v řadě by zůstala díra. Zákon chce řadu nepřerušenou.
 
+## Dobropis – zrušení nebo vrácení po vystavení faktury (e-shop krok 15B)
+
+Faktura se po vystavení **nemění ani nemaže**. Když zaplacená objednávka skončí jinak, účetní nevytrhne stránku
+z knihy faktur – dopíše do druhé knihy „ruší se faktura č. 2026000042“. Faktura +1 250 Kč a dobropis −1 250 Kč dají nulu.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant O as Ordering
+    participant I as Invoicing
+    participant N as Notifications
+    participant W as Web (InvoiceDocuments)
+
+    Note over I: faktura 2026000042 už existuje
+    O-)I: OrderCancelledV1 / OrderRejectedV1 / ReturnCompletedV1
+    I->>I: důvod dobropisu (platí první) – faktura existuje, dobropis ještě ne?
+    Note over I: jedna transakce: dobropis D2026000005 (kopie faktury)<br/>+ číslo z řady dobropisů + CreditNoteIssuedV1 v outboxu
+    I-)N: CreditNoteIssuedV1 (D2026000005, k faktuře 2026000042, částka)
+    N->>W: IInvoiceDocuments.GetCreditNoteAsync(objednávka)
+    N->>N: e-mail „Dobropis … k objednávce č. 42“ + PDF v příloze
+```
+
+| Událost | Kdy má objednávka fakturu | Text na dobropisu |
+| --- | --- | --- |
+| `OrderCancelledV1` | zaplaceno kartou, zrušeno před odesláním (dobírka fakturu před doručením nemá) | Vráceno na kartu |
+| `OrderRejectedV1` | vzácný souběh: pozdní platba stihla fakturu dřív, než dorazilo zamítnutí | Vráceno na kartu |
+| `ReturnCompletedV1` | vratka – kartou i dobírkou (`RefundedByCard`) | Vráceno na kartu / Vrátíme převodem na účet |
+
+- Zrušení **před** fakturou = faktura nevznikne vůbec, dobropis není potřeba.
+- Peníze vrací dál sága a Payments (`RefundPaymentV1`) – dobropis je jen **doklad**, nic neplatí.
+- Opakovaná zpráva → pořád jeden dobropis (unikátní `OrderId`). Vratka dřív než faktura → faktura a hned po ní dobropis.
+- Vlastní řada `D2026000001`… se stejnou ochranou proti souběhu jako řada faktur (níže).
+
 ## Co vidí zákazník a admin
 
-- **Detail objednávky** `/Orders/{id}`: „Faktura č. … – stáhnout PDF“ (`/Orders/{id}/Invoice`, cizí = 404).
-- **E-mail** s PDF v příloze (šablona `OrderEmailTemplates.Invoice`).
-- **Admin** `/Admin/Invoices`: nejnovější faktury s odkazem na PDF a objednávku.
+- **Detail objednávky** `/Orders/{id}`: „Faktura č. … – stáhnout PDF“ (`/Orders/{id}/Invoice`, cizí = 404),
+  případně „Dobropis č. … – stáhnout PDF“ (`/Orders/{id}/CreditNote`).
+- **E-mail** s PDF v příloze (šablony `OrderEmailTemplates.Invoice` a `CreditNote`).
+- **Admin** `/Admin/Invoices`: nejnovější faktury s odkazem na PDF, objednávku a dobropis.
 
 Kód: [InvoicingHandler](code:src/MiniShop.Application/Invoicing/InvoicingHandler.cs),
 [InvoiceEmailHandler](code:src/MiniShop.Application/Notifications/InvoiceEmailHandler.cs),

@@ -17,6 +17,7 @@ Přidáno v [účty kroku 5](code:docs/kroky-ucty/krok-05-emaily.md).
 | **Nové heslo** | stránka *Zapomenuté heslo* | hned během požadavku |
 | **Objednávka** přijatá / potvrzená / zamítnutá / odeslaná (s číslem zásilky) / doručená / zrušená | když se změní stav objednávky | modul **Notifications** podle integrační události (e-shop krok 7, [OrderNotificationsHandler](code:src/MiniShop.Application/Notifications/OrderNotificationsHandler.cs)); dřív Ordering přímo |
 | **Faktura** (PDF v příloze) | po zaplacení kartou, u dobírky po doručení | modul **Notifications** z `InvoiceIssuedV1` (e-shop krok 15, [InvoiceEmailHandler](code:src/MiniShop.Application/Notifications/InvoiceEmailHandler.cs)); přílohy umí `EmailMessage.Attachments` |
+| **Dobropis** (PDF v příloze) | zaplacená objednávka s fakturou zrušená, zamítnutá nebo vrácená | modul **Notifications** z `CreditNoteIssuedV1` (e-shop krok 15B, stejný handler) |
 
 ```mermaid
 flowchart LR

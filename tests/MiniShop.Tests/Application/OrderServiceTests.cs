@@ -207,9 +207,11 @@ public sealed class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<OrderCompletedV1, InvoicingHandler>(IntegrationModules.Invoicing);
         services.AddIntegrationMessageHandler<OrderRejectedV1, InvoicingHandler>(IntegrationModules.Invoicing);
         services.AddIntegrationMessageHandler<OrderCancelledV1, InvoicingHandler>(IntegrationModules.Invoicing);
+        services.AddIntegrationMessageHandler<ReturnCompletedV1, InvoicingHandler>(IntegrationModules.Invoicing);   // e-shop krok 15B: dobropis
         services.AddIntegrationMessageHandler<CustomerAnonymizedV1, InvoicingHandler>(IntegrationModules.Invoicing);
         services.AddScoped<IInvoiceDocuments, InvoiceDocuments>();
         services.AddIntegrationMessageHandler<InvoiceIssuedV1, InvoiceEmailHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<CreditNoteIssuedV1, InvoiceEmailHandler>(IntegrationModules.Notifications);
 
         // Testovací náhrady: notifikace do seznamu, "broker" si zprávy zapamatuje a doručí je v procesu,
         // skutečný dispatcher obalený záznamníkem.
@@ -999,6 +1001,126 @@ public sealed class OrderServiceTests : IDisposable
         Assert.NotNull(await InvoiceAsync(order.Id));   // zákonná povinnost – faktura zůstává
         Assert.Equal(0, await InvoicingDb(db => db.BillableOrders.CountAsync(o => o.CustomerId == Jan.CustomerId)));
     }
+
+    // ---------- E-shop krok 15B: dobropisy ----------
+
+    [Fact]
+    public async Task Dobropis_ZaplacenaZrusena_DobropisAEmailSPdf_FakturaBezeZmeny()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await PaidCardOrderAsync(product.Id);
+        var invoice = await InvoiceAsync(order.Id) ?? throw new InvalidOperationException("Faktura nevznikla.");
+
+        await Orders(s => s.CancelAsync(order.Id, OrderAccess.AllOrders));
+        await ProcessOutboxAsync();   // OrderCancelledV1 → Invoicing: faktura existuje → dobropis + CreditNoteIssuedV1 → e-mail
+
+        var creditNote = await CreditNoteAsync(order.Id) ?? throw new InvalidOperationException("Dobropis nevznikl.");
+        Assert.Matches(@"^D\d{4}000001$", creditNote.Number);
+        Assert.Equal((invoice.Number, invoice.Total, CreditNoteReason.Cancelled, InvoicingHandler.RefundedToCard),
+            (creditNote.InvoiceNumber, creditNote.Total, creditNote.Reason, creditNote.RefundNote));
+        Assert.Equal(invoice.Number, (await InvoiceAsync(order.Id))!.Number);   // faktura se nemění
+        var issued = Assert.Single(_bus.Published.OfType<CreditNoteIssuedV1>());
+        Assert.Equal((order.Id, creditNote.Number, invoice.Number), (issued.OrderId, issued.CreditNoteNumber, issued.InvoiceNumber));
+
+        var email = Assert.Single(_emails.Sent, e => NotifierEvent(e) == $"credit-note:{order.Id}");
+        var pdf = Assert.Single(email.Attachments);
+        Assert.Equal($"dobropis-{creditNote.Number}.pdf", pdf.FileName);
+        Assert.Equal("%PDF"u8.ToArray(), pdf.Content[..4]);
+        Assert.Equal(PaymentStatus.Refunded, await PaymentStatusAsync(order.Id));   // peníze vrátila sága (beze změny)
+    }
+
+    [Fact]
+    public async Task Dobropis_ZrusenaPredPlatbou_NicNevznikne()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await PlaceCardOrderAsync(product.Id, quantity: 1);
+        await ProcessOutboxAsync();
+
+        await Orders(s => s.CancelAsync(order.Id, OrderAccess.AllOrders));
+        await ProcessOutboxAsync();
+
+        Assert.Null(await InvoiceAsync(order.Id));
+        Assert.Null(await CreditNoteAsync(order.Id));
+        Assert.Empty(_bus.Published.OfType<CreditNoteIssuedV1>());
+    }
+
+    [Theory]
+    [InlineData(PaymentMethod.Card, InvoicingHandler.RefundedToCard)]
+    [InlineData(PaymentMethod.CashOnDelivery, InvoicingHandler.RefundedByTransfer)]
+    public async Task Dobropis_VracenoZbozi_PodleZpusobuPlatby(PaymentMethod payment, string refundNote)
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await DeliveredOrderAsync(product.Id, quantity: 2, payment);
+        Assert.NotNull(await InvoiceAsync(order.Id));   // karta po platbě, dobírka po doručení
+
+        await Orders(s => s.RequestReturnAsync(order.Id, OrderAccess.Customer(Jan.CustomerId), "Nesedí"));
+        await ProcessOutboxAsync();
+        Assert.Null(await CreditNoteAsync(order.Id));   // žádost o vratku ještě nic nevrací
+        await Returns(r => r.AcceptGoodsAsync(order.Id));
+        await ProcessOutboxAsync();   // … ReturnCompletedV1 → dobropis
+
+        var creditNote = await CreditNoteAsync(order.Id);
+        Assert.Equal((CreditNoteReason.Returned, refundNote, order.TotalPrice),
+            (creditNote?.Reason, creditNote?.RefundNote, creditNote?.Total));
+        Assert.Single(_emails.Sent, e => NotifierEvent(e) == $"credit-note:{order.Id}");
+    }
+
+    [Fact]
+    public async Task Dobropis_OpakovanaZprava_PoradJeden_DalsiDostaneDalsiCislo()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 10);
+        var first = await PaidCardOrderAsync(product.Id);
+        var second = await PaidCardOrderAsync(product.Id);
+        await Orders(s => s.CancelAsync(first.Id, OrderAccess.AllOrders));
+        await Orders(s => s.CancelAsync(second.Id, OrderAccess.AllOrders));
+        await ProcessOutboxAsync();
+
+        // Jiná zpráva o zrušení / zamítnutí (nové EventId – inbox ji nezahodí): dobropis zůstane jeden.
+        await RedeliverAsync(new OrderCancelledV1(Guid.NewGuid(), Now.UtcDateTime, first.Id, "jan@example.com", []), IntegrationModules.Invoicing);
+        await RedeliverAsync(new OrderRejectedV1(Guid.NewGuid(), Now.UtcDateTime, first.Id, "x"), IntegrationModules.Invoicing);
+
+        Assert.Equal(1, await InvoicingDb(db => db.CreditNotes.CountAsync(c => c.OrderId == first.Id)));
+        var numbers = new[] { (await CreditNoteAsync(first.Id))!.Number, (await CreditNoteAsync(second.Id))!.Number };
+        Assert.Equal(["000001", "000002"], numbers.Select(n => n[5..]).Order());
+        Assert.Equal(2, _bus.Published.OfType<CreditNoteIssuedV1>().Count());
+    }
+
+    [Fact]
+    public async Task Dobropis_VratkaPredbehlaFakturu_FakturaAHnedDobropis()
+    {
+        var placed = new OrderPlacedV2(Guid.NewGuid(), Now.UtcDateTime, 778, Jan.CustomerId, "Jan Novák", "jan@example.com",
+            [new OrderItemV2(1, "Myš", 1, 100m, 0m, 100m)], "Pickup", 0m, null, 100m);
+        await RedeliverAsync(placed, IntegrationModules.Invoicing);
+        await RedeliverAsync(new ReturnCompletedV1(Guid.NewGuid(), Now.UtcDateTime, 778, "jan@example.com", 100m, false), IntegrationModules.Invoicing);
+        Assert.Null(await CreditNoteAsync(778));   // bez faktury není co opravovat
+
+        await RedeliverAsync(new OrderCompletedV1(Guid.NewGuid(), Now.UtcDateTime, 778, "jan@example.com"), IntegrationModules.Invoicing);
+
+        Assert.NotNull(await InvoiceAsync(778));
+        Assert.Equal(CreditNoteReason.Returned, (await CreditNoteAsync(778))?.Reason);
+    }
+
+    [Fact]
+    public async Task Dobropis_PdfJenVlastnikoviAAdminovi_PrehledUkazeCislo()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await PaidCardOrderAsync(product.Id);
+        await Orders(s => s.CancelAsync(order.Id, OrderAccess.AllOrders));
+        await ProcessOutboxAsync();
+
+        await using var scope = _services.CreateAsyncScope();
+        var service = scope.ServiceProvider.GetRequiredService<InvoiceService>();
+        Assert.NotNull(await service.GetCreditNotePdfAsync(order.Id, Jan.CustomerId));
+        Assert.Null(await service.GetCreditNotePdfAsync(order.Id, Petra.CustomerId));
+        Assert.NotNull(await service.GetCreditNotePdfAsync(order.Id, customerId: null));
+        var creditNote = (await CreditNoteAsync(order.Id))!.Number;
+        Assert.Equal(creditNote, (await service.GetDocumentsAsync(order.Id, Jan.CustomerId)).CreditNoteNumber);
+        Assert.Equal(new OrderDocumentsDto(null, null), await service.GetDocumentsAsync(order.Id, Petra.CustomerId));
+        Assert.Equal(creditNote, (await service.GetLatestAsync(10)).Single(i => i.OrderId == order.Id).CreditNoteNumber);
+    }
+
+    private Task<CreditNote?> CreditNoteAsync(int orderId) =>
+        InvoicingDb(db => db.CreditNotes.AsNoTracking().FirstOrDefaultAsync(c => c.OrderId == orderId));
 
     /// <summary>E-shop krok 15: objednávka kartou, zaplacená a vyfakturovaná.</summary>
     private async Task<OrderDto> PaidCardOrderAsync(int productId)
@@ -2412,6 +2534,7 @@ public sealed class OrderServiceTests : IDisposable
             var s when s.Contains("je doručená") || s.Contains("je vyzvednutá") => "completed",
             var s when s.Contains("je zrušená") => "cancelled",
             var s when s.StartsWith("MiniShop: Faktura") => "invoice",   // e-shop krok 15
+            var s when s.StartsWith("MiniShop: Dobropis") => "credit-note",   // e-shop krok 15B
             _ => email.Subject
         };
         return $"{kind}:{orderId}";

@@ -13,7 +13,7 @@ Cíl: postupně ho převést na EDA podle plánu v `docs/EDA-roadmap.md`.
 ```
 src/MiniShop.Contracts       integrační zprávy – události (OrderPlacedV1, StockReservedV1, …) a příkazy (ReserveStockV1, …), žádné závislosti
 src/MiniShop.Domain          Common/ (Entity, IDomainEvent), Orders/ (Order, CatalogProduct, CatalogSearchText, Carts/Cart, Coupons/Coupon, Saga/OrderSaga + ReturnSaga), Inventory/ (Product, Category, StockAvailability, StockReservation),
-                             Journeys/ (JourneyEvent, JourneyEventType), Notifications/ (OrderRecipient), Payments/ (Payment), Reporting/ (SalesOrder – čtecí model), Reviews/ (Review, PurchasedOrder), Invoicing/ (BillableOrder, Invoice, InvoiceNumberSeries)
+                             Journeys/ (JourneyEvent, JourneyEventType), Notifications/ (OrderRecipient), Payments/ (Payment), Reporting/ (SalesOrder – čtecí model), Reviews/ (Review, PurchasedOrder), Invoicing/ (BillableOrder, Invoice, InvoiceNumberSeries, CreditNote, CreditNoteNumberSeries)
 src/MiniShop.Application     Abstractions/ (sdílené: IUnitOfWork, IDomainEvent*, IIntegrationMessage*, TraceTags),
                              Ordering/ (OrderService, DTO, Saga, Catalog projekce + CatalogQueryService, Carts/CartService, Checkout/CheckoutService, IntegrationEvents (překladač), Pricing), Inventory/ (ProductService, CategoryService, Reserve/ReleaseStock),
                              Journeys/ (JourneyService, OrderJourneyProjection, JourneyReplayProjection, DTO),
@@ -229,6 +229,11 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   `/Orders/{id}/Invoice` (vlastník/admin, jinak 404) a do přílohy: Notifications `InvoiceEmailHandler` → `IInvoiceDocuments`
   (implementace `Web/Invoicing/InvoiceDocuments`) → `EmailMessage.Attachments`. Admin `/Admin/Invoices`. Prodávající `InvoiceSeller`
   (`Invoicing:Seller:*`, fiktivní, neplátce DPH). Testy: `PaidCardOrderAsync`, `InvoiceAsync`, `NotifierEvent` = `invoice:{id}`.
+  **Dobropis (e-shop krok 15B):** faktura existuje + `BillableOrder.CreditReason` (z `OrderCancelledV1`/`OrderRejectedV1`/`ReturnCompletedV1`,
+  platí první) → jeden `CreditNote` (kopie **faktury**, unikátní `OrderId`) + číslo z `CreditNoteNumberSeries` (`D2026000001`, **vlastní
+  tabulka** – změna klíče řady faktur by rozbila postupné nasazení) + `CreditNoteIssuedV1` v jedné transakci → `InvoiceEmailHandler`
+  (PDF `IInvoiceDocuments.GetCreditNoteAsync`). Jen celý dobropis; peníze vrací dál sága/Payments. `/Orders/{id}/CreditNote`.
+  Testy: `CreditNoteAsync`, `NotifierEvent` = `credit-note:{id}`.
 - **Hodnocení produktů (e-shop krok 14):** modul Reviews (`…Reviews` ve všech vrstvách, hostuje Web, schéma `reviews` s inboxem + outboxem,
   fronta `minishop.reviews`; **musí do zálohy** – nejde přestavět). Kopie nákupů `PurchasedOrder` z `OrderPlacedV2`, `OrderCompletedV1`
   (doručeno), `ReturnCompletedV1` (vráceno), `OrderSnapshotV2`, `CustomerAnonymizedV1` (smazat nákupy, autor „Smazaný zákazník“) – upsert,
@@ -471,6 +476,7 @@ nové moduly Notifications (odběratel událostí) a Payments (účastník ságy
 | 13. Slevové kódy (agregát `Coupon`, `/Admin/Coupons`, použití ve stejné transakci jako objednávka, `Version` proti souběhu o poslední použití, sleva v položkách, `ReleaseCouponHandler`) | hotovo (nasazeno 4. 11. 2026, uplatnění, limit použití a vrácení po zrušení ověřeny v produkci) | `docs/kroky-eshop/krok-13-slevove-kody.md` |
 | 14. Hodnocení produktů (modul Reviews, `reviews.db`, kopie nákupů z událostí, `ProductRatingChangedV1` do kopie katalogu, `/Shop/{id}`, `/Admin/Reviews`, `SyncPurchasesV1` → `OrderSnapshotV2`) | hotovo (nasazeno 4. 11. 2026, hodnocení, hvězdičky ve výloze, starší objednávky ze snímků i moderace ověřeny v produkci) | `docs/kroky-eshop/krok-14-hodnoceni-produktu.md` |
 | 15. Faktury (modul Invoicing, schéma `invoicing`, kopie objednávek z událostí, faktura po zaplacení/doručení, číselná řada bez děr, PDF QuestPDF, `InvoiceIssuedV1` → e-mail s PDF v příloze přes `IInvoiceDocuments`, `/Admin/Invoices`) | hotovo (nasazeno 6. 11. 2026; faktura po platbě kartou, e-mail s PDF v příloze, stažení i přehled admina ověřeny v produkci na ARM VM) | `docs/kroky-eshop/krok-15-faktury.md` |
+| 15B. Dobropisy (zrušení/zamítnutí/vrácení zaplacené objednávky s fakturou → `CreditNote` z kopie faktury, řada `D…` v tabulce `CreditNoteNumberSeries`, `CreditNoteIssuedV1` → e-mail s PDF, `/Orders/{id}/CreditNote`, sloupec v `/Admin/Invoices`) | hotovo lokálně (čeká na nasazení) | `docs/kroky-eshop/krok-15b-dobropisy.md` |
 
 ## Stav škálování (viz `docs/Skalovani-roadmap.md`)
 Cíl: víc instancí služeb (a později víc strojů). Nejdřív PostgreSQL (kontejner na Always Free VM, 0 Kč), pak víc instancí.

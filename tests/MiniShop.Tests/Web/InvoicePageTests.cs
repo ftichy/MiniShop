@@ -53,6 +53,7 @@ public sealed class InvoicePageTests(MiniShopWebFactory web) : IAsyncLifetime
         var petra = await web.LoginAsync(_petraEmail, Password);
 
         Assert.Equal(HttpStatusCode.NotFound, (await petra.GetAsync($"/Orders/{_orderId}/Invoice")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await petra.GetAsync($"/Orders/{_orderId}/CreditNote")).StatusCode);
     }
 
     [Fact]
@@ -64,8 +65,25 @@ public sealed class InvoicePageTests(MiniShopWebFactory web) : IAsyncLifetime
         Assert.Contains(_number, await admin.GetStringAsync("/Admin/Invoices"));
     }
 
+    [Fact]
+    public async Task Dobropis_VlastnikStahne_DetailIPrehledMajiOdkaz()
+    {
+        var orderId = await web.CreateOrderForAsync(_janEmail);
+        await IssueInvoiceAsync(orderId, _janEmail, withCreditNote: true);
+        var jan = await web.LoginAsync(_janEmail, Password);
+        var admin = await web.LoginAsync(MiniShopWebFactory.AdminEmail, MiniShopWebFactory.AdminPassword);
+
+        var response = await jan.GetAsync($"/Orders/{orderId}/CreditNote");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("%PDF"u8.ToArray(), (await response.Content.ReadAsByteArrayAsync())[..4]);
+        Assert.Contains($"/Orders/{orderId}/CreditNote", await jan.GetStringAsync($"/Orders/{orderId}"));
+        Assert.Contains($"/Orders/{orderId}/CreditNote", await admin.GetStringAsync("/Admin/Invoices"));
+        Assert.Equal(HttpStatusCode.NotFound, (await jan.GetAsync($"/Orders/{_orderId}/CreditNote")).StatusCode);   // bez dobropisu
+    }
+
     /// <summary>Faktura rovnou v databázi – jako by Invoicing zpracoval OrderPlacedV2 a PaymentSucceededV1.</summary>
-    private async Task<string> IssueInvoiceAsync(int orderId, string email)
+    private async Task<string> IssueInvoiceAsync(int orderId, string email, bool withCreditNote = false)
     {
         await using var scope = web.Services.CreateAsyncScope();
         var user = await scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().FindByEmailAsync(email);
@@ -79,6 +97,12 @@ public sealed class InvoicePageTests(MiniShopWebFactory web) : IAsyncLifetime
         var invoice = Invoice.Issue(order, number, DateTime.UtcNow);
         db.BillableOrders.Add(order);
         db.Invoices.Add(invoice);
+        if (withCreditNote)
+        {
+            // E-shop krok 15B: dobropis s číslem mimo skutečnou řadu (jako u faktury výše).
+            db.CreditNotes.Add(CreditNote.Issue(invoice, "D" + number, CreditNoteReason.Cancelled, "Vráceno na kartu", DateTime.UtcNow));
+        }
+
         await db.SaveChangesAsync();
         return number;
     }

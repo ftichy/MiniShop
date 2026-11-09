@@ -117,14 +117,22 @@ else if (order.Status == "Completed" && Model.Detail.ReturnRejectionReason is no
             <h2 class="h5">Platba</h2>
             <p>@(order.PaymentMethod == "Card" ? "Kartou online" : "Dobírka – platba při převzetí")</p>
         }
-        @if (Model.InvoiceNumber is not null)
+        @if (Model.Documents.InvoiceNumber is not null)
         {
             @* E-shop krok 15: faktura vzniká po zaplacení (karta) nebo po doručení (dobírka) – modul Invoicing. *@
             <h2 class="h5">Faktura</h2>
             <p>
-                č. @Model.InvoiceNumber –
+                č. @Model.Documents.InvoiceNumber –
                 <a asp-page="/Orders/Invoice" asp-route-id="@order.Id" data-track="order-detail-invoice">stáhnout PDF</a>
             </p>
+            @if (Model.Documents.CreditNoteNumber is not null)
+            {
+                @* E-shop krok 15B: zrušení/vrácení po vystavení faktury = dobropis, faktura zůstává beze změny. *@
+                <p>
+                    Dobropis č. @Model.Documents.CreditNoteNumber –
+                    <a asp-page="/Orders/CreditNote" asp-route-id="@order.Id" data-track="order-detail-credit-note">stáhnout PDF</a>
+                </p>
+            }
         }
         @if (order.Carrier is not null)
         {

@@ -23,6 +23,11 @@ public sealed class InvoicingDbContext(DbContextOptions<InvoicingDbContext> opti
 
     public DbSet<InvoiceNumberSeries> InvoiceNumberSeries => Set<InvoiceNumberSeries>();
 
+    /// <summary>E-shop krok 15B: dobropisy a jejich vlastní číselné řady.</summary>
+    public DbSet<CreditNote> CreditNotes => Set<CreditNote>();
+
+    public DbSet<CreditNoteNumberSeries> CreditNoteNumberSeries => Set<CreditNoteNumberSeries>();
+
     // Invoicing nemá doménové události – zprávu posílá handler rovnou přes publisher.
     protected override IEnumerable<OutboxMessage> ToOutboxMessages(IDomainEvent domainEvent) =>
         throw new InvalidOperationException($"Modul Invoicing nemá doménové události ({domainEvent.GetType().Name}).");

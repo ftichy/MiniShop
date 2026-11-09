@@ -95,6 +95,9 @@ a napodruhé už sága zrušení uvidí. Naopak když dřív uloží sága, zák
 - E-maily jsou dva samostatné: „zrušeno“ (`OrderCancelledV1`) a „vracíme peníze“ (`PaymentRefundedV1`) – Ordering
   kvůli nim nic neposílá, oba píše [Notifications](../architektura/moduly/notifications.md).
 
+**Dobropis (e-shop krok 15B):** zrušená objednávka zaplacená kartou už má fakturu – modul Invoicing k ní
+z `OrderCancelledV1` vystaví dobropis, faktura zůstává beze změny ([Vystavení faktury a dobropisu](faktura.md)).
+
 ## Kód
 
 [OrderService](code:src/MiniShop.Application/Ordering/OrderService.cs) ·

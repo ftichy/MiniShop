@@ -38,6 +38,29 @@ public sealed class InvoiceNumberSeriesRepository(InvoicingDbContext db) : IInvo
     public void Add(InvoiceNumberSeries series) => db.InvoiceNumberSeries.Add(series);
 }
 
+public sealed class CreditNoteRepository(InvoicingDbContext db) : ICreditNoteRepository
+{
+    public Task<CreditNote?> GetByOrderAsync(int orderId, CancellationToken cancellationToken = default) =>
+        db.CreditNotes.AsNoTracking().FirstOrDefaultAsync(c => c.OrderId == orderId, cancellationToken);
+
+    public Task<bool> ExistsForOrderAsync(int orderId, CancellationToken cancellationToken = default) =>
+        db.CreditNotes.AnyAsync(c => c.OrderId == orderId, cancellationToken);
+
+    public async Task<IReadOnlyDictionary<int, CreditNote>> GetByOrdersAsync(
+        IReadOnlyCollection<int> orderIds, CancellationToken cancellationToken = default) =>
+        await db.CreditNotes.AsNoTracking().Where(c => orderIds.Contains(c.OrderId)).ToDictionaryAsync(c => c.OrderId, cancellationToken);
+
+    public void Add(CreditNote creditNote) => db.CreditNotes.Add(creditNote);
+}
+
+public sealed class CreditNoteNumberSeriesRepository(InvoicingDbContext db) : ICreditNoteNumberSeriesRepository
+{
+    public Task<CreditNoteNumberSeries?> GetAsync(int year, CancellationToken cancellationToken = default) =>
+        db.CreditNoteNumberSeries.FirstOrDefaultAsync(s => s.Year == year, cancellationToken);
+
+    public void Add(CreditNoteNumberSeries series) => db.CreditNoteNumberSeries.Add(series);
+}
+
 /// <summary>E-shop krok 15: zprávy z modulu Invoicing jdou do outboxu ve schématu invoicing.</summary>
 public sealed class InvoicingMessagePublisher(InvoicingDbContext db)
     : OutboxIntegrationMessagePublisher(db), IInvoicingMessagePublisher;

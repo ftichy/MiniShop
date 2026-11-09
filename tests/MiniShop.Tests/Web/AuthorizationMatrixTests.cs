@@ -73,6 +73,9 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Anonymous, "/Orders/1/Invoice", Expect.Login },         // e-shop krok 15: PDF faktury (cizí/nevystavená = 404)
         { Who.User, "/Orders/1/Invoice", Expect.Allowed },
         { Who.Admin, "/Orders/1/Invoice", Expect.Allowed },
+        { Who.Anonymous, "/Orders/1/CreditNote", Expect.Login },      // e-shop krok 15B: PDF dobropisu (cizí/neexistující = 404)
+        { Who.User, "/Orders/1/CreditNote", Expect.Allowed },
+        { Who.Admin, "/Orders/1/CreditNote", Expect.Allowed },
         { Who.Anonymous, "/Admin/Invoices", Expect.Login },             // e-shop krok 15: přehled faktur – jen admin
         { Who.User, "/Admin/Invoices", Expect.Denied },
         { Who.Admin, "/Admin/Invoices", Expect.Allowed },

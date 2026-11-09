@@ -83,6 +83,10 @@ nejde přes RabbitMQ. PDF skládá `QuestPdfInvoiceRenderer` (QuestPDF) při ka�
   na detailu objednávky odkaz *stáhnout PDF*; dobírka → faktura až po *Doručeno* v Expedici.
 - V produkci: totéž; `/Admin/Invoices`; `/health` hlídá `outbox-invoicing`.
 
+**Nasazeno 6. 11. 2026** (PR #71, postupné nasazení bez ručního kroku na VM, schéma `invoicing` vzniklo migrací při startu).
+V produkci ověřeno: platba kartou → faktura `2026000001`, e-mail s PDF v příloze, stažení z detailu objednávky
+a přehled `/Admin/Invoices` – PDF z ARM VM s českými znaky v pořádku.
+
 ## Vyzkoušejte sami
 
 1. Objednejte kartou a zaplaťte. Na detailu objednávky se po chvíli objeví *Faktura č. 2026000001 – stáhnout PDF*.

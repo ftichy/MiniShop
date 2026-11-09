@@ -398,7 +398,7 @@ Nereagujeme na událost, ale na to, že po `CartItemAdded` do 24 hodin nepřiše
 - ~~**Kategorie, vyhledávání a filtrování** ve výloze; obrázky produktů~~ – hotovo v krocích 2A a 2B.
 - **Skutečná platební brána** (Stripe test mode, GoPay sandbox) – jen nová implementace `IPaymentGateway`.
 - ~~**Vrácení zboží / reklamace**~~ – **hotovo jako krok 12** ([souhrn](kroky-eshop/krok-12-vraceni-zbozi.md)): druhá sága `ReturnSaga`, převzetí adminem, naskladnění, refundace.
-- ~~**Faktura PDF**~~ – **implementováno jako krok 15** ([souhrn](kroky-eshop/krok-15-faktury.md)): modul Invoicing, faktura z událostí po zaplacení, číselná řada bez děr, PDF (QuestPDF, licence Community) v příloze e-mailu. Dobropis při zrušení/vrácení = krok 15B.
+- ~~**Faktura PDF**~~ – **hotovo jako krok 15** ([souhrn](kroky-eshop/krok-15-faktury.md)): modul Invoicing, faktura z událostí po zaplacení, číselná řada bez děr, PDF (QuestPDF, licence Community) v příloze e-mailu. Dobropis při zrušení/vrácení = krok 15B.
 - ~~**Hodnocení produktů**~~ – **hotovo jako krok 14** ([souhrn](kroky-eshop/krok-14-hodnoceni-produktu.md)): modul Reviews s vlastní kopií nákupů z událostí, souhrn do výlohy.
 - **Event sourcing košíku** – stav košíku jako fold nad událostmi (Journeys už ten vzor ukazuje),
   analytika „co lidé vkládají a nekupují“.

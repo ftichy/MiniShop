@@ -18,7 +18,8 @@ internal sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
         builder.Property(p => p.Amount).HasPrecision(18, 2);
         builder.Property(p => p.Status).HasConversion<string>().HasMaxLength(20);
         builder.Property(p => p.ExternalId).HasMaxLength(100);
-        builder.Property(p => p.CheckoutUrl).HasMaxLength(500);
+        // E-shop krok 16: adresa Stripe Checkout bývá delší než 500 znaků (ID session + fragment).
+        builder.Property(p => p.CheckoutUrl).HasMaxLength(2048);
         builder.Property(p => p.FailureReason).HasMaxLength(500);
         builder.Ignore(p => p.DomainEvents);
 

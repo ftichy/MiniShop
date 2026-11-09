@@ -93,6 +93,7 @@ Plán (výloha, košík, pokladna, expedice, platba, notifikace): [docs/Eshop-ro
 | 14 | Hodnocení produktů – modul Reviews s vlastní kopií nákupů z událostí (hodnotí jen ten, kdo zboží dostal), souhrn `ProductRatingChangedV1` do kopie katalogu (hvězdičky a řazení ve výloze), detail produktu `/Shop/{id}`, nákupy z doby před modulem přes `SyncPurchasesV1` → `OrderSnapshotV2` | [eshop-14](code:docs/kroky-eshop/krok-14-hodnoceni-produktu.md) |
 | 15 | Faktury – modul Invoicing s kopií objednávek z událostí, faktura po zaplacení (karta) nebo doručení (dobírka), číselná řada bez děr (číslo ve stejné transakci, konflikt verze při souběhu), PDF přes QuestPDF, e-mail s PDF v příloze (Notifications přes `IInvoiceDocuments`), `/Admin/Invoices` | [eshop-15](code:docs/kroky-eshop/krok-15-faktury.md) |
 | 15B | Dobropisy – faktura se nemění, zrušení/zamítnutí/vrácení zaplacené objednávky vystaví dobropis (kopie faktury, vlastní řada `D…` v nové tabulce kvůli postupnému nasazení), `CreditNoteIssuedV1` → e-mail s PDF, `/Orders/{id}/CreditNote` | [eshop-15b](code:docs/kroky-eshop/krok-15b-dobropisy.md) |
+| 16 | Skutečná platební brána – Stripe Checkout v testovacím režimu jako další implementace `IPaymentGateway` (adaptér), webhook s podpisem `Stripe-Signature`, idempotency key pro založení i refund, skutečný refund pozdní platby; sága ani kontrakty beze změny | [eshop-16](code:docs/kroky-eshop/krok-16-stripe.md) |
 
 ## Škálování
 

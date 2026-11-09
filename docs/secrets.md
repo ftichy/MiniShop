@@ -20,6 +20,8 @@ Pravidla:
 | `PAYMENTS_WEBHOOK_SECRET` | sdílené tajemství s platební bránou (e-shop krok 8) – HMAC podpis webhooku `/api/payments/webhook`. Kdo ho zná, může „zaplatit“ libovolnou objednávku. 64 hex znaků, povinný (bez něj se Web nespustí) | `.env` na VM → proměnná `Payments__WebhookSecret` v kontejneru `web` | [R10](#r10-tajemství-webhooku-plateb) | při podezření, jinak 1× ročně |
 | `POSTGRES_PASSWORD` | heslo účtu `minishop` v PostgreSQL (škálování krok 3) – Web a sklad se jím přihlašují k databázi se všemi daty (objednávky, účty). Databáze je dostupná jen uvnitř sítě Compose a z VM (`127.0.0.1:5432`). 24–128 písmen/číslic, povinný | `.env` na VM → `POSTGRES_PASSWORD` kontejneru `postgres` a connection string `ConnectionStrings__minishop` ve `web` a `inventory-api` | [R11](#r11-heslo-postgresql) | při podezření, jinak 1× ročně |
 | `GOOGLE_CLIENT_SECRET` | tajemství OAuth klienta Googlu (účty krok 10) – s Client ID (`GOOGLE_CLIENT_ID` v `deploy/production.env`, není tajné) Web u Googlu vyměňuje kód za identitu uživatele. Kdo ho zná, může se za MiniShop vydávat vůči Googlu (vlastní stránka s přihlášením „do MiniShopu“), k účtům MiniShopu ani Googlu se jím nedostane. Tvar `GOCSPX-…`, volitelný: prázdný = přihlášení přes Google vypnuté | `.env` na VM → `Authentication__Google__ClientSecret` ve `web` | [R12](#r12-tajemství-oauth-klienta-googlu) | při podezření |
+| `STRIPE_SECRET_KEY` | **testovací** API klíč Stripu (e-shop krok 16) – Web jím zakládá platby a vrací peníze. Kdo ho zná, může v testovacím účtu MiniShopu zakládat a rušit platby (žádné skutečné peníze). Tvar `sk_test_…`, živý klíč `sk_live_` Web i `deploy.sh` odmítnou. Volitelný: platí jen s `PAYMENTS_GATEWAY=Stripe` | `.env` na VM → `Payments__Stripe__SecretKey` ve `web` | [R13](#r13-klíče-stripu) | při podezření |
+| `STRIPE_WEBHOOK_SECRET` | tajemství webhooku Stripu (e-shop krok 16) – podpis `Stripe-Signature` na `/api/payments/stripe-webhook`. Kdo ho zná, může „zaplatit“ objednávku, k níž zná ID session. Tvar `whsec_…`, jedno na endpoint ve Stripe Dashboardu | `.env` na VM → `Payments__Stripe__WebhookSecret` ve `web` | [R13](#r13-klíče-stripu) | při podezření |
 
 ## Secrets nasazení (GitHub → Environments → `production`)
 
@@ -159,6 +161,17 @@ Nový klíč (`ssh-keygen`), veřejnou část přidat na VM do `/home/ubuntu/.ss
 3. Ověření: odhlásit se → *Přihlásit přes Google* → přihlášený. Pak v konzoli staré tajemství *Disable* → *Delete*.
 4. Únik celého klienta: v konzoli klienta smazat a založit nový – nové Client ID do `deploy/production.env` (PR),
    tajemství do secretu. Propojené účty zůstanou (ID účtu Google se nemění).
+
+### R13. Klíče Stripu
+
+1. **API klíč:** [Stripe Dashboard](https://dashboard.stripe.com/test/apikeys) (přepínač *Test mode*) → *Secret key* →
+   *Roll key* (starý může chvíli platit souběžně) → GitHub → *Environments* → `production` → `STRIPE_SECRET_KEY` →
+   *Actions → Deploy → Run workflow*.
+2. **Webhook:** Dashboard → *Developers* → *Webhooks* → endpoint `https://minishop-tichy.cz/api/payments/stripe-webhook` →
+   *Roll secret* → nové `whsec_…` do `STRIPE_WEBHOOK_SECRET` → Deploy.
+3. Ověření: objednávka kartou → *Zaplatit* → Stripe → karta `4242 4242 4242 4242` → objednávka potvrzená
+   (Dashboard → webhook → poslední události 200).
+4. Vypnutí Stripu bez výměny klíčů: `PAYMENTS_GATEWAY=Fake` v `deploy/production.env` (PR) – vrátí simulaci.
 
 ### Které SHA nasadit
 

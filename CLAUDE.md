@@ -185,6 +185,14 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   jinak se Web **nespustí**): Aspire parametr `payments-webhook-secret`, dev `appsettings.Development.json`, Compose
   `PAYMENTS_WEBHOOK_SECRET` (povinný), produkce secret → `deploy.yml` → `deploy.sh`. Testy: `MiniShopWebFactory.WebhookSecret`,
   `OrderServiceTests` mají modul Payments (`SimulateGatewayAsync`).
+  **Stripe (e-shop krok 16):** `Payments:Gateway` = `Fake` (výchozí, testy, lokálně) | `Stripe` (`StripeSettings.FromConfiguration`;
+  jen `sk_test_`, bez klíčů/`Notifications:PublicBaseUrl` se Web **nespustí**). `StripePaymentGateway` (Stripe.net, Checkout Session,
+  `metadata.order_id`, `expires_at` = náš termín + 30 min, **idempotency key = `RequestPaymentV1.CommandId`** – v parametrech nic
+  proměnlivého; `RefundAsync` přes PaymentIntent session, klíč podle `Payment.Id`). Webhook `/api/payments/stripe-webhook`
+  (`StripeWebhookProcessor`: `Stripe-Signature`, 5 min, platba podle `order_id` **a** `ExternalId` = ID session – testovací účet sdílí
+  vývoj i produkce; cizí/nezajímavé = 200) → `PaymentWebhookProcessor.ApplyResultAsync`. Se Stripem `/Pay` přesměruje (GET) na bránu,
+  simulovaná tlačítka i `/api/payments/webhook` = 404. Produkce `PAYMENTS_GATEWAY` v `production.env`, secrets `STRIPE_SECRET_KEY`,
+  `STRIPE_WEBHOOK_SECRET` (volitelné). Testy: `StripeGatewayTests` (podvržený `HttpClient`, ručně podepsané události).
 - **Zrušení (e-shop krok 9):** sága zrušení zaznamená a pozdní odpovědi dožene kompenzací: `AwaitingReservation` →
   `OrderSagaState.Cancelled` (pozdní `StockReserved` → `ReleaseStock`), `AwaitingPayment` → `ReleaseStock` (pozdní platba →
   `RefundPayment`), `Reserved` kartou → `ReleaseStockAndRefundPayment`. **`OrderSagaOrchestrator.StepAsync` před každým krokem
@@ -477,6 +485,7 @@ nové moduly Notifications (odběratel událostí) a Payments (účastník ságy
 | 14. Hodnocení produktů (modul Reviews, `reviews.db`, kopie nákupů z událostí, `ProductRatingChangedV1` do kopie katalogu, `/Shop/{id}`, `/Admin/Reviews`, `SyncPurchasesV1` → `OrderSnapshotV2`) | hotovo (nasazeno 4. 11. 2026, hodnocení, hvězdičky ve výloze, starší objednávky ze snímků i moderace ověřeny v produkci) | `docs/kroky-eshop/krok-14-hodnoceni-produktu.md` |
 | 15. Faktury (modul Invoicing, schéma `invoicing`, kopie objednávek z událostí, faktura po zaplacení/doručení, číselná řada bez děr, PDF QuestPDF, `InvoiceIssuedV1` → e-mail s PDF v příloze přes `IInvoiceDocuments`, `/Admin/Invoices`) | hotovo (nasazeno 6. 11. 2026; faktura po platbě kartou, e-mail s PDF v příloze, stažení i přehled admina ověřeny v produkci na ARM VM) | `docs/kroky-eshop/krok-15-faktury.md` |
 | 15B. Dobropisy (zrušení/zamítnutí/vrácení zaplacené objednávky s fakturou → `CreditNote` z kopie faktury, řada `D…` v tabulce `CreditNoteNumberSeries`, `CreditNoteIssuedV1` → e-mail s PDF, `/Orders/{id}/CreditNote`, sloupec v `/Admin/Invoices`) | hotovo (nasazeno 9. 11. 2026; dobropis po zrušení zaplacené objednávky, e-mail s PDF a sloupec v přehledu faktur ověřeny v produkci) | `docs/kroky-eshop/krok-15b-dobropisy.md` |
+| 16. Skutečná platební brána (Stripe Checkout v testovacím režimu jako `IPaymentGateway`, `/api/payments/stripe-webhook` se `Stripe-Signature`, idempotency key, skutečný refund, `Payments:Gateway` Fake/Stripe, secrets `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET`) | hotovo lokálně (čeká na účet Stripe a nasazení) | `docs/kroky-eshop/krok-16-stripe.md` |
 
 ## Stav škálování (viz `docs/Skalovani-roadmap.md`)
 Cíl: víc instancí služeb (a později víc strojů). Nejdřív PostgreSQL (kontejner na Always Free VM, 0 Kč), pak víc instancí.

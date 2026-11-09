@@ -16,7 +16,11 @@ namespace MiniShop.Web.Pages.Pay;
 /// </summary>
 /// <remarks>Jen zákazník (admin neobjednává) a jen svou platbu – cizí se tváří jako neexistující (404).</remarks>
 [Authorize(Policy = AuthorizationPolicies.RequireCustomer)]
-public sealed class IndexModel(PaymentQueryService payments, FakePaymentGatewaySimulator gateway, IOrderService orders) : PageModel
+public sealed class IndexModel(
+    PaymentQueryService payments,
+    FakePaymentGatewaySimulator gateway,
+    IOrderService orders,
+    PaymentGatewayInfo gatewayInfo) : PageModel
 {
     [BindProperty(SupportsGet = true)]
     public int OrderId { get; set; }
@@ -35,8 +39,26 @@ public sealed class IndexModel(PaymentQueryService payments, FakePaymentGatewayS
     [TempData]
     public string? StatusMessage { get; set; }
 
-    public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken) =>
-        await LoadAsync(cancellationToken) ? Page() : NotFound();
+    /// <summary>E-shop krok 16: platby jdou přes Stripe – stránka jen přesměruje na bránu nebo ukáže stav.</summary>
+    public bool IsStripe => gatewayInfo.IsStripe;
+
+    public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
+    {
+        if (!await LoadAsync(cancellationToken))
+        {
+            return NotFound();
+        }
+
+        // E-shop krok 16: skutečná brána – zákazníka pošleme na stránku Stripu (GET přesměrování, CSP form-action se netýká).
+        // Jen platbu, kterou ještě jde zaplatit – po našem termínu nebo u zrušené objednávky už ne.
+        if (CanPay && Payment?.CheckoutUrl is { } url && Uri.TryCreate(url, UriKind.Absolute, out var gatewayUrl)
+            && gatewayUrl.Scheme == Uri.UriSchemeHttps)
+        {
+            return Redirect(gatewayUrl.ToString());
+        }
+
+        return Page();
+    }
 
     public Task<IActionResult> OnPostPayAsync(CancellationToken cancellationToken) =>
         SimulateAsync(paid: true, cancellationToken);
@@ -46,6 +68,12 @@ public sealed class IndexModel(PaymentQueryService payments, FakePaymentGatewayS
 
     private async Task<IActionResult> SimulateAsync(bool paid, CancellationToken cancellationToken)
     {
+        // E-shop krok 16: se Stripem simulace nesmí „zaplatit“ – jinak by šlo potvrdit objednávku bez peněz.
+        if (gatewayInfo.IsStripe)
+        {
+            return NotFound();
+        }
+
         if (!await LoadAsync(cancellationToken))
         {
             return NotFound();

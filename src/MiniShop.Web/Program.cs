@@ -63,7 +63,9 @@ try
     builder.Services.AddJourneysInfrastructure(database);
     builder.Services.AddNotificationsInfrastructure(database);
     // Bez tajemství webhooku (Payments:WebhookSecret, min. 32 znaků) se Web nespustí – jako se servisním klíčem skladu.
-    builder.Services.AddPaymentsInfrastructure(database, builder.Configuration["Payments:WebhookSecret"]);
+    // E-shop krok 16: Payments:Gateway = Stripe → skutečná brána (testovací režim; bez klíčů se Web nespustí), jinak simulace.
+    builder.Services.AddPaymentsInfrastructure(database, builder.Configuration["Payments:WebhookSecret"],
+        MiniShop.Infrastructure.Payments.Stripe.StripeSettings.FromConfiguration(builder.Configuration));
     builder.Services.AddReportingInfrastructure(database);
     builder.Services.AddReviewsInfrastructure(database);
     builder.Services.AddInvoicingInfrastructure(database);   // e-shop krok 15: faktury

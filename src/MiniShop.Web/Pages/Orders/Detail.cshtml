@@ -1,5 +1,6 @@
 @page "/Orders/{id:int}"
 @model MiniShop.Web.Pages.Orders.DetailModel
+@inject MiniShop.Application.Payments.PaymentGatewayInfo PaymentGateway
 @{
     ViewData["Title"] = $"Objednávka č. {Model.Order.Id}";
     var order = Model.Order;
@@ -29,6 +30,14 @@ else if (order.Status == "AwaitingPayment")
             <a asp-page="/Pay/Index" asp-route-orderId="@order.Id" class="btn btn-primary" data-track="order-pay">Zaplatit @order.TotalPrice.ToString("N2") Kč</a>
         }
     </div>
+    @if (!Model.CanManageOrders && PaymentGateway.IsStripe)
+    {
+        @* E-shop krok 16: Stripe v testovacím režimu – skutečná karta neprojde, testovací ano. *@
+        <p class="small text-muted" data-track="order-pay-test-card">
+            Platební brána Stripe běží v testovacím režimu – nic se neplatí. Karta <code>@MiniShop.Application.Payments.PaymentGatewayInfo.StripeTestCard</code>,
+            libovolné budoucí datum a CVC.
+        </p>
+    }
 }
 else if (order.Status == "ReturnRequested")
 {

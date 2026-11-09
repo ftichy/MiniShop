@@ -164,6 +164,11 @@ services:
       # Produkce: Client ID v production.env (není tajné), tajemství je secret GOOGLE_CLIENT_SECRET.
       Authentication__Google__ClientId: ${GOOGLE_CLIENT_ID:-}
       Authentication__Google__ClientSecret: ${GOOGLE_CLIENT_SECRET:-}
+      # E-shop krok 16: platební brána – Fake (simulace, výchozí) nebo Stripe (testovací režim; bez obou klíčů se Web
+      # nespustí). Produkce: PAYMENTS_GATEWAY v production.env, klíče jsou secrets STRIPE_SECRET_KEY a STRIPE_WEBHOOK_SECRET.
+      Payments__Gateway: ${PAYMENTS_GATEWAY:-Fake}
+      Payments__Stripe__SecretKey: ${STRIPE_SECRET_KEY:-}
+      Payments__Stripe__WebhookSecret: ${STRIPE_WEBHOOK_SECRET:-}
     # Škálování krok 5: víc kopií Webu (produkce 2 – production.env). Všechny sdílí volume web-data: klíče Data Protection
     # musí být společné (cookie přihlášení a formuláře z jedné kopie platí i v druhé), logy má každá vlastní soubor.
     # Workery s časovačem běží jen na vedoucí kopii (zámek v PostgreSQL), požadavky rozděluje Caddy (compose.cloud.yaml).

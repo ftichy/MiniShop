@@ -16,6 +16,8 @@
 #   PAYMENTS_WEBHOOK_SECRET=<64 hex znaků>            (e-shop krok 8, povinný – podpis webhooku platební brány)
 #   POSTGRES_PASSWORD=<24–128 písmen/číslic>          (škálování krok 3, povinný – databáze PostgreSQL)
 #   GOOGLE_CLIENT_SECRET=GOCSPX-…                     (účty krok 10, volitelný – OAuth klient Googlu pro přihlášení)
+#   STRIPE_SECRET_KEY=sk_test_…                       (e-shop krok 16, volitelný – platební brána Stripe, jen testovací)
+#   STRIPE_WEBHOOK_SECRET=whsec_…                     (e-shop krok 16, volitelný – podpis webhooku Stripu)
 # Co na vstupu chybí (ruční spuštění z terminálu), vezme se z dosavadního .env. Netajná konfigurace je v gitu
 # (deploy/production.env). Soubor .env na VM skript pokaždé sestaví znovu – ruční změny v něm nepřežijí.
 # Změněné heslo RabbitMQ nejdřív vymění v běžícím RabbitMQ (RABBITMQ_DEFAULT_PASS platí jen při prvním startu).
@@ -88,6 +90,14 @@ if [ ! -t 0 ]; then
                 # Účty krok 10: tajemství OAuth klienta Googlu (GOCSPX-…). Prázdné = přihlášení přes Google vypnuté.
                 [[ -z "$value" || "$value" =~ ^GOCSPX-[A-Za-z0-9_-]{20,64}$ ]] || { echo "Chybný GOOGLE_CLIENT_SECRET (čekám GOCSPX-…)." >&2; exit 2; }
                 google_client_secret="$value" ;;
+            STRIPE_SECRET_KEY)
+                # E-shop krok 16: testovací klíč Stripu (sk_test_…) – živý klíč (sk_live_) se odmítne. Prázdné = simulovaná brána.
+                [[ -z "$value" || "$value" =~ ^sk_test_[A-Za-z0-9]{20,200}$ ]] || { echo "Chybný STRIPE_SECRET_KEY (čekám sk_test_…)." >&2; exit 2; }
+                stripe_secret_key="$value" ;;
+            STRIPE_WEBHOOK_SECRET)
+                # E-shop krok 16: tajemství webhooku Stripu (whsec_…).
+                [[ -z "$value" || "$value" =~ ^whsec_[A-Za-z0-9]{20,200}$ ]] || { echo "Chybný STRIPE_WEBHOOK_SECRET (čekám whsec_…)." >&2; exit 2; }
+                stripe_webhook_secret="$value" ;;
             *)
                 echo "Neznámý klíč na vstupu: $key" >&2
                 exit 2 ;;
@@ -113,6 +123,8 @@ smtp_password="${smtp_password:-$(current SMTP_PASSWORD)}"
 inventory_api_key="${inventory_api_key:-$(current INVENTORY_API_KEY)}"
 payments_webhook_secret="${payments_webhook_secret:-$(current PAYMENTS_WEBHOOK_SECRET)}"
 google_client_secret="${google_client_secret:-$(current GOOGLE_CLIENT_SECRET)}"
+stripe_secret_key="${stripe_secret_key:-$(current STRIPE_SECRET_KEY)}"
+stripe_webhook_secret="${stripe_webhook_secret:-$(current STRIPE_WEBHOOK_SECRET)}"
 [ -n "$rabbitmq_password" ] || { echo "Chybí RABBITMQ_PASSWORD (na vstupu ani v .env)." >&2; exit 2; }
 [ -n "$basic_auth_hash" ] || { echo "Chybí BASIC_AUTH_HASH (na vstupu ani v .env)." >&2; exit 2; }
 [ -n "$inventory_api_key" ] || { echo "Chybí INVENTORY_API_KEY (na vstupu ani v .env)." >&2; exit 2; }
@@ -151,6 +163,8 @@ chmod 755 "$work"/*.sh 2>/dev/null || true
         echo "PAYMENTS_WEBHOOK_SECRET=$payments_webhook_secret"
         echo "POSTGRES_PASSWORD=$postgres_password"
         [ -n "$google_client_secret" ] && echo "GOOGLE_CLIENT_SECRET=$google_client_secret"
+        [ -n "$stripe_secret_key" ] && echo "STRIPE_SECRET_KEY=$stripe_secret_key"
+        [ -n "$stripe_webhook_secret" ] && echo "STRIPE_WEBHOOK_SECRET=$stripe_webhook_secret"
         true
     } > "$work/.env"
 )

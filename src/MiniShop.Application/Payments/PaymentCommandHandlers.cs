@@ -27,7 +27,8 @@ public sealed class PaymentCommandHandlers(
 
         var payment = new Payment(command.OrderId, command.CustomerId, command.Amount,
             timeProvider.GetUtcNow().UtcDateTime, command.ExpiresAtUtc);
-        var atGateway = await gateway.CreateAsync(payment, cancellationToken);
+        // ID příkazu = idempotency key u brány: opakované doručení téhož příkazu nezaloží u brány druhou platbu.
+        var atGateway = await gateway.CreateAsync(payment, command.CommandId, cancellationToken);
         payment.AttachGateway(atGateway.ExternalId, atGateway.CheckoutUrl);
 
         payments.Add(payment);
@@ -36,13 +37,22 @@ public sealed class PaymentCommandHandlers(
 
     /// <summary>
     /// Kompenzace pozdní platby nebo zrušené zaplacené objednávky (e-shop krok 9) – vrátit peníze
-    /// (u skutečné brány API „refund“; simulace jen změní stav).
+    /// (u skutečné brány API „refund“ – e-shop krok 16; simulace jen změní stav).
     /// </summary>
+    /// <remarks>
+    /// Nejdřív brána, pak náš stav: když brána selže, výjimka → consumer zkusí znovu. Když spadne uložení po úspěšném
+    /// refundu, opakování zavolá bránu znovu – ta díky idempotency key peníze podruhé nevrátí.
+    /// </remarks>
     public async Task HandleAsync(RefundPaymentV1 command, CancellationToken cancellationToken)
     {
         TraceTags.TagOrder(command.OrderId);
         var payment = await payments.GetByOrderIdAsync(command.OrderId, cancellationToken)
             ?? throw new InvalidOperationException($"Platba objednávky {command.OrderId} neexistuje.");
+
+        if (payment.Status == PaymentStatus.Succeeded)
+        {
+            await gateway.RefundAsync(payment, cancellationToken);
+        }
 
         if (payment.Refund(timeProvider.GetUtcNow().UtcDateTime))
         {

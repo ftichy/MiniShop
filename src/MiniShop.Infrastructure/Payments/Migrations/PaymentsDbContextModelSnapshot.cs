@@ -33,8 +33,8 @@ namespace MiniShop.Infrastructure.Payments.Migrations
                         .HasColumnType("numeric(18,2)");
 
                     b.Property<string>("CheckoutUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
 
                     b.Property<DateTime?>("CompletedAtUtc")
                         .HasColumnType("timestamp with time zone");

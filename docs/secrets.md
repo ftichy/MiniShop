@@ -167,7 +167,7 @@ Nový klíč (`ssh-keygen`), veřejnou část přidat na VM do `/home/ubuntu/.ss
 1. **API klíč:** [Stripe Dashboard](https://dashboard.stripe.com/test/apikeys) (přepínač *Test mode*) → *Secret key* →
    *Roll key* (starý může chvíli platit souběžně) → GitHub → *Environments* → `production` → `STRIPE_SECRET_KEY` →
    *Actions → Deploy → Run workflow*.
-2. **Webhook:** Dashboard → *Developers* → *Webhooks* → endpoint `https://minishop-tichy.cz/api/payments/stripe-webhook` →
+2. **Webhook** (cíl musí mít Payload style **Snapshot**, ne Thin): Dashboard → *Developers* → *Webhooks* → endpoint `https://minishop-tichy.cz/api/payments/stripe-webhook` →
    *Roll secret* → nové `whsec_…` do `STRIPE_WEBHOOK_SECRET` → Deploy.
 3. Ověření: objednávka kartou → *Zaplatit* → Stripe → karta `4242 4242 4242 4242` → objednávka potvrzená
    (Dashboard → webhook → poslední události 200).

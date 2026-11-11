@@ -5,7 +5,7 @@
     ViewData["Title"] = $"Objednávka č. {Model.Order.Id}";
     var order = Model.Order;
 }
-<p><a asp-page="/Orders/Index" data-track="order-detail-back">← Objednávky</a></p>
+<p class="small mb-2"><a asp-page="/Orders/Index" data-track="order-detail-back">← Objednávky</a></p>
 
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <h1 class="mb-0">Objednávka č. @order.Id</h1>
@@ -68,146 +68,167 @@ else if (order.Status == "Completed" && Model.Detail.ReturnRejectionReason is no
     objednáno @order.CreatedAtUtc.ToLocalTime().ToString("g")
 </p>
 
+@* Vzhled B: položky a údaje v kartách (bez tabulky – na telefonu se nic neusekne), průběh jako svislá časová osa. *@
 <div class="row g-4">
-    <div class="col-lg-7">
-        <h2 class="h5">Položky</h2>
-        <table class="table table-sm">
-            <thead>
-                <tr>
-                    <th>Produkt</th>
-                    <th class="num">Cena/ks</th>
-                    <th class="num">Množství</th>
-                    <th class="num">Sleva</th>
-                    <th class="num">Celkem</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var item in order.Items)
-                {
-                    <tr>
-                        <td>@item.ProductName</td>
-                        <td class="num">@item.UnitPrice.ToString("N2") Kč</td>
-                        <td class="num">@item.Quantity</td>
-                        <td class="num">@(item.Discount > 0 ? $"-{item.Discount:N2} Kč" : "")</td>
-                        <td class="num">@item.LineTotal.ToString("N2") Kč</td>
-                    </tr>
-                }
-                @if (order.ShippingMethod != "None")
-                {
-                    <tr>
-                        <td colspan="4">Doprava: @(order.ShippingMethod == "Courier" ? "kurýr" : "osobní odběr")</td>
-                        <td class="num">@(order.ShippingPrice == 0 ? "zdarma" : $"{order.ShippingPrice:N2} Kč")</td>
-                    </tr>
-                }
-                @if (order.CouponCode is not null)
-                {
-                    @* E-shop krok 13: sleva z kódu je rozpočítaná ve slevách položek – tady jen pro informaci. *@
-                    <tr class="text-muted small">
-                        <td colspan="4">Slevový kód @order.CouponCode (už ve slevách položek)</td>
-                        <td class="num">-@order.CouponDiscount.ToString("N2") Kč</td>
-                    </tr>
-                }
-                <tr class="fw-bold">
-                    <td colspan="4">Celkem</td>
-                    <td class="num">@order.TotalPrice.ToString("N2") Kč</td>
-                </tr>
-            </tbody>
-        </table>
+    <div class="col-lg-7 d-flex flex-column gap-4">
+        <div class="card">
+            <div class="card-body">
+                <h2 class="h5">Položky</h2>
+                <ul class="list-unstyled mb-0">
+                    @foreach (var item in order.Items)
+                    {
+                        <li class="d-flex justify-content-between gap-3 py-2 border-bottom">
+                            <div class="min-w-0">
+                                <div>@item.ProductName</div>
+                                <div class="small text-muted">
+                                    @item.Quantity × @item.UnitPrice.ToString("N2") Kč
+                                    @if (item.Discount > 0)
+                                    {
+                                        <span class="text-success">· sleva -@item.Discount.ToString("N2") Kč</span>
+                                    }
+                                </div>
+                            </div>
+                            <div class="text-nowrap">@item.LineTotal.ToString("N2") Kč</div>
+                        </li>
+                    }
+                    @if (order.ShippingMethod != "None")
+                    {
+                        <li class="d-flex justify-content-between gap-3 py-2 border-bottom">
+                            <span>Doprava: @(order.ShippingMethod == "Courier" ? "kurýr" : "osobní odběr")</span>
+                            <span class="text-nowrap">@(order.ShippingPrice == 0 ? "zdarma" : $"{order.ShippingPrice:N2} Kč")</span>
+                        </li>
+                    }
+                    @if (order.CouponCode is not null)
+                    {
+                        @* E-shop krok 13: sleva z kódu je rozpočítaná ve slevách položek – tady jen pro informaci. *@
+                        <li class="d-flex justify-content-between gap-3 py-2 border-bottom text-muted small">
+                            <span>Slevový kód @order.CouponCode (už ve slevách položek)</span>
+                            <span class="text-nowrap">-@order.CouponDiscount.ToString("N2") Kč</span>
+                        </li>
+                    }
+                    <li class="d-flex justify-content-between gap-3 pt-3 fw-bold">
+                        <span>Celkem</span>
+                        <span class="price">@order.TotalPrice.ToString("N2") Kč</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
 
-        @if (order.ShippingMethod == "Courier")
-        {
-            <h2 class="h5">Doručovací adresa</h2>
-            @* Účty krok 9: po smazání účtu je adresa anonymizovaná (null). *@
-            <p>@(order.DeliveryAddress ?? "adresa byla smazána")</p>
-        }
-        @if (order.PaymentMethod != "None")
-        {
-            @* E-shop krok 8 *@
-            <h2 class="h5">Platba</h2>
-            <p>@(order.PaymentMethod == "Card" ? "Kartou online" : "Dobírka – platba při převzetí")</p>
-        }
-        @if (Model.Documents.InvoiceNumber is not null)
-        {
-            @* E-shop krok 15: faktura vzniká po zaplacení (karta) nebo po doručení (dobírka) – modul Invoicing. *@
-            <h2 class="h5">Faktura</h2>
-            <p>
-                č. @Model.Documents.InvoiceNumber –
-                <a asp-page="/Orders/Invoice" asp-route-id="@order.Id" data-track="order-detail-invoice">stáhnout PDF</a>
-            </p>
-            @if (Model.Documents.CreditNoteNumber is not null)
-            {
-                @* E-shop krok 15B: zrušení/vrácení po vystavení faktury = dobropis, faktura zůstává beze změny. *@
-                <p>
-                    Dobropis č. @Model.Documents.CreditNoteNumber –
-                    <a asp-page="/Orders/CreditNote" asp-route-id="@order.Id" data-track="order-detail-credit-note">stáhnout PDF</a>
-                </p>
-            }
-        }
-        @if (order.Carrier is not null)
-        {
-            @* E-shop krok 6: vyplní admin při odeslání. *@
-            <h2 class="h5">Zásilka</h2>
-            <p data-track="order-detail-tracking">@order.Carrier@(order.TrackingNumber is null ? "" : $", číslo zásilky {order.TrackingNumber}")</p>
-        }
-        else if (order.ShippingMethod == "Pickup")
-        {
-            <h2 class="h5">Doprava</h2>
-            <p>Osobní odběr na prodejně.</p>
-        }
+        <div class="card">
+            <div class="card-body">
+                <div class="row g-3">
+                    @if (order.ShippingMethod == "Courier")
+                    {
+                        <div class="col-sm-6">
+                            <h2 class="h6 text-muted mb-1">Doručovací adresa</h2>
+                            @* Účty krok 9: po smazání účtu je adresa anonymizovaná (null). *@
+                            <div>@(order.DeliveryAddress ?? "adresa byla smazána")</div>
+                        </div>
+                    }
+                    @if (order.Carrier is not null)
+                    {
+                        @* E-shop krok 6: vyplní admin při odeslání. *@
+                        <div class="col-sm-6">
+                            <h2 class="h6 text-muted mb-1">Zásilka</h2>
+                            <div data-track="order-detail-tracking">@order.Carrier@(order.TrackingNumber is null ? "" : $", číslo zásilky {order.TrackingNumber}")</div>
+                        </div>
+                    }
+                    else if (order.ShippingMethod == "Pickup")
+                    {
+                        <div class="col-sm-6">
+                            <h2 class="h6 text-muted mb-1">Doprava</h2>
+                            <div>Osobní odběr na prodejně.</div>
+                        </div>
+                    }
+                    @if (order.PaymentMethod != "None")
+                    {
+                        @* E-shop krok 8 *@
+                        <div class="col-sm-6">
+                            <h2 class="h6 text-muted mb-1">Platba</h2>
+                            <div>@(order.PaymentMethod == "Card" ? "Kartou online" : "Dobírka – platba při převzetí")</div>
+                        </div>
+                    }
+                    @if (Model.Documents.InvoiceNumber is not null)
+                    {
+                        @* E-shop krok 15: faktura vzniká po zaplacení (karta) nebo po doručení (dobírka) – modul Invoicing. *@
+                        <div class="col-sm-6">
+                            <h2 class="h6 text-muted mb-1">Faktura</h2>
+                            <div>
+                                č. @Model.Documents.InvoiceNumber –
+                                <a asp-page="/Orders/Invoice" asp-route-id="@order.Id" data-track="order-detail-invoice">stáhnout PDF</a>
+                            </div>
+                            @if (Model.Documents.CreditNoteNumber is not null)
+                            {
+                                @* E-shop krok 15B: zrušení/vrácení po vystavení faktury = dobropis, faktura zůstává beze změny. *@
+                                <div>
+                                    Dobropis č. @Model.Documents.CreditNoteNumber –
+                                    <a asp-page="/Orders/CreditNote" asp-route-id="@order.Id" data-track="order-detail-credit-note">stáhnout PDF</a>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
     </div>
 
-    <div class="col-lg-5">
-        @* E-shop krok 5: historie stavů – jako sledování zásilky, nejstarší nahoře. *@
-        <h2 class="h5">Průběh objednávky</h2>
-        <ol class="list-group list-group-numbered mb-3" data-track="order-detail-history">
-            @foreach (var change in Model.Detail.History)
-            {
-                <li class="list-group-item d-flex justify-content-between align-items-start">
-                    <div class="ms-2 me-auto">
-                        <div class="fw-semibold">@OrderStatusLabels.HistoryText(change.Status, order.ShippingMethod)</div>
-                        @if (change.Note is not null)
-                        {
-                            @* Důvod zamítnutí (červeně), od e-shop kroku 6 i dopravce a číslo zásilky. *@
-                            <div class="small @(change.Status == "Rejected" ? "text-danger" : "text-muted")">@change.Note</div>
-                        }
-                        <div class="small text-muted">@DetailModel.FormatTime(change.ChangedAtUtc)</div>
-                    </div>
-                    <span class="badge @OrderStatusLabels.Badge(change.Status)">@OrderStatusLabels.Text(change.Status, order.ShippingMethod)</span>
-                </li>
-            }
-        </ol>
+    <div class="col-lg-5 d-flex flex-column gap-4">
+        <div class="card">
+            <div class="card-body">
+                @* E-shop krok 5: historie stavů – jako sledování zásilky, nejstarší nahoře. *@
+                <h2 class="h5 mb-3">Průběh objednávky</h2>
+                <ol class="timeline" data-track="order-detail-history">
+                    @for (var i = 0; i < Model.Detail.History.Count; i++)
+                    {
+                        var change = Model.Detail.History[i];
+                        <li class="@(i == Model.Detail.History.Count - 1 ? "is-current" : null)">
+                            <div class="d-flex justify-content-between gap-2">
+                                <span class="fw-semibold">@OrderStatusLabels.HistoryText(change.Status, order.ShippingMethod)</span>
+                                <span class="badge @OrderStatusLabels.Badge(change.Status) align-self-start">@OrderStatusLabels.Text(change.Status, order.ShippingMethod)</span>
+                            </div>
+                            @if (change.Note is not null)
+                            {
+                                @* Důvod zamítnutí (červeně), od e-shop kroku 6 i dopravce a číslo zásilky. *@
+                                <div class="small @(change.Status == "Rejected" ? "text-danger" : "text-muted")">@change.Note</div>
+                            }
+                            <div class="small text-muted">@DetailModel.FormatTime(change.ChangedAtUtc)</div>
+                        </li>
+                    }
+                </ol>
+            </div>
+        </div>
 
         @* E-shop krok 6 a 9: zrušit jde kdykoli před odesláním (i během čekání na sklad nebo platbu). Handler i kontrola práv jsou na stránce
            Objednávky (zákazník ruší jen svou); balení a odeslání má admin na stránce Expedice. *@
         @if (OrderStatusLabels.CanCancel(order.Status))
         {
             <form method="post" asp-page="/Orders/Index" asp-page-handler="Cancel" asp-route-id="@order.Id">
-                <button type="submit" class="btn btn-outline-danger btn-sm">Zrušit objednávku</button>
+                <button type="submit" class="btn btn-outline-danger w-100">Zrušit objednávku</button>
             </form>
         }
 
         @if (Model.Detail.ReturnableUntilUtc is { } returnableUntil && !Model.CanManageOrders)
         {
             @* E-shop krok 12: vrátit jde doručenou objednávku do 14 dní a jen jednou (pravidlo hlídá Order.RequestReturn). *@
-            <details class="mt-3" data-track="order-return">
-                <summary class="btn btn-outline-secondary btn-sm">Vrátit zboží</summary>
+            <details class="card card-body" data-track="order-return">
+                <summary class="fw-semibold">Vrátit zboží</summary>
                 <form method="post" asp-page-handler="Return" asp-route-id="@order.Id" class="mt-2">
                     <div asp-validation-summary="ModelOnly" class="text-danger small"></div>
                     <label for="returnReason" class="form-label small">Proč zboží vracíte?</label>
-                    <textarea id="returnReason" name="reason" class="form-control form-control-sm mb-2" rows="2"
+                    <textarea id="returnReason" name="reason" class="form-control mb-2" rows="3"
                               maxlength="500" required data-track="order-return-reason"></textarea>
                     <div class="form-text mb-2">
                         Vrátit můžete do @returnableUntil.ToLocalTime().ToString("d. M. yyyy"). Celou objednávku, peníze vrátíme
                         po převzetí zboží.
                     </div>
-                    <button type="submit" class="btn btn-secondary btn-sm" data-track="order-return-submit">Požádat o vrácení</button>
+                    <button type="submit" class="btn btn-secondary w-100" data-track="order-return-submit">Požádat o vrácení</button>
                 </form>
             </details>
         }
 
         @if (Model.CanManageOrders)
         {
-            <p class="mt-3 small">
+            <p class="small mb-0">
                 <a asp-page="/Admin/Fulfilment/Index">Expedice</a> ·
                 <a asp-page="/Orders/Journey" asp-route-orderId="@order.Id">Průběh zadání</a> ·
                 <a asp-page="/Orders/Replay" asp-route-orderId="@order.Id" asp-route-autoplay="1">▶ Přehrát</a>

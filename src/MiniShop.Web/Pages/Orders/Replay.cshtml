@@ -66,27 +66,28 @@
                     @if (journey.Form == JourneyForms.Checkout)
                     {
                         @* Pokladna (e-shop krok 4B). Souhrn košíku se nesleduje – přehrává se jen to, co zákazník vyplňoval. *@
+                        @* Vzhled B: stejné „karty“ přepínačů jako v pokladně, aby přehrání vypadalo jako originál. *@
                         <div class="row g-3">
-                            <fieldset class="col-md-5">
-                                <legend class="h6">Doprava</legend>
-                                <div class="form-check">
+                            <fieldset class="col-md-5 d-flex flex-column gap-2">
+                                <legend class="h6 mb-0">Doprava</legend>
+                                <label class="choice-card">
                                     <input type="radio" class="form-check-input" data-replay-target="Input.ShippingMethod" value="Pickup" tabindex="-1" />
-                                    <label class="form-check-label">Osobní odběr na prodejně</label>
-                                </div>
-                                <div class="form-check">
+                                    <span>Osobní odběr na prodejně</span>
+                                </label>
+                                <label class="choice-card">
                                     <input type="radio" class="form-check-input" data-replay-target="Input.ShippingMethod" value="Courier" tabindex="-1" />
-                                    <label class="form-check-label">Kurýr na adresu</label>
-                                </div>
+                                    <span>Kurýr na adresu</span>
+                                </label>
                                 @* E-shop krok 8: platba (starší proudy ji nemají – zůstane nezaškrtnutá). *@
-                                <legend class="h6 mt-2">Platba</legend>
-                                <div class="form-check">
+                                <legend class="h6 mt-2 mb-0">Platba</legend>
+                                <label class="choice-card">
                                     <input type="radio" class="form-check-input" data-replay-target="Input.PaymentMethod" value="Card" tabindex="-1" />
-                                    <label class="form-check-label">Kartou online</label>
-                                </div>
-                                <div class="form-check">
+                                    <span>Kartou online</span>
+                                </label>
+                                <label class="choice-card">
                                     <input type="radio" class="form-check-input" data-replay-target="Input.PaymentMethod" value="CashOnDelivery" tabindex="-1" />
-                                    <label class="form-check-label">Dobírka</label>
-                                </div>
+                                    <span>Dobírka</span>
+                                </label>
                             </fieldset>
                             <fieldset class="col-md-7">
                                 <legend class="h6">Doručovací adresa</legend>

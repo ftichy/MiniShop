@@ -3,7 +3,7 @@
 @{
     ViewData["Title"] = "Objednávky";
 }
-<h1>Objednávky</h1>
+<h1 class="mb-3">Objednávky</h1>
 
 
 <partial name="_StatusMessage" model="Model.StatusMessage" />
@@ -63,79 +63,81 @@ else if (Model.NeedsEmailConfirmation)
     </form>
 }
 
+@* Vzhled B: objednávka jako karta – hlavička (číslo, datum, stav), položky jako řádky (bez tabulky – na telefonu
+   se nic neusekne), dole doprava, celkem a akce. *@
+<div class="d-flex flex-column gap-3">
 @foreach (var order in Model.Orders)
 {
-    <div class="card mb-3">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <span>
-                @* E-shop krok 5: detail s historií stavů. *@
-                <a asp-page="/Orders/Detail" asp-route-id="@order.Id" class="fw-bold" data-track="order-detail-link">Objednávka č. @order.Id</a> –
-                @order.CustomerName (@order.CustomerEmail),
-                @order.CreatedAtUtc.ToLocalTime().ToString("g")
-            </span>
-            <span>
-                @if (Model.CanManageOrders)
-                {
-                    <a asp-page="/Orders/Journey" asp-route-orderId="@order.Id" class="btn btn-sm btn-link">Průběh zadání</a>
-                    <a asp-page="/Orders/Replay" asp-route-orderId="@order.Id" asp-route-autoplay="1" class="btn btn-sm btn-link">▶ Přehrát</a>
-                }
-                <span class="badge @OrderStatusLabels.Badge(order.Status) me-2">@OrderStatusLabels.Text(order.Status, order.ShippingMethod)</span>
-                @* E-shop krok 6: „Vyřídit“ nahradila stránka Expedice; zrušit jde i během balení. *@
-                @if (OrderStatusLabels.CanCancel(order.Status))
-                {
-                    <form method="post" asp-page-handler="Cancel" asp-route-id="@order.Id" class="d-inline">
-                        <button type="submit" class="btn btn-sm btn-outline-danger">Zrušit</button>
-                    </form>
-                }
-            </span>
-        </div>
-        @if (order.RejectionReason is not null)
-        {
-            <div class="card-body py-2 text-danger small">@order.RejectionReason</div>
-        }
-        <table class="table table-sm mb-0">
-            <thead>
-                <tr>
-                    <th>Produkt</th>
-                    <th class="num">Cena/ks</th>
-                    <th class="num">Množství</th>
-                    <th class="num">Sleva</th>
-                    <th class="num">Celkem</th>
-                </tr>
-            </thead>
-            <tbody>
+    <div class="card">
+        <div class="card-body">
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+                <div>
+                    @* E-shop krok 5: detail s historií stavů. *@
+                    <a asp-page="/Orders/Detail" asp-route-id="@order.Id" class="fw-bold fs-5 text-decoration-none" data-track="order-detail-link">Objednávka č. @order.Id</a>
+                    <div class="small text-muted">
+                        @order.CreatedAtUtc.ToLocalTime().ToString("g")
+                        @if (Model.CanManageOrders)
+                        {
+                            <text>· @order.CustomerName (@order.CustomerEmail)</text>
+                        }
+                    </div>
+                </div>
+                <span class="badge @OrderStatusLabels.Badge(order.Status)">@OrderStatusLabels.Text(order.Status, order.ShippingMethod)</span>
+            </div>
+            @if (order.RejectionReason is not null)
+            {
+                <div class="alert alert-danger py-2 small mb-2">@order.RejectionReason</div>
+            }
+            <ul class="list-unstyled small mb-2">
                 @foreach (var item in order.Items)
                 {
-                    <tr>
-                        <td>@item.ProductName</td>
-                        <td class="num">@item.UnitPrice.ToString("N2") Kč</td>
-                        <td class="num">@item.Quantity</td>
-                        <td class="num">@(item.Discount > 0 ? $"-{item.Discount:N2} Kč" : "")</td>
-                        <td class="num">@item.LineTotal.ToString("N2") Kč</td>
-                    </tr>
+                    <li class="d-flex justify-content-between gap-3 py-1 border-bottom">
+                        <span class="min-w-0">@item.Quantity× @item.ProductName
+                            @if (item.Discount > 0)
+                            {
+                                <span class="text-success">(sleva -@item.Discount.ToString("N2") Kč)</span>
+                            }
+                        </span>
+                        <span class="text-nowrap">@item.LineTotal.ToString("N2") Kč</span>
+                    </li>
                 }
                 @* E-shop krok 4: doprava z pokladny (starší objednávky a objednávky přes API ji nemají). *@
                 @if (order.ShippingMethod != "None")
                 {
-                    <tr>
-                        <td colspan="4">
+                    <li class="d-flex justify-content-between gap-3 py-1 border-bottom text-muted">
+                        <span class="min-w-0">
                             Doprava: @(order.ShippingMethod == "Courier" ? "kurýr" : "osobní odběr")
                             @if (order.DeliveryAddress is not null)
                             {
-                                <span class="text-muted">– @order.DeliveryAddress</span>
+                                <span>– @order.DeliveryAddress</span>
                             }
-                        </td>
-                        <td class="num">@(order.ShippingPrice == 0 ? "zdarma" : $"{order.ShippingPrice:N2} Kč")</td>
-                    </tr>
+                        </span>
+                        <span class="text-nowrap">@(order.ShippingPrice == 0 ? "zdarma" : $"{order.ShippingPrice:N2} Kč")</span>
+                    </li>
                 }
-                <tr class="fw-bold">
-                    <td colspan="4">Celkem</td>
-                    <td class="num">@order.TotalPrice.ToString("N2") Kč</td>
-                </tr>
-            </tbody>
-        </table>
+            </ul>
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div><span class="text-muted small">Celkem</span> <strong class="ms-1">@order.TotalPrice.ToString("N2") Kč</strong></div>
+                <div class="d-flex flex-wrap gap-1">
+                    @if (Model.CanManageOrders)
+                    {
+                        <a asp-page="/Orders/Journey" asp-route-orderId="@order.Id" class="btn btn-sm btn-link">Průběh zadání</a>
+                        <a asp-page="/Orders/Replay" asp-route-orderId="@order.Id" asp-route-autoplay="1" class="btn btn-sm btn-link">▶ Přehrát</a>
+                    }
+                    <a asp-page="/Orders/Detail" asp-route-id="@order.Id" class="btn btn-sm btn-outline-primary">Detail</a>
+                    @* E-shop krok 6: „Vyřídit“ nahradila stránka Expedice; zrušit jde i během balení. *@
+                    @if (OrderStatusLabels.CanCancel(order.Status))
+                    {
+                        <form method="post" asp-page-handler="Cancel" asp-route-id="@order.Id" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">Zrušit</button>
+                        </form>
+                    }
+                </div>
+            </div>
+        </div>
     </div>
 }
+</div>
 
 @section Scripts {
     @* Účty krok 8: obnovení stránky ze souboru (CSP nepustí inline skript). *@

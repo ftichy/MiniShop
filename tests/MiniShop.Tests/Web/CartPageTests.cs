@@ -43,7 +43,7 @@ public sealed class CartPageTests(MiniShopWebFactory web)
         var html = await client.GetStringAsync("/Cart");
 
         Assert.Matches("href=\"/css/site\\.css\\?v=[^\"]+\"", html);
-        Assert.Matches("class=\"cart-thumb\"\\s+width=\"64\" height=\"48\"", html);
+        Assert.Matches("class=\"cart-thumb\"\\s+width=\"96\" height=\"72\"", html);   // vzhled B: větší náhled v kartě
     }
 
     [Fact]

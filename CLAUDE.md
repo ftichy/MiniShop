@@ -501,12 +501,12 @@ indigo `#4f46e5`, systémové písmo, dotyková plocha 44 px). **Nová barva/roz
 (inline SVG), karta produktu jen partial `_ProductCard` (`ProductCardModel`). Hlavička: `navbar-expand-lg` + `collapse`, košík mimo
 collapse (vidět na mobilu), admin odkazy v nabídce *Správa* (`data-track` zůstaly), účet v nabídce. Výloha: filtry `offcanvas-lg`,
 GET formulář beze změny. Rozbalování jen atributy Bootstrapu (`data-bs-toggle`) – žádný inline skript. **`data-track` a ID polí neměnit**
-(Journeys). Kontrola snímkem: headless Edge, min. šířka ~500 px. Souhrny do `docs/kroky-vzhled/`.
+(Journeys). Kontrola snímkem: headless Edge (min. šířka ~500 px; z PowerShellu `Start-Process -Wait`), stránky za přihlášením stáhnout s cookie a doplnit `<base href>`. Stránky účtu = `_AccountLayout` (`Account/_ViewStart.cshtml`). Souhrny do `docs/kroky-vzhled/`.
 
 | Krok | Stav | Souhrn |
 | --- | --- | --- |
 | A. Kostra a výloha (design systém, hlavička + mobilní menu, Bootstrap JS, úvod pro zákazníka, `_ProductCard`, filtry v panelu, detail s nákupním boxem, ikony) | hotovo (nasazeno 11. 11. 2026, ověřeno na telefonu) | `docs/kroky-vzhled/krok-a-kostra-a-vyloha.md` |
-| B. Nákupní cesta (košík, pokladna + `Replay.cshtml`, objednávky, účet) | plán | — |
+| B. Nákupní cesta (košík s kartami a spodní lištou, pokladna se souhrnem a `.choice-card` – Journeys beze změny, `Replay.cshtml` stejně, objednávky jako karty + časová osa, účet v `_AccountLayout`) | hotovo lokálně (čeká na nasazení) | `docs/kroky-vzhled/krok-b-nakupni-cesta.md` |
 | C. Administrace (responzivní tabulky, sjednocené hlavičky stránek) | plán | — |
 
 ## Stav škálování (viz `docs/Skalovani-roadmap.md`)

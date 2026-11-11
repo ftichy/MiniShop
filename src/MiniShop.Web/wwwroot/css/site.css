@@ -211,6 +211,8 @@ a:focus-visible, .btn:focus-visible, summary:focus-visible {
 .badge-soft-warning { background-color: #fef3c7; color: #92400e; }
 .badge-soft-danger { background-color: #fee2e2; color: #991b1b; }
 .badge-soft-secondary { background-color: #f3f4f6; color: #374151; }
+.badge-soft-primary { background-color: var(--ms-brand-soft); color: #3730a3; }
+.badge-soft-info { background-color: #e0f2fe; color: #075985; }
 
 /* Výloha: lišta hledání nahoře; na mobilu filtry ve vysouvacím panelu. */
 .shop-toolbar { position: sticky; top: 4.25rem; z-index: 1010; background-color: var(--ms-canvas); padding: 0.5rem 0; }
@@ -276,3 +278,85 @@ a:focus-visible, .btn:focus-visible, summary:focus-visible {
 .product-card-footer { display: flex; flex-direction: column; gap: 0.5rem; }
 .product-card-footer .price { white-space: nowrap; }
 .product-card-footer form { width: 100%; }
+
+/* ==========================================================================
+   Vzhled B: nákupní cesta (košík, pokladna, objednávky, účet)
+   ========================================================================== */
+
+.min-w-0 { min-width: 0; }
+.empty-icon .icon { width: 3rem; height: 3rem; color: var(--ms-text-muted); }
+.cart-item .cart-thumb { width: 96px; height: 72px; border-radius: var(--ms-radius-sm); }
+.cart-item.is-unavailable { opacity: 0.7; }
+@media (max-width: 575.98px) {
+    .cart-item .cart-thumb { width: 72px; height: 56px; }
+}
+
+/* Souhrn košíku a pokladny – na počítači zůstane při rolování na místě. */
+@media (min-width: 992px) {
+    .summary-card { position: sticky; top: 5.5rem; }
+}
+
+/* Spodní lišta s cenou a hlavním tlačítkem na telefonu (košík). */
+.mobile-checkout-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 1020;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin: 1.5rem calc(var(--bs-gutter-x) * -0.5) 0;
+    padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+    background-color: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(8px);
+    border-top: 1px solid var(--ms-border);
+    box-shadow: 0 -4px 16px rgba(17, 24, 39, 0.06);
+}
+
+/* Pokladna: volba dopravy a platby jako velké klikací karty. */
+.choice-card {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--ms-border);
+    border-radius: var(--ms-radius);
+    background-color: var(--ms-surface);
+    cursor: pointer;
+    min-height: var(--ms-tap);
+}
+.choice-card:hover { border-color: rgba(var(--ms-brand-rgb), 0.5); }
+.choice-card:has(input:checked) { border-color: var(--ms-brand); background-color: var(--ms-brand-soft); box-shadow: 0 0 0 1px var(--ms-brand); }
+.choice-card .form-check-input { margin-top: 0.2rem; flex: none; }
+.checkout-step { font-size: 1.05rem; font-weight: 650; display: flex; align-items: center; gap: 0.5rem; }
+.checkout-step .step-no {
+    display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: 50%;
+    background-color: var(--ms-brand); color: #fff; font-size: 0.85rem;
+}
+
+/* Objednávky: karty na telefonu, časová osa stavů v detailu. */
+.order-card { text-decoration: none; color: inherit; }
+.order-card:hover { border-color: rgba(var(--ms-brand-rgb), 0.5); }
+.timeline { list-style: none; margin: 0; padding: 0 0 0 1.25rem; border-left: 2px solid var(--ms-border); }
+.timeline li { position: relative; padding: 0 0 1rem 0.75rem; }
+.timeline li::before {
+    content: ""; position: absolute; left: calc(-1.25rem - 6px); top: 0.3rem; width: 10px; height: 10px;
+    border-radius: 50%; background-color: var(--ms-border); border: 2px solid var(--ms-surface);
+}
+.timeline li:last-child { padding-bottom: 0; }
+.timeline li.is-current::before { background-color: var(--ms-brand); box-shadow: 0 0 0 3px var(--ms-brand-soft); }
+
+/* Účet: úzká karta uprostřed (přihlášení, registrace, hesla). */
+.auth-card { max-width: 28rem; margin: 1rem auto 0; }
+.auth-card .card-body { padding: clamp(1.25rem, 5vw, 2rem); }
+/* Stránky účtu mají uvnitř staré sloupce (col-md-6…) – v úzké kartě vždy přes celou šířku. */
+.auth-card .row > [class*="col-"] { flex: 0 0 100%; max-width: 100%; }
+.auth-card h1 { font-size: 1.6rem; text-align: center; margin-bottom: 1.25rem; }
+.auth-card form .btn-primary, .auth-card form .btn-danger { width: 100%; padding-top: 0.6rem; padding-bottom: 0.6rem; }
+.auth-card .brand-mark { width: 2.75rem; height: 2.75rem; border-radius: 0.8rem; }
+.auth-card .brand-mark .icon { width: 1.4rem; height: 1.4rem; }
+
+/* Pole formulářů bílá (jinak by převzala šedé pozadí stránky). */
+.form-control, .form-select { background-color: #fff; }
+.form-control:disabled, .form-control[readonly] { background-color: var(--bs-tertiary-bg); }
+.cart-item a.flex-shrink-0 { text-decoration: none; }

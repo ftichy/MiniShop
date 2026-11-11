@@ -1,0 +1,18 @@
+@* Vzhled B: rámeček stránek účtu – úzká karta uprostřed s logem (na telefonu přes celou šířku). Vnořený layout:
+   obsah vloží do _Layout a přepošle mu sekce Scripts a Styles. *@
+@{
+    Layout = "_Layout";
+}
+<div class="card auth-card">
+    <div class="card-body">
+        <div class="text-center mb-3"><span class="brand-mark">@Icons.Bag</span></div>
+        @RenderBody()
+    </div>
+</div>
+
+@section Styles {
+    @await RenderSectionAsync("Styles", required: false)
+}
+@section Scripts {
+    @await RenderSectionAsync("Scripts", required: false)
+}

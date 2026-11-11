@@ -103,6 +103,7 @@ Moderní vzhled a mobil – po krocích A (kostra a výloha), B (nákupní cesta
 | Krok | Co přinesl | Souhrn |
 | --- | --- | --- |
 | A | Design systém nad Bootstrapem (CSS proměnné, indigo), hlavička s menu pro mobil a nabídkou Správa, Bootstrap JS lokálně, úvod pro zákazníka, karta produktu jako partial, filtry výlohy ve vysouvacím panelu, detail produktu s nákupním boxem, ikony jako inline SVG | [vzhled-a](code:docs/kroky-vzhled/krok-a-kostra-a-vyloha.md) |
+| B | Nákupní cesta pro mobil – košík s kartami a spodní lištou, pokladna se souhrnem a volbami jako karty (sledování a přehrání beze změny), objednávky jako karty, detail s časovou osou, stránky účtu v kartě uprostřed (`_AccountLayout`) | [vzhled-b](code:docs/kroky-vzhled/krok-b-nakupni-cesta.md) |
 
 ## Škálování
 

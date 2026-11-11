@@ -96,6 +96,14 @@ Plán (výloha, košík, pokladna, expedice, platba, notifikace): [docs/Eshop-ro
 | 16 | Skutečná platební brána – Stripe Checkout v testovacím režimu jako další implementace `IPaymentGateway` (adaptér), webhook s podpisem `Stripe-Signature`, idempotency key pro založení i refund, skutečný refund pozdní platby; sága ani kontrakty beze změny | [eshop-16](code:docs/kroky-eshop/krok-16-stripe.md) |
 | 17 | Event sourcing košíku – události `CartEvents` jako zdroj pravdy agregátu `Cart`, tabulky košíku jako projekce, přirozený snapshot (od posledního objednání/vyprázdnění), souběh přes verzi proudu, převzetí starých košíků snapshotem; historie košíku a statistika „co zákazníci odebírají“ z událostí | [eshop-17](code:docs/kroky-eshop/krok-17-event-sourcing-kosiku.md) |
 
+## Vzhled
+
+Moderní vzhled a mobil – po krocích A (kostra a výloha), B (nákupní cesta), C (administrace). Popis: [Vzhled a mobil](architektura/vzhled.md).
+
+| Krok | Co přinesl | Souhrn |
+| --- | --- | --- |
+| A | Design systém nad Bootstrapem (CSS proměnné, indigo), hlavička s menu pro mobil a nabídkou Správa, Bootstrap JS lokálně, úvod pro zákazníka, karta produktu jako partial, filtry výlohy ve vysouvacím panelu, detail produktu s nákupním boxem, ikony jako inline SVG | [vzhled-a](code:docs/kroky-vzhled/krok-a-kostra-a-vyloha.md) |
+
 ## Škálování
 
 Plán: [docs/Skalovani-roadmap.md](code:docs/Skalovani-roadmap.md) – víc instancí služeb, nejdřív PostgreSQL.

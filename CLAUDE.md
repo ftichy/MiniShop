@@ -495,6 +495,20 @@ nové moduly Notifications (odběratel událostí) a Payments (účastník ságy
 | 16. Skutečná platební brána (Stripe Checkout v testovacím režimu jako `IPaymentGateway`, `/api/payments/stripe-webhook` se `Stripe-Signature`, idempotency key, skutečný refund, `Payments:Gateway` Fake/Stripe, secrets `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET`) | hotovo (nasazeno 9. 11. 2026; platba kartou přes Stripe ověřena lokálně i v produkci, refund + dobropis lokálně; webhook ve Stripu musí mít Payload style Snapshot) | `docs/kroky-eshop/krok-16-stripe.md` |
 | 17. Event sourcing košíku (`CartEvents` jako zdroj pravdy agregátu `Cart`, tabulky košíku = projekce, přirozený snapshot od objednání/vyprázdnění, souběh přes verzi proudu, převzetí starých košíků snapshotem, historie `/Cart`, `/Admin/CartInsights`) | hotovo lokálně (čeká na nasazení) | `docs/kroky-eshop/krok-17-event-sourcing-kosiku.md` |
 
+## Stav vzhledu (moderní vzhled a mobil, příručka `architektura/vzhled.md`)
+Bootstrap 5.3 lokálně (CSS + JS bundle, SRI ověřen) + design systém v `wwwroot/css/site.css` (proměnné `--ms-*` přepisují `--bs-*`,
+indigo `#4f46e5`, systémové písmo, dotyková plocha 44 px). **Nová barva/rozměr = proměnná v `:root`**, ikony jen `Ui/Icons.cs`
+(inline SVG), karta produktu jen partial `_ProductCard` (`ProductCardModel`). Hlavička: `navbar-expand-lg` + `collapse`, košík mimo
+collapse (vidět na mobilu), admin odkazy v nabídce *Správa* (`data-track` zůstaly), účet v nabídce. Výloha: filtry `offcanvas-lg`,
+GET formulář beze změny. Rozbalování jen atributy Bootstrapu (`data-bs-toggle`) – žádný inline skript. **`data-track` a ID polí neměnit**
+(Journeys). Kontrola snímkem: headless Edge, min. šířka ~500 px. Souhrny do `docs/kroky-vzhled/`.
+
+| Krok | Stav | Souhrn |
+| --- | --- | --- |
+| A. Kostra a výloha (design systém, hlavička + mobilní menu, Bootstrap JS, úvod pro zákazníka, `_ProductCard`, filtry v panelu, detail s nákupním boxem, ikony) | hotovo lokálně (čeká na nasazení) | `docs/kroky-vzhled/krok-a-kostra-a-vyloha.md` |
+| B. Nákupní cesta (košík, pokladna + `Replay.cshtml`, objednávky, účet) | plán | — |
+| C. Administrace (responzivní tabulky, sjednocené hlavičky stránek) | plán | — |
+
 ## Stav škálování (viz `docs/Skalovani-roadmap.md`)
 Cíl: víc instancí služeb (a později víc strojů). Nejdřív PostgreSQL (kontejner na Always Free VM, 0 Kč), pak víc instancí.
 Rozhodnutí: jeden PostgreSQL se **schématem pro každý modul**, testy proti skutečnému PostgreSQL (Testcontainers),

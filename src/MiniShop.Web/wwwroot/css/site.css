@@ -1,8 +1,231 @@
-body { padding-bottom: 3rem; }
+/* ==========================================================================
+   MiniShop – design systém (redesign A). Bootstrap 5.3 zůstává, tady jen jeho proměnné a pár vlastních komponent.
+   Barvy a rozměry jen přes proměnné --ms-* / --bs-* – změna vzhledu = změna proměnné, ne hledání v šablonách.
+   ========================================================================== */
+
+:root {
+    --ms-brand: #4f46e5;            /* indigo – akcent značky */
+    --ms-brand-rgb: 79, 70, 229;
+    --ms-brand-hover: #4338ca;
+    --ms-brand-soft: #eef2ff;
+    --ms-surface: #ffffff;          /* karty, hlavička */
+    --ms-canvas: #f6f7fb;           /* pozadí stránky */
+    --ms-border: #e6e8ef;
+    --ms-text-muted: #6b7280;
+    --ms-radius: 0.875rem;
+    --ms-radius-sm: 0.5rem;
+    --ms-shadow-sm: 0 1px 2px rgba(17, 24, 39, 0.06);
+    --ms-shadow: 0 4px 16px rgba(17, 24, 39, 0.08);
+    --ms-tap: 2.75rem;              /* 44 px – minimální dotyková plocha na mobilu */
+
+    --bs-primary: var(--ms-brand);
+    --bs-primary-rgb: var(--ms-brand-rgb);
+    --bs-link-color: var(--ms-brand);
+    --bs-link-color-rgb: var(--ms-brand-rgb);
+    --bs-link-hover-color: var(--ms-brand-hover);
+    --bs-body-bg: var(--ms-canvas);
+    --bs-body-color: #111827;
+    --bs-secondary-color: var(--ms-text-muted);
+    --bs-border-color: var(--ms-border);
+    --bs-border-radius: var(--ms-radius-sm);
+    --bs-border-radius-lg: var(--ms-radius);
+    --bs-focus-ring-color: rgba(var(--ms-brand-rgb), 0.25);
+    --bs-body-font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+}
+
+main { flex: 1 0 auto; padding-bottom: 3rem; }
+
+h1, .h1 { font-weight: 700; letter-spacing: -0.02em; }
+h2, .h2, h3, .h3 { font-weight: 650; letter-spacing: -0.01em; }
+
+/* ---------- Tlačítka a formuláře v barvě značky ---------- */
+
+.btn { --bs-btn-border-radius: var(--ms-radius-sm); font-weight: 500; }
+.btn-primary {
+    --bs-btn-bg: var(--ms-brand);
+    --bs-btn-border-color: var(--ms-brand);
+    --bs-btn-hover-bg: var(--ms-brand-hover);
+    --bs-btn-hover-border-color: var(--ms-brand-hover);
+    --bs-btn-active-bg: var(--ms-brand-hover);
+    --bs-btn-active-border-color: var(--ms-brand-hover);
+    --bs-btn-disabled-bg: var(--ms-brand);
+    --bs-btn-disabled-border-color: var(--ms-brand);
+}
+.btn-outline-primary {
+    --bs-btn-color: var(--ms-brand);
+    --bs-btn-border-color: var(--ms-brand);
+    --bs-btn-hover-bg: var(--ms-brand);
+    --bs-btn-hover-border-color: var(--ms-brand);
+    --bs-btn-active-bg: var(--ms-brand-hover);
+    --bs-btn-active-border-color: var(--ms-brand-hover);
+}
+.form-control:focus, .form-select:focus, .form-check-input:focus {
+    border-color: rgba(var(--ms-brand-rgb), 0.6);
+    box-shadow: 0 0 0 0.25rem var(--bs-focus-ring-color);
+}
+.form-check-input:checked { background-color: var(--ms-brand); border-color: var(--ms-brand); }
+.pagination {
+    --bs-pagination-active-bg: var(--ms-brand);
+    --bs-pagination-active-border-color: var(--ms-brand);
+    --bs-pagination-color: var(--ms-brand);
+}
+.nav-pills { --bs-nav-pills-link-active-bg: var(--ms-brand); }
+
+/* Zřetelný focus pro ovládání klávesnicí (myš ho neukáže). */
+a:focus-visible, .btn:focus-visible, summary:focus-visible {
+    outline: 3px solid rgba(var(--ms-brand-rgb), 0.45);
+    outline-offset: 2px;
+}
+
+/* ---------- Karty a tabulky ---------- */
+
+.card {
+    --bs-card-border-color: var(--ms-border);
+    --bs-card-border-radius: var(--ms-radius);
+    --bs-card-bg: var(--ms-surface);
+    box-shadow: var(--ms-shadow-sm);
+}
+.table { --bs-table-bg: transparent; }
 .table td, .table th { vertical-align: middle; }
 .num { text-align: right; white-space: nowrap; }
 
-/* Krok 12B: přehrávání průběhu objednávky. */
+/* ---------- Hlavička ---------- */
+
+.site-header {
+    background-color: rgba(255, 255, 255, 0.92);
+    backdrop-filter: saturate(180%) blur(8px);
+    border-bottom: 1px solid var(--ms-border);
+}
+.site-header .navbar { --bs-navbar-padding-y: 0.6rem; }
+.site-header .navbar-brand { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 700; letter-spacing: -0.02em; }
+.brand-mark {
+    display: inline-grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.6rem;
+    color: #fff;
+    background: linear-gradient(135deg, var(--ms-brand), #7c3aed);
+}
+.site-header .nav-link { font-weight: 500; color: #374151; border-radius: var(--ms-radius-sm); }
+.site-header .nav-link:hover, .site-header .nav-link.active { color: var(--ms-brand); }
+.site-header .icon { width: 1.25rem; height: 1.25rem; }
+.header-icon-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--ms-tap);
+    height: var(--ms-tap);
+    border-radius: var(--ms-radius-sm);
+    color: #374151;
+}
+.header-icon-btn:hover { background-color: var(--ms-brand-soft); color: var(--ms-brand); }
+.header-icon-btn .badge {
+    position: absolute;
+    top: 0.2rem;
+    right: 0.1rem;
+    font-size: 0.68rem;
+    border-radius: 999px;
+    background-color: var(--ms-brand);
+}
+.navbar-toggler { border: 0; min-width: var(--ms-tap); height: var(--ms-tap); }
+.navbar-toggler:focus { box-shadow: 0 0 0 0.2rem var(--bs-focus-ring-color); }
+.header-search { max-width: 22rem; }
+.dropdown-menu {
+    --bs-dropdown-border-color: var(--ms-border);
+    --bs-dropdown-border-radius: var(--ms-radius);
+    --bs-dropdown-link-active-bg: var(--ms-brand);
+    box-shadow: var(--ms-shadow);
+}
+@media (max-width: 991.98px) {
+    /* Mobilní menu: odkazy pod sebou, dost velké na prst. */
+    .site-header .navbar-collapse { padding: 0.5rem 0 0.75rem; }
+    .site-header .navbar-nav .nav-link { padding: 0.65rem 0.5rem; }
+    .site-header .dropdown-menu { box-shadow: none; border: 0; padding-left: 0.75rem; background: transparent; }
+    .header-search { max-width: none; }
+}
+
+/* ---------- Patička ---------- */
+
+.site-footer { background-color: var(--ms-surface); border-top: 1px solid var(--ms-border); color: var(--ms-text-muted); }
+.site-footer a { color: inherit; text-decoration: none; }
+.site-footer a:hover { color: var(--ms-brand); }
+
+/* ---------- Úvod ---------- */
+
+.hero {
+    border-radius: calc(var(--ms-radius) * 1.5);
+    padding: clamp(2rem, 6vw, 4rem);
+    color: #fff;
+    background:
+        radial-gradient(circle at 85% 15%, rgba(255, 255, 255, 0.18), transparent 40%),
+        linear-gradient(135deg, var(--ms-brand), #7c3aed 70%, #db2777);
+    box-shadow: var(--ms-shadow);
+}
+.hero h1 { font-weight: 800; letter-spacing: -0.03em; }
+.hero .lead { color: rgba(255, 255, 255, 0.88); max-width: 36rem; }
+.hero .btn-light { color: var(--ms-brand); font-weight: 600; }
+.usp { display: flex; gap: 0.75rem; align-items: flex-start; }
+.usp .icon { flex: none; width: 1.5rem; height: 1.5rem; color: var(--ms-brand); margin-top: 0.15rem; }
+.category-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: var(--ms-tap);
+    padding: 0.4rem 1rem;
+    border: 1px solid var(--ms-border);
+    border-radius: 999px;
+    background-color: var(--ms-surface);
+    color: inherit;
+    text-decoration: none;
+    font-weight: 500;
+}
+.category-chip:hover, .category-chip.active { border-color: var(--ms-brand); color: var(--ms-brand); background-color: var(--ms-brand-soft); }
+.category-chip .count { color: var(--ms-text-muted); font-size: 0.85em; }
+.chip-row { display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.25rem; scrollbar-width: thin; }
+
+/* ---------- Výloha: karta produktu ---------- */
+
+.product-card { transition: transform 0.15s ease, box-shadow 0.15s ease; overflow: hidden; }
+.product-card:hover { transform: translateY(-2px); box-shadow: var(--ms-shadow); }
+.product-card .card-title a { text-decoration: none; }
+.product-card .card-title a::after { content: ""; position: absolute; inset: 0; }   /* celá karta je odkaz na detail */
+.product-card form, .product-card .btn { position: relative; z-index: 1; }      /* tlačítko zůstane klikací */
+.product-card .description {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.price { font-weight: 700; font-size: 1.2rem; letter-spacing: -0.01em; }
+.rating { color: #f59e0b; }
+.badge-soft-success { background-color: #dcfce7; color: #166534; }
+.badge-soft-warning { background-color: #fef3c7; color: #92400e; }
+.badge-soft-danger { background-color: #fee2e2; color: #991b1b; }
+.badge-soft-secondary { background-color: #f3f4f6; color: #374151; }
+
+/* Výloha: lišta hledání nahoře; na mobilu filtry ve vysouvacím panelu. */
+.shop-toolbar { position: sticky; top: 4.25rem; z-index: 1010; background-color: var(--ms-canvas); padding: 0.5rem 0; }
+
+/* ---------- Detail produktu ---------- */
+
+.product-gallery { background-color: var(--ms-surface); border: 1px solid var(--ms-border); border-radius: var(--ms-radius); padding: 1rem; }
+.buy-box { background-color: var(--ms-surface); border: 1px solid var(--ms-border); border-radius: var(--ms-radius); padding: 1.25rem; box-shadow: var(--ms-shadow-sm); }
+@media (max-width: 767.98px) {
+    /* Na telefonu tlačítko „Do košíku“ přes celou šířku. */
+    .buy-box .btn-buy { width: 100%; }
+}
+
+/* ---------- Krok 12B: přehrávání průběhu objednávky ---------- */
+
 .replay-stage .form-control,
 .replay-stage .form-select,
 .replay-stage .btn { pointer-events: none; }
@@ -15,13 +238,14 @@ body { padding-bottom: 3rem; }
 }
 .replay-steps { max-height: 28rem; overflow-y: auto; }
 
-/* E-shop krok 2B: obrázky produktů – jednotný poměr stran, obrázek se vejde celý (nic se neořízne). */
+/* ---------- E-shop krok 2B: obrázky produktů – jednotný poměr stran, obrázek se vejde celý ---------- */
+
 .product-img,
 .product-img-placeholder {
     width: 100%;
     aspect-ratio: 4 / 3;
     object-fit: contain;
-    background-color: var(--bs-tertiary-bg);
+    background-color: #fff;
 }
 .product-img-placeholder {
     display: flex;
@@ -29,9 +253,11 @@ body { padding-bottom: 3rem; }
     justify-content: center;
     color: var(--bs-secondary-color);
     font-size: 0.875rem;
+    background-color: var(--bs-tertiary-bg);
 }
 
-/* E-shop krok 3: malý náhled produktu v košíku. */
+/* ---------- E-shop krok 3: malý náhled produktu v košíku ---------- */
+
 .cart-thumb {
     width: 64px;
     height: 48px;
@@ -41,3 +267,12 @@ body { padding-bottom: 3rem; }
 .cart-quantity {
     width: 5.5rem;
 }
+
+@media (prefers-reduced-motion: reduce) {
+    .product-card, .product-card:hover { transition: none; transform: none; }
+}
+
+/* Karta produktu: cena na jednom řádku, tlačítko pod ní přes celou šířku (dvě karty vedle sebe na telefonu). */
+.product-card-footer { display: flex; flex-direction: column; gap: 0.5rem; }
+.product-card-footer .price { white-space: nowrap; }
+.product-card-footer form { width: 100%; }

@@ -5,7 +5,16 @@
     var p = Model.Product;
     ViewData["Title"] = p.Name;
 }
-<p><a asp-page="/Shop/Index" data-track="product-back">← Obchod</a></p>
+<nav aria-label="Drobečková navigace" class="mb-3">
+    <ol class="breadcrumb small mb-0">
+        <li class="breadcrumb-item"><a asp-page="/Shop/Index" data-track="product-back">Obchod</a></li>
+        @if (p.CategoryId is not null)
+        {
+            <li class="breadcrumb-item"><a asp-page="/Shop/Index" asp-route-category="@p.CategoryId">@p.CategoryName</a></li>
+        }
+        <li class="breadcrumb-item active" aria-current="page">@p.Name</li>
+    </ol>
+</nav>
 
 <partial name="_StatusMessage" model="Model.StatusMessage" />
 @if (Model.ErrorMessage is not null)
@@ -13,40 +22,51 @@
     <div class="alert alert-danger">@Model.ErrorMessage</div>
 }
 
+@* Redesign A: obrázek vlevo, „nákupní box“ vpravo; na telefonu pod sebou s tlačítkem přes celou šířku. *@
 <div class="row g-4">
-    <div class="col-md-5">
-        @if (p.ImageFileName is not null)
-        {
-            <img src="@(ProductImageEndpoint.PathPrefix + p.ImageFileName)" alt="@p.Name" class="img-fluid rounded product-img" />
-        }
-        else
-        {
-            <div class="product-img-placeholder rounded">bez obrázku</div>
-        }
+    <div class="col-md-6">
+        <div class="product-gallery">
+            @if (p.ImageFileName is not null)
+            {
+                <img src="@(ProductImageEndpoint.PathPrefix + p.ImageFileName)" alt="@p.Name" class="img-fluid rounded product-img" />
+            }
+            else
+            {
+                <div class="product-img-placeholder rounded">bez obrázku</div>
+            }
+        </div>
     </div>
-    <div class="col-md-7">
+    <div class="col-md-6">
         <div class="text-muted small">@p.CategoryName</div>
-        <h1 class="h3">@p.Name</h1>
-        <div class="mb-2 text-warning" title="@RatingStars.Summary(Model.Reviews.AverageRating, Model.Reviews.RatingCount)" data-track="product-rating">
+        <h1 class="h2">@p.Name</h1>
+        <div class="mb-3 rating" title="@RatingStars.Summary(Model.Reviews.AverageRating, Model.Reviews.RatingCount)" data-track="product-rating">
             @RatingStars.For(Model.Reviews.AverageRating)
             <span class="text-muted small">@RatingStars.Summary(Model.Reviews.AverageRating, Model.Reviews.RatingCount)</span>
         </div>
-        <p>@p.Description</p>
-        <div class="d-flex align-items-center gap-3">
-            <strong class="fs-4">@p.Price.ToString("N2") Kč</strong>
-            <span class="badge @AvailabilityLabels.Badge(p.Availability)">@AvailabilityLabels.Text(p.Availability)</span>
+        <p class="text-secondary">@p.Description</p>
+        <div class="buy-box">
+            <div class="d-flex align-items-center justify-content-between gap-3 mb-3">
+                <span class="price fs-3">@p.Price.ToString("N2") Kč</span>
+                <span class="badge @AvailabilityLabels.Badge(p.Availability)">@AvailabilityLabels.Text(p.Availability)</span>
+            </div>
             @if (Model.CanOrder && p.Availability != "OutOfStock")
             {
                 <form method="post" asp-page="/Cart/Index" asp-page-handler="Add">
                     <input type="hidden" name="productId" value="@p.ProductId" />
                     <input type="hidden" name="returnUrl" value="@Model.CurrentUrl" />
-                    <button type="submit" class="btn btn-primary" data-track="product-add-to-cart">Do košíku</button>
+                    <button type="submit" class="btn btn-primary btn-lg btn-buy d-inline-flex align-items-center justify-content-center gap-2" data-track="product-add-to-cart">
+                        @Icons.Cart <span>Do košíku</span>
+                    </button>
                 </form>
             }
             else if (Model.IsAnonymous)
             {
-                <a asp-page="/Account/Login" asp-route-returnUrl="@Model.CurrentUrl" class="btn btn-outline-primary">Přihlásit a nakoupit</a>
+                <a asp-page="/Account/Login" asp-route-returnUrl="@Model.CurrentUrl" class="btn btn-outline-primary btn-lg btn-buy">Přihlásit a nakoupit</a>
             }
+            <ul class="list-unstyled small text-muted mt-3 mb-0">
+                <li class="d-flex align-items-center gap-2">@Icons.Truck Doprava zdarma od 1 000 Kč, kurýr 99 Kč</li>
+                <li class="d-flex align-items-center gap-2 mt-1">@Icons.Shield 14 dní na vrácení</li>
+            </ul>
         </div>
     </div>
 </div>

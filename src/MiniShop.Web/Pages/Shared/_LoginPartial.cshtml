@@ -1,27 +1,39 @@
 @using MiniShop.Infrastructure.Accounts
-@* Účty krok 1: pravá část hlavičky – kdo je přihlášený, nebo odkazy na přihlášení a registraci. *@
-<ul class="navbar-nav ms-auto">
+@* Účty krok 1: pravá část hlavičky – kdo je přihlášený, nebo odkazy na přihlášení a registraci.
+   Redesign A: účet v rozbalovací nabídce (na mobilu se rozbalí v menu pod hlavičkou). *@
+<ul class="navbar-nav">
     @if (User.Identity?.IsAuthenticated == true)
     {
-        <li class="nav-item">
-            @* Účty krok 2: jméno vede na změnu hesla, u admina je vidět role. *@
-            <a class="nav-link" asp-page="/Account/ChangePassword" title="Změnit heslo" data-track="nav-account">
-                @(User.FindFirst(AccountClaimTypes.DisplayName)?.Value ?? User.Identity.Name)
+        var name = User.FindFirst(AccountClaimTypes.DisplayName)?.Value ?? User.Identity.Name;
+        <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle d-flex align-items-center gap-2" href="#" role="button" data-bs-toggle="dropdown"
+               aria-expanded="false" data-track="nav-account-menu">
+                @Icons.Person <span>@name</span>
                 @if (User.IsInRole(AccountRoles.Admin))
                 {
-                    <span class="badge bg-warning text-dark ms-1">admin</span>
+                    <span class="badge badge-soft-warning">admin</span>
                 }
             </a>
-        </li>
-        <li class="nav-item">
-            <form method="post" asp-page="/Account/Logout" class="d-inline">
-                <button type="submit" class="btn btn-link nav-link" data-track="nav-logout">Odhlásit</button>
-            </form>
+            <ul class="dropdown-menu dropdown-menu-lg-end">
+                <li><a class="dropdown-item" asp-page="/Orders/Index">Moje objednávky</a></li>
+                @* Účty krok 2: změna hesla = stránka „účet“ (pod ní další nastavení – _AccountFooter). *@
+                <li><a class="dropdown-item" asp-page="/Account/ChangePassword" data-track="nav-account">Nastavení účtu</a></li>
+                @if (User.IsInRole(AccountRoles.User))
+                {
+                    <li><a class="dropdown-item" asp-page="/Account/EmailPreferences">Nastavení e-mailů</a></li>
+                }
+                <li><hr class="dropdown-divider" /></li>
+                <li>
+                    <form method="post" asp-page="/Account/Logout">
+                        <button type="submit" class="dropdown-item" data-track="nav-logout">Odhlásit</button>
+                    </form>
+                </li>
+            </ul>
         </li>
     }
     else
     {
         <li class="nav-item"><a class="nav-link" asp-page="/Account/Login" data-track="nav-login">Přihlásit</a></li>
-        <li class="nav-item"><a class="nav-link" asp-page="/Account/Register" data-track="nav-register">Registrovat</a></li>
+        <li class="nav-item ms-lg-1"><a class="btn btn-primary btn-sm my-1 my-lg-0" asp-page="/Account/Register" data-track="nav-register">Registrovat</a></li>
     }
 </ul>

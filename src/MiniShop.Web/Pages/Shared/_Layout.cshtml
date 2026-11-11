@@ -1,11 +1,16 @@
 @using Microsoft.AspNetCore.Authorization
 @using MiniShop.Web.Accounts
 @inject IAuthorizationService AuthorizationService
+@{
+    var isAdmin = (await AuthorizationService.AuthorizeAsync(User, AuthorizationPolicies.RequireAdmin)).Succeeded;
+    var isSignedIn = User.Identity?.IsAuthenticated == true;
+}
 <!DOCTYPE html>
 <html lang="cs">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#4f46e5" />
     <title>@ViewData["Title"] – MiniShop</title>
     @* Účty krok 8: Bootstrap 5.3.3 lokálně (ne z CDN) – CSP pouští jen vlastní soubory a cizí server nevidí návštěvníky. *@
     <link rel="stylesheet" href="~/lib/bootstrap/css/bootstrap.min.css" asp-append-version="true" />
@@ -14,41 +19,89 @@
     @await RenderSectionAsync("Styles", required: false)
 </head>
 <body>
-    <nav class="navbar navbar-expand navbar-dark bg-dark mb-4">
-        <div class="container">
-            @* data-track = stabilní jméno prvku pro sledování a přehrávání průběhu objednávky (krok 12). *@
-            <a class="navbar-brand" asp-page="/Index" data-track="nav-home">MiniShop</a>
-            <ul class="navbar-nav">
-                <li class="nav-item"><a class="nav-link" asp-page="/Shop/Index" data-track="nav-shop">Obchod</a></li>
-                @await Component.InvokeAsync("CartBadge")
-                @* Účty krok 2: menu podle role – zamčené je to stejně na serveru, tady jde jen o to neukazovat slepé odkazy. *@
-                @if ((await AuthorizationService.AuthorizeAsync(User, AuthorizationPolicies.RequireAdmin)).Succeeded)
-                {
-                    <li class="nav-item"><a class="nav-link" asp-page="/Products/Index" data-track="nav-products">Produkty</a></li>
-                    <li class="nav-item"><a class="nav-link" asp-page="/Admin/Fulfilment/Index" data-track="nav-fulfilment">Expedice</a></li>
-                    <li class="nav-item"><a class="nav-link" asp-page="/Admin/Returns/Index" data-track="nav-returns">Vratky</a></li>   @* e-shop krok 12 *@
-                    <li class="nav-item"><a class="nav-link" asp-page="/Admin/Users/Index" data-track="nav-users">Uživatelé</a></li>
-                    <li class="nav-item"><a class="nav-link" asp-page="/Admin/Sales/Index" data-track="nav-sales">Přehled</a></li>   @* e-shop krok 11 *@
-                    <li class="nav-item"><a class="nav-link" asp-page="/Admin/Coupons/Index" data-track="nav-coupons">Kupony</a></li>   @* e-shop krok 13 *@
-                    <li class="nav-item"><a class="nav-link" asp-page="/Admin/Reviews/Index" data-track="nav-reviews">Hodnocení</a></li>   @* e-shop krok 14 *@
-                    <li class="nav-item"><a class="nav-link" asp-page="/Admin/Invoices/Index" data-track="nav-invoices">Faktury</a></li>   @* e-shop krok 15 *@
-                    <li class="nav-item"><a class="nav-link" asp-page="/Admin/CartInsights/Index" data-track="nav-cart-insights">Košíky</a></li>   @* e-shop krok 17 *@
-                    <li class="nav-item"><a class="nav-link" asp-page="/Admin/Messages/Index" data-track="nav-messages">Zprávy</a></li>   @* EDA krok 13 *@
-                }
-                <li class="nav-item"><a class="nav-link" asp-page="/Orders/Index" data-track="nav-orders">Objednávky</a></li>
-                <li class="nav-item"><a class="nav-link" href="/Docs" data-track="nav-docs">Dokumentace</a></li>
-            </ul>
-            <partial name="_LoginPartial" />
-        </div>
-    </nav>
-    <main class="container">
+    @* Redesign A: hlavička – na mobilu logo, košík a „hamburger“, odkazy se rozbalí pod ní (Bootstrap collapse). *@
+    <header class="site-header sticky-top">
+        <nav class="navbar navbar-expand-lg" aria-label="Hlavní menu">
+            <div class="container">
+                @* data-track = stabilní jméno prvku pro sledování a přehrávání průběhu objednávky (krok 12). *@
+                <a class="navbar-brand me-lg-4" asp-page="/Index" data-track="nav-home">
+                    <span class="brand-mark">@Icons.Bag</span> MiniShop
+                </a>
+
+                <div class="collapse navbar-collapse order-last order-lg-0" id="main-nav">
+                    <ul class="navbar-nav me-auto">
+                        <li class="nav-item"><a class="nav-link" asp-page="/Shop/Index" data-track="nav-shop">Obchod</a></li>
+                        @if (isSignedIn)
+                        {
+                            <li class="nav-item"><a class="nav-link" asp-page="/Orders/Index" data-track="nav-orders">Objednávky</a></li>
+                        }
+                        @* Účty krok 2: menu podle role – zamčené je to stejně na serveru, tady jde jen o to neukazovat slepé odkazy.
+                           Redesign A: administrace v jedné rozbalovací nabídce (11 odkazů by se do lišty nevešlo). *@
+                        @if (isAdmin)
+                        {
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false" data-track="nav-admin">Správa</a>
+                                <ul class="dropdown-menu">
+                                    <li><h6 class="dropdown-header">Katalog a objednávky</h6></li>
+                                    <li><a class="dropdown-item" asp-page="/Products/Index" data-track="nav-products">Produkty</a></li>
+                                    <li><a class="dropdown-item" asp-page="/Admin/Fulfilment/Index" data-track="nav-fulfilment">Expedice</a></li>
+                                    <li><a class="dropdown-item" asp-page="/Admin/Returns/Index" data-track="nav-returns">Vratky</a></li>   @* e-shop krok 12 *@
+                                    <li><a class="dropdown-item" asp-page="/Admin/Coupons/Index" data-track="nav-coupons">Kupony</a></li>   @* e-shop krok 13 *@
+                                    <li><a class="dropdown-item" asp-page="/Admin/Reviews/Index" data-track="nav-reviews">Hodnocení</a></li>   @* e-shop krok 14 *@
+                                    <li><hr class="dropdown-divider" /></li>
+                                    <li><h6 class="dropdown-header">Přehledy</h6></li>
+                                    <li><a class="dropdown-item" asp-page="/Admin/Sales/Index" data-track="nav-sales">Tržby</a></li>   @* e-shop krok 11 *@
+                                    <li><a class="dropdown-item" asp-page="/Admin/Invoices/Index" data-track="nav-invoices">Faktury</a></li>   @* e-shop krok 15 *@
+                                    <li><a class="dropdown-item" asp-page="/Admin/CartInsights/Index" data-track="nav-cart-insights">Košíky</a></li>   @* e-shop krok 17 *@
+                                    <li><hr class="dropdown-divider" /></li>
+                                    <li><h6 class="dropdown-header">Provoz</h6></li>
+                                    <li><a class="dropdown-item" asp-page="/Admin/Users/Index" data-track="nav-users">Uživatelé</a></li>
+                                    <li><a class="dropdown-item" asp-page="/Admin/Messages/Index" data-track="nav-messages">Zprávy</a></li>   @* EDA krok 13 *@
+                                </ul>
+                            </li>
+                        }
+                        <li class="nav-item"><a class="nav-link" href="/Docs" data-track="nav-docs">Dokumentace</a></li>
+                    </ul>
+                    @* Redesign A: hledání přímo z hlavičky – stejný formulář GET jako na stránce Obchod (/Shop?q=…). *@
+                    <form class="header-search my-2 my-lg-0 me-lg-3 flex-grow-1" method="get" action="/Shop" role="search">
+                        <div class="input-group">
+                            <span class="input-group-text bg-white">@Icons.Search</span>
+                            <input class="form-control border-start-0" type="search" name="q" placeholder="Hledat zboží…" aria-label="Hledat zboží" maxlength="100" data-track="nav-search" />
+                        </div>
+                    </form>
+                    <partial name="_LoginPartial" />
+                </div>
+
+                <div class="d-flex align-items-center gap-1 ms-auto ms-lg-0">
+                    @await Component.InvokeAsync("CartBadge")
+                    <button class="navbar-toggler d-lg-none" type="button" data-bs-toggle="collapse" data-bs-target="#main-nav"
+                            aria-controls="main-nav" aria-expanded="false" aria-label="Otevřít menu" data-track="nav-toggle">
+                        @Icons.Menu
+                    </button>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <main class="container pt-4">
         <partial name="_EmailConfirmationBanner" />
         @RenderBody()
     </main>
+
     @* Účty krok 9: veřejný web – informace o osobních údajích musí být dostupná odkudkoli. *@
-    <footer class="container border-top mt-5 py-3 text-muted small">
-        MiniShop – výukový e-shop · <a asp-page="/Privacy" data-track="nav-privacy">Ochrana osobních údajů</a>
+    <footer class="site-footer mt-5 py-4">
+        <div class="container d-flex flex-column flex-md-row justify-content-between gap-2 small">
+            <div><strong class="text-body">MiniShop</strong> – výukový e-shop · platby jen v testovacím režimu</div>
+            <nav class="d-flex flex-wrap gap-3" aria-label="Patička">
+                <a asp-page="/Shop/Index">Obchod</a>
+                <a asp-page="/Privacy" data-track="nav-privacy">Ochrana osobních údajů</a>
+                <a href="/Docs">Dokumentace</a>
+                <a href="https://github.com/ftichy/MiniShop">Zdrojový kód</a>
+            </nav>
+        </div>
     </footer>
+    @* Redesign A: Bootstrap JS lokálně (menu na mobilu, rozbalovací nabídky, panel filtrů) – soubor, ne inline skript (CSP). *@
+    <script src="~/lib/bootstrap/js/bootstrap.bundle.min.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

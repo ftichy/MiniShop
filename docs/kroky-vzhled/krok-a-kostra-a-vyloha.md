@@ -54,6 +54,9 @@ i testy zůstaly. Další kroky: B – nákupní cesta (košík, pokladna, objed
 - `dotnet test MiniShop.slnx` (Web testy, `HardeningTests` – CSP, žádné inline skripty).
 - Lokálně https://localhost:7180 – v DevTools (Ctrl+Shift+M) iPhone/Android: hamburger, košík v hlavičce, *Filtry* ve výloze.
 
+**Nasazeno 11. 11. 2026** (PR #81, postupné nasazení, jen Web). Ověřeno uživatelem na telefonu: hlavička s menu
+a košíkem, výloha se dvěma sloupci a panelem filtrů, detail produktu.
+
 ## Vyzkoušejte sami
 
 1. Na telefonu otevřete web – hlavička má logo, košík a menu ☰; menu se rozbalí pod ní.

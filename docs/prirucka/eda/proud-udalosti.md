@@ -47,8 +47,10 @@ Stejný princip má i [kopie katalogu](kopie-katalogu.md) – jen se výsledek p
 ## Proč takhle
 
 Pro průběh formuláře je proud ideální: zajímá nás právě *jak* uživatel postupoval (kde váhal, co opravoval).
-Plný **event sourcing** (i objednávky jako proud) MiniShop nepoužívá – přináší složitost (verzování událostí,
-snapshoty), která by výuku ostatních konceptů zbytečně zatemnila.
+Tady jde o **záznam** – nad proudem nestojí agregát s pravidly. Plný **event sourcing** (události jako zdroj
+pravdy agregátu) má od e-shop kroku 17 **košík** – viz [Event sourcing košíku](event-sourcing.md). Objednávky zůstávají
+klasicky (stav v tabulkách + doménové události do outboxu): verzování událostí a snapshoty se vyplatí jen tam,
+kde historie opravdu přináší hodnotu.
 
 ## Na internetu
 

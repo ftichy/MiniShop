@@ -79,6 +79,9 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Anonymous, "/Admin/Invoices", Expect.Login },             // e-shop krok 15: přehled faktur – jen admin
         { Who.User, "/Admin/Invoices", Expect.Denied },
         { Who.Admin, "/Admin/Invoices", Expect.Allowed },
+        { Who.Anonymous, "/Admin/CartInsights", Expect.Login },         // e-shop krok 17: statistika košíků z událostí – jen admin
+        { Who.User, "/Admin/CartInsights", Expect.Denied },
+        { Who.Admin, "/Admin/CartInsights", Expect.Allowed },
 
         // E-shop krok 3: košík – jen zákazník (admin neobjednává)
         { Who.Anonymous, "/Cart", Expect.Login },

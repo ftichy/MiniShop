@@ -131,6 +131,7 @@ public sealed class OrderServiceTests : IDisposable
         services.AddScoped<IProductImageService, ProductImageService>();
         services.AddScoped<ICatalogQueryService, CatalogQueryService>();
         services.AddScoped<ICartService, CartService>();
+        services.AddScoped<CartHistoryService>();   // e-shop krok 17
         services.AddScoped<ICheckoutService, CheckoutService>();
         services.AddScoped<CouponService>();                                       // e-shop krok 13
         services.AddDomainEventHandler<OrderRejected, ReleaseCouponHandler>();
@@ -2340,6 +2341,113 @@ public sealed class OrderServiceTests : IDisposable
 
         Assert.Equal(new[] { Petra.CustomerId }, await OrderingDb(db => db.Carts.Select(c => c.CustomerId).ToListAsync()));
         Assert.Equal(1, await OrderingDb(db => db.Set<MiniShop.Domain.Orders.Carts.CartLine>().CountAsync()));   // řádky kaskádou
+        // E-shop krok 17: i celý proud událostí košíku (ON DELETE CASCADE) – Petřin zůstal.
+        Assert.Equal([Petra.CustomerId], await OrderingDb(db => db.CartEvents.Select(e => e.Cart!.CustomerId).Distinct().ToListAsync()));
+    }
+
+    // ---------- E-shop krok 17: event sourcing košíku ----------
+
+    [Fact]
+    public async Task KosikES_ZmenyJsouUdalostiVProudu_HistorieZakaznika()
+    {
+        var mouse = await AddProductAsync("Myš", 500m, stock: 10, UncategorizedId);
+        var cable = await AddProductAsync("Kabel", 100m, stock: 10, UncategorizedId);
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, mouse.Id, 1));
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, cable.Id, 2));
+        await Cart(async s => { await s.RemoveItemAsync(Jan.CustomerId, mouse.Id); return true; });
+        var summary = await Checkout(s => s.GetAsync(Jan.CustomerId));
+        await Checkout(s => s.PlaceOrderAsync(Pickup(summary.CheckoutId), Jan));
+
+        var stream = await OrderingDb(db => db.CartEvents.OrderBy(e => e.Version).Select(e => new { e.Version, e.Type }).ToListAsync());
+        Assert.Equal([(1, "CartItemAdded"), (2, "CartItemAdded"), (3, "CartItemRemoved"), (4, "CartCheckedOut")],
+            stream.Select(e => (e.Version, e.Type)));
+
+        var history = await CartHistory(s => s.GetHistoryAsync(Jan.CustomerId));
+        Assert.Equal(["Objednáno (2 ks)", "Odebráno: Myš", "Přidáno: Kabel (2 ks)", "Přidáno: Myš (1 ks)"], history.Select(h => h.Text));
+        Assert.Empty(await CartHistory(s => s.GetHistoryAsync(Petra.CustomerId)));
+    }
+
+    [Fact]
+    public async Task KosikES_KosikZDobyPredUdalostmi_PrevzetiSnapshotemPriPrvniZmene()
+    {
+        var mouse = await AddProductAsync("Myš", 500m, stock: 10, UncategorizedId);
+        var cable = await AddProductAsync("Kabel", 100m, stock: 10, UncategorizedId);
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, mouse.Id, 3));
+        await OrderingDb(db => db.CartEvents.ExecuteDeleteAsync());   // košík „z doby před krokem 17“ – jen tabulky
+
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, cable.Id, 1));
+
+        var stream = await OrderingDb(db => db.CartEvents.OrderBy(e => e.Version).Select(e => e.Type).ToListAsync());
+        Assert.Equal(["CartSnapshotTaken", "CartItemAdded"], stream);
+        var cart = await Cart(s => s.GetAsync(Jan.CustomerId));
+        Assert.Equal([("Myš", 3), ("Kabel", 1)], cart.Lines.Select(l => (l.Name, l.Quantity)));
+    }
+
+    [Fact]
+    public async Task KosikES_ProjekceZmenenaStarsiVerziKodu_ZmenaSeNeztratiAResync()
+    {
+        var mouse = await AddProductAsync("Myš", 500m, stock: 10, UncategorizedId);
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, mouse.Id, 1));
+
+        // Postupné nasazení: stará verze Webu změní jen tabulky (množství + nová verze pro pokladnu), událost nevznikne.
+        await OrderingDb(db => db.Set<MiniShop.Domain.Orders.Carts.CartLine>().ExecuteUpdateAsync(s => s.SetProperty(l => l.Quantity, 4)));
+        await OrderingDb(db => db.Carts.ExecuteUpdateAsync(s => s.SetProperty(c => c.CheckoutId, Guid.NewGuid())));
+
+        await Cart(async s => { await s.ChangeQuantityAsync(Jan.CustomerId, mouse.Id, 5); return true; });
+
+        Assert.Equal(["CartItemAdded", "CartSnapshotTaken", "CartItemQuantityChanged"],
+            await OrderingDb(db => db.CartEvents.OrderBy(e => e.Version).Select(e => e.Type).ToListAsync()));
+        Assert.Equal(5, await Cart(s => s.GetTotalQuantityAsync(Jan.CustomerId)));
+    }
+
+    [Fact]
+    public async Task KosikES_SoubeznaZmenaVeDvouZalozkach_DruhaNarazi()
+    {
+        var mouse = await AddProductAsync("Myš", 500m, stock: 10, UncategorizedId);
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, mouse.Id, 1));
+
+        // Dvě záložky načtou košík ve stejné verzi proudu a obě chtějí zapsat verzi 2.
+        await using var first = _services.CreateAsyncScope();
+        await using var second = _services.CreateAsyncScope();
+        var firstCart = (await first.ServiceProvider.GetRequiredService<ICartRepository>().GetByCustomerIdAsync(Jan.CustomerId))!;
+        var secondCart = (await second.ServiceProvider.GetRequiredService<ICartRepository>().GetByCustomerIdAsync(Jan.CustomerId))!;
+        firstCart.ChangeQuantity(mouse.Id, 2, Now.UtcDateTime);
+        secondCart.ChangeQuantity(mouse.Id, 3, Now.UtcDateTime);
+
+        await first.ServiceProvider.GetRequiredService<IOrderingUnitOfWork>().SaveChangesAsync();
+        await Assert.ThrowsAsync<ConcurrencyConflictException>(() =>
+            second.ServiceProvider.GetRequiredService<IOrderingUnitOfWork>().SaveChangesAsync());
+
+        Assert.Equal(2, await Cart(s => s.GetTotalQuantityAsync(Jan.CustomerId)));
+        Assert.Equal(2, await OrderingDb(db => db.CartEvents.CountAsync()));
+    }
+
+    [Fact]
+    public async Task KosikES_Statistika_OdebraneProduktyAKonecNakupu()
+    {
+        var mouse = await AddProductAsync("Myš", 500m, stock: 10, UncategorizedId);
+        var cable = await AddProductAsync("Kabel", 100m, stock: 10, UncategorizedId);
+        // Jan: myš si rozmyslel, kabel objednal. Petra: myš odebrala, kabel nechala v košíku.
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, mouse.Id, 1));
+        await Cart(s => s.AddItemAsync(Jan.CustomerId, cable.Id, 1));
+        await Cart(async s => { await s.RemoveItemAsync(Jan.CustomerId, mouse.Id); return true; });
+        var summary = await Checkout(s => s.GetAsync(Jan.CustomerId));
+        await Checkout(s => s.PlaceOrderAsync(Pickup(summary.CheckoutId), Jan));
+        await Cart(s => s.AddItemAsync(Petra.CustomerId, mouse.Id, 1));
+        await Cart(s => s.AddItemAsync(Petra.CustomerId, cable.Id, 1));
+        await Cart(async s => { await s.RemoveItemAsync(Petra.CustomerId, mouse.Id); return true; });
+
+        var insights = await CartHistory(s => s.GetInsightsAsync());
+
+        Assert.Equal((1, 0, 1, 7), (insights.CheckedOut, insights.Cleared, insights.OpenCarts, insights.EventCount));
+        var removed = Assert.Single(insights.TopRemoved);
+        Assert.Equal(("Myš", 2), (removed.Name, removed.Count));
+    }
+
+    private async Task<T> CartHistory<T>(Func<CartHistoryService, Task<T>> action)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await action(scope.ServiceProvider.GetRequiredService<CartHistoryService>());
     }
 
     [Fact]

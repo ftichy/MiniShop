@@ -400,8 +400,8 @@ Nereagujeme na událost, ale na to, že po `CartItemAdded` do 24 hodin nepřiše
 - ~~**Vrácení zboží / reklamace**~~ – **hotovo jako krok 12** ([souhrn](kroky-eshop/krok-12-vraceni-zbozi.md)): druhá sága `ReturnSaga`, převzetí adminem, naskladnění, refundace.
 - ~~**Faktura PDF**~~ – **hotovo jako krok 15** ([souhrn](kroky-eshop/krok-15-faktury.md)): modul Invoicing, faktura z událostí po zaplacení, číselná řada bez děr, PDF (QuestPDF, licence Community) v příloze e-mailu. Dobropis při zrušení/vrácení = **krok 15B** ([souhrn](kroky-eshop/krok-15b-dobropisy.md)): dobropis z kopie faktury, vlastní řada `D…`, `CreditNoteIssuedV1` → e-mail s PDF.
 - ~~**Hodnocení produktů**~~ – **hotovo jako krok 14** ([souhrn](kroky-eshop/krok-14-hodnoceni-produktu.md)): modul Reviews s vlastní kopií nákupů z událostí, souhrn do výlohy.
-- **Event sourcing košíku** – stav košíku jako fold nad událostmi (Journeys už ten vzor ukazuje),
-  analytika „co lidé vkládají a nekupují“.
+- ~~**Event sourcing košíku**~~ – **krok 17** ([souhrn](kroky-eshop/krok-17-event-sourcing-kosiku.md)): události `CartEvents`
+  jako zdroj pravdy, tabulky jako projekce, historie košíku a analytika „co lidé vkládají a nekupují“.
 - ~~**CQRS přehled pro admina**~~ – **hotovo jako krok 11** ([souhrn](kroky-eshop/krok-11-prehled-trzeb.md)): modul Reporting, projekce z událostí, přestavění ze snímků.
 
 ## Shrnutí nákladů

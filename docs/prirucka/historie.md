@@ -94,6 +94,7 @@ Plán (výloha, košík, pokladna, expedice, platba, notifikace): [docs/Eshop-ro
 | 15 | Faktury – modul Invoicing s kopií objednávek z událostí, faktura po zaplacení (karta) nebo doručení (dobírka), číselná řada bez děr (číslo ve stejné transakci, konflikt verze při souběhu), PDF přes QuestPDF, e-mail s PDF v příloze (Notifications přes `IInvoiceDocuments`), `/Admin/Invoices` | [eshop-15](code:docs/kroky-eshop/krok-15-faktury.md) |
 | 15B | Dobropisy – faktura se nemění, zrušení/zamítnutí/vrácení zaplacené objednávky vystaví dobropis (kopie faktury, vlastní řada `D…` v nové tabulce kvůli postupnému nasazení), `CreditNoteIssuedV1` → e-mail s PDF, `/Orders/{id}/CreditNote` | [eshop-15b](code:docs/kroky-eshop/krok-15b-dobropisy.md) |
 | 16 | Skutečná platební brána – Stripe Checkout v testovacím režimu jako další implementace `IPaymentGateway` (adaptér), webhook s podpisem `Stripe-Signature`, idempotency key pro založení i refund, skutečný refund pozdní platby; sága ani kontrakty beze změny | [eshop-16](code:docs/kroky-eshop/krok-16-stripe.md) |
+| 17 | Event sourcing košíku – události `CartEvents` jako zdroj pravdy agregátu `Cart`, tabulky košíku jako projekce, přirozený snapshot (od posledního objednání/vyprázdnění), souběh přes verzi proudu, převzetí starých košíků snapshotem; historie košíku a statistika „co zákazníci odebírají“ z událostí | [eshop-17](code:docs/kroky-eshop/krok-17-event-sourcing-kosiku.md) |
 
 ## Škálování
 

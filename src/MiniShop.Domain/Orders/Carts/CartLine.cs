@@ -30,15 +30,11 @@ public sealed class CartLine
     /// <summary>Cena při posledním přidání – jen pro upozornění „cena se změnila“, závazná není.</summary>
     public decimal PriceWhenAdded { get; private set; }
 
-    internal void Increase(int quantity, decimal currentPrice)
+    /// <summary>E-shop krok 17: nastavit stav z události (pravidla už ověřil košík před vyvoláním události).</summary>
+    internal void Restore(int quantity, decimal priceWhenAdded)
     {
-        if (quantity <= 0)
-        {
-            throw new DomainException("Množství musí být větší než nula.");
-        }
-
-        SetQuantity(Quantity + quantity);
-        PriceWhenAdded = currentPrice;
+        Quantity = quantity;
+        PriceWhenAdded = priceWhenAdded;
     }
 
     internal void AcceptPrice(decimal currentPrice) => PriceWhenAdded = currentPrice;

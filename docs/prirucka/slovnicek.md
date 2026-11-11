@@ -25,7 +25,9 @@ order: 80
 | **Dual write** | zápis do dvou systémů (DB + broker), který může skončit napůl | [Outbox](eda/outbox.md) |
 | **Eventual consistency** | data se sjednotí se zpožděním (sekundy), ne okamžitě | [EDA](eda/index.md) |
 | **Expand → contract** | změna kontraktu ve dvou fázích: nejdřív posílat starou i novou verzi, až ji nikdo nečte, starou odebrat (`ProductUpdatedV1` → `V2`) | [Integrační zprávy](eda/integracni-zpravy.md) |
-| **Event sourcing** | ukládá se seznam událostí, stav se z nich počítá | [Proud událostí](eda/proud-udalosti.md) |
+| **Event sourcing** | ukládá se seznam událostí, stav se z nich počítá (v MiniShopu košík) | [Event sourcing košíku](eda/event-sourcing.md) |
+| **Snapshot (event sourcing)** | uložený stav v jednom bodě proudu – načtení začne od něj místo od první události | [Event sourcing košíku](eda/event-sourcing.md) |
+| **Upcasting** | převod staré podoby uložené události na novou při čtení (události se v úložišti nemění) | [Event sourcing košíku](eda/event-sourcing.md) |
 | **Exchange** | „třídírna“ v RabbitMQ – rozesílá zprávy do navázaných front | [Broker](eda/broker.md) |
 | **Fanout** | typ exchange, který pošle kopii zprávy do každé navázané fronty | [Broker](eda/broker.md) |
 | **Fold** | postupné „složení“ stavu z událostí – start s prázdným stavem a `Apply` pro každou | [Proud událostí](eda/proud-udalosti.md) |

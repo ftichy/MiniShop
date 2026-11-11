@@ -1,0 +1,55 @@
+@page
+@model MiniShop.Web.Pages.Admin.CartInsights.IndexModel
+@{
+    ViewData["Title"] = "Košíky";
+    var insights = Model.Insights;
+}
+<h1>Košíky</h1>
+<p class="text-muted">
+    Statistika z <strong>událostí košíků</strong> (event sourcing, e-shop krok 17) – počítá se při každém zobrazení,
+    nic se kvůli ní neukládá navíc.
+    @if (insights.Since is { } since)
+    {
+        <text>Historie se vede od @since.ToLocalTime().ToString("g") (@insights.EventCount událostí).</text>
+    }
+</p>
+
+@if (insights.EventCount == 0)
+{
+    <p class="text-muted">Zatím žádná událost košíku.</p>
+}
+else
+{
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3"><div class="card"><div class="card-body">
+            <div class="text-muted small">Objednáno</div><div class="fs-3" data-track="insights-checked-out">@insights.CheckedOut</div>
+        </div></div></div>
+        <div class="col-6 col-md-3"><div class="card"><div class="card-body">
+            <div class="text-muted small">Vyprázdněno bez objednávky</div><div class="fs-3">@insights.Cleared</div>
+        </div></div></div>
+        <div class="col-6 col-md-3"><div class="card"><div class="card-body">
+            <div class="text-muted small">Otevřené košíky se zbožím</div><div class="fs-3">@insights.OpenCarts</div>
+        </div></div></div>
+        <div class="col-6 col-md-3"><div class="card"><div class="card-body">
+            <div class="text-muted small">Připomínky zapomenutého košíku</div><div class="fs-3">@insights.RemindersSent</div>
+        </div></div></div>
+    </div>
+
+    <h2 class="h5">Nejčastěji odebírané z košíku</h2>
+    @if (insights.TopRemoved.Count == 0)
+    {
+        <p class="text-muted">Zatím nikdo nic neodebral.</p>
+    }
+    else
+    {
+        <table class="table table-sm">
+            <thead><tr><th>Produkt</th><th class="text-end">Odebráno</th></tr></thead>
+            <tbody>
+                @foreach (var product in insights.TopRemoved)
+                {
+                    <tr><td>@product.Name</td><td class="text-end">@product.Count×</td></tr>
+                }
+            </tbody>
+        </table>
+    }
+}

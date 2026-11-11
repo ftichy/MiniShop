@@ -8,16 +8,16 @@ public static class OrderStatusLabels
 {
     public static string Badge(string status) => status switch
     {
-        "Pending" => "bg-warning text-dark",
-        "AwaitingPayment" => "bg-warning text-dark",
-        "Confirmed" => "bg-primary",
-        "Packing" => "bg-info text-dark",
-        "Shipped" => "bg-primary",
-        "Rejected" => "bg-danger",
-        "Completed" => "bg-success",
-        "ReturnRequested" => "bg-warning text-dark",   // e-shop krok 12
-        "Returned" => "bg-secondary",
-        _ => "bg-secondary"
+        "Pending" => "badge-soft-warning",   // vzhled B: jemné barvy (site.css)
+        "AwaitingPayment" => "badge-soft-warning",
+        "Confirmed" => "badge-soft-primary",
+        "Packing" => "badge-soft-info",
+        "Shipped" => "badge-soft-primary",
+        "Rejected" => "badge-soft-danger",
+        "Completed" => "badge-soft-success",
+        "ReturnRequested" => "badge-soft-warning",   // e-shop krok 12
+        "Returned" => "badge-soft-secondary",
+        _ => "badge-soft-secondary"
     };
 
     /// <param name="shippingMethod"><c>Pickup</c> = osobní odběr (jiné texty expedice), jinak doručení.</param>

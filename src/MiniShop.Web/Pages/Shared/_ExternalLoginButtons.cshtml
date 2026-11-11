@@ -13,7 +13,7 @@
         <form method="post" asp-page="/Account/ExternalLogin" asp-route-returnUrl="@Model">
             @foreach (var scheme in schemes)
             {
-                <button type="submit" name="provider" value="@scheme.Name" class="btn btn-outline-secondary"
+                <button type="submit" name="provider" value="@scheme.Name" class="btn btn-outline-secondary w-100"
                         data-track="login-external-@scheme.Name.ToLowerInvariant()">
                     Přihlásit přes @scheme.DisplayName
                 </button>

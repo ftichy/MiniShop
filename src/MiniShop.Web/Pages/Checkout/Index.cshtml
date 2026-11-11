@@ -5,17 +5,17 @@
 @{
     ViewData["Title"] = "Pokladna";
 }
-<h1>Pokladna</h1>
+<h1 class="mb-3">Pokladna</h1>
 
 <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
 
 @if (Model.Summary.HasPriceChanges)
 {
     @* E-shop krok 4: žádné tiché zdražení – změnu ceny musí zákazník vidět a potvrdit. *@
-    <div class="alert alert-warning d-flex justify-content-between align-items-center">
+    <div class="alert alert-warning d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2">
         <span>Ceny některých produktů se od vložení do košíku změnily. Zkontrolujte je a potvrďte.</span>
         <form method="post" asp-page-handler="AcceptPrices">
-            <button type="submit" class="btn btn-warning" data-track="checkout-accept-prices">Přijmout nové ceny</button>
+            <button type="submit" class="btn btn-warning text-nowrap" data-track="checkout-accept-prices">Přijmout nové ceny</button>
         </form>
     </div>
 }
@@ -26,160 +26,164 @@
     </div>
 }
 
-<h2 class="h5">Zboží</h2>
-<table class="table table-sm align-middle">
-    <thead>
-        <tr>
-            <th>Produkt</th>
-            <th class="text-end">Cena za kus</th>
-            <th class="text-end">Množství</th>
-            <th class="text-end">Celkem</th>
-        </tr>
-    </thead>
-    <tbody>
-        @foreach (var line in Model.Summary.Cart.Lines)
-        {
-            <tr class="@(line.IsOrderable ? null : "text-muted")">
-                <td>
-                    @line.Name
-                    @if (!line.IsOrderable)
+@* Vzhled B: na počítači formulář vlevo a souhrn vpravo; na telefonu nejdřív souhrn (co kupuji), pak formulář
+   a tlačítko Objednat na konci. *@
+<div class="row g-4">
+    <div class="col-lg-5 order-lg-2">
+        <div class="card summary-card">
+            <div class="card-body">
+                <h2 class="h5 mb-3">Zboží</h2>
+                <ul class="list-unstyled mb-3">
+                    @foreach (var line in Model.Summary.Cart.Lines)
                     {
-                        <span class="badge bg-secondary">@(line.IsInOffer ? AvailabilityLabels.Text(line.Availability) : "Už není v nabídce")</span>
+                        <li class="d-flex justify-content-between gap-3 py-2 border-bottom @(line.IsOrderable ? null : "text-muted")">
+                            <div class="min-w-0">
+                                <div>@line.Quantity× @line.Name</div>
+                                @if (!line.IsOrderable)
+                                {
+                                    <span class="badge badge-soft-secondary">@(line.IsInOffer ? AvailabilityLabels.Text(line.Availability) : "Už není v nabídce")</span>
+                                }
+                                @if (line.PriceChanged)
+                                {
+                                    <div class="small text-warning-emphasis">dříve @line.PriceWhenAdded.ToString("N2") Kč / ks</div>
+                                }
+                            </div>
+                            <div class="text-end text-nowrap">
+                                <div>@line.LineTotal.ToString("N2") Kč</div>
+                                <div class="small text-muted">@line.UnitPrice.ToString("N2") Kč / ks</div>
+                            </div>
+                        </li>
                     }
-                </td>
-                <td class="text-end">
-                    @line.UnitPrice.ToString("N2") Kč
-                    @if (line.PriceChanged)
-                    {
-                        <div class="small text-warning-emphasis">dříve @line.PriceWhenAdded.ToString("N2") Kč</div>
-                    }
-                </td>
-                <td class="text-end">@line.Quantity</td>
-                <td class="text-end">@line.LineTotal.ToString("N2") Kč</td>
-            </tr>
-        }
-    </tbody>
-    <tfoot>
-        @if (Model.Summary.Discount > 0)
-        {
-            <tr>
-                <td colspan="3" class="text-end">Množstevní sleva</td>
-                <td class="text-end">-@Model.Summary.Discount.ToString("N2") Kč</td>
-            </tr>
-        }
-        @if (Model.Summary.CouponDiscount > 0)
-        {
-            <tr>
-                <td colspan="3" class="text-end">Slevový kód @Model.Summary.CouponCode</td>
-                <td class="text-end" data-track="checkout-coupon-discount">-@Model.Summary.CouponDiscount.ToString("N2") Kč</td>
-            </tr>
-        }
-        <tr class="fw-bold">
-            <td colspan="3" class="text-end">Zboží celkem</td>
-            <td class="text-end">@Model.Summary.ItemsTotal.ToString("N2") Kč</td>
-        </tr>
-    </tfoot>
-</table>
+                </ul>
+                @if (Model.Summary.Discount > 0)
+                {
+                    <div class="d-flex justify-content-between small"><span>Množstevní sleva</span><span>-@Model.Summary.Discount.ToString("N2") Kč</span></div>
+                }
+                @if (Model.Summary.CouponDiscount > 0)
+                {
+                    <div class="d-flex justify-content-between small">
+                        <span>Slevový kód @Model.Summary.CouponCode</span>
+                        <span data-track="checkout-coupon-discount">-@Model.Summary.CouponDiscount.ToString("N2") Kč</span>
+                    </div>
+                }
+                <div class="d-flex justify-content-between align-items-baseline fw-semibold mt-2">
+                    <span>Zboží celkem</span>
+                    <span class="price">@Model.Summary.ItemsTotal.ToString("N2") Kč</span>
+                </div>
+                <div class="text-muted small">+ doprava podle volby níže</div>
 
-@* E-shop krok 13: slevový kód – vlastní formulář mimo sledovaný formulář objednávky (Journeys ho nezapisují,
-   proto ani kopie v Replay.cshtml). Použití kódu se započítá až při objednání, ve stejné transakci. *@
-@if (Model.CouponMessage is not null)
-{
-    <div class="alert alert-info py-2" data-track="checkout-coupon-message">@Model.CouponMessage</div>
-}
-@if (Model.Summary.CouponProblem is not null)
-{
-    <div class="alert alert-warning py-2">@Model.Summary.CouponProblem Odeberte ho, nebo objednejte bez něj.</div>
-}
-<div class="mb-4">
-    @if (Model.Summary.CouponCode is null)
-    {
-        <form method="post" asp-page-handler="ApplyCoupon" class="d-flex gap-2" style="max-width: 24rem">
-            <input name="couponCode" class="form-control form-control-sm" placeholder="Slevový kód" maxlength="20"
-                   aria-label="Slevový kód" data-track="checkout-coupon-code" />
-            <button type="submit" class="btn btn-outline-primary btn-sm text-nowrap" data-track="checkout-coupon-apply">Uplatnit</button>
+                @* E-shop krok 13: slevový kód – vlastní formulář mimo sledovaný formulář objednávky (Journeys ho nezapisují,
+                   proto ani kopie v Replay.cshtml). Použití kódu se započítá až při objednání, ve stejné transakci. *@
+                <div class="border-top mt-3 pt-3">
+                    @if (Model.CouponMessage is not null)
+                    {
+                        <div class="alert alert-info py-2 small" data-track="checkout-coupon-message">@Model.CouponMessage</div>
+                    }
+                    @if (Model.Summary.CouponProblem is not null)
+                    {
+                        <div class="alert alert-warning py-2 small">@Model.Summary.CouponProblem Odeberte ho, nebo objednejte bez něj.</div>
+                    }
+                    @if (Model.Summary.CouponCode is null)
+                    {
+                        <form method="post" asp-page-handler="ApplyCoupon" class="d-flex gap-2">
+                            <input name="couponCode" class="form-control" placeholder="Slevový kód" maxlength="20" autocapitalize="characters"
+                                   aria-label="Slevový kód" data-track="checkout-coupon-code" />
+                            <button type="submit" class="btn btn-outline-primary text-nowrap" data-track="checkout-coupon-apply">Uplatnit</button>
+                        </form>
+                    }
+                    else
+                    {
+                        <form method="post" asp-page-handler="RemoveCoupon" class="d-flex gap-2 align-items-center justify-content-between">
+                            <span>Slevový kód <strong>@Model.Summary.CouponCode</strong></span>
+                            <button type="submit" class="btn btn-link btn-sm" data-track="checkout-coupon-remove">Odebrat</button>
+                        </form>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-7 order-lg-1">
+        @* E-shop krok 4B: order-form-tracker.js zapisuje, co zákazník v pokladně dělá (proud JourneyId, modul Journeys).
+           Hodnoty proudu ručně (ne asp-for) – po chybě musí platit hodnota ze serveru, ne ta odeslaná.
+           Vzhled B: přepínače jako velké karty; fieldset + legend zůstávají (tracker z legendy bere popisek skupiny). *@
+        <form method="post" class="d-flex flex-column gap-4" data-journey-form="@IndexModel.JourneyFormName"
+              data-journey-id="@Model.JourneyId" data-journey-offset="@Model.JourneyOffsetMs">
+            <input type="hidden" asp-for="Input.CheckoutId" />
+            <input type="hidden" name="JourneyId" value="@Model.JourneyId" />
+            <input type="hidden" name="JourneyOffsetMs" value="@Model.JourneyOffsetMs" />
+
+            <fieldset>
+                <legend class="h5">Doprava</legend>
+                <div class="d-flex flex-column gap-2">
+                    @foreach (var option in Model.Summary.ShippingOptions)
+                    {
+                        var id = $"shipping-{option.Method}";
+                        <label for="@id" class="choice-card">
+                            <input type="radio" id="@id" name="Input.ShippingMethod" value="@option.Method" class="form-check-input"
+                                   checked="@(Model.Input.ShippingMethod == option.Method)"
+                                   data-track-value="@IndexModel.ShippingName(option.Method)" />
+                            <span class="flex-grow-1">
+                                <span class="d-flex justify-content-between gap-2">
+                                    <span class="fw-semibold">@IndexModel.ShippingName(option.Method)</span>
+                                    <strong class="text-nowrap">@(option.Price == 0 ? "zdarma" : $"{option.Price:N2} Kč")</strong>
+                                </span>
+                                <span class="d-block small text-muted">celkem @((Model.Summary.ItemsTotal + option.Price).ToString("N2")) Kč</span>
+                            </span>
+                        </label>
+                    }
+                </div>
+            </fieldset>
+
+            @* E-shop krok 8: platba – kartou přes bránu (objednávka pak čeká na zaplacení), nebo dobírka.
+               Vlastní fieldset: sledování průběhu bere popisek přepínače z legendy (Doprava × Platba). *@
+            <fieldset>
+                <legend class="h5">Platba</legend>
+                <div class="d-flex flex-column gap-2">
+                    @foreach (var method in IndexModel.PaymentMethods)
+                    {
+                        var id = $"payment-{method}";
+                        <label for="@id" class="choice-card">
+                            <input type="radio" id="@id" name="Input.PaymentMethod" value="@method" class="form-check-input"
+                                   checked="@(Model.Input.PaymentMethod == method)"
+                                   data-track-value="@IndexModel.PaymentName(method)" />
+                            <span class="fw-semibold">@IndexModel.PaymentName(method)</span>
+                        </label>
+                    }
+                </div>
+            </fieldset>
+
+            <fieldset>
+                <legend class="h5">Doručovací adresa <span class="text-muted fs-6">(jen pro kurýra)</span></legend>
+                <div class="card card-body">
+                    <div class="mb-3">
+                        <label asp-for="Input.Street" class="form-label">Ulice a číslo popisné</label>
+                        <input asp-for="Input.Street" class="form-control" autocomplete="street-address" />
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-7 col-sm-8">
+                            <label asp-for="Input.City" class="form-label">Město</label>
+                            <input asp-for="Input.City" class="form-control" autocomplete="address-level2" />
+                        </div>
+                        <div class="col-5 col-sm-4">
+                            <label asp-for="Input.PostalCode" class="form-label">PSČ</label>
+                            <input asp-for="Input.PostalCode" class="form-control" inputmode="numeric" autocomplete="postal-code" />
+                        </div>
+                    </div>
+                </div>
+            </fieldset>
+
+            <div>
+                <button type="submit" class="btn btn-primary btn-lg w-100" disabled="@(!Model.Summary.CanPlaceOrder)"
+                        data-track="checkout-submit">Objednat</button>
+                <p class="text-muted small text-center mt-2 mb-2">Po odeslání ověříme sklad, potvrzení přijde e-mailem.</p>
+                <div class="text-center">
+                    <a asp-page="/Cart/Index" class="btn btn-link" data-track="checkout-back">← Zpět do košíku</a>
+                </div>
+            </div>
         </form>
-    }
-    else
-    {
-        <form method="post" asp-page-handler="RemoveCoupon" class="d-flex gap-2 align-items-center">
-            <span>Slevový kód <strong>@Model.Summary.CouponCode</strong></span>
-            <button type="submit" class="btn btn-link btn-sm" data-track="checkout-coupon-remove">Odebrat</button>
-        </form>
-    }
+    </div>
 </div>
-
-@* E-shop krok 4B: order-form-tracker.js zapisuje, co zákazník v pokladně dělá (proud JourneyId, modul Journeys).
-   Hodnoty proudu ručně (ne asp-for) – po chybě musí platit hodnota ze serveru, ne ta odeslaná. *@
-<form method="post" class="row g-3" data-journey-form="@IndexModel.JourneyFormName"
-      data-journey-id="@Model.JourneyId" data-journey-offset="@Model.JourneyOffsetMs">
-    <input type="hidden" asp-for="Input.CheckoutId" />
-    <input type="hidden" name="JourneyId" value="@Model.JourneyId" />
-    <input type="hidden" name="JourneyOffsetMs" value="@Model.JourneyOffsetMs" />
-
-    <div class="col-md-5">
-    <fieldset>
-        <legend class="h5">Doprava</legend>
-        @foreach (var option in Model.Summary.ShippingOptions)
-        {
-            var id = $"shipping-{option.Method}";
-            <div class="form-check">
-                <input type="radio" id="@id" name="Input.ShippingMethod" value="@option.Method" class="form-check-input"
-                       checked="@(Model.Input.ShippingMethod == option.Method)"
-                       data-track-value="@IndexModel.ShippingName(option.Method)" />
-                <label for="@id" class="form-check-label">
-                    @IndexModel.ShippingName(option.Method) –
-                    <strong>@(option.Price == 0 ? "zdarma" : $"{option.Price:N2} Kč")</strong>
-                    <span class="text-muted">(celkem @((Model.Summary.ItemsTotal + option.Price).ToString("N2")) Kč)</span>
-                </label>
-            </div>
-        }
-    </fieldset>
-
-    @* E-shop krok 8: platba – kartou přes bránu (objednávka pak čeká na zaplacení), nebo dobírka.
-       Vlastní fieldset: sledování průběhu bere popisek přepínače z legendy (Doprava × Platba). *@
-    <fieldset class="mt-3">
-        <legend class="h5">Platba</legend>
-        @foreach (var method in IndexModel.PaymentMethods)
-        {
-            var id = $"payment-{method}";
-            <div class="form-check">
-                <input type="radio" id="@id" name="Input.PaymentMethod" value="@method" class="form-check-input"
-                       checked="@(Model.Input.PaymentMethod == method)"
-                       data-track-value="@IndexModel.PaymentName(method)" />
-                <label for="@id" class="form-check-label">@IndexModel.PaymentName(method)</label>
-            </div>
-        }
-    </fieldset>
-    </div>
-
-    <fieldset class="col-md-7">
-        <legend class="h5">Doručovací adresa <span class="text-muted fs-6">(jen pro kurýra)</span></legend>
-        <div class="mb-2">
-            <label asp-for="Input.Street" class="form-label">Ulice a číslo popisné</label>
-            <input asp-for="Input.Street" class="form-control" autocomplete="street-address" />
-        </div>
-        <div class="row g-2">
-            <div class="col-8">
-                <label asp-for="Input.City" class="form-label">Město</label>
-                <input asp-for="Input.City" class="form-control" autocomplete="address-level2" />
-            </div>
-            <div class="col-4">
-                <label asp-for="Input.PostalCode" class="form-label">PSČ</label>
-                <input asp-for="Input.PostalCode" class="form-control" inputmode="numeric" autocomplete="postal-code" />
-            </div>
-        </div>
-    </fieldset>
-
-    <div class="col-12 d-flex justify-content-between align-items-center">
-        <a asp-page="/Cart/Index" class="btn btn-outline-secondary" data-track="checkout-back">Zpět do košíku</a>
-        <span>
-            <span class="text-muted small me-2">Po odeslání ověříme sklad, potvrzení přijde e-mailem.</span>
-            <button type="submit" class="btn btn-primary btn-lg" disabled="@(!Model.Summary.CanPlaceOrder)"
-                    data-track="checkout-submit">Objednat</button>
-        </span>
-    </div>
-</form>
 
 @section Scripts {
     <script src="~/js/order-form-tracker.js" asp-append-version="true"></script>

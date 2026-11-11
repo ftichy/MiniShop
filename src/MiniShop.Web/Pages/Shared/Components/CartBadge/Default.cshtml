@@ -1,11 +1,9 @@
 @model int
-@* E-shop krok 3: počet kusů v košíku (CartBadgeViewComponent). *@
-<li class="nav-item">
-    <a class="nav-link" asp-page="/Cart/Index" data-track="nav-cart">
-        Košík
-        @if (Model > 0)
-        {
-            <span class="badge bg-primary ms-1">@Model</span>
-        }
-    </a>
-</li>
+@* E-shop krok 3: počet kusů v košíku (CartBadgeViewComponent). Redesign A: ikona vedle „hamburgeru“ – vidět i na mobilu. *@
+<a class="header-icon-btn" asp-page="/Cart/Index" data-track="nav-cart" aria-label="Košík@(Model > 0 ? $", {Model} ks" : "")">
+    @Icons.Cart
+    @if (Model > 0)
+    {
+        <span class="badge">@Model</span>
+    }
+</a>

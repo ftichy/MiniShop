@@ -1,41 +1,51 @@
 @page
-@* Účty krok 2: úvod je veřejný – všechno ostatní bez [AllowAnonymous] vyžaduje přihlášení (fallback policy). *@
-@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@model MiniShop.Web.Pages.IndexModel
+@* Účty krok 2: úvod je veřejný ([AllowAnonymous] na IndexModel). Redesign A: úvod pro zákazníka. *@
 @{
     ViewData["Title"] = "Úvod";
 }
-<h1>MiniShop</h1>
 @* Účty krok 9: zpráva po smazání účtu (TempData z Account/Delete). *@
 <partial name="_StatusMessage" model="@(TempData["StatusMessage"] as string)" />
-<p class="lead">Jednoduchý e-shop pro výuku: ASP.NET Core, EF Core + SQLite, vrstvená architektura a SOLID.</p>
-<p><a asp-page="/Shop/Index" class="btn btn-primary btn-lg">Prohlédnout nabídku</a></p>
 
-<div class="row g-3">
-    <div class="col-md-6">
-        <div class="card h-100">
-            <div class="card-body">
-                <h5 class="card-title">Webové rozhraní</h5>
-                <ul>
-                    <li><a asp-page="/Shop/Index">Obchod</a> – nabídka, hledání, kategorie</li>
-                    <li><a asp-page="/Orders/Index">Objednávky</a> – vytvoření, vyřízení, zrušení</li>
-                    <li><a asp-page="/Products/Index">Produkty</a> – správa katalogu a kategorií (admin)</li>
-                </ul>
-            </div>
-        </div>
+<section class="hero mb-4">
+    <h1 class="display-5 mb-3">Technika, kterou si zamilujete</h1>
+    <p class="lead mb-4">Myši, klávesnice, kabely a další drobnosti pro váš stůl. Doprava zdarma od 1 000 Kč, platba kartou nebo na dobírku.</p>
+    <div class="d-flex flex-wrap gap-2">
+        <a asp-page="/Shop/Index" class="btn btn-light btn-lg" data-track="home-shop">Prohlédnout nabídku</a>
+        @if (User.Identity?.IsAuthenticated != true)
+        {
+            <a asp-page="/Account/Register" class="btn btn-outline-light btn-lg" data-track="home-register">Založit účet</a>
+        }
     </div>
-    <div class="col-md-6">
-        <div class="card h-100">
-            <div class="card-body">
-                <h5 class="card-title">REST API</h5>
-                <ul class="mb-2">
-                    <li><code>GET/POST /api/products</code></li>
-                    <li><code>GET/PUT/DELETE /api/products/{id}</code></li>
-                    <li><code>POST /api/products/{id}/stock</code></li>
-                    <li><code>GET/POST /api/orders</code></li>
-                    <li><code>POST /api/orders/{id}/complete</code> | <code>/cancel</code></li>
-                </ul>
-                <a href="/openapi/v1.json">OpenAPI dokument</a> · ukázkové požadavky v souboru <code>MiniShop.Web.http</code>
-            </div>
-        </div>
-    </div>
+</section>
+
+<div class="row row-cols-1 row-cols-md-3 g-3 mb-5">
+    <div class="col"><div class="usp">@Icons.Truck<div><strong>Doprava zdarma od 1 000 Kč</strong><div class="text-muted small">Kurýr 99 Kč, osobní odběr zdarma.</div></div></div></div>
+    <div class="col"><div class="usp">@Icons.Shield<div><strong>14 dní na vrácení</strong><div class="text-muted small">Vrácení zboží přímo z detailu objednávky.</div></div></div></div>
+    <div class="col"><div class="usp">@Icons.Star<div><strong>Hodnocení od zákazníků</strong><div class="text-muted small">Hodnotí jen ti, kdo zboží opravdu dostali.</div></div></div></div>
 </div>
+
+@if (Model.Categories.Count > 0)
+{
+    <h2 class="h4 mb-3">Kategorie</h2>
+    <nav class="chip-row mb-5" aria-label="Kategorie">
+        @foreach (var c in Model.Categories)
+        {
+            <a class="category-chip" asp-page="/Shop/Index" asp-route-category="@c.Id" data-track="home-category">@c.Name <span class="count">@c.ProductCount</span></a>
+        }
+    </nav>
+}
+
+@if (Model.Featured.Count > 0)
+{
+    <div class="d-flex justify-content-between align-items-baseline mb-3">
+        <h2 class="h4 mb-0">Doporučujeme</h2>
+        <a asp-page="/Shop/Index">Celá nabídka →</a>
+    </div>
+    <div class="row row-cols-2 row-cols-md-4 g-3">
+        @foreach (var p in Model.Featured)
+        {
+            <div class="col"><partial name="_ProductCard" model="Model.Card(p)" /></div>
+        }
+    </div>
+}

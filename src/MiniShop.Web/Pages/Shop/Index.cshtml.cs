@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using MiniShop.Application.Ordering;
 using MiniShop.Application.Ordering.Catalog;
 using MiniShop.Web.Accounts;
+using MiniShop.Web.Catalog;
 
 namespace MiniShop.Web.Pages.Shop;
 
@@ -67,11 +69,20 @@ public sealed class IndexModel(ICatalogQueryService catalog, IAuthorizationServi
     }
 
     /// <summary>Parametry aktuálního hledání pro odkaz na jinou stránku výsledků.</summary>
-    public Dictionary<string, string> RouteFor(int page)
+    public Dictionary<string, string> RouteFor(int page) => Route(page, CategoryId);
+
+    /// <summary>Redesign A: odkaz „kategorie“ (štítky nad výsledky) – zbytek hledání zůstane, stránka od začátku.</summary>
+    public Dictionary<string, string> RouteForCategory(int? categoryId) => Route(1, categoryId);
+
+    /// <summary>Redesign A: karta produktu – návrat po přidání do košíku na stejnou stránku výlohy.</summary>
+    public ProductCardModel Card(CatalogItemDto product) => new(product, CanOrder, IsAnonymous, CurrentUrl);
+
+    private Dictionary<string, string> Route(int page, int? categoryId)
     {
-        var values = new Dictionary<string, string> { ["p"] = page.ToString() };
+        var values = new Dictionary<string, string>();
+        if (page > 1) values["p"] = page.ToString();
         if (!string.IsNullOrWhiteSpace(Query)) values["q"] = Query.Trim();
-        if (CategoryId is not null) values["category"] = CategoryId.Value.ToString();
+        if (categoryId is not null) values["category"] = categoryId.Value.ToString();
         if (InStockOnly) values["instock"] = "true";
         if (Sort != CatalogSort.Name) values["sort"] = Sort.ToString();
         return values;

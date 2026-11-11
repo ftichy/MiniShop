@@ -13,9 +13,9 @@ public static class AvailabilityLabels
 
     public static string Badge(string availability) => availability switch
     {
-        "InStock" => "bg-success",
-        "LowStock" => "bg-warning text-dark",
-        "OutOfStock" => "bg-secondary",
-        _ => "bg-light text-dark border"
+        "InStock" => "badge-soft-success",   // redesign A: jemné barvy (site.css)
+        "LowStock" => "badge-soft-warning",
+        "OutOfStock" => "badge-soft-secondary",
+        _ => "badge-soft-secondary"
     };
 }

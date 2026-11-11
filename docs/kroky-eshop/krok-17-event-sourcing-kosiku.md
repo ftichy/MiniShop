@@ -75,6 +75,10 @@ spočítá a na novou otázku odpoví zpětně.
 - Lokálně: přidat, změnit, odebrat, objednat → `/Cart` *Historie košíku*; admin `/Admin/CartInsights`.
 - V DB: `select "Version", "Type", "Payload" from ordering."CartEvents" order by "CartId", "Version";`
 
+**Nasazeno 11. 11. 2026** (PR #79, postupné nasazení bez ručního kroku, tabulka `CartEvents` vznikla migrací při startu).
+V produkci ověřeno: historie košíku (včetně převzetí staršího košíku snapshotem), objednávka z košíku a statistika
+*Košíky* pro admina.
+
 ## Vyzkoušejte sami
 
 1. Dejte do košíku myš a kabel, myš odeberte. Rozbalte *Historie košíku* – je tam i myš, kterou už v košíku nemáte.

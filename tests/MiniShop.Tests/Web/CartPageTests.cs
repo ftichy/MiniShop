@@ -79,7 +79,9 @@ public sealed class CartPageTests(MiniShopWebFactory web)
 
         await PostAsync(client, "/Cart?handler=Remove", ("productId", "304"));
 
-        Assert.DoesNotContain("Odebíraný reproduktor", Decode(await client.GetStringAsync("/Cart")));
+        var page = Decode(await client.GetStringAsync("/Cart"));
+        Assert.DoesNotContain("name=\"productId\" value=\"304\"", page);   // řádek v košíku už není
+        Assert.Contains("Odebráno: Odebíraný reproduktor", page);          // e-shop krok 17: ale v historii košíku ano
     }
 
     [Fact]

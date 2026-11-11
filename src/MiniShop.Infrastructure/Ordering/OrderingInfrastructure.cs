@@ -32,6 +32,7 @@ public static class OrderingInfrastructure
         services.AddScoped<ICouponRepository, CouponRepository>();             // e-shop krok 13
         services.AddScoped<ICatalogProductRepository, CatalogProductRepository>();
         services.AddScoped<ICartRepository, CartRepository>();   // e-shop krok 3
+        services.AddScoped<ICartEventStore, CartEventStore>();   // e-shop krok 17: čtení událostí košíků
 
         // Doménové události (kroky 2–6) – má je jen Ordering, putují přes jeho outbox.
         // Scoped – handlery sdílejí DbContext se scope, ve kterém OutboxProcessor zprávu zpracovává.

@@ -115,3 +115,17 @@ else
         <a asp-page="/Checkout/Index" class="btn btn-primary" data-track="cart-checkout">K pokladně</a>
     </div>
 }
+
+@if (Model.History.Count > 0)
+{
+    @* E-shop krok 17: košík je event-sourced – historie je jen jiný pohled na jeho události (projekce při čtení). *@
+    <details class="mt-4" data-track="cart-history">
+        <summary>Historie košíku</summary>
+        <ul class="list-unstyled small mt-2 mb-0">
+            @foreach (var entry in Model.History)
+            {
+                <li><span class="text-muted">@entry.OccurredAtUtc.ToLocalTime().ToString("g")</span> – @entry.Text</li>
+            }
+        </ul>
+    </details>
+}

@@ -15,6 +15,8 @@ internal sealed class CartConfiguration : IEntityTypeConfiguration<Cart>
         builder.HasIndex(c => c.CustomerId).IsUnique();
 
         builder.Ignore(c => c.TotalQuantity);
+        builder.Ignore(c => c.Version);              // e-shop krok 17: verzi proudu zná CartEvents
+        builder.Ignore(c => c.UncommittedEvents);
 
         // E-shop krok 4: verze košíku jako concurrency token – UPDATE … WHERE CheckoutId = původní. Dvě souběžná
         // odeslání pokladny (nebo změny ze dvou záložek): druhé narazí a jeho transakce se celá zruší.
@@ -41,5 +43,25 @@ internal sealed class CartLineConfiguration : IEntityTypeConfiguration<CartLine>
         // Každý produkt v košíku jen jednou (invariant agregátu, tady i v DB).
         // ProductId bez cizího klíče na kopii katalogu – stejně jako u položky objednávky.
         builder.HasIndex(l => new { l.CartId, l.ProductId }).IsUnique();
+    }
+}
+
+/// <summary>
+/// E-shop krok 17: úložiště událostí košíků. Unikátní (CartId, Version) hlídá souběh (druhý zápis téže verze =
+/// ConcurrencyConflictException), smazání košíku (smazání účtu) smaže celý proud (ON DELETE CASCADE).
+/// </summary>
+internal sealed class CartEventRecordConfiguration : IEntityTypeConfiguration<CartEventRecord>
+{
+    public void Configure(EntityTypeBuilder<CartEventRecord> builder)
+    {
+        builder.ToTable("CartEvents");
+        builder.HasKey(e => e.Id);
+        builder.Property(e => e.Type).IsRequired().HasMaxLength(100);
+        builder.Property(e => e.Payload).IsRequired();
+        builder.HasIndex(e => new { e.CartId, e.Version }).IsUnique();
+        builder.HasOne(e => e.Cart)
+            .WithMany()
+            .HasForeignKey(e => e.CartId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

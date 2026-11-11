@@ -16,9 +16,12 @@ namespace MiniShop.Web.Pages.Cart;
 /// Každá akce končí přesměrováním (POST → redirect → GET), hláška putuje přes TempData.
 /// </remarks>
 [Authorize(Policy = AuthorizationPolicies.RequireCustomer)]
-public sealed class IndexModel(ICartService carts) : PageModel
+public sealed class IndexModel(ICartService carts, CartHistoryService history) : PageModel
 {
     public CartDto Cart { get; private set; } = CartDto.Empty;
+
+    /// <summary>E-shop krok 17: poslední změny košíku (nejnovější první) – z událostí košíku.</summary>
+    public IReadOnlyList<CartHistoryEntryDto> History { get; private set; } = [];
 
     [TempData]
     public string? StatusMessage { get; set; }
@@ -26,8 +29,11 @@ public sealed class IndexModel(ICartService carts) : PageModel
     [TempData]
     public string? ErrorMessage { get; set; }
 
-    public async Task OnGetAsync(CancellationToken cancellationToken) =>
+    public async Task OnGetAsync(CancellationToken cancellationToken)
+    {
         Cart = await carts.GetAsync(User.ToCustomerId(), cancellationToken);
+        History = await history.GetHistoryAsync(User.ToCustomerId(), cancellationToken);
+    }
 
     /// <param name="returnUrl">Kam se vrátit (stránka výlohy i s filtry). Jen lokální adresa – jinak košík.</param>
     public Task<IActionResult> OnPostAddAsync(int productId, string? returnUrl, CancellationToken cancellationToken, int quantity = 1) =>

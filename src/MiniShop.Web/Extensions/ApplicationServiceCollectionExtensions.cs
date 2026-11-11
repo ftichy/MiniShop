@@ -234,6 +234,7 @@ public static class ApplicationServiceCollectionExtensions
 
         // E-shop krok 3: košík (agregát Cart v ordering.db, ceny z kopie katalogu).
         services.AddScoped<ICartService, CartService>();
+        services.AddScoped<CartHistoryService>();   // e-shop krok 17: historie a statistika košíků z událostí
 
         // E-shop krok 10: opuštěný košík – worker (CartReminderWorker) a oznámení CartAbandonedV1.
         services.AddSingleton(new CartReminderSettings(

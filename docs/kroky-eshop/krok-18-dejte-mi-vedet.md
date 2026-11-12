@@ -47,3 +47,5 @@ Zrušte upozornění a naskladněte znovu – e-mail nepřijde. Smažte účet �
 První krok vytvořený **agentem Claude v GitHub Issues** ([příručka](../prirucka/github/agent.md)): zadání v issue #88 →
 `@claude analyzuj` (plán v komentáři) → `@claude implementuj` → PR #89 (CI zelené, sloučil člověk) → nasazeno 12. 11. 2026.
 Po kontrole doplněno ručně: ošetření dvojkliku a dokumentace (roadmapa, historie, stav v CLAUDE.md).
+
+**Ověřeno v produkci 12. 11. 2026:** přihlášení k upozornění u vyprodaného produktu, po naskladnění jeden e-mail.

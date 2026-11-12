@@ -1,0 +1,32 @@
+# E2E testy v prohlížeči (Playwright, tests/MiniShop.E2E): doplněk k compose.yaml jen pro testování.
+# Na VM v cloudu se NIKDY nenačítá (production.env ho v COMPOSE_FILE nemá).
+#
+#   cd deploy
+#   docker compose -f compose.yaml -f compose.e2e.yaml up -d --build --wait
+#   → Web http://localhost:8080, Mailpit http://localhost:8025
+#
+# Co doplněk mění (produkční kód ani compose.yaml se nemění):
+#   - mailpit: cvičná pošta. Web posílá e-maily přes SMTP jako vždy, jen server je Mailpit místo Gmailu;
+#     test z jeho API přečte odkaz na potvrzení e-mailu (žádná zadní vrátka v aplikaci).
+#   - limit formulářů účtu (10 odeslání/min/IP) se zvedá – testy běží z jedné IP a registrují hodně zákazníků.
+# Platební brána je výchozí Fake (PAYMENTS_GATEWAY se nenastavuje).
+
+name: minishop
+
+services:
+  mailpit:
+    image: axllent/mailpit:v1.31.4
+    restart: "no"
+    ports:
+      # Webové rozhraní + API (/api/v1/…) jen z tohoto počítače; SMTP (1025) je jen v síti Compose.
+      - "127.0.0.1:8025:8025"
+
+  web:
+    environment:
+      Email__Host: mailpit
+      Email__Port: "1025"
+      Email__FromAddress: minishop@example.test
+      RateLimiting__AccountForms__PermitLimit: "1000"
+    depends_on:
+      mailpit:
+        condition: service_started

@@ -39,6 +39,7 @@ src/MiniShop.ServiceDefaults AddServiceDefaults (service discovery, HTTP resilie
 src/MiniShop.AppHost         .NET Aspire: RabbitMQ (persistentní kontejner) + inventory-api + web, dashboard
 tests/MiniShop.Tests         testy domény, OrderService + ságy + katalogu (PostgreSQL přes Testcontainers, oba moduly v procesu), dispatcheru,
                              outboxu, inboxu, kontraktů, architektury, InventoryApiClient
+tests/MiniShop.E2E           E2E testy v prohlížeči (Playwright, Chromium) nad spuštěnou aplikací; bez `E2E_BASE_URL` se přeskočí; CI job „E2E testy“ (nepovinný), `deploy/compose.e2e.yaml` (Mailpit)
 docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), diagramy/
 ```
 
@@ -495,6 +496,7 @@ nové moduly Notifications (odběratel událostí) a Payments (účastník ságy
 | 16. Skutečná platební brána (Stripe Checkout v testovacím režimu jako `IPaymentGateway`, `/api/payments/stripe-webhook` se `Stripe-Signature`, idempotency key, skutečný refund, `Payments:Gateway` Fake/Stripe, secrets `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET`) | hotovo (nasazeno 9. 11. 2026; platba kartou přes Stripe ověřena lokálně i v produkci, refund + dobropis lokálně; webhook ve Stripu musí mít Payload style Snapshot) | `docs/kroky-eshop/krok-16-stripe.md` |
 | 17. Event sourcing košíku (`CartEvents` jako zdroj pravdy agregátu `Cart`, tabulky košíku = projekce, přirozený snapshot od objednání/vyprázdnění, souběh přes verzi proudu, převzetí starých košíků snapshotem, historie `/Cart`, `/Admin/CartInsights`) | hotovo (nasazeno 11. 11. 2026; historie košíku, objednávka z košíku i statistika Košíky ověřeny v produkci) | `docs/kroky-eshop/krok-17-event-sourcing-kosiku.md` |
 | 18. „Dejte mi vědět“ (lísteček `BackInStockSubscription` v modulu Notifications, `BackInStockHandler` na `StockAvailabilityChangedV1`, jeden e-mail a lísteček se smaže, tlačítko na `/Shop/{id}`) | hotovo (nasazeno 12. 11. 2026, ověřeno v produkci: přihlášení k upozornění a e-mail po naskladnění; vytvořil agent Claude z issue #88, PR #89, dvojklik opraven v PR #90) | `docs/kroky-eshop/krok-18-dejte-mi-vedet.md` |
+| 19. E2E testy v prohlížeči (`tests/MiniShop.E2E`, Playwright/Chromium: nákup kartou, expedice, mobil; Mailpit v `deploy/compose.e2e.yaml` čte odkaz na potvrzení e-mailu; CI job „E2E testy“ nepovinný, trace + snímky jako artefakt; selektory přes `data-track` a ID polí) | hotovo (agent z issue #92, PR #93; ručně doplněn job v `ci.yml` – aplikace Claude nesmí měnit workflow –, `Email__UseTls=false` a dvě očekávání v testech; všechny 3 scénáře zelené v CI 12. 11. 2026) | `docs/kroky-eshop/krok-19-e2e-testy.md` |
 
 ## Stav vzhledu (moderní vzhled a mobil, příručka `architektura/vzhled.md`)
 Bootstrap 5.3 lokálně (CSS + JS bundle, SRI ověřen) + design systém v `wwwroot/css/site.css` (proměnné `--ms-*` přepisují `--bs-*`,

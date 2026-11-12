@@ -10,6 +10,7 @@
     <Project Path="src/MiniShop.Web/MiniShop.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/MiniShop.E2E/MiniShop.E2E.csproj" />
     <Project Path="tests/MiniShop.Tests/MiniShop.Tests.csproj" />
   </Folder>
 </Solution>

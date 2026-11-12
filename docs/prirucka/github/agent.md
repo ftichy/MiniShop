@@ -75,6 +75,7 @@ sequenceDiagram
 - **Každý běh začíná s čistou hlavou** – zná jen issue, komentáře, PR a repozitář (včetně CLAUDE.md). Čím lepší
   zadání a akceptační kritéria, tím lepší výsledek.
 - Velká funkce = rozdělit do více issues (jako kroky roadmap) – jeden běh má časový limit.
+- **Nemůže pushnout změnu `.github/workflows/`** (GitHub aplikace nemá oprávnění *workflows*) – navrhne ji v PR nebo komentáři, do větve ji dá člověk (ověřeno u issue #92).
 - Kroky v konzolích (Stripe, Google, Wedos, OCI) a nastavení secrets dělá dál člověk.
 
 ## Nastavení (jednou)

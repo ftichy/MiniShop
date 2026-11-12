@@ -67,7 +67,10 @@ public static partial class TwoFactorHelper
     {
         using var generator = new QRCodeGenerator();
         using var data = generator.CreateQrCode(payload, QRCodeGenerator.ECCLevel.Q);
-        var svg = new SvgQRCode(data).GetGraphic(6);
+        // viewBox místo pevných width/height: CSS (.two-factor-qr, max. 260 px) kód zmenší celý. S pevnou šířkou 342 px
+        // by se jen ořízl – chyběl by roh a bílý okraj a telefon by QR nenačetl (opraveno po nasazení A1).
+        var svg = new SvgQRCode(data).GetGraphic(6, "#000000", "#FFFFFF", drawQuietZones: true,
+            sizingMode: SvgQRCode.SizingMode.ViewBoxAttribute);
         // Do HTML patří jen element <svg>, ne XML hlavička.
         var start = svg.IndexOf("<svg", StringComparison.Ordinal);
         return start > 0 ? svg[start..] : svg;

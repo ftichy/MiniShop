@@ -48,3 +48,10 @@ Přirovnání: heslo je klíč od bytu, kód z telefonu (mění se každých 30 
 
 `dotnet test MiniShop.slnx --filter "FullyQualifiedName~TwoFactorTests"`. Ručně: `/Account/TwoFactor` → naskenovat QR →
 zadat kód → uložit záchranné kódy → odhlásit → přihlásit (heslo, pak kód).
+
+## Oprava po nasazení
+
+QR kód nešel naskenovat telefonem (ruční opsání klíče fungovalo): SVG z QRCoderu mělo pevné `width`/`height` 342 px
+bez `viewBox`, CSS ho zúžilo na 260 px a obsah se **ořízl** (chyběl roh a bílý okraj). Oprava: `SizingMode.ViewBoxAttribute`
+v `TwoFactorHelper.QrCodeSvg`, test `QrKod_SeZmensiCely_MaViewBoxBezPevneSirky`. Poučení: vzhled, který agent nevidí
+(nemá prohlížeč), ověřit snímkem nebo na telefonu před sloučením.

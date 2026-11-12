@@ -18,6 +18,19 @@ public sealed partial class TwoFactorTests(MiniShopWebFactory web)
     private const string Password = "heslo-pro-2fa-test";
 
     [Fact]
+    public void QrKod_SeZmensiCely_MaViewBoxBezPevneSirky()
+    {
+        // Pevné width/height bez viewBox = CSS kód ořízne (chybí roh a okraj) a telefon ho nenačte.
+        var svg = MiniShop.Web.Accounts.TwoFactorHelper.QrCodeSvg("otpauth://totp/MiniShop:test?secret=ABCDEFGHIJKLMNOP&issuer=MiniShop");
+
+        var root = svg[..svg.IndexOf('>')];
+        Assert.StartsWith("<svg", root);
+        Assert.Matches(@"viewBox=""0 0 \d+ \d+""", root);
+        Assert.DoesNotContain(" width=", root);
+        Assert.DoesNotContain(" height=", root);
+    }
+
+    [Fact]
     public async Task Zapnuti_StrankaUkazeQrAKlic_PrvniKodZapneAUkazeZachranneKody()
     {
         var email = "2fa-zapnuti@example.com";

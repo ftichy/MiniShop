@@ -38,6 +38,7 @@ using MiniShop.Domain.Orders.Saga;
 using MiniShop.Domain.Payments;
 using MiniShop.Domain.Reporting;
 using MiniShop.Domain.Invoicing;
+using MiniShop.Domain.Notifications;
 using MiniShop.Domain.Reviews;
 using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Events;
@@ -1700,6 +1701,22 @@ public sealed class OrderServiceTests : IDisposable
         await Products(s => s.AddStockAsync(productId, 5));
         await ProcessOutboxAsync();
         Assert.Single(BackInStockEmails);
+    }
+
+    [Fact]
+    public async Task DejteMiVedet_SoubezneDvaKliky_KonfliktNeDvaListecky()
+    {
+        var productId = await SoldOutProductAsync();
+        await WatchAsync(productId);
+
+        // Druhý požadavek dvojkliku, který kontrolu „už existuje“ minul (prošel souběžně s prvním): rozhodne unikátní index.
+        await using var scope = _services.CreateAsyncScope();
+        scope.ServiceProvider.GetRequiredService<IBackInStockRepository>()
+            .Add(new BackInStockSubscription(Jan.CustomerId, productId, "Testovací produkt", DateTime.UtcNow));
+        await Assert.ThrowsAsync<ConcurrencyConflictException>(
+            () => scope.ServiceProvider.GetRequiredService<INotificationsUnitOfWork>().SaveChangesAsync(CancellationToken.None));
+
+        Assert.Equal(1, await NotificationsDb(db => db.BackInStockSubscriptions.CountAsync()));
     }
 
     [Fact]

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using MiniShop.Application.Exceptions;
 using MiniShop.Application.Notifications;
 using MiniShop.Application.Ordering;
 using MiniShop.Application.Ordering.Catalog;
@@ -91,7 +92,15 @@ public sealed class DetailModel(ICatalogQueryService catalog, ReviewService revi
         }
         else
         {
-            await backInStock.SubscribeAsync(User.ToCustomerId(), id, product.Name, cancellationToken);
+            try
+            {
+                await backInStock.SubscribeAsync(User.ToCustomerId(), id, product.Name, cancellationToken);
+            }
+            catch (ConcurrencyConflictException)
+            {
+                // Dvojklik: druhý požadavek narazil na unikátní index zákazník + produkt – lísteček už založil první.
+            }
+
             StatusMessage = "Dáme vám vědět e-mailem, jakmile bude produkt skladem (pošleme jen jeden e-mail).";
         }
 

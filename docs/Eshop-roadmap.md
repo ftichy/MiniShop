@@ -402,6 +402,7 @@ Nereagujeme na událost, ale na to, že po `CartItemAdded` do 24 hodin nepřiše
 - ~~**Hodnocení produktů**~~ – **hotovo jako krok 14** ([souhrn](kroky-eshop/krok-14-hodnoceni-produktu.md)): modul Reviews s vlastní kopií nákupů z událostí, souhrn do výlohy.
 - ~~**Event sourcing košíku**~~ – **hotovo jako krok 17** ([souhrn](kroky-eshop/krok-17-event-sourcing-kosiku.md)): události `CartEvents`
   jako zdroj pravdy, tabulky jako projekce, historie košíku a analytika „co lidé vkládají a nekupují“.
+- ~~**Hlídání dostupnosti („Dejte mi vědět“)**~~ – **hotovo jako krok 18** ([souhrn](kroky-eshop/krok-18-dejte-mi-vedet.md)): lísteček v modulu Notifications, jeden e-mail po `StockAvailabilityChangedV1` (první krok vytvořený agentem Claude z GitHub issue).
 - ~~**CQRS přehled pro admina**~~ – **hotovo jako krok 11** ([souhrn](kroky-eshop/krok-11-prehled-trzeb.md)): modul Reporting, projekce z událostí, přestavění ze snímků.
 
 ## Shrnutí nákladů

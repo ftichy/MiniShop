@@ -247,7 +247,7 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Admin, "/Account/TwoFactor?handler=Enable", Expect.Allowed },
         { Who.Anonymous, "/Account/TwoFactor?handler=Disable", Expect.Login },
         { Who.User, "/Account/TwoFactor?handler=Disable", Expect.Allowed },
-        { Who.Admin, "/Account/TwoFactor?handler=Disable", Expect.Allowed },
+        { Who.Admin, "/Account/TwoFactor?handler=Disable", Expect.Denied },   // A2: admin má 2FA zapnuté a vypnout ho nesmí (403)
         { Who.Anonymous, "/Account/TwoFactor?handler=Regenerate", Expect.Login },
         { Who.User, "/Account/TwoFactor?handler=Regenerate", Expect.Allowed },
 

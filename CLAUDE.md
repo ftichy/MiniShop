@@ -449,6 +449,10 @@ Modul Accounts (ASP.NET Core Identity, schéma `accounts`). Souhrny kroků do `d
   `CreateUserAsync(emailConfirmed: true)`). Smazání účtu `/Account/Delete`: heslo → `IOrderService.AnonymizeCustomerAsync`
   (Ordering, nevyřízená objednávka = DomainException) → `AccountDeletion.DeleteAsync` (Accounts; admin ne, audit
   `ForgetUser`) → odhlásit. **Nový osobní údaj = doplnit anonymizaci a stránku `/Privacy`.** Kestrel bez hlavičky `Server`.
+- **2FA admina (11B):** `RequireAdmin` = role Admin **+ claim `minishop:two_factor`** (admin bez 2FA smí jen `/Account/TwoFactor`; stránky přesměruje
+  `OnRedirectToAccessDenied`, API 403). Nová admin stránka tím projde sama; test admina bez 2FA = `MiniShopWebFactory.CreateAdminAsync(…, twoFactor: false)`,
+  `LoginAsync` dopočítá kód (`TestTotp`). Vývojový `AdminBootstrap` admin si 2FA nastaví při prvním přihlášení (QR). Ztráta telefonu: `docker compose exec web
+  dotnet MiniShop.Web.dll reset-2fa --email …` (po záloze). Nové akce v `AccountAuditAction` jen na konec (ukládá se text).
 - Google (krok 10): `GoogleLogin.AddGoogleLogin` jen s `Authentication:Google:ClientId` + `ClientSecret` (lokálně user secrets Webu,
   Compose `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`), jinak tlačítko zmizí. Pravidla v `ExternalAccountLinker` (Infrastructure/Accounts):
   **nepotvrzený e-mail se automaticky nepropojí** (pre-account hijacking), nový účet bez hesla s `EmailConfirmed`; přihlášení
@@ -468,7 +472,8 @@ Modul Accounts (ASP.NET Core Identity, schéma `accounts`). Souhrny kroků do `d
 | 8. Zpevnění (zámek 5 pokusů / 15 min, rate limiting formulářů účtu 10/min/IP → 429, CSP a bezpečnostní hlavičky, Bootstrap lokálně, `enduser.id`, logy bez e-mailů) | hotovo | `docs/kroky-ucty/krok-08-zpevneni.md` |
 | 9. Otevření webu (`BASIC_AUTH=off`, objednávka jen s potvrzeným e-mailem, smazání účtu + anonymizace objednávek, `/Privacy`, bez hlaviček `Server`/`Via`; CAPTCHA odložena) | hotovo | `docs/kroky-ucty/krok-09-otevreni-webu.md` |
 | 10. Přihlášení přes Google (OpenID Connect, `ExternalAccountLinker`: propojení jen s potvrzeným e-mailem, účet bez hesla + `SetPassword`, smazání po `prompt=login`, `/Account/ExternalLogins`, CSP `form-action` + Google, `GOOGLE_CLIENT_ID` v `production.env` + secret `GOOGLE_CLIENT_SECRET`) | hotovo (nasazeno 6. 11. 2026; OAuth klient v Google Cloud projektu MiniShop, aplikace publikovaná; v produkci ověřen nový účet přes Google, účet bez hesla, smazání po novém přihlášení u Googlu) | `docs/kroky-ucty/krok-10-google.md` |
-| 11A. Dvoufázové ověření TOTP, dobrovolné (issue #94 část A1: `/Account/TwoFactor` s QR jako SVG z QRCoder, `LoginWith2fa`, `LoginWithRecoveryCode`, záchranné kódy, špatný kód = zámek, zapamatování zařízení jen zákazník, vypnout nesmí admin; Google 2FA zatím obchází – A2; B audit přihlášení, C ZAP v CI) | hotovo v PR (čeká na CI a nasazení) | `docs/kroky-ucty/krok-11a-dvoufazove-overeni.md` |
+| 11A. Dvoufázové ověření TOTP, dobrovolné (issue #94 část A1: `/Account/TwoFactor` s QR jako SVG z QRCoder, `LoginWith2fa`, `LoginWithRecoveryCode`, záchranné kódy, špatný kód = zámek, zapamatování zařízení jen zákazník, vypnout nesmí admin; Google 2FA obchází – vyřešeno v 11B; B audit přihlášení, C ZAP v CI) | hotovo (ověřeno v produkci 12. 11. 2026; oprava QR – SVG bez `viewBox` – PR #96) | `docs/kroky-ucty/krok-11a-dvoufazove-overeni.md` |
+| 11B. Povinné 2FA pro admina (issue #94 část A2: policy `RequireAdmin` vyžaduje claim `minishop:two_factor` z `AccountClaimsPrincipalFactory`, admin bez 2FA → `/Account/TwoFactor` (API 403), Google už 2FA neobchází (`bypassTwoFactor: false`), `AccountSignInManager` – admin nikdy nepřeskočí kód přes zapamatované zařízení, příkaz `reset-2fa --email …` + audit `TwoFactorReset`, E2E admin si 2FA nastaví přes UI; B audit přihlášení, C ZAP v CI zbývá) | hotovo v PR (čeká na CI a nasazení; před nasazením si produkční admin nastaví 2FA sám a udělá se ruční záloha) | `docs/kroky-ucty/krok-11b-povinne-2fa-admin.md` |
 
 ## Stav e-shopu (viz `docs/Eshop-roadmap.md`)
 Výloha → košík → pokladna → platba → expedice → doručení. Košík je agregát v modulu Ordering (checkout = jedna transakce),

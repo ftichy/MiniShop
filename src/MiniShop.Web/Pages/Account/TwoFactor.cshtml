@@ -7,6 +7,15 @@
 
 <partial name="_StatusMessage" model="Model.StatusMessage" />
 
+@if (Model.IsRequiredForAdmin)
+{
+    <div class="alert alert-info" data-track="two-factor-required">
+        <strong>Dvoufázové ověření je pro admina povinné.</strong> Dokud ho nenastavíte, správa obchodu
+        (produkty, objednávky, uživatelé…) je zamčená. Naskenujte QR kód v aplikaci (Google Authenticator,
+        Microsoft Authenticator…) a opište první kód.
+    </div>
+}
+
 <div class="row">
     <div class="col-md-8 col-lg-7">
         <div asp-validation-summary="ModelOnly" class="text-danger"></div>

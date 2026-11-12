@@ -97,6 +97,37 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
     {
         // Spustí Web (seed vytvoří roli a admina) a založí zákazníka.
         await CreateUserAsync(UserEmail, UserPassword);
+
+        // 2FA krok A2: admin bez dvoufázového ověření nesmí do administrace – testovací admin ho má zapnuté
+        // (stejně jako v produkci) a LoginAsync mu kód dopočítá. Test „bez 2FA“ si založí vlastního admina.
+        await using var scope = Services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var admin = (await users.FindByEmailAsync(AdminEmail))!;
+        await users.ResetAuthenticatorKeyAsync(admin);
+        await users.SetTwoFactorEnabledAsync(admin, true);
+    }
+
+    /// <summary>Admin (role Admin), volitelně bez dvoufázového ověření – takový se smí jen přihlásit a nastavit si ho.</summary>
+    public async Task CreateAdminAsync(string email, string password, bool twoFactor)
+    {
+        await using var scope = Services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = new ApplicationUser { UserName = email, Email = email, DisplayName = "Test admin", EmailConfirmed = true };
+        Assert.True((await users.CreateAsync(user, password)).Succeeded);
+        await users.AddToRoleAsync(user, AccountRoles.Admin);
+        if (twoFactor)
+        {
+            await users.ResetAuthenticatorKeyAsync(user);
+            await users.SetTwoFactorEnabledAsync(user, true);
+        }
+    }
+
+    /// <summary>Aktuální tajný klíč účtu (jako ho vidí aplikace v telefonu).</summary>
+    public async Task<string> GetAuthenticatorKeyAsync(string email)
+    {
+        await using var scope = Services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        return (await users.GetAuthenticatorKeyAsync((await users.FindByEmailAsync(email))!))!;
     }
 
     /// <summary>
@@ -195,6 +226,19 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
         }));
 
         Assert.Equal(System.Net.HttpStatusCode.Redirect, response.StatusCode);
+
+        // Účet s dvoufázovým ověřením: druhý krok s kódem, který by počítala aplikace v telefonu.
+        if (response.Headers.Location!.OriginalString.Contains("/Account/LoginWith2fa", StringComparison.Ordinal))
+        {
+            var code = TestTotp.Compute(await GetAuthenticatorKeyAsync(email));
+            var second = await client.PostAsync("/Account/LoginWith2fa", new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = await GetAntiforgeryTokenAsync(client, "/Account/LoginWith2fa"),
+                ["Input.Code"] = code
+            }));
+            Assert.Equal(System.Net.HttpStatusCode.Redirect, second.StatusCode);
+        }
+
         return client;
     }
 

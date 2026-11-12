@@ -6,7 +6,10 @@ public enum AccountAuditAction
     PromotedToAdmin,
     DemotedToUser,
     Locked,
-    Unlocked
+    Unlocked,
+
+    /// <summary>2FA krok A2: příkaz na serveru (<c>reset-2fa</c>) zrušil dvoufázové ověření – ztráta telefonu.</summary>
+    TwoFactorReset
 }
 
 /// <summary>
@@ -33,6 +36,20 @@ public sealed class AccountAuditEntry
         Action = action;
         OccurredAtUtc = occurredAtUtc;
     }
+
+    /// <summary>Akci neprovedl admin v aplikaci, ale příkaz na serveru (<c>reset-2fa</c>) – kdo ho spustil, ví jen přístup do kontejneru.</summary>
+    public static AccountAuditEntry ByServerCommand(ApplicationUser target, AccountAuditAction action, DateTime occurredAtUtc) =>
+        new()
+        {
+            ActorUserId = ServerCommandActor,
+            ActorEmail = ServerCommandActor,
+            TargetUserId = target.Id,
+            TargetEmail = target.Email ?? string.Empty,
+            Action = action,
+            OccurredAtUtc = occurredAtUtc
+        };
+
+    public const string ServerCommandActor = "příkaz na serveru";
 
     public long Id { get; private set; }
     public DateTime OccurredAtUtc { get; private set; }

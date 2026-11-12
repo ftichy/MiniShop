@@ -41,7 +41,10 @@ public sealed class UserAdministrationTests(MiniShopWebFactory web)
         Assert.Contains($"{_email} je teď admin.", detail);
         Assert.Contains("povýšen na admina", detail);   // historie změn
         var promoted = await web.LoginAsync(_email, Password);
-        Assert.Equal(HttpStatusCode.OK, (await promoted.GetAsync("/Products")).StatusCode);
+        // 2FA krok A2: povýšený uživatel má roli hned, ale administrace se odemkne až po nastavení dvoufázového ověření.
+        var locked = await promoted.GetAsync("/Products");
+        Assert.Equal(HttpStatusCode.Redirect, locked.StatusCode);
+        Assert.Contains("/Account/TwoFactor", locked.Headers.Location!.OriginalString);
     }
 
     [Fact]

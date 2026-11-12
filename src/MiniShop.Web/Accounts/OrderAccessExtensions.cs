@@ -12,7 +12,14 @@ public static class OrderAccessExtensions
 {
     /// <summary>Admin vidí všechny objednávky, zákazník jen své (stejné pravidlo jako policy RequireAdmin).</summary>
     public static OrderAccess ToOrderAccess(this ClaimsPrincipal user) =>
-        user.IsInRole(AccountRoles.Admin) ? OrderAccess.AllOrders : OrderAccess.Customer(user.GetUserId());
+        // 2FA krok A2: admin bez dvoufázového ověření nevidí cizí objednávky ani tady (pojistka k policy RequireAdmin).
+        user.IsInRole(AccountRoles.Admin) && user.HasClaim(AccountClaimTypes.TwoFactorEnabled, "true")
+            ? OrderAccess.AllOrders
+            : OrderAccess.Customer(user.GetUserId());
+
+    /// <summary>2FA krok A2: admin, který si ještě nenastavil dvoufázové ověření – smí jen na jeho nastavení.</summary>
+    public static bool NeedsTwoFactorSetup(this ClaimsPrincipal user) =>
+        user.IsInRole(AccountRoles.Admin) && !user.HasClaim(AccountClaimTypes.TwoFactorEnabled, "true");
 
     /// <summary>Kdo objednává – ID, jméno a e-mail z účtu (ne z formuláře, takže nejdou podvrhnout).</summary>
     public static OrderCustomer ToOrderCustomer(this ClaimsPrincipal user) =>

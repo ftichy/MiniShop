@@ -29,6 +29,7 @@ viz [Ordering](ordering.md)), 5 ([e-maily](../emaily.md)), 6 (správa uživatel�
 | Přihlášení přes Google – propojit, odpojit (`/Account/ExternalLogins`, účty krok 10) | přihlásit se ✅ | ✅ | ✅ |
 | Nastavení e-mailů – souhlas s připomínkou košíku (`/Account/EmailPreferences`, e-shop krok 10, výchozí vypnuto) | ❌ | ✅ | ❌ |
 | Dvoufázové ověření – zapnout, záchranné kódy (`/Account/TwoFactor`, bezpečnost A1); vypnout jen zákazník | ❌ | ✅ | ✅ (vypnout ne) |
+| Cokoli v administraci, když admin **nemá zapnuté 2FA** (bezpečnost A2) | ❌ | ❌ | ❌ – přesměrování na `/Account/TwoFactor` (API 403) |
 | Uživatelé – přehled, detail, povýšit / vrátit na usera, zablokovat / odblokovat (`/Admin/…`) | ❌ | ❌ | ✅ (ne sám sobě) |
 
 Pravidla jsou pojmenovaná na jednom místě – **policies** `RequireAdmin` a `RequireCustomer`
@@ -272,7 +273,7 @@ stránky [ExternalLogin](code:src/MiniShop.Web/Pages/Account/ExternalLogin.cshtm
 Heslo samo může uniknout (jiný web, phishing). **Dvoufázové ověření** přidá druhý zámek: 6místný kód z aplikace
 v telefonu (Google Authenticator, Microsoft Authenticator, Authy…), který se mění každých 30 sekund (**TOTP**, RFC 6238).
 Přirovnání: heslo je klíč od bytu, kód je alarm, který bez telefonu nevypnete – zloděj s klíčem se dovnitř nedostane.
-Je to **dobrovolné pro zákazníka** (část A1); povinnost pro admina přijde v části A2 ([issue #94](https://github.com/ftichy/MiniShop/issues/94)).
+Je to **dobrovolné pro zákazníka** (část A1) a **povinné pro admina** (část A2, [issue #94](https://github.com/ftichy/MiniShop/issues/94)).
 
 - **Zapnutí** (`/Account/TwoFactor`, odkaz „Dvoufázové ověření“ pod nastavením účtu): stránka ukáže **QR kód** a tajný klíč
   textem. QR se vykreslí **na serveru jako SVG** (knihovna [QRCoder](../../treti-strany/knihovny.md), MIT) a vloží do HTML –
@@ -291,10 +292,37 @@ Je to **dobrovolné pro zákazníka** (část A1); povinnost pro admina přijde 
   `VerifyTwoFactorTokenAsync`, `GenerateNewTwoFactorRecoveryCodesAsync`; `SignInManager`: `TwoFactorAuthenticatorSignInAsync`,
   `TwoFactorRecoveryCodeSignInAsync`). Do tabulek `AspNetUsers`/`AspNetUserTokens`, které už existují – **bez migrace**.
 - **Do logu** jen ID účtu a událost („zapnul 2FA“, „neplatný kód“) – nikdy kód, klíč ani e-mail (hlídá `TwoFactorTests`).
-- **Google:** přihlášení přes Google dnes 2FA obchází (`bypassTwoFactor: true` v [ExternalLogin](code:src/MiniShop.Web/Pages/Account/ExternalLogin.cshtml.cs)) –
-  Google se jako druhý faktor nepočítá. V části A2 to pro admina vyřeší autorizace (admin bez vlastního TOTP se k administraci nedostane).
-- **Ztráta telefonu:** záchranný kód. Bez něj zatím pomůže jen zásah správce databáze; bezpečný příkaz pro reset 2FA v kontejneru přijde s částí A2.
-- **Testy:** [TwoFactorTests](code:tests/MiniShop.Tests/Web/TwoFactorTests.cs) počítají TOTP sami (RFC 6238) a projdou skutečné stránky.
+- **Povinné pro admina (A2):** policy `RequireAdmin` vyžaduje kromě role i claim `minishop:two_factor`
+  (`AccountClaimTypes.TwoFactorEnabled`, přidává ho [AccountClaimsPrincipalFactory](code:src/MiniShop.Infrastructure/Accounts/AccountClaimsPrincipalFactory.cs)
+  při každém přihlášení podle `TwoFactorEnabled`). Je to **jediné místo pravidla**, takže platí pro heslo, Google, účet z `create-admin`,
+  vývojový `AdminBootstrap` i povýšeného uživatele. Admin bez 2FA se může přihlásit, ale každá stránka a akce administrace ho
+  přesměruje na `/Account/TwoFactor` (cookie událost `OnRedirectToAccessDenied`), API vrací 403. Stránka 2FA mu vysvětlí proč.
+  Po zapnutí se cookie obnoví (`RefreshSignInAsync`), takže se administrace odemkne bez nového přihlášení. Pojistka navíc:
+  `ToOrderAccess` dá „všechny objednávky“ jen adminovi s 2FA.
+- **Google:** Google se jako druhý faktor **nepočítá**. `ExternalLogin` už nepoužívá `bypassTwoFactor`, takže kdo má 2FA zapnuté
+  (admin vždy), zadá po Googlu ještě kód z aplikace; admin bez vlastního TOTP projde Googlem, ale administrace zůstane zamčená.
+- **Povýšení uživatele na admina:** role se změní s novým security stampem. Zapamatované zařízení z doby zákazníka se u admina
+  **neuznává** – [AccountSignInManager](code:src/MiniShop.Web/Accounts/AccountSignInManager.cs) přepisuje `IsTwoFactorClientRememberedAsync`
+  podle role, takže nezáleží na tom, v jakém prohlížeči cookie zůstala. Nový admin si 2FA nastaví při prvním přihlášení.
+- **Vývoj (`AdminBootstrap`):** vývojový admin `admin@minishop.local` je admin bez 2FA. Po přihlášení (a změně hesla) ho přesměruje
+  na `/Account/TwoFactor`: naskenujte QR kód v telefonu (nebo klíč zadejte do jakékoli TOTP aplikace, i do webové) a opište kód.
+  Při smazání lokální databáze se nastavuje znovu. Žádná zadní vrátka v produkčním kódu nejsou – testy a E2E si kód počítají samy.
+- **Ztráta telefonu (A2):** 1) záchranný kód na stránce přihlášení („Použít záchranný kód“), pak hned vytvořit nové kódy a přidat nový telefon
+  (u admina nejde 2FA vypnout, ale jde ho znovu nastavit po resetu); 2) bez záchranných kódů nouzový příkaz na serveru:
+  ```text
+  sudo systemctl start minishop-backup          # ruční záloha před akcí
+  sudo -u deploy docker compose exec web dotnet MiniShop.Web.dll reset-2fa --email <e-mail>
+  ```
+  Příkaz ([ResetTwoFactorCommand](code:src/MiniShop.Web/Accounts/ResetTwoFactorCommand.cs), služba `TwoFactorReset`) vypne 2FA, zahodí klíč a záchranné
+  kódy, vymění security stamp (všechna přihlášení účtu skončí do minuty) a zapíše audit `TwoFactorReset` s původcem „příkaz na serveru“.
+  Důvěra je stejná jako u `create-admin`: kdo se dostane do kontejneru, stejně má přístup k databázi. Admin se pak přihlásí heslem
+  a musí si 2FA nastavit znovu (administrace je do té doby zamčená).
+- **Nasazení do produkce:** po sloučení A2 se stávající admin při prvním přihlášení dostane jen na nastavení 2FA – mějte po ruce telefon.
+  Před nasazením si admin 2FA nastaví **sám** (stránka `/Account/TwoFactor` existuje od A1) a uloží záchranné kódy; až pak se A2 nasadí.
+  Před rizikovou akcí ruční záloha (`sudo systemctl start minishop-backup`).
+- **Testy:** [TwoFactorTests](code:tests/MiniShop.Tests/Web/TwoFactorTests.cs) a [TwoFactorAdminTests](code:tests/MiniShop.Tests/Web/TwoFactorAdminTests.cs)
+  počítají TOTP sami (RFC 6238, `TestTotp`) a projdou skutečné stránky. Testovací admin z `MiniShopWebFactory` má 2FA zapnuté a `LoginAsync`
+  mu kód dopočítá; `CreateAdminAsync(…, twoFactor: false)` vytvoří admina bez něj. Scénář expedice v E2E: `ShopFlow.LoginAdminAsync`.
 
 ## Databáze a migrace
 

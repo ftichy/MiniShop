@@ -29,6 +29,9 @@ public sealed class TwoFactorModel(
 
     public bool IsEnabled { get; private set; }
     public bool CanDisable { get; private set; }
+
+    /// <summary>Admin bez 2FA: stránka vysvětlí, proč se sem dostal místo do administrace.</summary>
+    public bool IsRequiredForAdmin { get; private set; }
     public int RecoveryCodesLeft { get; private set; }
     public string? SharedKey { get; private set; }
     public string? QrSvg { get; private set; }
@@ -71,6 +74,8 @@ public sealed class TwoFactorModel(
 
         await userManager.SetTwoFactorEnabledAsync(user, true);
         RecoveryCodes = (await userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, TwoFactorHelper.RecoveryCodeCount))?.ToList();
+        // Nová cookie už nese claim „má 2FA“ – bez toho by admin po zapnutí pořád narážel na zámek administrace.
+        await signInManager.RefreshSignInAsync(user);
         logger.LogInformation("Uživatel {UserId} zapnul dvoufázové ověření", user.Id);
 
         await LoadAsync(user);
@@ -157,7 +162,9 @@ public sealed class TwoFactorModel(
     private async Task LoadAsync(ApplicationUser user)
     {
         IsEnabled = user.TwoFactorEnabled;
-        CanDisable = TwoFactorHelper.MayDisable(await userManager.GetRolesAsync(user));
+        var roles = await userManager.GetRolesAsync(user);
+        CanDisable = TwoFactorHelper.MayDisable(roles);
+        IsRequiredForAdmin = !IsEnabled && !TwoFactorHelper.MayDisable(roles);
 
         if (IsEnabled)
         {

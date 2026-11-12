@@ -77,7 +77,9 @@ ovládá skutečný prohlížeč nad skutečně spuštěnou aplikací a odhalí 
    [compose.yaml](code:deploy/compose.yaml) + [compose.e2e.yaml](code:deploy/compose.e2e.yaml) – PostgreSQL, RabbitMQ, Inventory.Api, Web
    a **Mailpit** (`axllent/mailpit`, cvičná pošta).
 2. Hesla pro Compose a pro admina vygeneruje za běhu (`openssl rand`) – **nic tajného v gitu ani v GitHub secrets**.
-   Admina založí příkazem `create-admin` (heslo z roury, v logu zamaskované).
+   Admina založí příkazem `create-admin` (heslo z roury, v logu zamaskované). Admin musí mít dvoufázové ověření (bezpečnost A2):
+   test `ShopFlow.LoginAdminAsync` si ho při prvním přihlášení **nastaví přes UI** (přečte klíč ze stránky `/Account/TwoFactor`)
+   a kód z aplikace si spočítá sám (`Totp`, RFC 6238) – bez zadních vrátek v aplikaci.
 3. Potvrzovací odkaz z e-mailu test přečte přes API Mailpitu – aplikace kvůli tomu nemá žádná zadní vrátka,
    jen místo Gmailu mluví s jiným SMTP serverem. `compose.e2e.yaml` také zvedne limit formulářů účtu (testy běží z jedné IP).
 4. Při selhání nahraje artefakt **e2e-artifacts**: Playwright trace (`*.trace.zip` – otevřít na

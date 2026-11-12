@@ -39,3 +39,13 @@ Viz `docs/prirucka/github/ci.md` (sekce E2E testy v prohlížeči) – lokálně
 
 ## Vyzkoušejte sami
 Rozbijte v pokladně `id` pole `Input_Street` a ověřte, že job „E2E testy“ spadne a v artefaktu je trace i snímek.
+
+## Jak krok vznikl
+
+Agent Claude z issue #92 (analýza → odpovědi na 5 otázek → `@claude implementuj`). Scénáře nemohl spustit (runner agenta
+nemá povolený Docker) a job nemohl dát do `ci.yml` (aplikace bez oprávnění *workflows*). Ručně doplněno v PR #93:
+- job „E2E testy“ přesunut do `.github/workflows/ci.yml`,
+- `Email__UseTls=false` v `compose.e2e.yaml` (Mailpit neumí STARTTLS),
+- po platbě se čeká na hlášku „Platba proběhla“ (ne „Zaplaceno“), mobil: druhé klepnutí na ☰ až po dokončení animace.
+
+Druhý běh v CI: všechny 3 scénáře zelené (~3 min).

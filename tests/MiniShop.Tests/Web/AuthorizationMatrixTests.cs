@@ -250,6 +250,9 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Admin, "/Account/TwoFactor?handler=Disable", Expect.Denied },   // A2: admin má 2FA zapnuté a vypnout ho nesmí (403)
         { Who.Anonymous, "/Account/TwoFactor?handler=Regenerate", Expect.Login },
         { Who.User, "/Account/TwoFactor?handler=Regenerate", Expect.Allowed },
+        { Who.Anonymous, "/Account/TwoFactor?handler=NewApp", Expect.Login },          // nový telefon / smazaná aplikace
+        { Who.User, "/Account/TwoFactor?handler=NewApp", Expect.Allowed },
+        { Who.Admin, "/Account/TwoFactor?handler=NewApp", Expect.Allowed },
 
         // Produkty a sklad: jen admin
         { Who.User, "/Products?handler=AddStock&id=1&quantity=5", Expect.Denied },

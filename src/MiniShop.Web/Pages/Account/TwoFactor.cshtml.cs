@@ -146,6 +146,49 @@ public sealed class TwoFactorModel(
         return RedirectToPage();
     }
 
+    /// <summary>
+    /// Nový telefon / smazaná aplikace: přihlášený uživatel prokáže vlastnictví účtu kódem z aplikace NEBO záchranným
+    /// kódem (spotřebuje se) – samotná přihlášená relace nestačí. Starý klíč pak přestane platit, 2FA se vypne
+    /// a stránka ukáže nový QR kód; zapnutím (první kód z nové aplikace) vzniknou nové záchranné kódy.
+    /// Platí i pro admina: mezitím ho policy RequireAdmin pustí jen sem (bez claimu two_factor nic nespravuje).
+    /// </summary>
+    public async Task<IActionResult> OnPostNewAppAsync()
+    {
+        var user = await userManager.GetUserAsync(User);
+        if (user is null)
+        {
+            return Challenge();
+        }
+
+        if (!user.TwoFactorEnabled)
+        {
+            return RedirectToPage();
+        }
+
+        var proven = await IsValidCodeAsync(user)
+                     || (await userManager.RedeemTwoFactorRecoveryCodeAsync(
+                         user, TwoFactorHelper.NormalizeRecoveryCode(Code))).Succeeded;
+        if (!proven)
+        {
+            // Hádání kódů se počítá do zámku účtu (projeví se při dalším přihlášení), stejně jako při přihlášení.
+            await userManager.AccessFailedAsync(user);
+            logger.LogWarning("Neplatný kód při výměně aplikace 2FA u účtu {UserId}", user.Id);
+            ModelState.AddModelError(string.Empty, "Kód nesouhlasí – aplikace zůstává beze změny.");
+            await LoadAsync(user);
+            return Page();
+        }
+
+        await userManager.ResetAccessFailedCountAsync(user);
+        await userManager.SetTwoFactorEnabledAsync(user, false);
+        await userManager.ResetAuthenticatorKeyAsync(user);   // starý klíč přestane platit (i nový security stamp)
+        await signInManager.RefreshSignInAsync(user);
+        await signInManager.ForgetTwoFactorClientAsync();
+        logger.LogInformation("Uživatel {UserId} vyměnil aplikaci pro dvoufázové ověření", user.Id);
+
+        StatusMessage = "Starý klíč už neplatí. Naskenujte nový QR kód a zapněte dvoufázové ověření prvním kódem z aplikace.";
+        return RedirectToPage();
+    }
+
     /// <summary>Platný 6místný kód z aplikace (záchranné kódy se tu nepřijímají – jen při přihlášení).</summary>
     private async Task<bool> IsValidCodeAsync(ApplicationUser user)
     {

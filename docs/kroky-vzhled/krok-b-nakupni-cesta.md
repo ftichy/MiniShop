@@ -54,6 +54,9 @@ pokladny (Journeys) funguje beze změny. Další krok: C – administrace.
 - Snímky: headless Edge přes PowerShell `Start-Process -Wait` (z Git Bash se Edge občas ukončí dřív, než snímek uloží);
   stránky za přihlášením stažené s cookie a doplněným `<base href>`.
 
+**Nasazeno 12. 11. 2026** (PR #83, postupné nasazení, jen Web). Ověřeno uživatelem na telefonu: košík se spodní lištou,
+pokladna s kartami dopravy a platby, objednávky a časová osa, stránky účtu.
+
 ## Vyzkoušejte sami
 
 1. Na telefonu dejte do košíku dvě věci – v košíku je dole lišta s cenou a *K pokladně*.

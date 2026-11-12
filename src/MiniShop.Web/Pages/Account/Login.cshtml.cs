@@ -44,6 +44,13 @@ public sealed class LoginModel(
             return LocalRedirect(SafeReturnUrl());
         }
 
+        // Dvoufázové ověření: heslo sedí, chybí kód z aplikace (nebo záchranný kód). Identity si úspěšné heslo
+        // zapamatuje v dočasné cookie a na stránce s kódem ho dokončí.
+        if (result.RequiresTwoFactor)
+        {
+            return RedirectToPage("./LoginWith2fa", new { ReturnUrl, RememberMe = Input.RememberMe });
+        }
+
         // Stejná hláška pro neznámý e-mail, špatné heslo i zamčený/zablokovaný účet (Identity zámek kontroluje
         // ještě před heslem) – jiná by komukoli prozradila, kdo v MiniShopu má účet. Admin stav vidí v přehledu uživatelů.
         // Krok 8: audit do logu – jen ID účtu, nikdy e-mail ani heslo.

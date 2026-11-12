@@ -28,6 +28,7 @@ viz [Ordering](ordering.md)), 5 ([e-maily](../emaily.md)), 6 (správa uživatel�
 | Změna hesla (účet bez hesla: Nastavit heslo, účty krok 10) | ❌ | ✅ | ✅ |
 | Přihlášení přes Google – propojit, odpojit (`/Account/ExternalLogins`, účty krok 10) | přihlásit se ✅ | ✅ | ✅ |
 | Nastavení e-mailů – souhlas s připomínkou košíku (`/Account/EmailPreferences`, e-shop krok 10, výchozí vypnuto) | ❌ | ✅ | ❌ |
+| Dvoufázové ověření – zapnout, záchranné kódy (`/Account/TwoFactor`, bezpečnost A1); vypnout jen zákazník | ❌ | ✅ | ✅ (vypnout ne) |
 | Uživatelé – přehled, detail, povýšit / vrátit na usera, zablokovat / odblokovat (`/Admin/…`) | ❌ | ❌ | ✅ (ne sám sobě) |
 
 Pravidla jsou pojmenovaná na jednom místě – **policies** `RequireAdmin` a `RequireCustomer`
@@ -265,6 +266,35 @@ stránky [ExternalLogin](code:src/MiniShop.Web/Pages/Account/ExternalLogin.cshtm
 [ExternalLogins](code:src/MiniShop.Web/Pages/Account/ExternalLogins.cshtml.cs),
 [SetPassword](code:src/MiniShop.Web/Pages/Account/SetPassword.cshtml.cs) a
 [Delete](code:src/MiniShop.Web/Pages/Account/Delete.cshtml.cs).
+
+## Dvoufázové ověření (2FA, bezpečnost A1)
+
+Heslo samo může uniknout (jiný web, phishing). **Dvoufázové ověření** přidá druhý zámek: 6místný kód z aplikace
+v telefonu (Google Authenticator, Microsoft Authenticator, Authy…), který se mění každých 30 sekund (**TOTP**, RFC 6238).
+Přirovnání: heslo je klíč od bytu, kód je alarm, který bez telefonu nevypnete – zloděj s klíčem se dovnitř nedostane.
+Je to **dobrovolné pro zákazníka** (část A1); povinnost pro admina přijde v části A2 ([issue #94](https://github.com/ftichy/MiniShop/issues/94)).
+
+- **Zapnutí** (`/Account/TwoFactor`, odkaz „Dvoufázové ověření“ pod nastavením účtu): stránka ukáže **QR kód** a tajný klíč
+  textem. QR se vykreslí **na serveru jako SVG** (knihovna [QRCoder](../../treti-strany/knihovny.md), MIT) a vloží do HTML –
+  žádný JavaScript ani CDN, takže CSP `script-src 'self'` zůstává beze změny. Zapnout jde až po zadání prvního platného kódu
+  (jinak by se uživatel mohl zamknout špatně naskenovaným klíčem). Pak se **jednou** zobrazí 10 **záchranných kódů**
+  (každý jde použít jednou; nikam se znovu neukládají v čitelné podobě).
+- **Přihlášení:** po správném hesle `PasswordSignInAsync` vrátí `RequiresTwoFactor` a [Login](code:src/MiniShop.Web/Pages/Account/Login.cshtml.cs)
+  přesměruje na [LoginWith2fa](code:src/MiniShop.Web/Pages/Account/LoginWith2fa.cshtml.cs) (kód z aplikace) nebo
+  [LoginWithRecoveryCode](code:src/MiniShop.Web/Pages/Account/LoginWithRecoveryCode.cshtml.cs). Heslo si mezitím pamatuje dočasná cookie Identity.
+  **Špatný kód se počítá do zámku účtu** stejně jako špatné heslo (5 × → 15 minut) a formuláře mají rate limiting.
+- **Zapamatovat zařízení** nabízí jen zákazníkovi. Pravidlo je na jednom místě – `TwoFactorHelper.MayRememberDevice`
+  ([TwoFactorHelper.cs](code:src/MiniShop.Web/Accounts/TwoFactorHelper.cs)): admin zadává kód vždy.
+- **Vypnout** jde jen zákazníkovi, a to platným kódem z aplikace (admin ne – `MayDisable`). Vypnutí vymění klíč, takže se
+  při novém zapnutí musí aplikace nastavit znovu. **Nové záchranné kódy** se vytvoří také po zadání platného kódu; staré přestanou platit.
+- **Bez vlastní kryptografie:** klíč, ověření kódu i záchranné kódy dělá Identity (`UserManager`: `GetAuthenticatorKeyAsync`,
+  `VerifyTwoFactorTokenAsync`, `GenerateNewTwoFactorRecoveryCodesAsync`; `SignInManager`: `TwoFactorAuthenticatorSignInAsync`,
+  `TwoFactorRecoveryCodeSignInAsync`). Do tabulek `AspNetUsers`/`AspNetUserTokens`, které už existují – **bez migrace**.
+- **Do logu** jen ID účtu a událost („zapnul 2FA“, „neplatný kód“) – nikdy kód, klíč ani e-mail (hlídá `TwoFactorTests`).
+- **Google:** přihlášení přes Google dnes 2FA obchází (`bypassTwoFactor: true` v [ExternalLogin](code:src/MiniShop.Web/Pages/Account/ExternalLogin.cshtml.cs)) –
+  Google se jako druhý faktor nepočítá. V části A2 to pro admina vyřeší autorizace (admin bez vlastního TOTP se k administraci nedostane).
+- **Ztráta telefonu:** záchranný kód. Bez něj zatím pomůže jen zásah správce databáze; bezpečný příkaz pro reset 2FA v kontejneru přijde s částí A2.
+- **Testy:** [TwoFactorTests](code:tests/MiniShop.Tests/Web/TwoFactorTests.cs) počítají TOTP sami (RFC 6238) a projdou skutečné stránky.
 
 ## Databáze a migrace
 

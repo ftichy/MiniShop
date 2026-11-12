@@ -506,7 +506,7 @@ GET formulář beze změny. Rozbalování jen atributy Bootstrapu (`data-bs-togg
 | Krok | Stav | Souhrn |
 | --- | --- | --- |
 | A. Kostra a výloha (design systém, hlavička + mobilní menu, Bootstrap JS, úvod pro zákazníka, `_ProductCard`, filtry v panelu, detail s nákupním boxem, ikony) | hotovo (nasazeno 11. 11. 2026, ověřeno na telefonu) | `docs/kroky-vzhled/krok-a-kostra-a-vyloha.md` |
-| B. Nákupní cesta (košík s kartami a spodní lištou, pokladna se souhrnem a `.choice-card` – Journeys beze změny, `Replay.cshtml` stejně, objednávky jako karty + časová osa, účet v `_AccountLayout`) | hotovo lokálně (čeká na nasazení) | `docs/kroky-vzhled/krok-b-nakupni-cesta.md` |
+| B. Nákupní cesta (košík s kartami a spodní lištou, pokladna se souhrnem a `.choice-card` – Journeys beze změny, `Replay.cshtml` stejně, objednávky jako karty + časová osa, účet v `_AccountLayout`) | hotovo (nasazeno 12. 11. 2026, ověřeno na telefonu) | `docs/kroky-vzhled/krok-b-nakupni-cesta.md` |
 | C. Administrace (responzivní tabulky, sjednocené hlavičky stránek) | plán | — |
 
 ## Stav škálování (viz `docs/Skalovani-roadmap.md`)

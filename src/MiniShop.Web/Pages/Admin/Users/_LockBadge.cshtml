@@ -2,14 +2,14 @@
 @model AccountSummary
 @if (Model.IsBlocked)
 {
-    <span class="badge bg-danger">zablokovaný</span>
+    <span class="badge badge-soft-danger">zablokovaný</span>
 }
 else if (Model.LockedOutUntil is { } until)
 {
     @* Účty krok 8: dočasný zámek po špatných heslech. *@
-    <span class="badge bg-warning text-dark" title="Po opakovaném špatném hesle">zamčený do @until.ToLocalTime().ToString("t")</span>
+    <span class="badge badge-soft-warning" title="Po opakovaném špatném hesle">zamčený do @until.ToLocalTime().ToString("t")</span>
 }
 else
 {
-    <span class="badge bg-success">aktivní</span>
+    <span class="badge badge-soft-success">aktivní</span>
 }

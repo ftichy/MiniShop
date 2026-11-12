@@ -3,13 +3,13 @@
 @{
     ViewData["Title"] = "Uživatelé";
 }
-<h1>Uživatelé</h1>
+<partial name="_AdminHeader" model='new MiniShop.Web.Ui.AdminHeaderModel("Uživatelé")' />
 <p class="text-muted">
     Nový admin se nejdřív zaregistruje sám (heslo zná jen on), pak ho tady povýšíte.
     Útrata = potvrzené a vyřízené objednávky.
 </p>
 
-<table class="table table-striped align-middle">
+<div class="table-responsive admin-table"><table class="table table-striped align-middle">
     <thead>
         <tr>
             <th>Jméno</th>
@@ -30,7 +30,7 @@
                     @account.Email
                     @if (!account.EmailConfirmed)
                     {
-                        <span class="badge bg-light text-dark border ms-1" title="E-mail není potvrzený">nepotvrzený</span>
+                        <span class="badge badge-soft-secondary ms-1" title="E-mail není potvrzený">nepotvrzený</span>
                     }
                 </td>
                 <td><partial name="_RoleBadge" model="account.IsAdmin" /></td>
@@ -40,7 +40,7 @@
             </tr>
         }
     </tbody>
-</table>
+</table></div>
 
 <h2 class="h4 mt-4">Poslední změny</h2>
 @if (Model.RecentAudit.Count == 0)
@@ -49,7 +49,7 @@
 }
 else
 {
-    <table class="table table-sm">
+    <div class="table-responsive admin-table"><table class="table table-sm">
         <tbody>
             @foreach (var entry in Model.RecentAudit)
             {
@@ -63,5 +63,5 @@ else
                 </tr>
             }
         </tbody>
-    </table>
+    </table></div>
 }

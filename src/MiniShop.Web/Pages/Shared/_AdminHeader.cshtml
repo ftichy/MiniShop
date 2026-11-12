@@ -1,0 +1,13 @@
+@model MiniShop.Web.Ui.AdminHeaderModel
+@* Vzhled C: jednotná hlavička stránek administrace – drobečková navigace a nadpis. *@
+<nav aria-label="Drobečková navigace" class="mb-1">
+    <ol class="breadcrumb small mb-0">
+        <li class="breadcrumb-item text-muted">Správa</li>
+        @if (Model.Parent is not null)
+        {
+            <li class="breadcrumb-item"><a asp-page="@Model.ParentPage">@Model.Parent</a></li>
+        }
+        <li class="breadcrumb-item active" aria-current="page">@Model.Title</li>
+    </ol>
+</nav>
+<h1 class="admin-title">@Model.Title</h1>

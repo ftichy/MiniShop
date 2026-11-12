@@ -3,7 +3,7 @@
 @{
     ViewData["Title"] = "Expedice";
 }
-<h1>Expedice</h1>
+<partial name="_AdminHeader" model='new MiniShop.Web.Ui.AdminHeaderModel("Expedice")' />
 <p class="text-muted">
     Objednávka jde postupně: <strong>potvrzená → balíme → odeslaná → doručená</strong>. Zrušit ji zákazník může do odeslání.
     Odeslání sklad promítne do rezervace (zboží vydáno), zákazník dostane e-mail s číslem zásilky.
@@ -16,7 +16,7 @@
 }
 
 @* Fronta 1: potvrzené objednávky – hromadně začít balit (zaškrtnout a jedno tlačítko). *@
-<h2 class="h4 mt-4">K zabalení <span class="badge bg-primary">@Model.ToPack.Count</span></h2>
+<h2 class="h4 mt-4">K zabalení <span class="badge badge-soft-primary">@Model.ToPack.Count</span></h2>
 @if (Model.ToPack.Count == 0)
 {
     <p class="text-muted">Nic nečeká.</p>
@@ -24,7 +24,7 @@
 else
 {
     <form method="post" asp-page-handler="StartPacking">
-        <table class="table table-sm align-middle">
+        <div class="table-responsive admin-table"><table class="table table-sm align-middle">
             <thead>
                 <tr><th></th><th>Objednávka</th><th>Zákazník</th><th>Doprava</th><th>Položky</th><th class="num">Celkem</th></tr>
             </thead>
@@ -41,13 +41,13 @@ else
                     </tr>
                 }
             </tbody>
-        </table>
+        </table></div>
         <button type="submit" class="btn btn-primary btn-sm" data-track="fulfilment-start-packing">Začít balit vybrané</button>
     </form>
 }
 
 @* Fronta 2: balí se – odeslat (kurýr: dopravce + číslo zásilky; osobní odběr: jen „připraveno k vyzvednutí“). *@
-<h2 class="h4 mt-5">K odeslání <span class="badge bg-info text-dark">@Model.ToShip.Count</span></h2>
+<h2 class="h4 mt-5">K odeslání <span class="badge badge-soft-info">@Model.ToShip.Count</span></h2>
 @if (Model.ToShip.Count == 0)
 {
     <p class="text-muted">Nic se nebalí.</p>
@@ -96,35 +96,30 @@ else
 </div>
 
 @* Fronta 3: na cestě – „Doručeno“ simuluje dopravce (skutečný by poslal webhook, e-shop krok 8). *@
-<h2 class="h4 mt-5">Na cestě <span class="badge bg-primary">@Model.InTransit.Count</span></h2>
+<h2 class="h4 mt-5">Na cestě <span class="badge badge-soft-primary">@Model.InTransit.Count</span></h2>
 @if (Model.InTransit.Count == 0)
 {
     <p class="text-muted">Nic není na cestě.</p>
 }
 else
 {
-    <table class="table table-sm align-middle">
-        <thead>
-            <tr><th>Objednávka</th><th>Zákazník</th><th>Zásilka</th><th></th></tr>
-        </thead>
-        <tbody>
-            @foreach (var order in Model.InTransit)
-            {
-                <tr>
-                    <td><a asp-page="/Orders/Detail" asp-route-id="@order.Id">č. @order.Id</a></td>
-                    <td>@order.CustomerName</td>
-                    <td>@(order.ShippingMethod == "Pickup" ? "čeká na vyzvednutí" : $"{order.Carrier} {order.TrackingNumber}".Trim())</td>
-                    <td class="text-end">
-                        <form method="post" asp-page-handler="Deliver" asp-route-id="@order.Id" class="d-inline">
-                            <button type="submit" class="btn btn-outline-success btn-sm" data-track="fulfilment-deliver">
-                                @(order.ShippingMethod == "Pickup" ? "Vyzvednuto" : "Doručeno")
-                            </button>
-                        </form>
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    @* Vzhled C: seznam místo tabulky – tlačítko Doručeno je na telefonu pod palcem bez posouvání do strany. *@
+    <div class="list-group">
+        @foreach (var order in Model.InTransit)
+        {
+            <div class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <a asp-page="/Orders/Detail" asp-route-id="@order.Id" class="fw-bold">č. @order.Id</a> – @order.CustomerName
+                    <div class="small text-muted">@(order.ShippingMethod == "Pickup" ? "čeká na vyzvednutí" : $"{order.Carrier} {order.TrackingNumber}".Trim())</div>
+                </div>
+                <form method="post" asp-page-handler="Deliver" asp-route-id="@order.Id">
+                    <button type="submit" class="btn btn-outline-success btn-sm" data-track="fulfilment-deliver">
+                        @(order.ShippingMethod == "Pickup" ? "Vyzvednuto" : "Doručeno")
+                    </button>
+                </form>
+            </div>
+        }
+    </div>
 }
 
 @functions {

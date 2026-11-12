@@ -4,7 +4,7 @@
     ViewData["Title"] = "Faktury";
     var czech = System.Globalization.CultureInfo.GetCultureInfo("cs-CZ");
 }
-<h1>Faktury</h1>
+<partial name="_AdminHeader" model='new MiniShop.Web.Ui.AdminHeaderModel("Faktury")' />
 <p class="text-muted">
     Vystavené faktury (modul Invoicing) – po zaplacení kartou, u dobírky po doručení. Faktura se nemění ani nemaže;
     zrušení, zamítnutí nebo vrácení zaplacené objednávky vystaví automaticky dobropis (řada <code>D…</code>).
@@ -16,7 +16,7 @@
 }
 else
 {
-    <table class="table table-sm align-middle">
+    <div class="table-responsive admin-table"><table class="table table-sm align-middle">
         <thead>
             <tr>
                 <th>Číslo</th>
@@ -48,5 +48,5 @@ else
                 </tr>
             }
         </tbody>
-    </table>
+    </table></div>
 }

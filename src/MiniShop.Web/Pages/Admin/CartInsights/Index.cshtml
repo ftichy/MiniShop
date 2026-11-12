@@ -4,7 +4,7 @@
     ViewData["Title"] = "Košíky";
     var insights = Model.Insights;
 }
-<h1>Košíky</h1>
+<partial name="_AdminHeader" model='new MiniShop.Web.Ui.AdminHeaderModel("Košíky")' />
 <p class="text-muted">
     Statistika z <strong>událostí košíků</strong> (event sourcing, e-shop krok 17) – počítá se při každém zobrazení,
     nic se kvůli ní neukládá navíc.
@@ -42,7 +42,7 @@ else
     }
     else
     {
-        <table class="table table-sm">
+        <div class="table-responsive admin-table"><table class="table table-sm">
             <thead><tr><th>Produkt</th><th class="text-end">Odebráno</th></tr></thead>
             <tbody>
                 @foreach (var product in insights.TopRemoved)
@@ -50,6 +50,6 @@ else
                     <tr><td>@product.Name</td><td class="text-end">@product.Count×</td></tr>
                 }
             </tbody>
-        </table>
+        </table></div>
     }
 }

@@ -33,6 +33,7 @@ Přirovnání: lísteček na pultu „zavolejte mi, až zboží přijde“. Prod
 - Pád přesně mezi odesláním e-mailu a uložením = e-mail podruhé (at-least-once jako jinde).
 - Souběžné naskladnění dvěma zprávami najednou může při souběhu skončit konfliktem a zopakováním zprávy; inbox + smazání lístečku duplicitu zabrání.
 - Zákazník nemá přehled svých hlídání, jen tlačítko u produktu.
+- Dvojklik na „Dejte mi vědět“: druhý požadavek narazí na unikátní index (`ConcurrencyConflictException`), stránka ho bere jako úspěch – lísteček je jeden (test `DejteMiVedet_SoubezneDvaKliky_KonfliktNeDvaListecky`).
 
 ## Jak ověřit
 `dotnet test MiniShop.slnx` (`DejteMiVedet_*` v `OrderServiceTests`, matice oprávnění). Ručně: vyprodat produkt, přihlášený
@@ -40,3 +41,9 @@ zákazník klikne „Dejte mi vědět“, admin produkt naskladní → po pár s
 
 ## Vyzkoušejte sami
 Zrušte upozornění a naskladněte znovu – e-mail nepřijde. Smažte účet – řádek `BackInStockSubscriptions` zmizí.
+
+## Jak krok vznikl
+
+První krok vytvořený **agentem Claude v GitHub Issues** ([příručka](../prirucka/github/agent.md)): zadání v issue #88 →
+`@claude analyzuj` (plán v komentáři) → `@claude implementuj` → PR #89 (CI zelené, sloučil člověk) → nasazeno 12. 11. 2026.
+Po kontrole doplněno ručně: ošetření dvojkliku a dokumentace (roadmapa, historie, stav v CLAUDE.md).

@@ -1,0 +1,43 @@
+name: Chyba
+description: Něco nefunguje, jak má. Agent Claude najde příčinu (komentář "@claude analyzuj").
+title: "[Chyba] "
+labels: ["chyba"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Žádná tajná hodnota (hesla, klíče, tokeny) ani osobní údaje zákazníků do issue nepatří – repozitář je veřejný.**
+        Z logu stačí trace ID nebo čas a text chyby.
+  - type: textarea
+    id: steps
+    attributes:
+      label: Kroky k vyvolání
+      placeholder: |
+        1. Přihlásit se jako zákazník
+        2. Přidat do košíku…
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Co se mělo stát
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Co se stalo
+      description: Text chyby, číslo objednávky, trace ID, snímek obrazovky.
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Kde
+      options:
+        - Produkce (minishop-tichy.cz)
+        - Lokálně (AppHost)
+        - Lokálně (Docker Compose)
+        - CI
+    validations:
+      required: true

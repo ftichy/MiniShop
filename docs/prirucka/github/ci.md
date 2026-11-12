@@ -54,7 +54,8 @@ flowchart LR
 
 `actions/checkout`, `actions/setup-dotnet`, `actions/cache`, `actions/upload-artifact`, `docker/setup-qemu-action`,
 `docker/setup-buildx-action`, `docker/login-action`, `docker/metadata-action`, `docker/build-push-action`
-(a v CD `tailscale/github-action`). Verze hlídá Dependabot.
+(a v CD `tailscale/github-action`, v agentovi `anthropics/claude-code-action` – [Agent Claude v issues](agent.md)).
+Verze hlídá Dependabot.
 
 ## Na internetu
 

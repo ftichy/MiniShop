@@ -1,0 +1,57 @@
+name: Zadání (nová funkce nebo změna)
+description: Co a proč má MiniShop umět. Agent Claude z toho připraví analýzu (komentář "@claude analyzuj").
+title: "[Zadání] "
+labels: ["zadani"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Postup: založit issue → napsat komentář **`@claude analyzuj`** → upravit plán v komentářích →
+        **`@claude implementuj`** → kontrola PR → sloučení dělá člověk. Podrobně v příručce *GitHub a CI/CD → Agent Claude v issues*.
+        **Žádná tajná hodnota (hesla, klíče) do issue nepatří – repozitář je veřejný.**
+  - type: textarea
+    id: goal
+    attributes:
+      label: Co a proč
+      description: Jaký problém řešíme, pro koho (zákazník, admin, provoz) a proč teď.
+      placeholder: "Zákazník chce dostat e-mail, až bude vyprodané zboží znovu skladem…"
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Akceptační kritéria
+      description: Podle čeho poznáme, že je hotovo. Jedna odrážka = jedna ověřitelná věc.
+      placeholder: |
+        - U vyprodaného produktu je tlačítko „Dejte mi vědět“
+        - Po naskladnění přijde e-mail každému, kdo se přihlásil, jen jednou
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Oblast
+      multiple: true
+      options:
+        - Výloha a košík
+        - Pokladna a platba
+        - Objednávky a expedice
+        - Administrace
+        - Účty a zabezpečení
+        - Notifikace a e-maily
+        - EDA (zprávy, ságy, moduly)
+        - Vzhled a mobil
+        - Nasazení a provoz
+        - Dokumentace
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Omezení a poznámky
+      description: Co se nesmí změnit, co je mimo rozsah, odkazy, nápady na řešení.
+  - type: checkboxes
+    id: rules
+    attributes:
+      label: Pravidla
+      options:
+        - label: Issue neobsahuje tajné hodnoty ani osobní údaje zákazníků.
+          required: true

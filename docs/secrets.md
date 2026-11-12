@@ -32,6 +32,12 @@ Pravidla:
 
 `GITHUB_TOKEN` (push image do GHCR) vytváří GitHub pro každý běh sám a po něm zanikne – nic se nemění.
 
+## Secrets repozitáře (GitHub → Settings → Secrets and variables → Actions)
+
+| Secret | K čemu | Kde ještě leží | Výměna | Kdy |
+| --- | --- | --- | --- | --- |
+| `CLAUDE_CODE_OAUTH_TOKEN` | přihlášení agenta Claude (`.github/workflows/claude.yml`) k předplatnému Claude. Kdo ho zná, může čerpat limity předplatného; k repozitáři ani produkci přístup nedává. Volitelný: chybí = `@claude` neodpoví (běh selže) | nikde – vytvoří ho `claude setup-token` a vypíše jen jednou | [R14](#r14-token-agenta-claude) | při podezření, při vypršení |
+
 ## Secrets na PC správce (mimo repozitář)
 
 | Secret | K čemu | Kde | Výměna | Kdy |
@@ -172,6 +178,15 @@ Nový klíč (`ssh-keygen`), veřejnou část přidat na VM do `/home/ubuntu/.ss
 3. Ověření: objednávka kartou → *Zaplatit* → Stripe → karta `4242 4242 4242 4242` → objednávka potvrzená
    (Dashboard → webhook → poslední události 200).
 4. Vypnutí Stripu bez výměny klíčů: `PAYMENTS_GATEWAY=Fake` v `deploy/production.env` (PR) – vrátí simulaci.
+
+### R14. Token agenta Claude
+
+1. Na PC v terminálu `claude setup-token` → přihlásit se účtem s předplatným → token se vypíše **jen jednou**
+   (nikam ho neukládat, neposílat do chatu ani do issue).
+2. GitHub → *Settings → Secrets and variables → Actions* → `CLAUDE_CODE_OAUTH_TOKEN` → *Update* → vložit.
+3. Ověření: v testovacím issue komentář `@claude ahoj` → workflow **Claude** doběhne a agent odpoví.
+4. Při úniku starý token zneplatnit v nastavení účtu na [claude.ai](https://claude.ai) (přehled přihlášení
+   Claude Code). Vypnutí agenta bez výměny: smazat secret, nebo workflow **Claude** → *Disable workflow* v záložce Actions.
 
 ### Které SHA nasadit
 

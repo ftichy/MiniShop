@@ -25,7 +25,7 @@ public sealed class ExpediceTests : E2ETestBase
             await ShopFlow.WaitForOrderStatusAsync(shop, orderId, "Potvrzená");
 
             // Admin: K zabalení → K odeslání → Na cestě.
-            await ShopFlow.LoginAsync(back, E2EEnvironment.AdminEmail!, E2EEnvironment.AdminPassword!);
+            await ShopFlow.LoginAdminAsync(back, E2EEnvironment.AdminEmail!, E2EEnvironment.AdminPassword!);
             await back.GotoAsync("/Admin/Fulfilment");
             await back.Locator($"input[name=ids][value='{orderId}']").CheckAsync();
             await back.Locator("[data-track=fulfilment-start-packing]").ClickAsync();

@@ -44,6 +44,39 @@ public static class ShopFlow
         await page.WaitForURLAsync(url => !url.Contains("/Account/Login"));
     }
 
+    /// <summary>Tajný klíč 2FA admina z E2E (nastaví se při prvním přihlášení; testy běží v jednom procesu).</summary>
+    private static string? _adminTotpKey;
+
+    /// <summary>
+    /// Přihlášení admina s dvoufázovým ověřením. Admin z <c>create-admin</c> ho zatím nemá – po přihlášení heslem
+    /// ho přes UI nastaví (klíč přečte ze stránky, první kód spočítá sám); další přihlášení zadá kód.
+    /// Žádná zadní vrátka v aplikaci: stejné kroky udělá člověk s telefonem.
+    /// </summary>
+    public static async Task LoginAdminAsync(IPage page, string email, string password)
+    {
+        await page.GotoAsync("/Account/Login");
+        await page.Locator("#Input_Email").FillAsync(email);
+        await page.Locator("#Input_Password").FillAsync(password);
+        await page.GetByRole(AriaRole.Button, new() { Name = "Přihlásit" }).ClickAsync();
+        await page.WaitForURLAsync(url => new Uri(url).AbsolutePath != "/Account/Login");
+
+        if (new Uri(page.Url).AbsolutePath == "/Account/LoginWith2fa")
+        {
+            await page.Locator("#Input_Code").FillAsync(Totp.Compute(_adminTotpKey
+                ?? throw new InvalidOperationException("Admin už 2FA má, ale test jeho klíč nezná.")));
+            await page.GetByRole(AriaRole.Button, new() { Name = "Ověřit" }).ClickAsync();
+            await page.WaitForURLAsync(url => new Uri(url).AbsolutePath != "/Account/LoginWith2fa");
+            return;
+        }
+
+        await page.GotoAsync("/Account/TwoFactor");
+        var key = (await page.Locator("[data-track=two-factor-key]").InnerTextAsync()).Trim();
+        await page.Locator("#code-enable").FillAsync(Totp.Compute(key));
+        await page.GetByRole(AriaRole.Button, new() { Name = "Zapnout" }).ClickAsync();
+        await Expect(page.Locator("[data-track=two-factor-recovery-codes]")).ToBeVisibleAsync();
+        _adminTotpKey = key;
+    }
+
     /// <summary>Katalog se po startu / založení produktu plní přes zprávy (~2–4 s) – obnovujeme výlohu, dokud tlačítko „Do košíku“ není.</summary>
     public static async Task WaitForProductsAsync(IPage page)
     {

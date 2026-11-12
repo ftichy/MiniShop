@@ -20,6 +20,13 @@ public static class AccountClaimTypes
     /// Účty krok 5: uživatel potvrdil e-mail (klikl na odkaz). Bez tohoto claimu ukazuje stránka upozornění.
     /// </summary>
     public const string EmailConfirmed = "minishop:email_confirmed";
+
+    /// <summary>
+    /// 2FA krok A2: účet má zapnuté dvoufázové ověření (TOTP). Policy RequireAdmin ho vyžaduje – admin bez něj
+    /// nesmí nic spravovat, jen si ho nastavit. Claim se zjišťuje při každém přihlášení (Google, heslo i kód),
+    /// takže platí stejně pro všechny způsoby přihlášení.
+    /// </summary>
+    public const string TwoFactorEnabled = "minishop:two_factor";
 }
 
 /// <summary>
@@ -39,6 +46,11 @@ public sealed class AccountClaimsPrincipalFactory(
         if (user.EmailConfirmed)
         {
             identity.AddClaim(new Claim(AccountClaimTypes.EmailConfirmed, "true"));
+        }
+
+        if (user.TwoFactorEnabled)
+        {
+            identity.AddClaim(new Claim(AccountClaimTypes.TwoFactorEnabled, "true"));
         }
 
         return identity;

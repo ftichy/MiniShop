@@ -63,7 +63,13 @@ public sealed class ExternalLoginModel(
 
         // Propojený účet: přihlásit. SignInManager zkontroluje zámek a blokaci adminem stejně jako u hesla.
         var result = await signInManager.ExternalLoginSignInAsync(info.LoginProvider, info.ProviderKey,
-            isPersistent: false, bypassTwoFactor: true);
+            isPersistent: false, bypassTwoFactor: false);
+
+        // Google se jako druhý faktor nepočítá: kdo má zapnuté 2FA (admin vždy), zadá po Googlu ještě kód z aplikace.
+        if (result.RequiresTwoFactor)
+        {
+            return RedirectToPage("./LoginWith2fa", new { ReturnUrl });
+        }
 
         if (!result.Succeeded && !result.IsLockedOut)
         {
@@ -83,7 +89,12 @@ public sealed class ExternalLoginModel(
             }
 
             result = await signInManager.ExternalLoginSignInAsync(info.LoginProvider, info.ProviderKey,
-                isPersistent: false, bypassTwoFactor: true);
+                isPersistent: false, bypassTwoFactor: false);
+        }
+
+        if (result.RequiresTwoFactor)
+        {
+            return RedirectToPage("./LoginWith2fa", new { ReturnUrl });
         }
 
         if (result.Succeeded)

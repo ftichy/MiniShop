@@ -17,7 +17,7 @@ public static class AccountsServiceCollectionExtensions
     public static IServiceCollection AddAccounts(this IServiceCollection services, ModuleDatabase database, IConfiguration configuration)
     {
         services.AddAccountsInfrastructure(database)
-            .AddSignInManager()
+            .AddSignInManager<AccountSignInManager>()
             .AddDefaultTokenProviders();   // krok 5: tokeny do odkazů v e-mailu (potvrzení, reset hesla)
 
         // Krok 5: odkaz z e-mailu platí 2 hodiny. Token je podepsaný klíči Data Protection a obsahuje security stamp –
@@ -35,7 +35,11 @@ public static class AccountsServiceCollectionExtensions
         services.AddAuthentication().AddGoogleLogin(configuration);
 
         services.AddAuthorizationBuilder()
-            .AddPolicy(AuthorizationPolicies.RequireAdmin, policy => policy.RequireRole(AccountRoles.Admin))
+            // 2FA krok A2: admin musí mít zapnuté dvoufázové ověření – s uniklým heslem by jinak šlo převzít e-shop.
+            // Jediné místo pravidla: platí pro heslo, Google i účet z create-admin/AdminBootstrap a pro povýšené uživatele.
+            .AddPolicy(AuthorizationPolicies.RequireAdmin, policy => policy
+                .RequireRole(AccountRoles.Admin)
+                .RequireClaim(AccountClaimTypes.TwoFactorEnabled, "true"))
             // Účty krok 9: objednávat jde až s potvrzeným e-mailem – robot s vymyšlenou adresou nic neobjedná
             // a e-maily o objednávkách nechodí cizím lidem. Claim dává AccountClaimsPrincipalFactory.
             .AddPolicy(AuthorizationPolicies.RequireCustomer, policy => policy
@@ -64,14 +68,21 @@ public static class AccountsServiceCollectionExtensions
             options.Events = new CookieAuthenticationEvents
             {
                 OnRedirectToLogin = context => RespondOrRedirect(context, StatusCodes.Status401Unauthorized),
-                OnRedirectToAccessDenied = context => RespondOrRedirect(context, StatusCodes.Status403Forbidden)
+                OnRedirectToAccessDenied = context => context.HttpContext.User.NeedsTwoFactorSetup()
+                    // Admin bez 2FA nemá „odepřeno“ natrvalo, jen musí nejdřív nastavit druhý faktor.
+                    ? RespondOrRedirect(context, StatusCodes.Status403Forbidden, TwoFactorSetupPath)
+                    : RespondOrRedirect(context, StatusCodes.Status403Forbidden)
             };
         });
 
         return services;
     }
 
-    private static Task RespondOrRedirect(RedirectContext<CookieAuthenticationOptions> context, int apiStatusCode)
+    /// <summary>Kam se pošle admin bez dvoufázového ověření.</summary>
+    public const string TwoFactorSetupPath = "/Account/TwoFactor";
+
+    private static Task RespondOrRedirect(RedirectContext<CookieAuthenticationOptions> context, int apiStatusCode,
+        string? redirectPath = null)
     {
         if (context.Request.Path.StartsWithSegments("/api"))
         {
@@ -79,7 +90,7 @@ public static class AccountsServiceCollectionExtensions
         }
         else
         {
-            context.Response.Redirect(context.RedirectUri);
+            context.Response.Redirect(redirectPath ?? context.RedirectUri);
         }
 
         return Task.CompletedTask;

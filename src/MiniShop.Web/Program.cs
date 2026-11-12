@@ -131,6 +131,13 @@ try
         return;
     }
 
+    // 2FA krok A2: "dotnet MiniShop.Web.dll reset-2fa --email …" zruší dvoufázové ověření účtu (ztráta telefonu) a skončí.
+    if (ResetTwoFactorCommand.IsRequested(args))
+    {
+        Environment.ExitCode = await ResetTwoFactorCommand.RunAsync(app.Services, args);
+        return;
+    }
+
     await OrderingDatabaseInitializer.InitializeAsync(app.Services);
     await JourneysDatabaseInitializer.InitializeAsync(app.Services);
     await NotificationsDatabaseInitializer.InitializeAsync(app.Services);

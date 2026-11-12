@@ -3,12 +3,12 @@
 @{
     ViewData["Title"] = "Produkty";
 }
-<h1>Produkty</h1>
+<partial name="_AdminHeader" model='new MiniShop.Web.Ui.AdminHeaderModel("Produkty")' />
 
 <partial name="_StatusMessage" model="Model.StatusMessage" />
 <div asp-validation-summary="ModelOnly" class="text-danger"></div>
 
-<table class="table table-striped">
+<div class="table-responsive admin-table"><table class="table table-striped">
     <thead>
         <tr>
             <th>ID</th>
@@ -46,10 +46,10 @@
             </tr>
         }
     </tbody>
-</table>
+</table></div>
 
 <h2 class="h4 mt-4">Nový produkt</h2>
-<form method="post" asp-page-handler="Create" class="row g-2">
+<form method="post" asp-page-handler="Create" class="row g-2 card card-body flex-row mx-0 admin-form">
     <div class="col-md-3">
         <label asp-for="NewProduct.Name" class="form-label"></label>
         <input asp-for="NewProduct.Name" class="form-control" />
@@ -87,7 +87,7 @@
     Přejmenování se do výlohy promítne za pár sekund (sklad znovu pošle zprávu o každém produktu kategorie).
     Smazat jde jen prázdnou kategorii.
 </p>
-<table class="table table-sm align-middle" style="max-width: 44rem">
+<div class="table-responsive admin-table"><table class="table table-sm align-middle" style="max-width: 44rem">
     <thead>
         <tr>
             <th>Název</th>
@@ -117,8 +117,8 @@
             </tr>
         }
     </tbody>
-</table>
-<form method="post" asp-page-handler="CreateCategory" class="d-flex gap-2" style="max-width: 30rem">
+</table></div>
+<form method="post" asp-page-handler="CreateCategory" class="d-flex flex-wrap gap-2 admin-form" style="max-width: 30rem">
     <input name="category.Name" maxlength="50" placeholder="Nová kategorie" class="form-control" aria-label="Nová kategorie" />
     <button type="submit" class="btn btn-primary">Přidat kategorii</button>
 </form>

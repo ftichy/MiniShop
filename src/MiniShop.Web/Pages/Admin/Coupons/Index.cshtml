@@ -4,7 +4,7 @@
 @{
     ViewData["Title"] = "Slevové kódy";
 }
-<h1>Slevové kódy</h1>
+<partial name="_AdminHeader" model='new MiniShop.Web.Ui.AdminHeaderModel("Slevové kódy")' />
 <p class="text-muted">
     Kód zákazník zadá v pokladně. Použití se započítá až při objednání – ve stejné transakci jako objednávka, takže
     poslední použití nepřetečou ani při souběhu. Zamítnuté a zrušené objednávky použití vrátí.
@@ -13,7 +13,7 @@
 <partial name="_StatusMessage" model="Model.StatusMessage" />
 <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
 
-<table class="table table-sm align-middle">
+<div class="table-responsive admin-table"><table class="table table-sm align-middle">
     <thead>
         <tr>
             <th>Kód</th>
@@ -32,7 +32,7 @@
         @foreach (var coupon in Model.Coupons)
         {
             <tr class="@(coupon.IsActive ? null : "text-muted")">
-                <td><code>@coupon.Code</code> @if (!coupon.IsActive) { <span class="badge bg-secondary">vypnutý</span> }</td>
+                <td><code>@coupon.Code</code> @if (!coupon.IsActive) { <span class="badge badge-soft-secondary">vypnutý</span> }</td>
                 <td class="text-end">@IndexModel.ValueText(coupon)</td>
                 <td>@(coupon.ValidUntilUtc?.ToLocalTime().ToString("d. M. yyyy") ?? "bez omezení")</td>
                 <td class="text-end">@(coupon.MinItemsTotal > 0 ? $"{coupon.MinItemsTotal:N0} Kč" : "–")</td>
@@ -48,10 +48,10 @@
             </tr>
         }
     </tbody>
-</table>
+</table></div>
 
 <h2 class="h5 mt-4">Nový kupon</h2>
-<form method="post" asp-page-handler="Create" class="row g-2 align-items-end">
+<form method="post" asp-page-handler="Create" class="row g-2 align-items-end card card-body flex-row mx-0 admin-form">
     <div class="col-sm-6 col-lg-2">
         <label asp-for="Input.Code" class="form-label small"></label>
         <input asp-for="Input.Code" class="form-control form-control-sm" maxlength="@Coupon.CodeMaxLength" placeholder="JARO10" />

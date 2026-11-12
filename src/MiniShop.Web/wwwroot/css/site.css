@@ -213,6 +213,7 @@ a:focus-visible, .btn:focus-visible, summary:focus-visible {
 .badge-soft-secondary { background-color: #f3f4f6; color: #374151; }
 .badge-soft-primary { background-color: var(--ms-brand-soft); color: #3730a3; }
 .badge-soft-info { background-color: #e0f2fe; color: #075985; }
+.badge-soft-dark { background-color: #e5e7eb; color: #111827; }
 
 /* Výloha: lišta hledání nahoře; na mobilu filtry ve vysouvacím panelu. */
 .shop-toolbar { position: sticky; top: 4.25rem; z-index: 1010; background-color: var(--ms-canvas); padding: 0.5rem 0; }
@@ -360,3 +361,35 @@ a:focus-visible, .btn:focus-visible, summary:focus-visible {
 .form-control, .form-select { background-color: #fff; }
 .form-control:disabled, .form-control[readonly] { background-color: var(--bs-tertiary-bg); }
 .cart-item a.flex-shrink-0 { text-decoration: none; }
+
+/* ==========================================================================
+   Vzhled C: administrace
+   ========================================================================== */
+
+.admin-title { margin-bottom: 0.75rem; }
+/* Tabulka v kartě; na telefonu se posouvá do strany uvnitř karty, stránka zůstane v šířce displeje. */
+.admin-table {
+    background-color: var(--ms-surface);
+    border: 1px solid var(--ms-border);
+    border-radius: var(--ms-radius);
+    box-shadow: var(--ms-shadow-sm);
+    margin-bottom: 1rem;
+}
+.admin-table > .table { margin-bottom: 0; }
+.admin-table > .table > :not(caption) > * > * { padding: 0.6rem 0.75rem; }
+.admin-table > .table > thead th {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--ms-text-muted);
+    background-color: #fafbfd;
+    white-space: nowrap;
+}
+.admin-table > .table > tbody > tr:last-child > * { border-bottom: 0; }
+.list-group { --bs-list-group-border-color: var(--ms-border); --bs-list-group-border-radius: var(--ms-radius); box-shadow: var(--ms-shadow-sm); }
+@media (max-width: 575.98px) {
+    /* Formuláře administrace: pole pod sebou, hlavní tlačítka přes celou šířku. */
+    .admin-form .btn-primary { width: 100%; }
+}
+.progress { --bs-progress-bar-bg: var(--ms-brand); --bs-progress-bg: var(--ms-brand-soft); }

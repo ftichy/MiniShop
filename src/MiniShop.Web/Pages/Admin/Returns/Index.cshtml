@@ -4,7 +4,7 @@
 @{
     ViewData["Title"] = "Vratky";
 }
-<h1>Vratky</h1>
+<partial name="_AdminHeader" model='new MiniShop.Web.Ui.AdminHeaderModel("Vratky")' />
 <p class="text-muted">
     Vrácení řídí sága: <strong>čeká na zboží → naskladní se → vrátí se peníze</strong>. Až zásilka dorazí, zkontrolujte ji
     a klikněte <em>Přijato</em> (nebo <em>Zamítnout</em> s důvodem pro zákazníka). Kartou vrací peníze Payments,
@@ -34,7 +34,7 @@ else
                         · @order.CustomerName · @order.TotalPrice.ToString("N2") Kč
                         · @(order.PaymentMethod == "Card" ? "kartou" : "dobírka – peníze vrátit převodem")
                     </div>
-                    <span class="badge bg-warning text-dark" data-track="return-state">@IndexModel.StateText(row.Saga.State)</span>
+                    <span class="badge badge-soft-warning" data-track="return-state">@IndexModel.StateText(row.Saga.State)</span>
                 </div>
                 @if (row.Saga.State == ReturnSagaState.AwaitingGoods)
                 {

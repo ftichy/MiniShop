@@ -49,15 +49,15 @@ public sealed class JourneyModel(IJourneyService journeyService) : PageModel
 
     public static string KindBadge(string kind) => kind switch
     {
-        "FormOpened" => "bg-secondary",
-        "FieldFocused" => "bg-light text-dark border",
-        "FieldChanged" => "bg-info text-dark",
-        "Clicked" => "bg-warning text-dark",
-        "SubmitClicked" => "bg-primary",
-        "ValidationFailed" => "bg-danger",
-        "FieldInvalid" => "bg-danger",
-        "OrderSubmitted" => "bg-success",
-        _ => "bg-secondary"
+        "FormOpened" => "badge-soft-secondary",   // vzhled C: jemné barvy (site.css)
+        "FieldFocused" => "badge-soft-secondary",
+        "FieldChanged" => "badge-soft-info",
+        "Clicked" => "badge-soft-warning",
+        "SubmitClicked" => "badge-soft-primary",
+        "ValidationFailed" => "badge-soft-danger",
+        "FieldInvalid" => "badge-soft-danger",
+        "OrderSubmitted" => "badge-soft-success",
+        _ => "badge-soft-secondary"
     };
 
     public static string KindText(string kind) => kind switch

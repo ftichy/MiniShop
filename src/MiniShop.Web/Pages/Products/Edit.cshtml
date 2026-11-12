@@ -4,14 +4,14 @@
 @{
     ViewData["Title"] = "Úprava produktu";
 }
-<h1>Úprava produktu</h1>
+<partial name="_AdminHeader" model='new MiniShop.Web.Ui.AdminHeaderModel("Úprava produktu", "Produkty", "/Products/Index")' />
 
 <partial name="_StatusMessage" model="Model.StatusMessage" />
 <div asp-validation-summary="ModelOnly" class="text-danger"></div>
 
 <div class="row g-4">
     <div class="col-lg-7">
-        <form method="post">
+        <form method="post" class="card card-body admin-form">
             <div class="mb-3">
                 <label asp-for="Product.Name" class="form-label"></label>
                 <input asp-for="Product.Name" class="form-control" />

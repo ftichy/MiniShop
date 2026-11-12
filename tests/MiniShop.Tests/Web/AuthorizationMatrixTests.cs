@@ -174,6 +174,12 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Anonymous, "/Shop/1?handler=Review", Expect.Login },              // e-shop krok 14: hodnotit jen zákazník
         { Who.User, "/Shop/1?handler=Review", Expect.Allowed },
         { Who.Admin, "/Shop/1?handler=Review", Expect.Denied },
+        { Who.Anonymous, "/Shop/1?handler=Notify", Expect.Login },              // e-shop krok 18: dejte mi vědět
+        { Who.User, "/Shop/1?handler=Notify", Expect.Allowed },
+        { Who.Admin, "/Shop/1?handler=Notify", Expect.Denied },
+        { Who.Anonymous, "/Shop/1?handler=CancelNotify", Expect.Login },
+        { Who.User, "/Shop/1?handler=CancelNotify", Expect.Allowed },
+        { Who.Admin, "/Shop/1?handler=CancelNotify", Expect.Denied },
         { Who.User, "/Admin/Reviews?handler=Toggle&id=999", Expect.Denied },
         { Who.Admin, "/Admin/Reviews?handler=Toggle&id=999", Expect.Allowed },
         { Who.User, "/Admin/Coupons?handler=Create", Expect.Denied },           // e-shop krok 13: jen admin

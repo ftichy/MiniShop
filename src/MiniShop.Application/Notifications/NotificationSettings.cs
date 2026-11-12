@@ -16,6 +16,9 @@ public sealed record NotificationSettings(string? PublicBaseUrl)
     /// <summary>E-shop krok 10: odkaz na nastavení e-mailů (vypnout připomínky), nebo null.</summary>
     public string? EmailPreferencesLink() => Link("/Account/EmailPreferences");
 
+    /// <summary>Odkaz na detail produktu ve výloze, nebo null.</summary>
+    public string? ProductLink(int productId) => Link($"/Shop/{productId}");
+
     private string? Link(string path) =>
         string.IsNullOrWhiteSpace(PublicBaseUrl) ? null : $"{PublicBaseUrl.TrimEnd('/')}{path}";
 }

@@ -18,6 +18,7 @@ public static class NotificationsInfrastructure
         services.AddDbContext<NotificationsDbContext>(options => options.UseModuleDatabase(database, NotificationsDbContext.Schema));
         services.AddScoped<INotificationsUnitOfWork>(sp => sp.GetRequiredService<NotificationsDbContext>());
         services.AddScoped<IOrderRecipientRepository, OrderRecipientRepository>();
+        services.AddScoped<IBackInStockRepository, BackInStockRepository>();
 
         services.AddIntegrationModule<NotificationsDbContext>(IntegrationModules.Notifications);
 

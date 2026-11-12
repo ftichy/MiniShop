@@ -20,6 +20,8 @@ public sealed class NotificationsDbContext(DbContextOptions<NotificationsDbConte
 
     public DbSet<OrderRecipient> OrderRecipients => Set<OrderRecipient>();
 
+    public DbSet<BackInStockSubscription> BackInStockSubscriptions => Set<BackInStockSubscription>();
+
     // Notifications nemá doménové události – kdyby nějaká vznikla, chyba se ukáže hned.
     protected override IEnumerable<OutboxMessage> ToOutboxMessages(IDomainEvent domainEvent) =>
         throw new InvalidOperationException($"Modul Notifications neposílá zprávy ({domainEvent.GetType().Name}).");

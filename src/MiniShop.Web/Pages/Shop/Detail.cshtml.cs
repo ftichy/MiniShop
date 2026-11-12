@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using MiniShop.Application.Notifications;
 using MiniShop.Application.Ordering;
 using MiniShop.Application.Ordering.Catalog;
 using MiniShop.Application.Reviews;
@@ -15,7 +16,7 @@ namespace MiniShop.Web.Pages.Shop;
 /// neznají, spojí je až tahle stránka (jako smazání účtu). Veřejná; hodnotit smí jen zákazník, který produkt dostal.
 /// </summary>
 [AllowAnonymous]
-public sealed class DetailModel(ICatalogQueryService catalog, ReviewService reviews, IAuthorizationService authorization)
+public sealed class DetailModel(ICatalogQueryService catalog, ReviewService reviews, BackInStockService backInStock, IAuthorizationService authorization)
     : PageModel
 {
     public CatalogItemDto Product { get; private set; } = null!;
@@ -23,6 +24,9 @@ public sealed class DetailModel(ICatalogQueryService catalog, ReviewService revi
     public ProductReviewsDto Reviews { get; private set; } = null!;
 
     public bool CanOrder { get; private set; }
+
+    /// <summary>Zákazník už čeká na e-mail o naskladnění.</summary>
+    public bool IsWatching { get; private set; }
 
     public bool IsAnonymous => User.Identity?.IsAuthenticated != true;
 
@@ -63,6 +67,54 @@ public sealed class DetailModel(ICatalogQueryService catalog, ReviewService revi
         return RedirectToPage(new { id });
     }
 
+    /// <summary>„Dejte mi vědět“ – jen zákazník a jen u vyprodaného produktu (dostupnost z kopie katalogu).</summary>
+    public async Task<IActionResult> OnPostNotifyAsync(int id, CancellationToken cancellationToken)
+    {
+        if (IsAnonymous)
+        {
+            return Challenge();
+        }
+
+        if (!(await authorization.AuthorizeAsync(User, AuthorizationPolicies.RequireCustomer)).Succeeded)
+        {
+            return Forbid();
+        }
+
+        if (await catalog.GetProductAsync(id, cancellationToken) is not { } product)
+        {
+            return NotFound();
+        }
+
+        if (product.Availability != "OutOfStock")
+        {
+            ErrorMessage = "Produkt je skladem, upozornění není potřeba.";
+        }
+        else
+        {
+            await backInStock.SubscribeAsync(User.ToCustomerId(), id, product.Name, cancellationToken);
+            StatusMessage = "Dáme vám vědět e-mailem, jakmile bude produkt skladem (pošleme jen jeden e-mail).";
+        }
+
+        return RedirectToPage(new { id });
+    }
+
+    public async Task<IActionResult> OnPostCancelNotifyAsync(int id, CancellationToken cancellationToken)
+    {
+        if (IsAnonymous)
+        {
+            return Challenge();
+        }
+
+        if (!(await authorization.AuthorizeAsync(User, AuthorizationPolicies.RequireCustomer)).Succeeded)
+        {
+            return Forbid();
+        }
+
+        await backInStock.CancelAsync(User.ToCustomerId(), id, cancellationToken);
+        StatusMessage = "Upozornění je zrušené.";
+        return RedirectToPage(new { id });
+    }
+
     private async Task<bool> LoadAsync(int id, CancellationToken cancellationToken)
     {
         if (await catalog.GetProductAsync(id, cancellationToken) is not { } product)
@@ -73,6 +125,7 @@ public sealed class DetailModel(ICatalogQueryService catalog, ReviewService revi
         Product = product;
         CanOrder = (await authorization.AuthorizeAsync(User, AuthorizationPolicies.RequireCustomer)).Succeeded;
         Reviews = await reviews.GetForProductAsync(id, CanOrder ? User.ToCustomerId() : null, cancellationToken);
+        IsWatching = CanOrder && await backInStock.IsSubscribedAsync(User.ToCustomerId(), id, cancellationToken);
         return true;
     }
 

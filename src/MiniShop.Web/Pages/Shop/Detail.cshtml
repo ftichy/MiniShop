@@ -59,9 +59,26 @@
                     </button>
                 </form>
             }
+            else if (Model.CanOrder)
+            {
+                @* Vyprodáno: lísteček „dejte mi vědět“ – jeden e-mail po naskladnění. *@
+                @if (Model.IsWatching)
+                {
+                    <p class="text-muted small mb-2">Dáme vám vědět e-mailem, jakmile bude produkt skladem.</p>
+                    <form method="post" asp-page-handler="CancelNotify" asp-route-id="@p.ProductId">
+                        <button type="submit" class="btn btn-outline-secondary btn-lg btn-buy" data-track="product-cancel-notify">Zrušit upozornění</button>
+                    </form>
+                }
+                else
+                {
+                    <form method="post" asp-page-handler="Notify" asp-route-id="@p.ProductId">
+                        <button type="submit" class="btn btn-primary btn-lg btn-buy" data-track="product-notify">Dejte mi vědět</button>
+                    </form>
+                }
+            }
             else if (Model.IsAnonymous)
             {
-                <a asp-page="/Account/Login" asp-route-returnUrl="@Model.CurrentUrl" class="btn btn-outline-primary btn-lg btn-buy">Přihlásit a nakoupit</a>
+                <a asp-page="/Account/Login" asp-route-returnUrl="@Model.CurrentUrl" class="btn btn-outline-primary btn-lg btn-buy">@(p.Availability == "OutOfStock" ? "Přihlásit a nechat si dát vědět" : "Přihlásit a nakoupit")</a>
             }
             <ul class="list-unstyled small text-muted mt-3 mb-0">
                 <li class="d-flex align-items-center gap-2">@Icons.Truck Doprava zdarma od 1 000 Kč, kurýr 99 Kč</li>

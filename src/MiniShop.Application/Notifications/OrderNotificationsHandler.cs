@@ -24,6 +24,7 @@ namespace MiniShop.Application.Notifications;
 /// </remarks>
 public sealed class OrderNotificationsHandler(
     IOrderRecipientRepository recipients,
+    IBackInStockRepository backInStock,
     INotificationsUnitOfWork unitOfWork,
     IEmailSender emailSender,
     OrderEmailTemplates templates,
@@ -117,6 +118,7 @@ public sealed class OrderNotificationsHandler(
     public async Task HandleAsync(CustomerAnonymizedV1 message, CancellationToken cancellationToken)
     {
         await recipients.RemoveForCustomerAsync(message.CustomerId, cancellationToken);
+        await backInStock.RemoveForCustomerAsync(message.CustomerId, cancellationToken);   // i lístečky „dejte mi vědět“
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 

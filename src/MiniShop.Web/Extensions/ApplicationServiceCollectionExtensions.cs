@@ -151,6 +151,11 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<ICustomerContacts, IdentityCustomerContacts>();
         services.AddIntegrationMessageHandler<CartAbandonedV1, CartReminderHandler>(IntegrationModules.Notifications);
 
+        // E-shop krok 18: „Dejte mi vědět“ – lísteček u vyprodaného zboží, jeden e-mail po naskladnění.
+        services.AddSingleton<BackInStockEmailTemplates>();
+        services.AddScoped<BackInStockService>();
+        services.AddIntegrationMessageHandler<StockAvailabilityChangedV1, BackInStockHandler>(IntegrationModules.Notifications);
+
         // E-shop krok 15: e-mail s fakturou v příloze – PDF z modulu Invoicing přes most ve Webu.
         services.AddScoped<IInvoiceDocuments, InvoiceDocuments>();
         services.AddIntegrationMessageHandler<InvoiceIssuedV1, InvoiceEmailHandler>(IntegrationModules.Notifications);

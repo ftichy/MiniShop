@@ -53,3 +53,12 @@ Přirovnání: do skladu smí jen ten, kdo má klíč **i** alarm. Pokud admin a
 `dotnet test MiniShop.slnx --filter "FullyQualifiedName~TwoFactor"`; E2E ověří CI. Ručně: přihlásit se jako admin bez 2FA → `/Admin/Users`
 přesměruje na `/Account/TwoFactor` → nastavit → administrace funguje; odhlásit, přihlásit (heslo, kód). Před nasazením do produkce:
 admin si 2FA nastaví sám, uložit záchranné kódy, ruční záloha.
+
+## Oprava po nasazení: nový telefon / smazaná aplikace
+
+Kdo smazal účet z aplikace (nebo ztratil telefon), se záchranným kódem přihlásil, ale **novou aplikaci nastavit nemohl** –
+„Nové záchranné kódy“ chtěly kód z aplikace a vypnutí admin nesmí; zbýval jen `reset-2fa` na serveru. Oprava: sekce
+**„Nový telefon nebo smazaná aplikace“** na `/Account/TwoFactor` (handler `NewApp`): důkaz kódem z aplikace **nebo záchranným
+kódem** (spotřebuje se; samotná přihlášená relace nestačí, špatný kód jde do zámku) → nový klíč, 2FA vypnuté, nový QR → první
+kód zapne a vytvoří nové záchranné kódy (staré neplatí). Admin mezitím smí jen nastavení 2FA (policy). Testy
+`NovaAplikace_*`, řádky v matici; ověřeno lokálně naživo i snímkem (500 px).

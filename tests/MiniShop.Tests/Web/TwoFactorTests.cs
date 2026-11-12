@@ -31,6 +31,59 @@ public sealed partial class TwoFactorTests(MiniShopWebFactory web)
     }
 
     [Fact]
+    public async Task NovaAplikace_ZachrannymKodem_StaryKlicAKodyNeplatiNovyQrZapne()
+    {
+        // Smazaná aplikace v telefonu: přihlášení záchranným kódem, pak výměna aplikace dalším záchranným kódem.
+        var (email, oldKey, oldCodes) = await UserWithTwoFactorAndCodesAsync("2fa-nova-aplikace@example.com");
+        var client = await web.LoginAsync(email, Password);
+
+        // Bez důkazu (špatný kód) se nic nezmění.
+        var wrong = await PostAsync(client, "/Account/TwoFactor?handler=NewApp", "/Account/TwoFactor", new() { ["Code"] = "AAAAA-BBBBB" });
+        Assert.Equal(HttpStatusCode.OK, wrong.StatusCode);
+        Assert.True(await IsEnabledAsync(email));
+        Assert.Equal(oldKey, await web.GetAuthenticatorKeyAsync(email));
+
+        var ok = await PostAsync(client, "/Account/TwoFactor?handler=NewApp", "/Account/TwoFactor", new() { ["Code"] = oldCodes[0] });
+        Assert.Equal(HttpStatusCode.Redirect, ok.StatusCode);
+        Assert.False(await IsEnabledAsync(email));
+
+        var html = await client.GetStringAsync("/Account/TwoFactor");
+        Assert.Contains("<svg", html);
+        var newKey = ReadKey(html);
+        Assert.NotEqual(oldKey, newKey);
+
+        var enabled = await PostAsync(client, "/Account/TwoFactor?handler=Enable", "/Account/TwoFactor", new() { ["Code"] = TestTotp.Compute(newKey) });
+        Assert.Equal(TwoFactorHelperCodeCount, RecoveryCodes(await enabled.Content.ReadAsStringAsync()).Count);
+        Assert.True(await IsEnabledAsync(email));
+
+        // Staré záchranné kódy po novém zapnutí neplatí.
+        await using var scope = web.Services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        Assert.False((await users.RedeemTwoFactorRecoveryCodeAsync((await users.FindByEmailAsync(email))!, oldCodes[1])).Succeeded);
+    }
+
+    [Fact]
+    public async Task NovaAplikace_Admin_MeziVymenouJenNastaveni_PoZapnutiZaseSpravuje()
+    {
+        const string email = "2fa-admin-nova-aplikace@example.com";
+        await web.CreateAdminAsync(email, Password, twoFactor: true);
+        var client = await web.LoginAsync(email, Password);
+        var oldKey = await web.GetAuthenticatorKeyAsync(email);
+
+        var ok = await PostAsync(client, "/Account/TwoFactor?handler=NewApp", "/Account/TwoFactor", new() { ["Code"] = TestTotp.Compute(oldKey) });
+        Assert.Equal(HttpStatusCode.Redirect, ok.StatusCode);
+
+        // Mezi výměnou je admin bez 2FA – správa ho pošle na nastavení.
+        var locked = await client.GetAsync("/Admin/Users");
+        Assert.Equal(HttpStatusCode.Redirect, locked.StatusCode);
+        Assert.Contains("/Account/TwoFactor", locked.Headers.Location!.OriginalString);
+
+        var newKey = ReadKey(await client.GetStringAsync("/Account/TwoFactor"));
+        await PostAsync(client, "/Account/TwoFactor?handler=Enable", "/Account/TwoFactor", new() { ["Code"] = TestTotp.Compute(newKey) });
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/Admin/Users")).StatusCode);
+    }
+
+    [Fact]
     public async Task Zapnuti_StrankaUkazeQrAKlic_PrvniKodZapneAUkazeZachranneKody()
     {
         var email = "2fa-zapnuti@example.com";

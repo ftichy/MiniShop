@@ -48,6 +48,19 @@
                 <button type="submit" class="btn btn-outline-primary">Vytvořit nové záchranné kódy</button>
             </form>
 
+            <form method="post" asp-page-handler="NewApp" class="mb-4" data-track="two-factor-new-app">
+                <h2 class="h5">Nový telefon nebo smazaná aplikace</h2>
+                <p class="text-muted">
+                    Potvrďte kódem z aplikace, nebo – když ji nemáte – <strong>záchranným kódem</strong> (spotřebuje se).
+                    Starý klíč přestane platit a ukážeme nový QR kód.
+                </p>
+                <div class="mb-3">
+                    <label for="code-new-app" class="form-label">Kód z aplikace nebo záchranný kód</label>
+                    <input id="code-new-app" name="Code" class="form-control" autocomplete="one-time-code" />
+                </div>
+                <button type="submit" class="btn btn-outline-primary">Nastavit novou aplikaci</button>
+            </form>
+
             @if (Model.CanDisable)
             {
                 <form method="post" asp-page-handler="Disable">

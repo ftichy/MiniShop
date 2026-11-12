@@ -307,8 +307,9 @@ Je to **dobrovolné pro zákazníka** (část A1) a **povinné pro admina** (č�
 - **Vývoj (`AdminBootstrap`):** vývojový admin `admin@minishop.local` je admin bez 2FA. Po přihlášení (a změně hesla) ho přesměruje
   na `/Account/TwoFactor`: naskenujte QR kód v telefonu (nebo klíč zadejte do jakékoli TOTP aplikace, i do webové) a opište kód.
   Při smazání lokální databáze se nastavuje znovu. Žádná zadní vrátka v produkčním kódu nejsou – testy a E2E si kód počítají samy.
-- **Ztráta telefonu (A2):** 1) záchranný kód na stránce přihlášení („Použít záchranný kód“), pak hned vytvořit nové kódy a přidat nový telefon
-  (u admina nejde 2FA vypnout, ale jde ho znovu nastavit po resetu); 2) bez záchranných kódů nouzový příkaz na serveru:
+- **Ztráta telefonu (A2):** 1) záchranný kód na stránce přihlášení („Použít záchranný kód“), pak na `/Account/TwoFactor` sekce **„Nový telefon nebo smazaná aplikace“**
+  (handler `NewApp`: důkaz kódem z aplikace **nebo dalším záchranným kódem** → starý klíč neplatí, 2FA vypnuté, nový QR → první kód zapne
+  a vytvoří nové záchranné kódy; admin mezitím smí jen nastavení 2FA; špatný kód se počítá do zámku); 2) bez záchranných kódů nouzový příkaz na serveru:
   ```text
   sudo systemctl start minishop-backup          # ruční záloha před akcí
   sudo -u deploy docker compose exec web dotnet MiniShop.Web.dll reset-2fa --email <e-mail>

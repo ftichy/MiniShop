@@ -1,0 +1,29 @@
+@page
+@model MiniShop.Web.Pages.Account.LoginWith2faModel
+@{
+    ViewData["Title"] = "Dvoufázové ověření";
+}
+<h1>Dvoufázové ověření</h1>
+<p class="text-muted">Opište 6místný kód z aplikace v telefonu.</p>
+
+<div class="row">
+    <div class="col-md-6 col-lg-5">
+        <form method="post" asp-route-returnUrl="@Model.ReturnUrl" asp-route-rememberMe="@Model.RememberMe">
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+            <div class="mb-3">
+                <label asp-for="Input.Code" class="form-label"></label>
+                <input asp-for="Input.Code" class="form-control" inputmode="numeric" autocomplete="one-time-code" autofocus />
+                <span asp-validation-for="Input.Code" class="text-danger small"></span>
+            </div>
+            @if (Model.CanRememberDevice)
+            {
+                <div class="mb-3 form-check">
+                    <input asp-for="Input.RememberMachine" class="form-check-input" />
+                    <label asp-for="Input.RememberMachine" class="form-check-label"></label>
+                </div>
+            }
+            <button type="submit" class="btn btn-primary">Ověřit</button>
+        </form>
+        <p class="mt-3">Nemáte telefon? <a asp-page="./LoginWithRecoveryCode" asp-route-returnUrl="@Model.ReturnUrl" asp-route-rememberMe="@Model.RememberMe">Použít záchranný kód</a>.</p>
+    </div>
+</div>

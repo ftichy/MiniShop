@@ -393,3 +393,7 @@ a:focus-visible, .btn:focus-visible, summary:focus-visible {
     .admin-form .btn-primary { width: 100%; }
 }
 .progress { --bs-progress-bar-bg: var(--ms-brand); --bs-progress-bg: var(--ms-brand-soft); }
+
+/* Dvoufázové ověření: QR kód (SVG z serveru) – bílé pozadí a klidová zóna z generátoru, na úzkém displeji se zmenší. */
+.two-factor-qr { max-width: 260px; }
+.two-factor-qr svg { width: 100%; height: auto; display: block; }

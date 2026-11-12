@@ -96,6 +96,12 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
 
         { Who.Anonymous, "/Account/ChangePassword", Expect.Login },
         { Who.User, "/Account/ChangePassword", Expect.Allowed },
+        // Dvoufázové ověření (A1): nastavení má každý přihlášený, přihlášení kódem je veřejné (druhý krok po hesle)
+        { Who.Anonymous, "/Account/TwoFactor", Expect.Login },
+        { Who.User, "/Account/TwoFactor", Expect.Allowed },
+        { Who.Admin, "/Account/TwoFactor", Expect.Allowed },
+        // /Account/LoginWith2fa a /LoginWithRecoveryCode jsou [AllowAnonymous], ale bez hesla v předchozím kroku
+        // se samy vrátí na přihlášení – matice by to nerozlišila od zámku; hlídá je TwoFactorTests.
         { Who.Anonymous, "/Account/EmailPreferences", Expect.Login },      // e-shop krok 10: souhlas s připomínkou košíku
         { Who.User, "/Account/EmailPreferences", Expect.Allowed },
         { Who.Admin, "/Account/EmailPreferences", Expect.Denied },
@@ -234,6 +240,16 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.User, "/Account/SetPassword", Expect.Allowed },
         { Who.Anonymous, "/Account/Delete?handler=Google", Expect.Login },
         { Who.User, "/Account/Delete?handler=Google", Expect.Allowed },
+
+        // Dvoufázové ověření (A1): bez kódu se nic nezmění, ale oprávnění se ověří
+        { Who.Anonymous, "/Account/TwoFactor?handler=Enable", Expect.Login },
+        { Who.User, "/Account/TwoFactor?handler=Enable", Expect.Allowed },
+        { Who.Admin, "/Account/TwoFactor?handler=Enable", Expect.Allowed },
+        { Who.Anonymous, "/Account/TwoFactor?handler=Disable", Expect.Login },
+        { Who.User, "/Account/TwoFactor?handler=Disable", Expect.Allowed },
+        { Who.Admin, "/Account/TwoFactor?handler=Disable", Expect.Allowed },
+        { Who.Anonymous, "/Account/TwoFactor?handler=Regenerate", Expect.Login },
+        { Who.User, "/Account/TwoFactor?handler=Regenerate", Expect.Allowed },
 
         // Produkty a sklad: jen admin
         { Who.User, "/Products?handler=AddStock&id=1&quantity=5", Expect.Denied },

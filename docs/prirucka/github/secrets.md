@@ -42,6 +42,7 @@ flowchart LR
 | `DEPLOY_SSH_KEY` | soukromý klíč pro spuštění `minishop-deploy` | GitHub `production` |
 | `TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET` | připojení runneru do Tailscale | GitHub `production` |
 | `GITHUB_TOKEN` | push image do GHCR | vytváří ho GitHub pro každý běh |
+| `CLAUDE_CODE_OAUTH_TOKEN` | přihlášení agenta Claude k předplatnému ([Agent Claude v issues](agent.md)); volitelný | GitHub – secret **repozitáře** (ne `production`), jen workflow `claude.yml` |
 | API klíč `minishop-automation`, klíč ke state | OpenTofu a OCI CLI | jen PC správce (`~/.oci/`) |
 
 Proměnné (netajné) v environmentu: `DEPLOY_HOST` (adresa VM v Tailscale), `DEPLOY_KNOWN_HOSTS` (otisk serveru).

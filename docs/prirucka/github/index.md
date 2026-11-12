@@ -32,6 +32,7 @@ flowchart LR
 | [CI – build, testy, image](ci.md) | workflow `ci.yml`, cache, artefakty, multi-arch image, GHCR |
 | [CD – nasazení](cd.md) | workflow `deploy.yml`, Tailscale, vynucený příkaz, `deploy.sh`, rollback |
 | [Secrets a konfigurace](secrets.md) | kde leží tajné hodnoty, jak se dostanou na VM a jak se mění |
+| [Agent Claude v issues](agent.md) | zadání → `@claude analyzuj` → `@claude implementuj` → PR, workflow `claude.yml`, bezpečnost |
 
 ## Proč GitHub Actions
 

@@ -106,6 +106,11 @@ Moderní vzhled a mobil – po krocích A (kostra a výloha), B (nákupní cesta
 | B | Nákupní cesta pro mobil – košík s kartami a spodní lištou, pokladna se souhrnem a volbami jako karty (sledování a přehrání beze změny), objednávky jako karty, detail s časovou osou, stránky účtu v kartě uprostřed (`_AccountLayout`) | [vzhled-b](code:docs/kroky-vzhled/krok-b-nakupni-cesta.md) |
 | C | Administrace pro mobil – jednotná hlavička s drobečkovou navigací (`_AdminHeader`), všechny tabulky responzivní v kartě, fronty Expedice jako seznam, formuláře v kartě, jemné barvy štítků | [vzhled-c](code:docs/kroky-vzhled/krok-c-administrace.md) |
 
+## Spolupráce s agentem
+
+Od 12. 11. 2026 jde zadání, analýza a vývoj vést i v GitHub Issues: komentář `@claude` spustí Claude Code na runneru
+GitHubu (předplatné Claude), výsledkem je komentář s plánem nebo PR, slučuje člověk. Popis: [Agent Claude v issues](github/agent.md).
+
 ## Škálování
 
 Plán: [docs/Skalovani-roadmap.md](code:docs/Skalovani-roadmap.md) – víc instancí služeb, nejdřív PostgreSQL.

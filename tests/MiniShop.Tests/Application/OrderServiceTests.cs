@@ -167,6 +167,11 @@ public sealed class OrderServiceTests : IDisposable
         services.AddSingleton<ICustomerContacts>(_contacts);
         services.AddIntegrationMessageHandler<CartAbandonedV1, CartReminderHandler>(IntegrationModules.Notifications);
 
+        // E-shop krok 18: „Dejte mi vědět“ – lísteček u vyprodaného zboží.
+        services.AddSingleton<BackInStockEmailTemplates>();
+        services.AddScoped<BackInStockService>();
+        services.AddIntegrationMessageHandler<StockAvailabilityChangedV1, BackInStockHandler>(IntegrationModules.Notifications);
+
         // E-shop krok 8: modul Payments (účastník ságy) – jako AddPaymentsModule + AddPaymentsInfrastructure ve Webu.
         services.AddPaymentsInfrastructure(_databases.Payments, WebhookSecret);
         services.AddIntegrationMessageHandler<RequestPaymentV1, PaymentCommandHandlers>(IntegrationModules.Payments);
@@ -1655,6 +1660,88 @@ public sealed class OrderServiceTests : IDisposable
         _time.Advance(OrderNotificationsHandler.MaxWaitForPlacedOrder);
         await RedeliverAsync(early, IntegrationModules.Notifications);
         Assert.Empty(_emails.Sent);
+    }
+
+    // ---------- E-shop krok 18: Dejte mi vědět ----------
+
+    private async Task<int> SoldOutProductAsync()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 2);
+        await PlaceConfirmedOrderAsync(product.Id, 2, Petra);   // vykoupí sklad → OutOfStock
+        _contacts.Set(Jan.CustomerId, new CustomerContact(Jan.Email, Jan.Name, true, false));   // bez souhlasu s připomínkami košíku
+        return product.Id;
+    }
+
+    private async Task WatchAsync(int productId)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        var service = scope.ServiceProvider.GetRequiredService<BackInStockService>();
+        await service.SubscribeAsync(Jan.CustomerId, productId, "Testovací produkt");
+    }
+
+    private IEnumerable<EmailMessage> BackInStockEmails => _emails.Sent.Where(e => e.Subject.Contains("zase skladem"));
+
+    [Fact]
+    public async Task DejteMiVedet_PoNaskladneni_JedenEmailAJenJednou()
+    {
+        var productId = await SoldOutProductAsync();
+        await WatchAsync(productId);
+        await WatchAsync(productId);   // dvojklik = pořád jeden lísteček
+
+        await Products(s => s.AddStockAsync(productId, 5));
+        await ProcessOutboxAsync();
+
+        var email = Assert.Single(BackInStockEmails);
+        Assert.Equal("jan@example.com", email.To);
+        Assert.Contains($"https://minishop.test/Shop/{productId}", email.TextBody);
+
+        // Znovu vyprodat a naskladnit – lísteček je spotřebovaný, další e-mail nepřijde.
+        await PlaceConfirmedOrderAsync(productId, 5, Petra);
+        await Products(s => s.AddStockAsync(productId, 5));
+        await ProcessOutboxAsync();
+        Assert.Single(BackInStockEmails);
+    }
+
+    [Fact]
+    public async Task DejteMiVedet_NepotvrzenyEmailNeboSmazanyUcet_ZadnyEmail()
+    {
+        var productId = await SoldOutProductAsync();
+        await WatchAsync(productId);
+        _contacts.Set(Jan.CustomerId, new CustomerContact(Jan.Email, Jan.Name, false, false));
+
+        await Products(s => s.AddStockAsync(productId, 5));
+        await ProcessOutboxAsync();
+
+        Assert.Empty(BackInStockEmails);
+        Assert.False(await NotificationsDb(db => db.BackInStockSubscriptions.AnyAsync()));   // lísteček se uzavře
+    }
+
+    [Fact]
+    public async Task DejteMiVedet_ZruseneUpozorneni_ZadnyEmail()
+    {
+        var productId = await SoldOutProductAsync();
+        await WatchAsync(productId);
+        await using (var scope = _services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<BackInStockService>().CancelAsync(Jan.CustomerId, productId);
+        }
+
+        await Products(s => s.AddStockAsync(productId, 5));
+        await ProcessOutboxAsync();
+
+        Assert.Empty(BackInStockEmails);
+    }
+
+    [Fact]
+    public async Task DejteMiVedet_SmazanyUcet_ZapomeneLisetek()
+    {
+        var productId = await SoldOutProductAsync();
+        await WatchAsync(productId);
+
+        await Orders(s => s.AnonymizeCustomerAsync(Jan.CustomerId));
+        await ProcessOutboxAsync();
+
+        Assert.False(await NotificationsDb(db => db.BackInStockSubscriptions.AnyAsync()));
     }
 
     [Fact]

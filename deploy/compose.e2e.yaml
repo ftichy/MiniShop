@@ -25,6 +25,8 @@ services:
     environment:
       Email__Host: mailpit
       Email__Port: "1025"
+      # Mailpit neumí STARTTLS (výchozí UseTls=true by odeslání shodilo) – stejně jako Mailpit v AppHostu.
+      Email__UseTls: "false"
       Email__FromAddress: minishop@example.test
       RateLimiting__AccountForms__PermitLimit: "1000"
     depends_on:

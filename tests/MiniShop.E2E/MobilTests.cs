@@ -22,7 +22,8 @@ public sealed class MobilTests : E2ETestBase
             var menu = page.Locator("#main-nav");
             await Expect(menu).ToBeHiddenAsync();
             await page.Locator("button.navbar-toggler").ClickAsync();
-            await Expect(menu).ToBeVisibleAsync();
+            // Počkat na konec animace (třída "show" místo "collapsing") – klepnutí během ní Bootstrap ignoruje.
+            await Expect(menu).ToHaveClassAsync(new Regex(@"(^|\s)show(\s|$)"));
             await page.Locator("button.navbar-toggler").ClickAsync();
             await Expect(menu).ToBeHiddenAsync();
 

@@ -97,7 +97,9 @@ public static class ShopFlow
         await page.WaitForURLAsync(new Regex("/Pay/"));
         await ReloadUntilAsync(page, page.Url, page.Locator("[data-track=pay-confirm]"), "tlačítko platby na bráně");
         await page.Locator("[data-track=pay-confirm]").ClickAsync();
-        await Expect(page.GetByText("Zaplaceno").First).ToBeVisibleAsync();
+        // Brána přesměruje na detail s hláškou (Pay/Index.cshtml.cs – StatusMessage).
+        await page.WaitForURLAsync(new Regex($"/Orders/{orderId}"));
+        await Expect(page.GetByText("Platba proběhla").First).ToBeVisibleAsync();
     }
 
     /// <summary>

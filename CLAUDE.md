@@ -507,7 +507,7 @@ GET formulář beze změny. Rozbalování jen atributy Bootstrapu (`data-bs-togg
 | --- | --- | --- |
 | A. Kostra a výloha (design systém, hlavička + mobilní menu, Bootstrap JS, úvod pro zákazníka, `_ProductCard`, filtry v panelu, detail s nákupním boxem, ikony) | hotovo (nasazeno 11. 11. 2026, ověřeno na telefonu) | `docs/kroky-vzhled/krok-a-kostra-a-vyloha.md` |
 | B. Nákupní cesta (košík s kartami a spodní lištou, pokladna se souhrnem a `.choice-card` – Journeys beze změny, `Replay.cshtml` stejně, objednávky jako karty + časová osa, účet v `_AccountLayout`) | hotovo (nasazeno 12. 11. 2026, ověřeno na telefonu) | `docs/kroky-vzhled/krok-b-nakupni-cesta.md` |
-| C. Administrace (`_AdminHeader` s drobečkovou navigací, tabulky v `table-responsive admin-table`, Expedice jako seznam, formuláře v kartě, jemné štítky) | hotovo lokálně (čeká na nasazení) | `docs/kroky-vzhled/krok-c-administrace.md` |
+| C. Administrace (`_AdminHeader` s drobečkovou navigací, tabulky v `table-responsive admin-table`, Expedice jako seznam, formuláře v kartě, jemné štítky) | hotovo (nasazeno 12. 11. 2026, ověřeno na telefonu) | `docs/kroky-vzhled/krok-c-administrace.md` |
 
 ## Stav škálování (viz `docs/Skalovani-roadmap.md`)
 Cíl: víc instancí služeb (a později víc strojů). Nejdřív PostgreSQL (kontejner na Always Free VM, 0 Kč), pak víc instancí.

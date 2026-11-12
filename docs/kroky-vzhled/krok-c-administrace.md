@@ -52,6 +52,9 @@ ani `data-track` se nezměnily.
 - Snímky administrace v headless Edge (500 px a 1366 px): Produkty, Expedice, Uživatelé, Zprávy, Tržby – tabulky
   v kartě se posouvají uvnitř, stránka nepřetéká; testovací účet dostal roli Admin jen dočasně v lokální DB.
 
+**Nasazeno 12. 11. 2026** (PR #85, postupné nasazení, jen Web). Ověřeno uživatelem na telefonu: Produkty s posuvnou
+tabulkou v kartě, Expedice, detail uživatele s drobečkovou navigací. Tím je redesign (kroky A–C) dokončený.
+
 ## Vyzkoušejte sami
 
 1. Na telefonu otevřete ☰ → Správa → Produkty – nad nadpisem je „Správa / Produkty“, tabulka se posouvá prstem.

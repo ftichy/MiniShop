@@ -1,3 +1,4 @@
+using MiniShop.Application.Abstractions;
 using MiniShop.Contracts.Reporting;
 using MiniShop.Domain.Reporting;
 
@@ -21,17 +22,15 @@ public sealed class SalesReportService(
     public const int DaysInTopProducts = 30;
     public const int TopProductsCount = 10;
 
-    private static readonly TimeZoneInfo Czech = FindCzechTimeZone();
-
     public async Task<SalesReportDto> GetAsync(CancellationToken cancellationToken = default)
     {
         var nowUtc = UtcNow;
-        var today = DateOnly.FromDateTime(ToCzech(nowUtc));
+        var today = DateOnly.FromDateTime(CzechTime.FromUtc(nowUtc));
         var from = today.AddDays(-(DaysInTopProducts - 1));
-        var fromUtc = TimeZoneInfo.ConvertTimeToUtc(from.ToDateTime(TimeOnly.MinValue), Czech);
+        var fromUtc = CzechTime.ToUtc(from.ToDateTime(TimeOnly.MinValue));
 
         var recent = await orders.GetPlacedSinceAsync(fromUtc, cancellationToken);
-        var byDay = recent.ToLookup(o => DateOnly.FromDateTime(ToCzech(o.PlacedAtUtc!.Value)));
+        var byDay = recent.ToLookup(o => DateOnly.FromDateTime(CzechTime.FromUtc(o.PlacedAtUtc!.Value)));
 
         var days = Enumerable.Range(0, DaysInChart)
             .Select(offset => today.AddDays(-offset))
@@ -88,22 +87,6 @@ public sealed class SalesReportService(
     {
         var counted = placed.Where(o => o.CountsAsRevenue).ToList();
         return new SalesDayDto(day, counted.Count, counted.Sum(o => o.TotalPrice));
-    }
-
-    private static DateTime ToCzech(DateTime utc) =>
-        TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), Czech);
-
-    /// <summary>IANA jméno funguje na Linuxu i na Windows (.NET převod přes ICU); bez časových zón (minimální image) UTC.</summary>
-    private static TimeZoneInfo FindCzechTimeZone()
-    {
-        try
-        {
-            return TimeZoneInfo.FindSystemTimeZoneById("Europe/Prague");
-        }
-        catch (TimeZoneNotFoundException)
-        {
-            return TimeZoneInfo.Utc;
-        }
     }
 
     private DateTime UtcNow => timeProvider.GetUtcNow().UtcDateTime;

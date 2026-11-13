@@ -80,7 +80,7 @@ else
             {
                 <tr>
                     <td>@order.Id</td>
-                    <td>@order.CreatedAtUtc.ToLocalTime().ToString("g")</td>
+                    <td>@order.CreatedAtUtc.ToCzechString()</td>
                     <td><span class="badge @OrderStatusLabels.Badge(order.Status)">@OrderStatusLabels.Text(order.Status, order.ShippingMethod)</span></td>
                     <td class="num">@order.TotalPrice.ToString("N2") Kč</td>
                 </tr>
@@ -104,7 +104,7 @@ else
             @foreach (var entry in Model.Audit)
             {
                 <tr>
-                    <td class="text-nowrap">@entry.OccurredAtUtc.ToLocalTime().ToString("g")</td>
+                    <td class="text-nowrap">@entry.OccurredAtUtc.ToCzechString()</td>
                     <td>@IndexModel.ActionText(entry.Action)</td>
                     <td class="text-muted">provedl @entry.ActorEmail</td>
                 </tr>

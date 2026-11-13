@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using MiniShop.Application.Abstractions;
 using MiniShop.Application.Exceptions;
 using MiniShop.Domain.Exceptions;
 using MiniShop.Application.Ordering;
@@ -93,5 +94,5 @@ public sealed class DetailModel(
 
     /// <summary>Čas přechodu pro člověka; starší objednávky (před e-shop krokem 5) ho u pozdějších stavů nemají.</summary>
     public static string FormatTime(DateTime? changedAtUtc) =>
-        changedAtUtc is { } time ? time.ToLocalTime().ToString("g") : "čas neznámý (starší objednávka)";
+        changedAtUtc is { } time ? time.ToCzechString() : "čas neznámý (starší objednávka)";
 }

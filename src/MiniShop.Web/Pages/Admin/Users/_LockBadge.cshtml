@@ -7,7 +7,7 @@
 else if (Model.LockedOutUntil is { } until)
 {
     @* Účty krok 8: dočasný zámek po špatných heslech. *@
-    <span class="badge badge-soft-warning" title="Po opakovaném špatném hesle">zamčený do @until.ToLocalTime().ToString("t")</span>
+    <span class="badge badge-soft-warning" title="Po opakovaném špatném hesle">zamčený do @until.ToCzechString("H:mm")</span>
 }
 else
 {

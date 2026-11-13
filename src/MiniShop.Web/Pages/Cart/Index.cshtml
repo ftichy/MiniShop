@@ -146,7 +146,7 @@ else
         <ul class="list-unstyled small mt-2 mb-0">
             @foreach (var entry in Model.History)
             {
-                <li class="py-1"><span class="text-muted">@entry.OccurredAtUtc.ToLocalTime().ToString("g")</span> – @entry.Text</li>
+                <li class="py-1"><span class="text-muted">@entry.OccurredAtUtc.ToCzechString()</span> – @entry.Text</li>
             }
         </ul>
     </details>

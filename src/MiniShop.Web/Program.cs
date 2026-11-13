@@ -126,6 +126,9 @@ try
 
     var app = builder.Build();
 
+    // Časy se zobrazují v Europe/Prague (CzechTime); bez časové zóny v systému (tzdata) se služba nespustí.
+    MiniShop.Application.Abstractions.CzechTime.EnsureAvailable();
+
     // Účty krok 2: "dotnet MiniShop.Web.dll create-admin --email …" jen založí prvního admina a skončí (web nespustí).
     if (CreateAdminCommand.IsRequested(args))
     {

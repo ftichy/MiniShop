@@ -33,7 +33,7 @@ else
             {
                 <tr>
                     <td>@invoice.Number</td>
-                    <td>@invoice.IssuedAtUtc.ToLocalTime().ToString("g", czech)</td>
+                    <td>@invoice.IssuedAtUtc.ToCzechString()</td>
                     <td>@invoice.CustomerName</td>
                     <td class="text-end">@invoice.Total.ToString("N2", czech) Kč</td>
                     <td><a asp-page="/Orders/Detail" asp-route-id="@invoice.OrderId">č. @invoice.OrderId</a></td>

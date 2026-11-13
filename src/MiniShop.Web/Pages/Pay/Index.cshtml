@@ -51,7 +51,7 @@ else
             }
             else if (Model.CanPay)
             {
-                <p class="text-muted small">Zaplatit můžete do @payment.ExpiresAtUtc.ToLocalTime().ToString("g").</p>
+                <p class="text-muted small">Zaplatit můžete do @payment.ExpiresAtUtc.ToCzechString().</p>
                 <div class="d-flex gap-2">
                     <form method="post" asp-page-handler="Pay" asp-route-orderId="@payment.OrderId">
                         <button type="submit" class="btn btn-success" data-track="pay-confirm">Zaplatit</button>

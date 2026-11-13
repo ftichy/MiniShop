@@ -1,3 +1,4 @@
+using MiniShop.Application.Abstractions;
 using System.Globalization;
 using MiniShop.Application.Invoicing;
 using MiniShop.Domain.Invoicing;
@@ -15,7 +16,6 @@ namespace MiniShop.Infrastructure.Invoicing;
 public sealed class QuestPdfInvoiceRenderer : IInvoicePdfRenderer
 {
     private static readonly CultureInfo Czech = CultureInfo.GetCultureInfo("cs-CZ");
-    private static readonly TimeZoneInfo Prague = TimeZoneInfo.FindSystemTimeZoneById("Europe/Prague");
 
     static QuestPdfInvoiceRenderer()
     {
@@ -184,7 +184,7 @@ public sealed class QuestPdfInvoiceRenderer : IInvoicePdfRenderer
     private static string Money(decimal amount) =>
         (amount < 0 ? "−" : "") + Math.Abs(amount).ToString("N2", Czech) + " Kč";
 
-    private static string Date(DateTime utc) => TimeZoneInfo.ConvertTimeFromUtc(utc, Prague).ToString("d. M. yyyy", Czech);
+    private static string Date(DateTime utc) => CzechTime.Format(utc, "d. M. yyyy");
 
     private static string? ShippingLabel(string shippingMethod) => shippingMethod switch
     {

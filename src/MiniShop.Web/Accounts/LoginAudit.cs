@@ -67,8 +67,8 @@ public static class LoginAudit
 
     public static string Badge(LoginResult result) => result switch
     {
-        LoginResult.Succeeded => "text-bg-success",
-        LoginResult.AwaitingSecondFactor => "text-bg-secondary",
-        _ => "text-bg-danger"
+        LoginResult.Succeeded => "badge-soft-success",
+        LoginResult.AwaitingSecondFactor => "badge-soft-secondary",
+        _ => "badge-soft-danger"
     };
 }

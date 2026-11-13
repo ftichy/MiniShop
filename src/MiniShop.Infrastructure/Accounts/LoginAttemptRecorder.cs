@@ -18,13 +18,16 @@ public sealed class LoginAttemptRecorder(
     public async Task RecordAsync(string? userId, LoginMethod method, LoginResult result, string? ipAddress,
         CancellationToken cancellationToken = default)
     {
+        var entry = dbContext.LoginAttempts.Add(new LoginAttempt(userId, method, result, timeProvider.GetUtcNow().UtcDateTime, ipAddress));
         try
         {
-            dbContext.LoginAttempts.Add(new LoginAttempt(userId, method, result, timeProvider.GetUtcNow().UtcDateTime, ipAddress));
             await dbContext.SaveChangesAsync(cancellationToken);
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
+            // DbContext sdílí Identity (stejný scope) – neuložený záznam odpojit, jinak by shodil další SaveChanges
+            // v tomtéž požadavku (např. založení účtu po přihlášení přes Google).
+            entry.State = EntityState.Detached;
             // Do logu jen typ chyby – žádný e-mail ani heslo.
             logger.LogWarning("Audit přihlášení se nepodařilo zapsat: {Error}", ex.GetType().Name);
         }

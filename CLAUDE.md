@@ -588,7 +588,7 @@ Souhrny kroků do `docs/kroky-observabilita/`. Aplikace se kvůli Grafaně nemě
 | Krok | Stav | Souhrn |
 | --- | --- | --- |
 | G1. Alloy + export do Grafana Cloud (trasy, logy, metriky; filtr osobních údajů; secret `GRAFANA_CLOUD_OTLP_TOKEN`) | hotovo (nasazeno 13. 11. 2026; produkční trasy v Grafaně i v Aspire dashboardu ověřeny) | `docs/kroky-observabilita/krok-g1-grafana-cloud.md` |
-| G2. Dashboard EDA jako kód (`OperationalMetricsWorker` jen na vedoucí kopii – outbox čekající/poison, fronty backlog/dead-letter, ságy podle stavu; histogram doby potvrzení objednávky; `deploy/grafana/minishop-zpravy-a-sagy.json`, import ručně) | v práci | `docs/kroky-observabilita/krok-g2-dashboard.md` |
+| G2. Dashboard EDA jako kód (`OperationalMetricsWorker` jen na vedoucí kopii – outbox čekající/poison, fronty backlog/dead-letter, ságy podle stavu; histogram doby potvrzení objednávky; `deploy/grafana/minishop-zpravy-a-sagy.json`, import ručně) | hotovo (nasazeno 13. 11. 2026; dashboard naimportovaný, objednávka na dobírku vidět – potvrzení 4,9 s) | `docs/kroky-observabilita/krok-g2-dashboard.md` |
 | G3. Alarmy a SLO jako kód (dead-letter, outbox, 5xx, výpadek telemetrie; 99 % objednávek potvrzeno do 30 s) | plán | — |
 | G4. Tutoriál Grafany pro začátečníka (krok za krokem: čas + uživatel → trasa → log → chyba; další běžné případy; dotazy ověřené nad produkčními daty) | plán | — |
 

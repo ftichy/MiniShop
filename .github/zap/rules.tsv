@@ -35,6 +35,10 @@
 # - 10111, 10112 Authentication/Session Management Request Identified: jen informace (ZAP našel přihlášení a cookie), ne nález.
 # - 10031 User Controllable HTML Element Attribute: returnUrl ve skrytém poli – Razor ho HTML-kóduje a přesměrování
 #   je jen lokální (LocalRedirect); pasivní pravidlo jen hlásí, že hodnota z URL je v atributu.
+# - 10099 Source Code Disclosure - SQL: ukázka SQL (CREATE DATABASE) v příručce /Docs/architektura/databaze, ne únik kódu.
+# - 10049 Non-Storable / Storable Content: jen informace o cache (přihlášení má správně no-store).
+# - 90004 Insufficient Site Isolation (COEP/CORP): izolace proti útokům typu Spectre. MiniShop nevkládá cizí obsah
+#   a nepoužívá SharedArrayBuffer; hlavičky COEP/CORP = kandidát na samostatné zpevnění (vyzkoušet s Bootstrapem, Mermaidem, Stripe).
 10055	IGNORE	(CSP)
 10062	IGNORE	(PII Disclosure)
 2	IGNORE	(Private IP Disclosure)
@@ -45,3 +49,6 @@
 10111	IGNORE	(Authentication Request Identified)
 10112	IGNORE	(Session Management Response Identified)
 10031	IGNORE	(User Controllable HTML Element Attribute (Potential XSS))
+10099	IGNORE	(Source Code Disclosure - SQL)
+10049	IGNORE	(Non-Storable Content)
+90004	IGNORE	(Insufficient Site Isolation Against Spectre Vulnerability)

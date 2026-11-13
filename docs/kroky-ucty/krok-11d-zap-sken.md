@@ -39,6 +39,11 @@ Přesně tak funguje **baseline sken**: pasivně prochází stránky a čte odpo
 - **Nepovinný check:** job nic neblokuje (nasazení na něm nezávisí). Až se ukáže stabilní, jde ho přidat do rulesetu `main-protection`.
 - **Verze ZAP napevno, zvedá se ručně:** Dependabot příkazy `docker run` v workflow nehlídá.
 
+- **ZAP si při startu stahuje aktualizace pravidel:** první běh v CI ukázal tři varování, která lokální sken neměl – SQL ukázku
+  v příručce (10099), informaci o cache (10049) a chybějící hlavičky COEP/CORP (90004, izolace proti Spectre). První dvě jsou
+  falešné poplachy; COEP/CORP je skutečné doporučení, MiniShop ale nevkládá cizí obsah – kandidát na samostatné zpevnění
+  (vyzkoušet s Bootstrapem, Mermaidem a přesměrováním na Stripe/Google), zatím IGNORE s odůvodněním.
+
 ## Známá omezení
 
 - Pavouk je anonymní – stránky za přihlášením (košík, pokladna, administrace) nevidí. Hlavičky nastavuje jeden middleware pro celý Web,

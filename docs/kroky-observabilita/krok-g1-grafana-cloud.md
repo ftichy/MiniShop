@@ -66,3 +66,15 @@ web ×2, inventory-api ──OTLP gRPC :4317──► alloy ──► aspire-das
 1. Udělejte objednávku a v Grafaně najděte její trasu podle `minishop.order.id`.
 2. Z řádku logu v Loki přejděte na trasu (*Trace ID*).
 3. Restartujte web (`docker compose restart web`) – v Aspire historie zmizí, v Grafaně zůstane.
+
+## Nasazení (13. 11. 2026)
+
+- Pořadí: nový `deploy.sh` ručně na VM (starý odložen jako `/usr/local/bin/minishop-deploy.before-g1`) → ruční záloha
+  `minishop-20261113T160446Z` → sloučení PR #103 → CD: Alloy stažen a spuštěn, `config.alloy se změnil – restartuji Alloy`,
+  sklad a obě kopie Webu vyměněny postupně (`sha-6460e40`).
+- Ověřeno: produkční požadavky na `/Shop` jako trasy v Grafaně (span se jmenuje `GET Shop` – šablona routy, ne cesta;
+  hledat přes `{resource.service.name="web" && span.url.path="/Shop"}`), Aspire dashboard dostává data dál přes Alloy.
+- Filtr osobních údajů ověřen na produkční trase (požadavek přes Caddy): `client.address` ani `user_agent.original` v atributech nejsou.
+- Lokální generálka na PC s **Avastem** (kontrola HTTPS) potřebovala kořenový certifikát Avastu v kontejneru Alloye
+  (`SSL_CERT_DIR`, jen mimo repozitář) – jinak `x509: certificate signed by unknown authority`. Stejná příčina jako u lokálního
+  `docker build` (NuGet `PartialChain`). VM se to netýká.

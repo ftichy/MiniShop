@@ -32,7 +32,7 @@ public static class CzechTime
     public static DateTime ToUtc(DateTime czechLocal) =>
         TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(czechLocal, DateTimeKind.Unspecified), Zone.Value);
 
-    /// <summary>Text pro člověka v českém čase a české kultuře; výchozí formát „g“ (13. 11. 2026 9:14).</summary>
+    /// <summary>Text pro člověka v českém čase a české kultuře; výchozí formát <see cref="DateTimeFormat"/> (13. 11. 2026 9:14).</summary>
     public static string Format(DateTime utc, string format = DateTimeFormat) => FromUtc(utc).ToString(format, Culture);
 
     /// <summary>Pro Razor: <c>@x.ToCzechString()</c>, <c>@x.ToCzechString("d. M. yyyy")</c>.</summary>

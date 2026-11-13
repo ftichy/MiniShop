@@ -21,6 +21,9 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
 
     public DbSet<AccountAuditEntry> AuditEntries => Set<AccountAuditEntry>();
 
+    /// <summary>2FA krok B: audit přihlášení (bez e-mailu, s IP).</summary>
+    public DbSet<LoginAttempt> LoginAttempts => Set<LoginAttempt>();
+
     // Škálování krok 1: v PostgreSQL časy jako UTC a tabulky ve schématu accounts.
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder) =>
         configurationBuilder.UseUtcDateTimes();
@@ -46,6 +49,19 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
             audit.Property(entry => entry.Action).HasConversion<string>().HasMaxLength(30);
             // Detail uživatele čte jeho historii.
             audit.HasIndex(entry => entry.TargetUserId);
+        });
+
+        modelBuilder.Entity<LoginAttempt>(attempt =>
+        {
+            attempt.ToTable("LoginAttempts");
+            attempt.HasKey(entry => entry.Id);
+            attempt.Property(entry => entry.UserId).HasMaxLength(AccountAuditEntry.UserIdMaxLength);
+            attempt.Property(entry => entry.Method).HasConversion<string>().HasMaxLength(30);
+            attempt.Property(entry => entry.Result).HasConversion<string>().HasMaxLength(30);
+            attempt.Property(entry => entry.IpAddress).HasMaxLength(LoginAttempt.IpMaxLength);
+            // Výpis pokusů účtu a úklid podle času.
+            attempt.HasIndex(entry => entry.UserId);
+            attempt.HasIndex(entry => entry.OccurredAtUtc);
         });
     }
 }

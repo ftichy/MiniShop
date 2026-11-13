@@ -102,6 +102,10 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Admin, "/Account/TwoFactor", Expect.Allowed },
         // /Account/LoginWith2fa a /LoginWithRecoveryCode jsou [AllowAnonymous], ale bez hesla v předchozím kroku
         // se samy vrátí na přihlášení – matice by to nerozlišila od zámku; hlídá je TwoFactorTests.
+        // Audit přihlášení (krok B): vlastní pokusy vidí každý přihlášený (admin bez 2FA taky – jde o jeho účet)
+        { Who.Anonymous, "/Account/LoginHistory", Expect.Login },
+        { Who.User, "/Account/LoginHistory", Expect.Allowed },
+        { Who.Admin, "/Account/LoginHistory", Expect.Allowed },
         { Who.Anonymous, "/Account/EmailPreferences", Expect.Login },      // e-shop krok 10: souhlas s připomínkou košíku
         { Who.User, "/Account/EmailPreferences", Expect.Allowed },
         { Who.Admin, "/Account/EmailPreferences", Expect.Denied },

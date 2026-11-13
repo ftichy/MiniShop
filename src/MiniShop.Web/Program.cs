@@ -88,6 +88,8 @@ try
     builder.Services.AddLeaderOnlyHostedService<OrderSagaTimeoutWorker>();
     builder.Services.AddLeaderOnlyHostedService<CartReminderWorker>();   // e-shop krok 10: opuštěné košíky
 
+    builder.Services.AddLeaderOnlyHostedService<LoginAttemptRetentionWorker>();   // 2FA krok B: úklid auditu přihlášení (90 dní)
+
     // Prázdná kopie katalogu po startu (nové schéma ordering) → požádat sklad o celý katalog.
     builder.Services.AddLeaderOnlyHostedService<CatalogSyncOnStartupWorker>();
 

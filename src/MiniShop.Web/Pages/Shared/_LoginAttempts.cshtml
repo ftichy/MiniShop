@@ -1,0 +1,32 @@
+@* 2FA krok B: tabulka pokusů o přihlášení (detail uživatele pro admina, stránka účtu pro uživatele). *@
+@using MiniShop.Infrastructure.Accounts
+@using MiniShop.Web.Accounts
+@model IReadOnlyList<LoginAttemptItem>
+@if (Model.Count == 0)
+{
+    <p class="text-muted" data-track="login-attempts-empty">Zatím žádné záznamy.</p>
+}
+else
+{
+    <div class="table-responsive admin-table"><table class="table table-sm" data-track="login-attempts">
+        <thead>
+            <tr>
+                <th>Kdy</th>
+                <th>Čím</th>
+                <th>Výsledek</th>
+                <th>IP adresa</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var attempt in Model)
+            {
+                <tr>
+                    <td class="text-nowrap">@attempt.OccurredAtUtc.ToLocalTime().ToString("g")</td>
+                    <td>@LoginAudit.MethodText(attempt.Method)</td>
+                    <td><span class="badge @LoginAudit.Badge(attempt.Result)">@LoginAudit.ResultText(attempt.Result)</span></td>
+                    <td class="text-muted font-monospace">@(attempt.IpAddress ?? "–")</td>
+                </tr>
+            }
+        </tbody>
+    </table></div>
+}

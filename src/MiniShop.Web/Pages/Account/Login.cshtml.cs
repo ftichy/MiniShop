@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.RateLimiting;
 using MiniShop.Infrastructure.Accounts;
+using MiniShop.Web.Accounts;
 using MiniShop.Web.Security;
 
 namespace MiniShop.Web.Pages.Account;
@@ -15,6 +16,7 @@ namespace MiniShop.Web.Pages.Account;
 public sealed class LoginModel(
     SignInManager<ApplicationUser> signInManager,
     UserManager<ApplicationUser> userManager,
+    LoginAttemptRecorder loginAttempts,
     ILogger<LoginModel> logger) : PageModel
 {
     [BindProperty]
@@ -37,7 +39,12 @@ public sealed class LoginModel(
         // Účty krok 8: lockoutOnFailure – každé špatné heslo se počítá, po 5 se účet na 15 minut zamkne
         // (úspěšné přihlášení počítadlo vynuluje).
         var email = Input.Email.Trim();
+        var user = await userManager.FindByEmailAsync(email);
         var result = await signInManager.PasswordSignInAsync(email, Input.Password, Input.RememberMe, lockoutOnFailure: true);
+
+        // 2FA krok B: audit přihlášení (bez e-mailu; neznámý e-mail = UserId null). Chyba zápisu přihlášení nerozbije.
+        await loginAttempts.RecordAsync(HttpContext, user, LoginMethod.Password,
+            LoginAudit.Map(result, user, LoginResult.WrongPassword));
 
         if (result.Succeeded)
         {
@@ -54,7 +61,6 @@ public sealed class LoginModel(
         // Stejná hláška pro neznámý e-mail, špatné heslo i zamčený/zablokovaný účet (Identity zámek kontroluje
         // ještě před heslem) – jiná by komukoli prozradila, kdo v MiniShopu má účet. Admin stav vidí v přehledu uživatelů.
         // Krok 8: audit do logu – jen ID účtu, nikdy e-mail ani heslo.
-        var user = await userManager.FindByEmailAsync(email);
         if (user is null)
         {
             logger.LogWarning("Neúspěšné přihlášení – neznámý e-mail");

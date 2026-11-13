@@ -1,0 +1,92 @@
+// Observabilita G1: Grafana Alloy = „rozbočovač“ telemetrie (OpenTelemetry collector) na VM.
+// Načítá ho compose.grafana.yaml (jen produkce, viz COMPOSE_FILE v production.env). Lokálně (AppHost, compose.yaml)
+// posílají služby OTLP rovnou do Aspire dashboardu a Alloy neběží.
+//
+//   web ×N, inventory-api ──OTLP gRPC :4317──► alloy ──► aspire-dashboard   (vše, živé ladění, data v paměti)
+//                                                 └──► Grafana Cloud (EU)  (bez osobních údajů, 14 dní historie)
+//
+// Změna tohoto souboru = deploy.sh po nasazení Alloy restartuje (konfiguraci sám znovu nenačte).
+// Jazyk: Alloy configuration syntax – https://grafana.com/docs/alloy/latest/
+
+// Příjem od služeb. Port 4317 je jen v síti Compose (žádné „ports“ v compose.grafana.yaml).
+otelcol.receiver.otlp "apps" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+
+  output {
+    metrics = [otelcol.exporter.otlp.aspire.input, otelcol.processor.attributes.privacy.input]
+    logs    = [otelcol.exporter.otlp.aspire.input, otelcol.processor.attributes.privacy.input]
+    traces  = [otelcol.exporter.otlp.aspire.input, otelcol.processor.attributes.privacy.input]
+  }
+}
+
+// 1) Aspire dashboard – beze změny oproti dřívějšku (služby dřív posílaly přímo sem).
+otelcol.exporter.otlp "aspire" {
+  client {
+    endpoint = "aspire-dashboard:18889"
+    tls {
+      insecure = true // jen uvnitř sítě Compose
+    }
+  }
+}
+
+// 2) Grafana Cloud – data opouštějí server, proto pojistka proti osobním údajům: atributy, které by mohly
+// nést IP adresu, prohlížeč nebo hledaný text, se smažou (aplikace je do logů záměrně nepíše; tohle je druhá vrstva).
+// enduser.id (ID účtu) zůstává – podle něj jde dohledat trasu konkrétního požadavku bez e-mailu.
+otelcol.processor.attributes "privacy" {
+  action {
+    key    = "client.address"
+    action = "delete"
+  }
+  action {
+    key    = "client.port"
+    action = "delete"
+  }
+  action {
+    key    = "network.peer.address"
+    action = "delete"
+  }
+  action {
+    key    = "http.client_ip"
+    action = "delete"
+  }
+  action {
+    key    = "user_agent.original"
+    action = "delete"
+  }
+  action {
+    key    = "url.query"
+    action = "delete"
+  }
+
+  output {
+    metrics = [otelcol.processor.batch.cloud.input]
+    logs    = [otelcol.processor.batch.cloud.input]
+    traces  = [otelcol.processor.batch.cloud.input]
+  }
+}
+
+// Dávky – méně požadavků do cloudu.
+otelcol.processor.batch "cloud" {
+  output {
+    metrics = [otelcol.exporter.otlphttp.grafana_cloud.input]
+    logs    = [otelcol.exporter.otlphttp.grafana_cloud.input]
+    traces  = [otelcol.exporter.otlphttp.grafana_cloud.input]
+  }
+}
+
+// Přihlášení: Instance ID (netajné, production.env) + token jen se zápisem (secret GRAFANA_CLOUD_OTLP_TOKEN).
+otelcol.auth.basic "grafana_cloud" {
+  username = sys.env("GRAFANA_CLOUD_INSTANCE_ID")
+  password = sys.env("GRAFANA_CLOUD_OTLP_TOKEN")
+}
+
+// Nedostupný Grafana Cloud: Alloy data chvíli drží ve frontě v paměti a opakuje, pak je zahodí.
+// Aplikace o tom neví (posílá jen do Alloye) a Aspire dashboard dostává data dál.
+otelcol.exporter.otlphttp "grafana_cloud" {
+  client {
+    endpoint = sys.env("GRAFANA_CLOUD_OTLP_ENDPOINT")
+    auth     = otelcol.auth.basic.grafana_cloud.handler
+  }
+}

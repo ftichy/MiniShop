@@ -131,6 +131,14 @@ Plán: [docs/Skalovani-roadmap.md](code:docs/Skalovani-roadmap.md) – víc inst
 | 5 | Více instancí – Web ve dvou kopiích za Caddy (round robin), vedoucí kopie přes PostgreSQL advisory lock (outbox, termíny ság, úklid a kontroly po startu jen na ní, consumery všude), log pro každou kopii; zkouška výpadku i tvrdého pádu vedoucí kopie | [skalovani-05](code:docs/kroky-skalovani/krok-05-vice-instanci.md) |
 | 5B | Postupné nasazení – `rolling-update.sh`: nové kopie vedle starých, po healthchecku staré pryč; nezdravá verze se sama zahodí (rollback bez výpadku); Caddy krátké vyřazení a timeout spojení; pravidlo: migrace kompatibilní se starší verzí | [skalovani-05b](code:docs/kroky-skalovani/krok-05b-postupne-nasazeni.md) |
 
+## Trvalá observabilita
+
+Plán: [docs/Observabilita-roadmap.md](code:docs/Observabilita-roadmap.md) – historie telemetrie, dashboard zpráv a ság, alarmy (Grafana Cloud, 0 Kč).
+
+| Krok | Co přinesl | Souhrn |
+| --- | --- | --- |
+| G1 | Grafana Alloy na VM rozděluje telemetrii: vše do Aspire dashboardu, bez osobních údajů do Grafana Cloud (EU) s historií 14 dní; aplikace beze změny, token jen se zápisem | [observabilita-g1](code:docs/kroky-observabilita/krok-g1-grafana-cloud.md) |
+
 ## Proč po krocích
 
 Každý krok řeší **jeden** problém, který předchozí krok odhalil, a po každém aplikace funguje. Tak je u každé

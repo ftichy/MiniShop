@@ -1,10 +1,11 @@
 ---
 title: Monitoring a logy
-summary: Kdo hlídá, že MiniShop běží – Aspire dashboard, health checky, UptimeRobot a alarmy OCI.
+summary: Kdo hlídá, že MiniShop běží – Aspire dashboard, Grafana Cloud (historie 14 dní), health checky, UptimeRobot a alarmy OCI.
 order: 6
 ---
 
-> **V jedné větě:** Zevnitř aplikace sledujeme trasy, logy a metriky v **Aspire dashboardu**; zvenku hlídá
+> **V jedné větě:** Zevnitř aplikace sledujeme trasy, logy a metriky živě v **Aspire dashboardu** a s historií 14 dní
+> v **Grafana Cloud** (přes **Alloy** na VM); zvenku hlídá
 > **UptimeRobot** adresu `/health` a zevnitř cloudu **alarmy OCI** stav VM. Při problému přijde e-mail.
 
 ## Kdo co hlídá
@@ -12,10 +13,12 @@ order: 6
 ```mermaid
 flowchart LR
     subgraph vm["VM"]
-        web["web"] -->|OTLP| dash["aspire-dashboard"]
-        inv["inventory-api"] -->|OTLP| dash
+        web["web"] -->|OTLP| alloy["alloy"]
+        inv["inventory-api"] -->|OTLP| alloy
+        alloy --> dash["aspire-dashboard"]
         agent["Oracle Cloud Agent"]
     end
+    alloy -->|"OTLP, bez osobních údajů"| grafana["Grafana Cloud (EU)<br/>historie 14 dní"]
     caddy["Caddy"] --> web
     caddy --> inv
     ur["UptimeRobot<br/>každých 5 min"] -->|"GET /health, /health/inventory"| caddy
@@ -30,7 +33,8 @@ flowchart LR
 
 | Hlídač | Co sleduje | Kdy se ozve |
 | --- | --- | --- |
-| **Aspire dashboard** | trasy, strukturované logy, metriky obou služeb | nic neposílá – díváte se do něj (https://dashboard.minishop-tichy.cz) |
+| **Aspire dashboard** | trasy, strukturované logy, metriky obou služeb – živě, jen v paměti | nic neposílá – díváte se do něj (https://dashboard.minishop-tichy.cz) |
+| **Grafana Cloud** (observabilita G1) | totéž s historií 14 dní: trasy (Tempo), logy (Loki), metriky (Mimir); hledání a grafy přes webové rozhraní | zatím nic neposílá – alarmy přidá krok G3 (https://patientjaguar2071.grafana.net) |
 | **Health checky** `/health` | připravenost služby + [outbox](../eda/outbox.md) (zpráva visí > 5 min → *Degraded*) + od EDA kroku 13 [dead-letter fronty](../eda/provoz-zprav.md) (odložená zpráva → *Degraded*) | využívá je Compose (`up --wait`), Deploy i UptimeRobot |
 | **UptimeRobot** | zvenku `/health` a `/health/inventory`, hledá přesný text `Healthy` | služba neodpovídá nebo není *Healthy* |
 | **Alarmy OCI** ([monitoring.tf](code:infra/monitoring.tf)) | CPU > 80 %, paměť > 90 %, metriky přestaly chodit | podmínka platí 15 min v kuse; připomenutí každé 4 h |
@@ -38,10 +42,39 @@ flowchart LR
 
 ## Proč takhle
 
-- **Aspire dashboard, ne Grafana/Loki/Prometheus** – stejný nástroj jako lokálně, jeden kontejner, nulová konfigurace.
-  Plnohodnotný stack by na malé VM zabral víc paměti než MiniShop sám.
-- **Telemetrie jen v paměti** (limit 512 MB) – stačí na „co se stalo před chvílí“. Historii drží logy v souborech
-  (`/data/logs`, 7 dní).
+- **Aspire dashboard pro „teď“** – stejný nástroj jako lokálně, jeden kontejner, nulová konfigurace. Telemetrie jen
+  v paměti (limit 512 MB) – stačí na „co se stalo před chvílí“.
+- **Grafana Cloud pro historii, ne vlastní Grafana/Loki/Prometheus na VM** – plnohodnotný stack by na malé VM zabral
+  víc paměti než MiniShop sám a potřeboval by zálohy a aktualizace. Free tier stačí (0 Kč, bez karty), data v EU.
+
+## Grafana Cloud a Alloy (observabilita G1)
+
+Přirovnání: Aspire dashboard je tachometr (jen „teď“), Grafana Cloud černá skříňka (14 dní zpětně).
+
+- **Alloy** ([config.alloy](code:deploy/config.alloy), [compose.grafana.yaml](code:deploy/compose.grafana.yaml)) přijímá
+  OTLP od `web` a `inventory-api` (port 4317 jen v síti Compose) a posílá ho **dvakrát**: celé do Aspire dashboardu
+  a do Grafana Cloud. Aplikace se kvůli tomu nezměnila – jen `OTEL_EXPORTER_OTLP_ENDPOINT` ukazuje na Alloy místo dashboardu.
+- **Osobní údaje:** před odesláním do cloudu Alloy smaže atributy `client.address`, `client.port`, `network.peer.address`,
+  `http.client_ip`, `user_agent.original` a `url.query`. Je to druhá vrstva – aplikace e-maily ani IP do logů a tras
+  nepíše ([Účty – zpevnění](../architektura/moduly/accounts.md)). `enduser.id` (ID účtu) zůstává.
+- **Přihlášení:** Instance ID a adresa v `deploy/production.env` (netajné), token jen se zápisem v secretu
+  `GRAFANA_CLOUD_OTLP_TOKEN` ([Secrets](../github/secrets.md)) – čtení dat z Grafany jím nejde.
+- **Výpadek Grafana Cloud** aplikaci neovlivní: Alloy data chvíli drží v paměti a opakuje, pak je zahodí. Výpadek Alloye
+  znamená jen díru v telemetrii (Aspire i Grafana), e-shop běží dál.
+- **Změna `config.alloy`:** `deploy.sh` po nasazení Alloy restartuje (konfiguraci sám znovu nenačte).
+- **Vypnutí:** odebrat `compose.grafana.yaml` z `COMPOSE_FILE` v `deploy/production.env` – služby pak posílají přímo do dashboardu.
+- **Lokálně** se nic nemění: AppHost i `compose.yaml` posílají rovnou do Aspire dashboardu. Generálka s Grafanou:
+  token do `deploy/.env` a `docker compose -f compose.yaml -f compose.grafana.yaml up -d`.
+- **Limity free tieru:** 10 000 aktivních metrických řad (každá kombinace jména metriky a štítků; po nasazení se každá
+  kopie služby počítá zvlášť), 50 GB logů a 50 GB tras měsíčně, 14 dní. Využití: Grafana → *Administration → Cost management / Usage*.
+
+**Kde co najít v Grafaně** (https://patientjaguar2071.grafana.net):
+
+| Chci vidět | Kde |
+| --- | --- |
+| trasu objednávky | *Explore* → zdroj `…-traces` → *Search*, služba `web` (nebo hledat podle `minishop.order.id`) |
+| logy | *Explore* → zdroj `…-logs` → filtr `service_name = web`; z řádku logu odkaz na trasu |
+| metriky | *Explore* → zdroj `…-prom` → např. `minishop_outbox_delivered_total` |
 - **Přihlášení k dashboardu přes Caddy** – dashboard sám běží `Unsecured`, port OTLP je jen ve vnitřní síti Compose.
 - **UptimeRobot aktivně zvenku** – pozná i výpadek sítě, DNS nebo certifikátu, což zevnitř VM nejde.
 - **Alarmy v OpenTofu** – po nové VM se nastaví samy (nové OCID).
@@ -51,7 +84,7 @@ flowchart LR
 
 - Serilog píše do konzole kontejneru (`docker compose logs web` – obě kopie Webu, řádky mají předponu `web-<číslo>` – po každém nasazení jiné),
   do souboru `/data/logs/minishop-<kontejner>-RRRRMMDD.log` (škálování krok 5: každá kopie vlastní soubor, 7 dní)
-  a přes **OpenTelemetry** do dashboardu, propojené s trasou.
+  a přes **OpenTelemetry** do dashboardu a Grafana Cloud (14 dní, hledání bez SSH), propojené s trasou.
 - Která kopie je vedoucí (spouští outbox a další workery): `docker compose logs web | grep Vedoucí` –
   viz [Více instancí](../architektura/vice-instanci.md).
 - Úrovně a cíle se nastavují v sekci `Serilog` v `appsettings.json`.
@@ -59,6 +92,8 @@ flowchart LR
 ## Na internetu
 
 - [.NET Aspire dashboard (samostatně)](https://learn.microsoft.com/dotnet/aspire/fundamentals/dashboard/standalone)
+- [Grafana Cloud – OpenTelemetry (OTLP)](https://grafana.com/docs/grafana-cloud/send-data/otlp/)
+- [Grafana Alloy](https://grafana.com/docs/alloy/latest/)
 - [UptimeRobot](https://uptimerobot.com/)
 - [OCI Monitoring – alarmy](https://docs.oracle.com/en-us/iaas/Content/Monitoring/Concepts/monitoringoverview.htm)
 - [Serilog](https://serilog.net/)

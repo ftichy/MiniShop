@@ -352,7 +352,7 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   (**před** sloučením, pokud na změně závisí její vlastní nasazení). Změněný `Caddyfile` `deploy.sh` načte přes `caddy reload`.
   Port 22 je z internetu zavřený – SSH jen přes Tailscale. Nouzově: pravidlo 22 v security listu vrátit.
   Secrets/proměnné jen v environmentu `production`: `TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`, `DEPLOY_SSH_KEY`,
-  `RABBITMQ_PASSWORD`, `BASIC_AUTH_HASH` (krok 10), `SMTP_PASSWORD` (účty krok 5), `INVENTORY_API_KEY` (účty krok 7), `PAYMENTS_WEBHOOK_SECRET` (e-shop krok 8), `POSTGRES_PASSWORD` (škálování krok 3), `GOOGLE_CLIENT_SECRET` (účty krok 10, volitelný), `DEPLOY_HOST`, `DEPLOY_KNOWN_HOSTS`.
+  `RABBITMQ_PASSWORD`, `BASIC_AUTH_HASH` (krok 10), `SMTP_PASSWORD` (účty krok 5), `INVENTORY_API_KEY` (účty krok 7), `PAYMENTS_WEBHOOK_SECRET` (e-shop krok 8), `POSTGRES_PASSWORD` (škálování krok 3), `GOOGLE_CLIENT_SECRET` (účty krok 10, volitelný), `GRAFANA_CLOUD_OTLP_TOKEN` (observabilita G1), `DEPLOY_HOST`, `DEPLOY_KNOWN_HOSTS`.
 - Doména (krok 13): `https://minishop-tichy.cz` (Wedos: registrace + DNS, záznamy A `@` a `dashboard` → reserved IP, TTL 300,
   žádné AAAA – zadává uživatel ručně v client.wedos.com, pak *Aplikovat změny*). `DOMAIN` + `LEGACY_DOMAIN` v `production.env`;
   stará `minishop-tichy.duckdns.org` (i `dashboard.`) = 301 na novou doménu (Caddyfile), smoke test hlídá obojí (doména
@@ -479,7 +479,7 @@ Modul Accounts (ASP.NET Core Identity, schéma `accounts`). Souhrny kroků do `d
 | 10. Přihlášení přes Google (OpenID Connect, `ExternalAccountLinker`: propojení jen s potvrzeným e-mailem, účet bez hesla + `SetPassword`, smazání po `prompt=login`, `/Account/ExternalLogins`, CSP `form-action` + Google, `GOOGLE_CLIENT_ID` v `production.env` + secret `GOOGLE_CLIENT_SECRET`) | hotovo (nasazeno 6. 11. 2026; OAuth klient v Google Cloud projektu MiniShop, aplikace publikovaná; v produkci ověřen nový účet přes Google, účet bez hesla, smazání po novém přihlášení u Googlu) | `docs/kroky-ucty/krok-10-google.md` |
 | 11A. Dvoufázové ověření TOTP, dobrovolné (issue #94 část A1: `/Account/TwoFactor` s QR jako SVG z QRCoder, `LoginWith2fa`, `LoginWithRecoveryCode`, záchranné kódy, špatný kód = zámek, zapamatování zařízení jen zákazník, vypnout nesmí admin; Google 2FA obchází – vyřešeno v 11B; B audit přihlášení, C ZAP v CI) | hotovo (ověřeno v produkci 12. 11. 2026; oprava QR – SVG bez `viewBox` – PR #96) | `docs/kroky-ucty/krok-11a-dvoufazove-overeni.md` |
 | 11B. Povinné 2FA pro admina (issue #94 část A2: policy `RequireAdmin` vyžaduje claim `minishop:two_factor` z `AccountClaimsPrincipalFactory`, admin bez 2FA → `/Account/TwoFactor` (API 403), Google už 2FA neobchází (`bypassTwoFactor: false`), `AccountSignInManager` – admin nikdy nepřeskočí kód přes zapamatované zařízení, příkaz `reset-2fa --email …` + audit `TwoFactorReset`, E2E admin si 2FA nastaví přes UI; B audit přihlášení, C ZAP v CI zbývá) | hotovo (nasazeno a ověřeno v produkci 12. 11. 2026; výměna aplikace záchranným kódem PR #98) | `docs/kroky-ucty/krok-11b-povinne-2fa-admin.md` |
-| 11C. Audit přihlášení (issue #94 část B: tabulka `LoginAttempts` ve schématu `accounts` – ID účtu nebo null, metoda heslo/kód/záchranný kód/Google, výsledek, čas, IP, **bez e-mailu**; zápis z `Login`, `LoginWith2fa`, `LoginWithRecoveryCode`, `ExternalLogin` přes `LoginAttemptRecorder` (chyba zápisu jen do logu), výpis na `/Admin/Users/Detail/{id}` a `/Account/LoginHistory`, retence 90 dní `LoginAttemptRetentionWorker`, smazání účtu záznamy smaže, `/Privacy`; C ZAP v CI zbývá) | hotovo (nasazeno 13. 11. 2026; zbývá ověřit IP klienta z mobilních dat) | `docs/kroky-ucty/krok-11c-audit-prihlaseni.md` |
+| 11C. Audit přihlášení (issue #94 část B: tabulka `LoginAttempts` ve schématu `accounts` – ID účtu nebo null, metoda heslo/kód/záchranný kód/Google, výsledek, čas, IP, **bez e-mailu**; zápis z `Login`, `LoginWith2fa`, `LoginWithRecoveryCode`, `ExternalLogin` přes `LoginAttemptRecorder` (chyba zápisu jen do logu), výpis na `/Admin/Users/Detail/{id}` a `/Account/LoginHistory`, retence 90 dní `LoginAttemptRetentionWorker`, smazání účtu záznamy smaže, `/Privacy`; C ZAP v CI zbývá) | hotovo (nasazeno 13. 11. 2026; v produkci ověřeno: veřejná IP klienta za Caddy a český čas záznamů) | `docs/kroky-ucty/krok-11c-audit-prihlaseni.md` |
 | 11D. OWASP ZAP v CI (issue #94 část C: job „ZAP sken“ v `ci.yml` – aplikace z `compose.yaml`, `ghcr.io/zaproxy/zaproxy:2.17.0` baseline proti `http://web:8080` v síti Compose, `.github/zap/rules.tsv` FAIL/IGNORE s odůvodněním, souhrn v běhu + artefakt `zap-report`; nepovinný, nasazení neblokuje) | hotovo v PR (CI: 0 FAIL; COEP/CORP = kandidát na zpevnění) | `docs/kroky-ucty/krok-11d-zap-sken.md` |
 
 ## Stav e-shopu (viz `docs/Eshop-roadmap.md`)
@@ -570,6 +570,23 @@ převod produkčních dat s krátkou odstávkou, expand → contract. Souhrny do
 | 5. Více instancí (`LeaderElection` přes advisory lock, `LeaderOnlyHostedService` pro workery s časovačem, `web` ve dvou kopiích za Caddy – `WEB_REPLICAS`, `dynamic a`, log pro každou kopii, TCP keepalive PostgreSQL) | hotovo (nasazeno 5. 11. 2026; zkouška výpadku v produkci: `docker stop` vedoucí kopie → 60/60 požadavků 200, převzetí za 3 s, vrácená kopie zůstala záložní, objednávka přes novou vedoucí potvrzena) | `docs/kroky-skalovani/krok-05-vice-instanci.md` |
 | 5B. Postupné nasazení (`deploy/rolling-update.sh` – nové kopie vedle starých, pak staré pryč, nezdravé nové zahodit; infrastruktura zvlášť; Caddy `fail_duration 5s`, `dial_timeout 1s`; migrace kompatibilní se starší verzí) | hotovo (nasazeno 5. 11. 2026; první nasazení 1× 502 – Caddyfile se načítal až po výměně, opraveno; druhé nasazení 968× 200 bez chyby; generálka 522× 200, nezdravá verze zahozena 153× 200) | `docs/kroky-skalovani/krok-05b-postupne-nasazeni.md` |
 | 6. Druhá VM (volitelně) | plán | — |
+
+## Stav observability (viz `docs/Observabilita-roadmap.md`)
+Historie telemetrie, dashboard zpráv a ság, alarmy – Grafana Cloud Free (stack `patientjaguar2071`, region EU Germany, 0 Kč).
+Souhrny kroků do `docs/kroky-observabilita/`. Aplikace se kvůli Grafaně nemění (OTLP z EDA kroku 11).
+- **Alloy jen v produkci:** `deploy/compose.grafana.yaml` (v `COMPOSE_FILE` v `production.env`) přidá `alloy` a přesměruje
+  `OTEL_EXPORTER_OTLP_ENDPOINT` služeb na `http://alloy:4317`; `deploy/config.alloy` posílá vše do Aspire dashboardu a do Grafana Cloud
+  přes filtr `privacy` (maže IP, user agent, `url.query`). **Nový atribut s osobním údajem = smazat i v `config.alloy`.**
+  Lokálně (AppHost, `compose.yaml`) beze změny. Změnu `config.alloy` načte `deploy.sh` restartem Alloye. Vypnutí = odebrat soubor z `COMPOSE_FILE`.
+- Endpoint a Instance ID v `production.env` (netajné), token jen se zápisem = secret `GRAFANA_CLOUD_OTLP_TOKEN` (`glc_…`,
+  povinný se zapnutým doplňkem; `docs/secrets.md` R15). `compose.grafana.yaml` a `config.alloy` jsou v `deploy.sh` **volitelné soubory**
+  (starší commity je nemají). Limit free tieru: **10 000 aktivních metrických řad** – nové metriky bez štítků s vysokou kardinalitou (ID).
+
+| Krok | Stav | Souhrn |
+| --- | --- | --- |
+| G1. Alloy + export do Grafana Cloud (trasy, logy, metriky; filtr osobních údajů; secret `GRAFANA_CLOUD_OTLP_TOKEN`) | v práci | `docs/kroky-observabilita/krok-g1-grafana-cloud.md` |
+| G2. Dashboard EDA jako kód (metriky stavu outboxu a ság jen z vedoucí kopie, RabbitMQ Prometheus – délky front a dead-letter) | plán | — |
+| G3. Alarmy a SLO jako kód (dead-letter, outbox, 5xx, výpadek telemetrie; 99 % objednávek potvrzeno do 30 s) | plán | — |
 
 ## Práce v GitHub Issues (agent Claude, `.github/workflows/claude.yml`)
 Platí, když běžíš v GitHub Actions (spustil tě komentář `@claude` v issue nebo PR). Příručka: `docs/prirucka/github/agent.md`.

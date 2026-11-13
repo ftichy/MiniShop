@@ -22,6 +22,7 @@ Pravidla:
 | `GOOGLE_CLIENT_SECRET` | tajemství OAuth klienta Googlu (účty krok 10) – s Client ID (`GOOGLE_CLIENT_ID` v `deploy/production.env`, není tajné) Web u Googlu vyměňuje kód za identitu uživatele. Kdo ho zná, může se za MiniShop vydávat vůči Googlu (vlastní stránka s přihlášením „do MiniShopu“), k účtům MiniShopu ani Googlu se jím nedostane. Tvar `GOCSPX-…`, volitelný: prázdný = přihlášení přes Google vypnuté | `.env` na VM → `Authentication__Google__ClientSecret` ve `web` | [R12](#r12-tajemství-oauth-klienta-googlu) | při podezření |
 | `STRIPE_SECRET_KEY` | **testovací** API klíč Stripu (e-shop krok 16) – Web jím zakládá platby a vrací peníze. Kdo ho zná, může v testovacím účtu MiniShopu zakládat a rušit platby (žádné skutečné peníze). Tvar `sk_test_…`, živý klíč `sk_live_` Web i `deploy.sh` odmítnou. Volitelný: platí jen s `PAYMENTS_GATEWAY=Stripe` | `.env` na VM → `Payments__Stripe__SecretKey` ve `web` | [R13](#r13-klíče-stripu) | při podezření |
 | `STRIPE_WEBHOOK_SECRET` | tajemství webhooku Stripu (e-shop krok 16) – podpis `Stripe-Signature` na `/api/payments/stripe-webhook`. Kdo ho zná, může „zaplatit“ objednávku, k níž zná ID session. Tvar `whsec_…`, jedno na endpoint ve Stripe Dashboardu | `.env` na VM → `Payments__Stripe__WebhookSecret` ve `web` | [R13](#r13-klíče-stripu) | při podezření |
+| `GRAFANA_CLOUD_OTLP_TOKEN` | token Grafana Cloud (observabilita G1, *Cloud Access Policy* jen se **zápisem** metrik, logů a tras) – Alloy jím posílá telemetrii do stacku `patientjaguar2071`. Kdo ho zná, může do Grafany posílat vymyšlená data a vyčerpat limity free tieru; číst data jím **nejde**. Tvar `glc_…`. Povinný, dokud je `compose.grafana.yaml` v `COMPOSE_FILE` (`deploy/production.env`) | `.env` na VM → proměnná kontejneru `alloy`; lokálně `deploy/.env` (jen pro generálku) | [R15](#r15-token-grafana-cloud) | při podezření, jinak 1× ročně |
 
 ## Secrets nasazení (GitHub → Environments → `production`)
 
@@ -187,6 +188,16 @@ Nový klíč (`ssh-keygen`), veřejnou část přidat na VM do `/home/ubuntu/.ss
 3. Ověření: v testovacím issue komentář `@claude ahoj` → workflow **Claude** doběhne a agent odpoví.
 4. Při úniku starý token zneplatnit v nastavení účtu na [claude.ai](https://claude.ai) (přehled přihlášení
    Claude Code). Vypnutí agenta bez výměny: smazat secret, nebo workflow **Claude** → *Disable workflow* v záložce Actions.
+
+### R15. Token Grafana Cloud
+
+1. [grafana.com](https://grafana.com/profile/org) → *Security → Access Policies* → politika s tokenem `minishop-alloy`
+   (scopes jen `metrics:write`, `logs:write`, `traces:write`) → *Add token* → token `glc_…` se ukáže **jen jednou**.
+2. GitHub → *Environments* → `production` → `GRAFANA_CLOUD_OTLP_TOKEN` → *Update* → vložit → *Actions → Deploy → Run workflow*.
+3. Ověření: v Grafaně *Explore* → zdroj `…-traces` → nové trasy služby `web` po pár minutách provozu.
+4. Starý token v *Access Policies* smazat (*Delete*) – až po úspěšném nasazení, jinak by Alloy mezitím nic neposlal.
+5. Vypnutí exportu bez výměny: odebrat `compose.grafana.yaml` z `COMPOSE_FILE` v `deploy/production.env` (PR) – služby
+   pak posílají telemetrii rovnou do Aspire dashboardu jako před G1.
 
 ### Které SHA nasadit
 

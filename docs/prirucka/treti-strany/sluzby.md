@@ -1,6 +1,6 @@
 ---
 title: Online služby
-summary: Oracle Cloud, GitHub, Tailscale, DuckDNS, Let's Encrypt, UptimeRobot, healthchecks.io, Gmail, přihlášení přes Google a Stripe (testovací režim) – všechny zdarma.
+summary: Oracle Cloud, GitHub, Tailscale, DuckDNS, Let's Encrypt, UptimeRobot, healthchecks.io, Gmail, přihlášení přes Google, Stripe (testovací režim) a Grafana Cloud – všechny zdarma.
 order: 3
 ---
 
@@ -22,6 +22,7 @@ order: 3
 | **Gmail (SMTP)** | odesílání e-mailů z produkce – potvrzení e-mailu, nové heslo, stav objednávky; účet `ftichy.gemini@gmail.com` s heslem aplikace | zdarma (~500 e-mailů/den), dobrá doručitelnost i bez vlastní domény ([detail](../architektura/emaily.md)) | free | [heslo aplikace](https://support.google.com/accounts/answer/185833) |
 | **Google Cloud (OAuth klient)** | přihlášení přes Google (účty krok 10) – projekt MiniShop, *OAuth consent screen* a klient typu *Web application* s adresou návratu `/signin-google` | většina lidí účet Google má; jen rozsahy `openid email profile`, ověření aplikace Googlem pro ně není potřeba ([detail](../architektura/moduly/accounts.md#přihlášení-přes-google)) | free | [Google Cloud Console](https://console.cloud.google.com/apis/credentials), [docs](https://developers.google.com/identity/protocols/oauth2/web-server) |
 | **Stripe** (testovací režim) | platební brána (e-shop krok 16) – stránka pro zadání karty (Checkout), webhook s výsledkem, vrácení peněz; testovací karta `4242 4242 4242 4242` | testovací režim hned po registraci (bez firmy a ověření), skvělá dokumentace, Stripe CLI doručí webhooky i na localhost; číslo karty MiniShop nevidí ([detail](../architektura/moduly/payments.md#stripe-e-shop-krok-16)) | test mode free (skutečné platby se nepřijímají) | [dashboard.stripe.com](https://dashboard.stripe.com/test/dashboard), [docs](https://docs.stripe.com/) |
+| **Grafana Cloud** (stack `patientjaguar2071`, region EU Germany) | trvalá observabilita (od observability G1): trasy (Tempo), logy (Loki) a metriky (Mimir/Prometheus) z Alloye na VM, historie 14 dní; Aspire dashboard zůstává pro živé ladění | hostovaná sada Grafana bez další údržby na VM; OpenTelemetry přímo (OTLP), data v EU ([detail](../nasazeni/monitoring.md)) | Free (10 000 metrických řad, 50 GB logů, 50 GB tras měsíčně, 14 dní) | [grafana.com](https://grafana.com/products/cloud/) |
 
 ## Účty a jejich ochrana
 

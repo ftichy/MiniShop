@@ -13,7 +13,7 @@ order: 4
 flowchart LR
     pe["deploy/production.env<br/>(git, netajné)"] --> sh["deploy.sh na VM"]
     tag["IMAGE_TAG = sha-…<br/>(nasazovaný commit)"] --> sh
-    sec["GitHub environment production<br/>RABBITMQ_PASSWORD, BASIC_AUTH_HASH,<br/>HEALTHCHECKS_BACKUP_URL, SMTP_PASSWORD,<br/>INVENTORY_API_KEY, PAYMENTS_WEBHOOK_SECRET,<br/>POSTGRES_PASSWORD, GOOGLE_CLIENT_SECRET,<br/>STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET"] -->|"stdin přes SSH"| sh
+    sec["GitHub environment production<br/>RABBITMQ_PASSWORD, BASIC_AUTH_HASH,<br/>HEALTHCHECKS_BACKUP_URL, SMTP_PASSWORD,<br/>INVENTORY_API_KEY, PAYMENTS_WEBHOOK_SECRET,<br/>POSTGRES_PASSWORD, GOOGLE_CLIENT_SECRET,<br/>STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET,<br/>GRAFANA_CLOUD_OTLP_TOKEN"] -->|"stdin přes SSH"| sh
     sh --> env[".env na VM<br/>práva 600, vlastník deploy"]
     env --> compose["docker compose"]
     compose --> cont["proměnné prostředí kontejnerů"]
@@ -39,6 +39,7 @@ flowchart LR
 | `GOOGLE_CLIENT_SECRET` | tajemství OAuth klienta Googlu pro přihlášení přes Google ([Accounts](../architektura/moduly/accounts.md#přihlášení-přes-google)); volitelný (účty krok 10) – Client ID není tajné, je v `deploy/production.env` (`GOOGLE_CLIENT_ID`) | GitHub `production` → `.env` na VM → kontejner `web` |
 | `STRIPE_SECRET_KEY` | **testovací** API klíč Stripu (`sk_test_…`) – zakládání plateb a vrácení peněz ([Payments](../architektura/moduly/payments.md#stripe-e-shop-krok-16)); volitelný (e-shop krok 16), platí jen s `PAYMENTS_GATEWAY=Stripe` v `deploy/production.env`; živý klíč se odmítne | GitHub `production` → `.env` na VM → kontejner `web` |
 | `STRIPE_WEBHOOK_SECRET` | tajemství webhooku Stripu (`whsec_…`) – podpis `Stripe-Signature` na `/api/payments/stripe-webhook`; volitelný (e-shop krok 16) | GitHub `production` → `.env` na VM → kontejner `web` |
+| `GRAFANA_CLOUD_OTLP_TOKEN` | token Grafana Cloud jen se zápisem (`glc_…`) – Alloy jím posílá telemetrii do Grafana Cloud; povinný, dokud je `compose.grafana.yaml` v `COMPOSE_FILE` (observabilita G1, [Monitoring](../nasazeni/monitoring.md)) | GitHub `production` → `.env` na VM → kontejner `alloy` |
 | `DEPLOY_SSH_KEY` | soukromý klíč pro spuštění `minishop-deploy` | GitHub `production` |
 | `TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET` | připojení runneru do Tailscale | GitHub `production` |
 | `GITHUB_TOKEN` | push image do GHCR | vytváří ho GitHub pro každý běh |

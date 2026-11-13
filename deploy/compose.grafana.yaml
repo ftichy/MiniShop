@@ -1,0 +1,38 @@
+# Observabilita G1: telemetrie i do Grafana Cloud (14 dní historie). Doplněk k compose.yaml, v produkci zapnutý
+# přes COMPOSE_FILE v production.env; lokálně se nenačítá (služby posílají rovnou do Aspire dashboardu).
+#
+# Co mění: služby posílají OTLP do Alloye místo do dashboardu; Alloy data rozdělí (config.alloy) –
+# do Aspire dashboardu vše jako dřív, do Grafana Cloud bez osobních údajů.
+# Vypnutí (rollback): odebrat compose.grafana.yaml z COMPOSE_FILE v production.env → služby zase přímo do dashboardu.
+#
+# Generálka lokálně (token v deploy/.env, endpoint a instance z production.env):
+#   docker compose -f compose.yaml -f compose.grafana.yaml up -d --wait
+
+services:
+  alloy:
+    image: grafana/alloy:v1.21.3
+    restart: unless-stopped
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345   # stránka Alloye (graf komponent) – jen v síti Compose, ven nepublikujeme
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    environment:
+      GRAFANA_CLOUD_OTLP_ENDPOINT: ${GRAFANA_CLOUD_OTLP_ENDPOINT:?Chybí GRAFANA_CLOUD_OTLP_ENDPOINT (production.env)}
+      GRAFANA_CLOUD_INSTANCE_ID: ${GRAFANA_CLOUD_INSTANCE_ID:?Chybí GRAFANA_CLOUD_INSTANCE_ID (production.env)}
+      GRAFANA_CLOUD_OTLP_TOKEN: ${GRAFANA_CLOUD_OTLP_TOKEN:?Chybí GRAFANA_CLOUD_OTLP_TOKEN (secret v environmentu production)}
+    volumes:
+      - ./config.alloy:/etc/alloy/config.alloy:ro
+    depends_on:
+      - aspire-dashboard
+    # Pojistka pro malou VM (jako u dashboardu); fronta neodeslaných dat při výpadku cloudu je v paměti.
+    mem_limit: 256m
+
+  # Služby posílají telemetrii do Alloye (přepisuje OTEL_EXPORTER_OTLP_ENDPOINT z kotvy x-otel-env v compose.yaml).
+  web:
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4317
+
+  inventory-api:
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4317

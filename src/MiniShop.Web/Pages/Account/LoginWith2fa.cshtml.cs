@@ -19,6 +19,7 @@ namespace MiniShop.Web.Pages.Account;
 public sealed class LoginWith2faModel(
     SignInManager<ApplicationUser> signInManager,
     UserManager<ApplicationUser> userManager,
+    LoginAttemptRecorder loginAttempts,
     ILogger<LoginWith2faModel> logger) : PageModel
 {
     [BindProperty]
@@ -63,6 +64,8 @@ public sealed class LoginWith2faModel(
         var code = TwoFactorHelper.NormalizeCode(Input.Code);
         var result = await signInManager.TwoFactorAuthenticatorSignInAsync(
             code, RememberMe, Input.RememberMachine && CanRememberDevice);
+        await loginAttempts.RecordAsync(HttpContext, user, LoginMethod.AuthenticatorCode,
+            LoginAudit.Map(result, user, LoginResult.WrongCode));
 
         if (result.Succeeded)
         {

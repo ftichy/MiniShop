@@ -1,0 +1,16 @@
+@page
+@model MiniShop.Web.Pages.Account.LoginHistoryModel
+@{
+    ViewData["Title"] = "Poslední přihlášení";
+}
+<h1>Poslední přihlášení</h1>
+<p class="text-muted">
+    Posledních @MiniShop.Web.Pages.Account.LoginHistoryModel.Count pokusů o přihlášení k vašemu účtu (i neúspěšných). Poznáte tak, kdyby se někdo cizí
+    pokoušel uhodnout heslo. Záznamy se po @MiniShop.Web.Pages.Account.LoginHistoryModel.RetentionDays dnech mažou. Pokud poznáte pokus, který nebyl váš,
+    <a asp-page="/Account/ChangePassword">změňte si heslo</a>.
+</p>
+
+<partial name="_LoginAttempts" model="Model.Attempts" />
+
+<p><a asp-page="/Account/ChangePassword">← Zpět na účet</a></p>
+<partial name="_AccountFooter" />

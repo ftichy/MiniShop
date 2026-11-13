@@ -15,6 +15,7 @@ namespace MiniShop.Web.Pages.Account;
 [EnableRateLimiting(AccountRateLimiting.PolicyName)]
 public sealed class LoginWithRecoveryCodeModel(
     SignInManager<ApplicationUser> signInManager,
+    LoginAttemptRecorder loginAttempts,
     ILogger<LoginWithRecoveryCodeModel> logger) : PageModel
 {
     [BindProperty]
@@ -46,6 +47,8 @@ public sealed class LoginWithRecoveryCodeModel(
         }
 
         var result = await signInManager.TwoFactorRecoveryCodeSignInAsync(TwoFactorHelper.NormalizeRecoveryCode(Input.RecoveryCode));
+        await loginAttempts.RecordAsync(HttpContext, user, LoginMethod.RecoveryCode,
+            LoginAudit.Map(result, user, LoginResult.WrongCode));
         if (result.Succeeded)
         {
             logger.LogWarning("Uživatel {UserId} se přihlásil záchranným kódem", user.Id);

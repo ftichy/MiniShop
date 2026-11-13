@@ -16,6 +16,8 @@
     }
     <a asp-page="/Account/TwoFactor" data-track="nav-account-two-factor">Dvoufázové ověření</a>
     <text>·</text>
+    <a asp-page="/Account/LoginHistory" data-track="nav-account-login-history">Poslední přihlášení</a>
+    <text>·</text>
     @if (hasExternalLogins)
     {
         <a asp-page="/Account/ExternalLogins" data-track="nav-account-external">Přihlášení přes Google</a>

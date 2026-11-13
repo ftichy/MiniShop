@@ -89,6 +89,9 @@ else
     </table></div>
 }
 
+<h2 class="h4 mt-4">Poslední přihlášení</h2>
+<partial name="_LoginAttempts" model="Model.LoginAttempts" />
+
 <h2 class="h4 mt-4">Historie změn</h2>
 @if (Model.Audit.Count == 0)
 {

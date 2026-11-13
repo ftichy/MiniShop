@@ -16,14 +16,19 @@ namespace MiniShop.Web.Pages.Admin.Users;
 [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
 public sealed class DetailModel(
     AccountAdministration accounts,
+    LoginAttemptRecorder loginAttempts,
     IOrderService orderService,
     UserManager<ApplicationUser> userManager) : PageModel
 {
     private const int AuditCount = 50;
+    private const int LoginAttemptCount = 20;
 
     public AccountSummary Account { get; private set; } = null!;
     public IReadOnlyList<OrderDto> Orders { get; private set; } = [];
     public IReadOnlyList<AccountAuditItem> Audit { get; private set; } = [];
+    /// <summary>2FA krok B: posledních pár pokusů o přihlášení (i neúspěšných) – k dohledání podezřelého pokusu.</summary>
+    public IReadOnlyList<LoginAttemptItem> LoginAttempts { get; private set; } = [];
+
     public bool IsCurrentUser { get; private set; }
 
     /// <summary>Účty krok 10: jak se uživatel přihlašuje – „heslo“, „Google“ (jen pro informaci).</summary>
@@ -49,6 +54,7 @@ public sealed class DetailModel(
         Orders = await orderService.GetAllAsync(OrderAccess.Customer(id), cancellationToken);
         Audit = await accounts.GetAuditAsync(id, AuditCount, cancellationToken);
         SignInMethods = await SignInMethodsAsync(id);
+        LoginAttempts = await loginAttempts.GetRecentAsync(id, LoginAttemptCount, cancellationToken);
         return Page();
     }
 

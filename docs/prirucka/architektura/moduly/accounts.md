@@ -325,6 +325,29 @@ Je to **dobrovolné pro zákazníka** (část A1) a **povinné pro admina** (č�
   počítají TOTP sami (RFC 6238, `TestTotp`) a projdou skutečné stránky. Testovací admin z `MiniShopWebFactory` má 2FA zapnuté a `LoginAsync`
   mu kód dopočítá; `CreateAdminAsync(…, twoFactor: false)` vytvoří admina bez něj. Scénář expedice v E2E: `ShopFlow.LoginAdminAsync`.
 
+## Audit přihlášení (bezpečnost B)
+
+Kdo se kdy (ne)přihlásil – aby šel dohledat podezřelý pokus. Přirovnání: vrátný zapisuje do sešitu každého, kdo zazvonil, i toho,
+kdo nebyl vpuštěn.
+
+- **Co se ukládá** ([LoginAttempt](code:src/MiniShop.Infrastructure/Accounts/LoginAttempt.cs), tabulka `LoginAttempts` ve schématu `accounts`):
+  ID účtu (u neznámého e-mailu `null`), čím (`LoginMethod`: heslo, kód z aplikace, záchranný kód, Google), výsledek (`LoginResult`: přihlášen,
+  špatné heslo, špatný kód, zamčeno, zablokováno, nepotvrzený e-mail, nepovedlo se, „první krok prošel, čeká se na kód“), čas a IP.
+  **E-mail ani heslo se neukládají** (a nejdou ani do logu). Jedno přihlášení s 2FA = dva záznamy (heslo → kód).
+- **Zápis:** `Login`, `LoginWith2fa`, `LoginWithRecoveryCode` a `ExternalLogin` volají [LoginAttemptRecorder](code:src/MiniShop.Infrastructure/Accounts/LoginAttemptRecorder.cs)
+  (převod výsledku Identity na `LoginResult` je v [LoginAudit](code:src/MiniShop.Web/Accounts/LoginAudit.cs)). `RecordAsync` **nikdy nevyhodí
+  výjimku** – chyba zápisu jen skončí v logu (typ chyby), přihlášení nerozbije.
+- **IP za Caddy:** bere se `Connection.RemoteIpAddress`. V Compose je `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true`, takže middleware
+  ForwardedHeaders dosadí IP klienta z `X-Forwarded-For` (stejně se spoléhá rate limiting). Ověření v produkci: přihlaste se z telefonu
+  přes mobilní data a na `/Account/LoginHistory` musí být vaše veřejná IP, ne `172.x` (adresa Caddy v Dockeru).
+- **Výpis:** admin vidí posledních 20 pokusů na `/Admin/Users/Detail/{id}`, uživatel své na `/Account/LoginHistory` (odkaz „Poslední přihlášení“
+  pod stránkou účtu). Obě stránky používají partial `_LoginAttempts`.
+- **Retence 90 dní:** [LoginAttemptRetentionWorker](code:src/MiniShop.Web/BackgroundServices/LoginAttemptRetentionWorker.cs) (jen vedoucí kopie, po startu
+  a pak každou hodinu) maže starší záznamy (`LoginAttemptRecorder.Retention`). Smazání účtu (`AccountDeletion`) smaže jeho záznamy hned.
+  IP je osobní údaj – zmínka na `/Privacy`.
+- **Migrace** `LoginAttempts` je jen nová tabulka (expand), starší verze kódu o ní neví a běží dál.
+- **Testy:** [LoginAuditTests](code:tests/MiniShop.Tests/Web/LoginAuditTests.cs).
+
 ## Databáze a migrace
 
 Účty jako první přešly na **EF Core migrace** (účty krok 6 – jsou v ní účty, nesmí se mazat;
@@ -357,7 +380,7 @@ flowchart LR
         adminPages["Admin/Users, Detail"]
         administration["AccountAdministration<br/>role, blokace, audit"]
         stamp["SecurityStampValidator<br/>cookie ↔ databáze každou minutu"]
-        db[("schéma accounts<br/>AspNetUsers, AspNetRoles,<br/>AspNetUserRoles, AspNetUserClaims,<br/>AspNetUserLogins, AccountAuditEntries")]
+        db[("schéma accounts<br/>AspNetUsers, AspNetRoles,<br/>AspNetUserRoles, AspNetUserClaims,<br/>AspNetUserLogins, AccountAuditEntries,<br/>LoginAttempts")]
     end
 
     browser -->|"POST formulář"| pages
@@ -409,6 +432,7 @@ sequenceDiagram
 | **AccountsSeeder** | Při startu: role, role User pro účty bez role, první admin z konfigurace; totéž pro příkaz `create-admin`. | [AccountsSeeder.cs](code:src/MiniShop.Infrastructure/Accounts/AccountsSeeder.cs) |
 | **AccountsDatabaseInitializer** | Migrace schématu `accounts` a seed. | [AccountsDatabaseInitializer.cs](code:src/MiniShop.Infrastructure/Accounts/AccountsDatabaseInitializer.cs) |
 | **AccountAdministration** | Správa uživatelů adminem: role, blokace, pravidla (poslední admin, sám sebe), security stamp, audit. | [AccountAdministration.cs](code:src/MiniShop.Infrastructure/Accounts/AccountAdministration.cs) |
+| **LoginAttempt** | Pokus o přihlášení (audit bez e-mailu, s IP; tabulka `LoginAttempts`, retence 90 dní). | [LoginAttempt.cs](code:src/MiniShop.Infrastructure/Accounts/LoginAttempt.cs) |
 | **AccountAuditEntry** | Auditní záznam: kdo, komu, co, kdy (tabulka `AccountAuditEntries`). | [AccountAuditEntry.cs](code:src/MiniShop.Infrastructure/Accounts/AccountAuditEntry.cs) |
 | **AccountDeletion** | Smazání vlastního účtu (účty krok 9): admin ne, e-mail z auditu pryč, účet i role a claimy smazané. | [AccountDeletion.cs](code:src/MiniShop.Infrastructure/Accounts/AccountDeletion.cs) |
 | **ExternalAccountLinker** | Přihlášení přes Google (účty krok 10): propojit podle potvrzeného e-mailu, založit účet bez hesla, nebo odmítnout; propojení z nastavení a odpojení. | [ExternalAccountLinker.cs](code:src/MiniShop.Infrastructure/Accounts/ExternalAccountLinker.cs) |

@@ -20,6 +20,8 @@ namespace MiniShop.Web.Pages.Account;
 public sealed class ExternalLoginModel(
     SignInManager<ApplicationUser> signInManager,
     ExternalAccountLinker linker,
+    UserManager<ApplicationUser> userManager,
+    LoginAttemptRecorder loginAttempts,
     ILogger<ExternalLoginModel> logger) : PageModel
 {
     /// <summary>Proč přihlášení nevyšlo – stránka ho ukáže s odkazem zpět na přihlášení.</summary>
@@ -51,6 +53,7 @@ public sealed class ExternalLoginModel(
         {
             // Uživatel na Googlu klikl na Zrušit, nebo Google odmítl požadavek.
             logger.LogWarning("Přihlášení přes Google vrátilo chybu: {RemoteError}", remoteError);
+            await RecordAsync(null, LoginResult.Failed);
             return Error("Přihlášení přes Google se nepovedlo nebo bylo zrušeno.");
         }
 
@@ -58,6 +61,7 @@ public sealed class ExternalLoginModel(
         if (info is null)
         {
             // Dočasná cookie s identitou chybí nebo vypršela (5 minut).
+            await RecordAsync(null, LoginResult.Failed);
             return Error("Přihlášení přes Google vypršelo. Zkuste to prosím znovu.");
         }
 
@@ -68,6 +72,7 @@ public sealed class ExternalLoginModel(
         // Google se jako druhý faktor nepočítá: kdo má zapnuté 2FA (admin vždy), zadá po Googlu ještě kód z aplikace.
         if (result.RequiresTwoFactor)
         {
+            await RecordAsync(await userManager.FindByLoginAsync(info.LoginProvider, info.ProviderKey), LoginResult.AwaitingSecondFactor);
             return RedirectToPage("./LoginWith2fa", new { ReturnUrl });
         }
 
@@ -77,13 +82,16 @@ public sealed class ExternalLoginModel(
             switch (linked.Outcome)
             {
                 case ExternalAccountOutcome.EmailNotVerified:
+                    await RecordAsync(null, LoginResult.UnconfirmedEmail);
                     await SignOutExternalAsync();
                     return Error("Google nepotvrdil, že vám e-mail účtu patří. Přihlaste se e-mailem a heslem.");
                 case ExternalAccountOutcome.ExistingAccountNotConfirmed:
+                    await RecordAsync(linked.User, LoginResult.UnconfirmedEmail);
                     await SignOutExternalAsync();
                     return Error("Účet s tímto e-mailem už v MiniShopu existuje, ale e-mail zatím není potvrzený. " +
                         "Přihlaste se heslem a potvrďte e-mail (odkaz v e-mailu) – pak se půjde přihlásit i přes Google.");
                 case ExternalAccountOutcome.Failed:
+                    await RecordAsync(linked.User, LoginResult.Failed);
                     await SignOutExternalAsync();
                     return Error("Účet se nepodařilo propojit: " + string.Join(" ", linked.Errors ?? []));
             }
@@ -94,21 +102,29 @@ public sealed class ExternalLoginModel(
 
         if (result.RequiresTwoFactor)
         {
+            await RecordAsync(await userManager.FindByLoginAsync(info.LoginProvider, info.ProviderKey), LoginResult.AwaitingSecondFactor);
             return RedirectToPage("./LoginWith2fa", new { ReturnUrl });
         }
 
         if (result.Succeeded)
         {
+            await RecordAsync(await userManager.FindByLoginAsync(info.LoginProvider, info.ProviderKey), LoginResult.Succeeded);
             // Dočasnou cookie SignInManager po úspěchu smaže sám.
             return LocalRedirect(Url.IsLocalUrl(ReturnUrl) ? ReturnUrl! : Url.Content("~/"));
         }
 
+        var failedUser = await userManager.FindByLoginAsync(info.LoginProvider, info.ProviderKey);
+        await RecordAsync(failedUser, LoginAudit.Map(result, failedUser, LoginResult.Failed));
         await SignOutExternalAsync();
         // Stejná hláška pro zamčený i zablokovaný účet jako u přihlášení heslem.
         return Error(result.IsLockedOut
             ? "Účet je zamčený nebo zablokovaný. Zkuste to později, případně kontaktujte správce."
             : "Přihlášení přes Google se nepovedlo.");
     }
+
+    /// <summary>2FA krok B: audit přihlášení přes Google (bez e-mailu, jen ID účtu, pokud je známé).</summary>
+    private Task RecordAsync(ApplicationUser? user, LoginResult result) =>
+        loginAttempts.RecordAsync(HttpContext, user, LoginMethod.Google, result);
 
     private Task SignOutExternalAsync() => HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
 

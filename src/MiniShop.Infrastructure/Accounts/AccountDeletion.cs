@@ -43,6 +43,9 @@ public sealed class AccountDeletion(
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        // 2FA krok B: pokusy o přihlášení (obsahují IP) zmizí s účtem.
+        await dbContext.LoginAttempts.Where(attempt => attempt.UserId == user.Id).ExecuteDeleteAsync(cancellationToken);
+
         var result = await userManager.DeleteAsync(user);
         if (!result.Succeeded)
         {

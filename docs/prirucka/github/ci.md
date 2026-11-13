@@ -16,6 +16,7 @@ flowchart LR
     t["build-and-test<br/>'Build a testy'<br/>PostgreSQL (Testcontainers)"] --> i["images (matrix)<br/>web, inventory-api"]
     i --> d["deploy<br/>jen main"]
     e["e2e<br/>'E2E testy'<br/>Playwright, nepovinný"]
+    z["zap<br/>'ZAP sken'<br/>OWASP ZAP, nepovinný"]
 
     click d "/Docs/github/cd"
 ```
@@ -26,6 +27,7 @@ flowchart LR
 | **Image web / inventory-api** | Docker Buildx | PR: jen x86, nic se neukládá (rozbitý Dockerfile se pozná před sloučením). `main`: **amd64 + arm64** (QEMU) a push do GHCR |
 | **Nasazení** | volá `deploy.yml` | jen na `main`, až po úspěšných image – viz [CD](cd.md) |
 | **E2E testy** | celý e-shop v Compose + Playwright (Chromium) | PR i `main`, běží vedle ostatních jobů; **není povinný check** a nasazení neblokuje – viz sekce „E2E testy v prohlížeči“ níže |
+| **ZAP sken** | celý e-shop v Compose + pasivní bezpečnostní sken OWASP ZAP | PR i `main`, **není povinný check** a nasazení neblokuje – viz sekce „Bezpečnostní sken (OWASP ZAP)“ níže |
 
 ## Důležitá nastavení
 
@@ -106,8 +108,46 @@ E2E_ADMIN_EMAIL=e2e-admin@example.test E2E_ADMIN_PASSWORD=Heslo-pro-e2e-123 dotn
 Adresa musí být přesně `localhost` (přihlašovací cookie je `Secure`, jen tam ji Chromium pustí i na HTTP).
 **Bez `E2E_BASE_URL` se E2E testy přeskočí** – `dotnet test MiniShop.slnx` bez spuštěné aplikace tedy nezčervená.
 
+## Bezpečnostní sken (OWASP ZAP)
+
+Přirovnání: E2E test je zkušební jízda, ZAP je technická kontrola – projde auto zvenku a hlásí, co by neprošlo
+(chybějící pás, prasklé světlo). **Baseline sken je pasivní:** prochází stránky jako návštěvník (pavouk sleduje odkazy, 2 minuty)
+a jen čte odpovědi – nic neodesílá, nezkouší SQL injection ani jiné útoky. Najde chybějící bezpečnostní hlavičky, cookies bez
+`Secure`/`HttpOnly`/`SameSite`, chybějící CSP, skripty z cizích domén, knihovny se známou zranitelností (Retire.js), chybové
+stránky s detaily ze serveru.
+
+**Jak job běží** (`zap` v [ci.yml](code:.github/workflows/ci.yml)):
+
+1. Postaví image a spustí aplikaci jen z [compose.yaml](code:deploy/compose.yaml) – stejná konfigurace jako produkce
+   (`Production`, žádný E2E doplněk), hesla za běhu přes `openssl rand`.
+2. Spustí kontejner `ghcr.io/zaproxy/zaproxy` (verze napevno v `ZAP_IMAGE`, zvedá se ručně) v síti Compose proti `http://web:8080`.
+3. Každé pravidlo má v [rules.tsv](code:.github/zap/rules.tsv) úroveň:
+
+   | Úroveň | Význam | Příklady |
+   | --- | --- | --- |
+   | **FAIL** | MiniShop to splňuje a nesmí se to rozbít → job zčervená | cookies `Secure`/`HttpOnly`/`SameSite`, CSP, `X-Content-Type-Options`, `X-Frame-Options`, hlavička `Server`, skripty z cizí domény, zranitelná JS knihovna, chybová stránka s detaily |
+   | **WARN** | ostatní pravidla – ukáže se v reportu, job projde (`-I`) | nové nálezy, které ještě nikdo neposoudil |
+   | **IGNORE** | vědomě neplatí, odůvodnění je v komentáři v souboru | `style-src 'unsafe-inline'` (Mermaid), testovací karta Stripe a rozsah `10.0.0.0/16` v příručce, HSTS (sken jde přes HTTP) |
+
+4. Souhrn (Markdown) se zobrazí přímo v přehledu běhu (*Summary*), celý report jako artefakt **zap-report** (HTML, Markdown, JSON; 14 dní).
+
+**Nový nález:** otevřít report, posoudit. Skutečná chyba = opravit v aplikaci (hlavičky v
+[SecurityHeaders](code:src/MiniShop.Web/Security/SecurityHeaders.cs)). Falešný poplach = řádek `IGNORE` s odůvodněním v `rules.tsv`.
+
+**Co ZAP nevidí:** stránky za přihlášením (pavouk je anonymní – hlavičky jsou ale stejné pro celý Web, nastavuje je jeden middleware),
+HTTPS a HSTS z produkce (Caddy), aktivní útoky (mimo rozsah – patřily by na vlastní testovací prostředí, ne do každého PR).
+
+**Lokálně** (aplikace z Compose už běží, Git Bash):
+
+```bash
+mkdir -p zap-report && cp .github/zap/rules.tsv zap-report/
+MSYS_NO_PATHCONV=1 docker run --rm --network minishop_default -v "$PWD/zap-report:/zap/wrk:rw" \
+  ghcr.io/zaproxy/zaproxy:2.17.0 zap-baseline.py -t http://web:8080 -c rules.tsv -m 2 -I -r zap-report.html
+```
+
 ## Na internetu
 
 - [GitHub Actions: syntaxe workflow](https://docs.github.com/actions/writing-workflows/workflow-syntax-for-github-actions)
 - [GitHub Container Registry](https://docs.github.com/packages/working-with-a-github-packages-registry/working-with-the-container-registry)
 - [Docker: Multi-platform builds](https://docs.docker.com/build/building/multi-platform/)
+- [OWASP ZAP: Baseline Scan](https://www.zaproxy.org/docs/docker/baseline-scan/)

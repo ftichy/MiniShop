@@ -46,9 +46,9 @@ sequenceDiagram
 
 | Pilíř | Co v MiniShopu | Kde vidět |
 | --- | --- | --- |
-| **Trasy** | HTTP, SQL (EF Core), outbox, RabbitMQ, sága | Aspire dashboard → Traces |
-| **Metriky** | doručené/selhané zprávy, zpoždění outboxu, zpracované zprávy consumerů, runtime .NET | Aspire dashboard → Metrics |
-| **Logy** | Serilog → konzole, denní soubor a OpenTelemetry (propojené s trasou) | Aspire dashboard → Structured logs, `logs/` |
+| **Trasy** | HTTP, SQL (EF Core), outbox, RabbitMQ, sága | Aspire dashboard → Traces; s historií 14 dní Grafana Cloud → Explore (Tempo) |
+| **Metriky** | doručené/selhané zprávy, zpoždění outboxu, zpracované zprávy consumerů, runtime .NET | Aspire dashboard → Metrics; Grafana Cloud (Mimir) |
+| **Logy** | Serilog → konzole, denní soubor a OpenTelemetry (propojené s trasou) | Aspire dashboard → Structured logs, Grafana Cloud (Loki), `logs/` |
 
 ## Health checky
 

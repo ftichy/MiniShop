@@ -18,6 +18,8 @@
 #   GOOGLE_CLIENT_SECRET=GOCSPX-…                     (účty krok 10, volitelný – OAuth klient Googlu pro přihlášení)
 #   STRIPE_SECRET_KEY=sk_test_…                       (e-shop krok 16, volitelný – platební brána Stripe, jen testovací)
 #   STRIPE_WEBHOOK_SECRET=whsec_…                     (e-shop krok 16, volitelný – podpis webhooku Stripu)
+#   GRAFANA_CLOUD_OTLP_TOKEN=glc_…                    (observabilita G1, volitelný – token Grafana Cloud jen se zápisem;
+#                                                      povinný, dokud je compose.grafana.yaml v COMPOSE_FILE)
 # Co na vstupu chybí (ruční spuštění z terminálu), vezme se z dosavadního .env. Netajná konfigurace je v gitu
 # (deploy/production.env). Soubor .env na VM skript pokaždé sestaví znovu – ruční změny v něm nepřežijí.
 # Změněné heslo RabbitMQ nejdřív vymění v běžícím RabbitMQ (RABBITMQ_DEFAULT_PASS platí jen při prvním startu).
@@ -33,7 +35,8 @@ REPO=ftichy/MiniShop
 FILES=(compose.yaml compose.cloud.yaml Caddyfile production.env)
 # Krok 12: skripty záloh. Volitelné – starší commity (ruční rollback přes Deploy) je ještě nemají.
 # Škálování krok 5B: postupné nasazení (rolling-update.sh) – starší commity ho nemají, pak se nasazuje naráz.
-OPTIONAL_FILES=(backup.py backup.sh restore.sh rolling-update.sh)
+# Observabilita G1: Alloy (compose.grafana.yaml + config.alloy) – starší commity ho nemají.
+OPTIONAL_FILES=(backup.py backup.sh restore.sh rolling-update.sh compose.grafana.yaml config.alloy)
 
 sha="${SSH_ORIGINAL_COMMAND:-${1:-}}"
 # Jen celý SHA commitu (40 malých hexa znaků). Nic jiného – žádné mezery, středníky, cesty.
@@ -53,6 +56,7 @@ inventory_api_key=""
 payments_webhook_secret=""
 postgres_password=""
 google_client_secret=""
+grafana_cloud_otlp_token=""
 if [ ! -t 0 ]; then
     while IFS= read -r line || [ -n "$line" ]; do
         [ -z "$line" ] && continue
@@ -98,6 +102,10 @@ if [ ! -t 0 ]; then
                 # E-shop krok 16: tajemství webhooku Stripu (whsec_…).
                 [[ -z "$value" || "$value" =~ ^whsec_[A-Za-z0-9]{20,200}$ ]] || { echo "Chybný STRIPE_WEBHOOK_SECRET (čekám whsec_…)." >&2; exit 2; }
                 stripe_webhook_secret="$value" ;;
+            GRAFANA_CLOUD_OTLP_TOKEN)
+                # Observabilita G1: token Grafana Cloud (Cloud Access Policy, jen zápis) = glc_ + base64.
+                [[ -z "$value" || "$value" =~ ^glc_[A-Za-z0-9+/=_-]{20,400}$ ]] || { echo "Chybný GRAFANA_CLOUD_OTLP_TOKEN (čekám glc_…)." >&2; exit 2; }
+                grafana_cloud_otlp_token="$value" ;;
             *)
                 echo "Neznámý klíč na vstupu: $key" >&2
                 exit 2 ;;
@@ -125,6 +133,7 @@ payments_webhook_secret="${payments_webhook_secret:-$(current PAYMENTS_WEBHOOK_S
 google_client_secret="${google_client_secret:-$(current GOOGLE_CLIENT_SECRET)}"
 stripe_secret_key="${stripe_secret_key:-$(current STRIPE_SECRET_KEY)}"
 stripe_webhook_secret="${stripe_webhook_secret:-$(current STRIPE_WEBHOOK_SECRET)}"
+grafana_cloud_otlp_token="${grafana_cloud_otlp_token:-$(current GRAFANA_CLOUD_OTLP_TOKEN)}"
 [ -n "$rabbitmq_password" ] || { echo "Chybí RABBITMQ_PASSWORD (na vstupu ani v .env)." >&2; exit 2; }
 [ -n "$basic_auth_hash" ] || { echo "Chybí BASIC_AUTH_HASH (na vstupu ani v .env)." >&2; exit 2; }
 [ -n "$inventory_api_key" ] || { echo "Chybí INVENTORY_API_KEY (na vstupu ani v .env)." >&2; exit 2; }
@@ -165,6 +174,7 @@ chmod 755 "$work"/*.sh 2>/dev/null || true
         [ -n "$google_client_secret" ] && echo "GOOGLE_CLIENT_SECRET=$google_client_secret"
         [ -n "$stripe_secret_key" ] && echo "STRIPE_SECRET_KEY=$stripe_secret_key"
         [ -n "$stripe_webhook_secret" ] && echo "STRIPE_WEBHOOK_SECRET=$stripe_webhook_secret"
+        [ -n "$grafana_cloud_otlp_token" ] && echo "GRAFANA_CLOUD_OTLP_TOKEN=$grafana_cloud_otlp_token"
         true
     } > "$work/.env"
 )
@@ -198,6 +208,19 @@ reload_caddy_if_changed() {
     if ! cmp -s Caddyfile previous/Caddyfile; then
         log "Caddyfile se změnil – načítám ho v Caddy znovu"
         reload_caddy || rollback
+    fi
+}
+
+# Observabilita G1: config.alloy je do kontejneru připojený jako soubor – Alloy jeho změnu sám nenačte. Porovnává se
+# před kopírováním nové konfigurace (krok 4), restartuje se po spuštění infrastruktury (pár sekund bez telemetrie).
+alloy_changed=false
+if [ -f "$work/config.alloy" ] && ! cmp -s "$work/config.alloy" config.alloy; then
+    alloy_changed=true
+fi
+restart_alloy_if_changed() {
+    if [ "$alloy_changed" = true ] && docker compose config --services | grep -qx alloy; then
+        log "config.alloy se změnil – restartuji Alloy"
+        docker compose restart alloy || rollback
     fi
 }
 
@@ -249,12 +272,14 @@ if [ -f "$work/rolling-update.sh" ]; then
     # Nové nastavení Caddy (např. krátké dial_timeout) musí platit už během výměny kopií – při prvním nasazení
     # kroku 5B se načetlo až po ní a požadavek na odstraněnou kopii čekal 3 s → 502.
     reload_caddy_if_changed
+    restart_alloy_if_changed
     ./rolling-update.sh inventory-api 1 || rollback
     web_replicas=$(current WEB_REPLICAS)
     ./rolling-update.sh web "${web_replicas:-1}" || rollback
 else
     docker compose up -d --remove-orphans --wait --wait-timeout 180 || rollback
     reload_caddy_if_changed
+    restart_alloy_if_changed
 fi
 
 log "Hotovo: $tag"

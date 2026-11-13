@@ -21,7 +21,7 @@ else
             @foreach (var attempt in Model)
             {
                 <tr>
-                    <td class="text-nowrap">@attempt.OccurredAtUtc.ToLocalTime().ToString("g")</td>
+                    <td class="text-nowrap">@attempt.OccurredAtUtc.ToCzechString()</td>
                     <td>@LoginAudit.MethodText(attempt.Method)</td>
                     <td><span class="badge @LoginAudit.Badge(attempt.Result)">@LoginAudit.ResultText(attempt.Result)</span></td>
                     <td class="text-muted font-monospace">@(attempt.IpAddress ?? "–")</td>

@@ -65,7 +65,7 @@ else if (order.Status == "Completed" && Model.Detail.ReturnRejectionReason is no
 
 <p class="text-muted">
     @order.CustomerName@(string.IsNullOrEmpty(order.CustomerEmail) ? "" : $" ({order.CustomerEmail})"),
-    objednáno @order.CreatedAtUtc.ToLocalTime().ToString("g")
+    objednáno @order.CreatedAtUtc.ToCzechString()
 </p>
 
 @* Vzhled B: položky a údaje v kartách (bez tabulky – na telefonu se nic neusekne), průběh jako svislá časová osa. *@
@@ -218,7 +218,7 @@ else if (order.Status == "Completed" && Model.Detail.ReturnRejectionReason is no
                     <textarea id="returnReason" name="reason" class="form-control mb-2" rows="3"
                               maxlength="500" required data-track="order-return-reason"></textarea>
                     <div class="form-text mb-2">
-                        Vrátit můžete do @returnableUntil.ToLocalTime().ToString("d. M. yyyy"). Celou objednávku, peníze vrátíme
+                        Vrátit můžete do @returnableUntil.ToCzechString("d. M. yyyy"). Celou objednávku, peníze vrátíme
                         po převzetí zboží.
                     </div>
                     <button type="submit" class="btn btn-secondary w-100" data-track="order-return-submit">Požádat o vrácení</button>

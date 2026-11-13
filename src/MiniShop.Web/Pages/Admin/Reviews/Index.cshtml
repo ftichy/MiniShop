@@ -26,7 +26,7 @@ else
                         <span class="text-warning">@RatingStars.For(review.Rating)</span>
                         <strong>@review.AuthorName</strong> ·
                         <a asp-page="/Shop/Detail" asp-route-id="@review.ProductId">produkt č. @review.ProductId</a>
-                        · @review.UpdatedAtUtc.ToLocalTime().ToString("g")
+                        · @review.UpdatedAtUtc.ToCzechString()
                         @if (review.IsHidden) { <span class="badge badge-soft-secondary">skryté</span> }
                     </span>
                     <form method="post" asp-page-handler="Toggle" asp-route-id="@review.Id" asp-route-hide="@(!review.IsHidden)">

@@ -49,8 +49,6 @@ public sealed class InvoicingHandler(
     /// <summary>E-shop krok 15B: vratka dobírky – peníze posílá admin ručně.</summary>
     public const string RefundedByTransfer = "Vrátíme převodem na účet";
 
-    private static readonly TimeZoneInfo Prague = TimeZoneInfo.FindSystemTimeZoneById("Europe/Prague");
-
     public Task HandleAsync(OrderPlacedV2 message, CancellationToken cancellationToken) =>
         ChangeAsync(message.OrderId, order => order.ApplyPlaced(
             message.CustomerId,
@@ -105,7 +103,7 @@ public sealed class InvoicingHandler(
         change(order);
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
-        var year = TimeZoneInfo.ConvertTimeFromUtc(now, Prague).Year;
+        var year = CzechTime.FromUtc(now).Year;
 
         Invoice? newInvoice = null;
         if (order.IsReadyToInvoice && !await invoices.ExistsForOrderAsync(orderId, cancellationToken))

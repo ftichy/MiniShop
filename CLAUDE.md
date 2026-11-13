@@ -125,6 +125,8 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   (NU1605). Registrace aplikačních služeb a handlerů proto žije ve
   `src/MiniShop.Web/Extensions/ApplicationServiceCollectionExtensions.cs`, infrastruktury v
   `src/MiniShop.Infrastructure/DependencyInjection.cs`.
+- **Čas:** v DB, zprávách a doméně vždy UTC; člověku se zobrazuje jen přes `CzechTime` (`Application/Abstractions`, Europe/Prague,
+  Razor `@x.ToCzechString()`). **Nikdy `ToLocalTime()`** (zóna stroje = UTC v kontejneru; hlídá `TimeConventionTests`); chybí-li zóna, Web se nespustí.
 - Entity mění stav jen přes metody s business pravidly; čas se předává parametrem (z `TimeProvider`),
   doména nevolá `DateTime.UtcNow`.
 - Logování přes **Serilog** (jen ve službách – Web a Inventory.Api, ten do `logs/inventory-RRRRMMDD.log`): konzole + denní soubor `src/MiniShop.Web/logs/minishop-RRRRMMDD.log`

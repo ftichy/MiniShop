@@ -130,7 +130,7 @@ else
             <div class="list-group-item">
                 <div class="d-flex justify-content-between">
                     <span><span class="text-warning">@RatingStars.For(review.Rating)</span> <strong>@review.AuthorName</strong></span>
-                    <span class="text-muted small">@review.UpdatedAtUtc.ToLocalTime().ToString("d. M. yyyy")</span>
+                    <span class="text-muted small">@review.UpdatedAtUtc.ToCzechString("d. M. yyyy")</span>
                 </div>
                 @if (review.Text.Length > 0)
                 {

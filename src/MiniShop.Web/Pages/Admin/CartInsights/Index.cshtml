@@ -10,7 +10,7 @@
     nic se kvůli ní neukládá navíc.
     @if (insights.Since is { } since)
     {
-        <text>Historie se vede od @since.ToLocalTime().ToString("g") (@insights.EventCount událostí).</text>
+        <text>Historie se vede od @since.ToCzechString() (@insights.EventCount událostí).</text>
     }
 </p>
 

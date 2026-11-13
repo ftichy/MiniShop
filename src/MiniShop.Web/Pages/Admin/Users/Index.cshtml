@@ -54,7 +54,7 @@ else
             @foreach (var entry in Model.RecentAudit)
             {
                 <tr>
-                    <td class="text-nowrap">@entry.OccurredAtUtc.ToLocalTime().ToString("g")</td>
+                    <td class="text-nowrap">@entry.OccurredAtUtc.ToCzechString()</td>
                     <td>
                         <a asp-page="/Admin/Users/Detail" asp-route-id="@entry.TargetUserId">@entry.TargetEmail</a>
                         @IndexModel.ActionText(entry.Action)

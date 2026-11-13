@@ -11,7 +11,7 @@
     zamítnuté ani zrušené, včetně dopravy. Dny v českém čase.
     @if (report.LastUpdatedAtUtc is { } updated)
     {
-        <span>Data k <strong data-track="sales-updated">@updated.ToLocalTime().ToString("g")</strong> (o pár sekund pozadu).</span>
+        <span>Data k <strong data-track="sales-updated">@updated.ToCzechString()</strong> (o pár sekund pozadu).</span>
     }
     else
     {

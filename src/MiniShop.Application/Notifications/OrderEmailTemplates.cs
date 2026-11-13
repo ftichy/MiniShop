@@ -68,7 +68,7 @@ public sealed class OrderEmailTemplates(NotificationSettings settings)
     public EmailMessage ReturnRequested(OrderMailRecipient to, DateTime sendByUtc) =>
         Build(to, $"Vrácení objednávky č. {to.OrderId} – pošlete nám zboží",
             string.Format(Czech, "žádost o vrácení jsme přijali. Zboží pošlete do {0:d. M. yyyy} na adresu MiniShop, " +
-                "Skladová 1, 110 00 Praha. Jakmile ho převezmeme, vrátíme vám peníze.", ToCzech(sendByUtc)),
+                "Skladová 1, 110 00 Praha. Jakmile ho převezmeme, vrátíme vám peníze.", CzechTime.FromUtc(sendByUtc)),
             withSummary: true);
 
     /// <summary>E-shop krok 12: vrácení neprošlo (admin zamítl, nebo zboží nedorazilo včas).</summary>
@@ -164,18 +164,4 @@ public sealed class OrderEmailTemplates(NotificationSettings settings)
     }
 
     private static string Encode(string value) => WebUtility.HtmlEncode(value);
-
-    /// <summary>Datum v e-mailu v českém čase (handler neběží v HTTP požadavku, časovou zónu prohlížeče nezná).</summary>
-    private static DateTime ToCzech(DateTime utc)
-    {
-        try
-        {
-            return TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc),
-                TimeZoneInfo.FindSystemTimeZoneById("Europe/Prague"));
-        }
-        catch (TimeZoneNotFoundException)
-        {
-            return utc;
-        }
-    }
 }

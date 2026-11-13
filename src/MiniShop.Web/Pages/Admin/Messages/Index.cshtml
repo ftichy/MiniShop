@@ -37,7 +37,7 @@
         {
             <div class="list-group-item">
                 <div class="d-flex flex-wrap justify-content-between gap-2">
-                    <span><code>@message.Type</code> · @message.OccurredAtUtc.ToLocalTime().ToString("g") · @message.Attempts pokusů</span>
+                    <span><code>@message.Type</code> · @message.OccurredAtUtc.ToCzechString() · @message.Attempts pokusů</span>
                     <form method="post" asp-page-handler="Retry" asp-route-module="@module.Module" asp-route-id="@message.Id">
                         <button type="submit" class="btn btn-outline-primary btn-sm" data-track="messages-retry">Zkusit znovu</button>
                     </form>

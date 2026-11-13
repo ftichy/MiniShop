@@ -75,7 +75,7 @@ else if (Model.NeedsEmailConfirmation)
                     @* E-shop krok 5: detail s historií stavů. *@
                     <a asp-page="/Orders/Detail" asp-route-id="@order.Id" class="fw-bold fs-5 text-decoration-none" data-track="order-detail-link">Objednávka č. @order.Id</a>
                     <div class="small text-muted">
-                        @order.CreatedAtUtc.ToLocalTime().ToString("g")
+                        @order.CreatedAtUtc.ToCzechString()
                         @if (Model.CanManageOrders)
                         {
                             <text>· @order.CustomerName (@order.CustomerEmail)</text>

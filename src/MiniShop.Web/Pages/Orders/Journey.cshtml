@@ -30,7 +30,7 @@
     var summary = journey.Summary;
 
     <p class="text-muted small">
-        Formulář otevřen @journey.StartedAtUtc.ToLocalTime().ToString("g"), proud <code>@journey.JourneyId</code>,
+        Formulář otevřen @journey.StartedAtUtc.ToCzechString(), proud <code>@journey.JourneyId</code>,
         @journey.Events.Count událostí. V Aspire dashboardu najdete trasy objednávky filtrem <code>minishop.order.id = @journey.OrderId</code>.
     </p>
 

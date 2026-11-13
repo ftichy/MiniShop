@@ -34,7 +34,7 @@
             <tr class="@(coupon.IsActive ? null : "text-muted")">
                 <td><code>@coupon.Code</code> @if (!coupon.IsActive) { <span class="badge badge-soft-secondary">vypnutý</span> }</td>
                 <td class="text-end">@IndexModel.ValueText(coupon)</td>
-                <td>@(coupon.ValidUntilUtc?.ToLocalTime().ToString("d. M. yyyy") ?? "bez omezení")</td>
+                <td>@(coupon.ValidUntilUtc?.ToCzechString("d. M. yyyy") ?? "bez omezení")</td>
                 <td class="text-end">@(coupon.MinItemsTotal > 0 ? $"{coupon.MinItemsTotal:N0} Kč" : "–")</td>
                 <td class="text-end" data-track="coupon-usage">@coupon.RedemptionCount@(coupon.MaxRedemptions is { } max ? $" / {max}" : "")</td>
                 <td class="text-end">

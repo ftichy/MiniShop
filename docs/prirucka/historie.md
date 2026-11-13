@@ -68,6 +68,10 @@ Plán (role User a Admin, best practice): [docs/Ucty-roadmap.md](code:docs/Ucty-
 | 8 | Zpevnění – zámek účtu, rate limiting, CSP a bezpečnostní hlavičky, logy bez osobních údajů | [ucty-08](code:docs/kroky-ucty/krok-08-zpevneni.md) |
 | 9 | Otevření webu – bez basic auth, objednávka jen s potvrzeným e-mailem, smazání účtu, ochrana osobních údajů | [ucty-09](code:docs/kroky-ucty/krok-09-otevreni-webu.md) |
 | 10 | Přihlášení přes Google (OpenID Connect) – propojení jen s potvrzeným e-mailem, účet bez hesla, smazání po novém přihlášení u Googlu | [ucty-10](code:docs/kroky-ucty/krok-10-google.md) |
+| 11A | Dvoufázové ověření (TOTP) dobrovolně – QR kód jako SVG ze serveru, záchranné kódy, špatný kód = zámek účtu | [ucty-11a](code:docs/kroky-ucty/krok-11a-dvoufazove-overeni.md) |
+| 11B | Povinné 2FA pro admina – bez něj je administrace zamčená (i přes Google), výměna aplikace záchranným kódem, nouzový příkaz `reset-2fa` | [ucty-11b](code:docs/kroky-ucty/krok-11b-povinne-2fa-admin.md) |
+| 11C | Audit přihlášení – každý pokus (heslo, kód, Google) s výsledkem a IP, bez e-mailu, retence 90 dní | [ucty-11c](code:docs/kroky-ucty/krok-11c-audit-prihlaseni.md) |
+| 11D | OWASP ZAP v CI – pasivní bezpečnostní sken aplikace v Compose, pravidla s odůvodněním, report jako artefakt | [ucty-11d](code:docs/kroky-ucty/krok-11d-zap-sken.md) |
 
 ## Dokončení e-shopu
 

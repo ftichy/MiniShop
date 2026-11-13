@@ -1,0 +1,54 @@
+# OWASP ZAP baseline (pasivní sken) – pravidla pro job „ZAP sken“ v .github/workflows/ci.yml.
+# Formát: ID<TAB>IGNORE|WARN|FAIL<TAB>(jméno pravidla). Řádky s # jsou komentáře.
+# Pravidla, která tu nejsou, zůstávají WARN (ukáží se v reportu, job nezčervená).
+#
+# FAIL = tohle MiniShop splňuje a nesmí se to rozbít (hlavičky a cookies z Web/Security/SecurityHeaders.cs,
+# účty krok 8). Nález = job zčervená.
+10010	FAIL	(Cookie No HttpOnly Flag)
+10011	FAIL	(Cookie Without Secure Flag)
+10054	FAIL	(Cookie without SameSite Attribute)
+90033	FAIL	(Loosely Scoped Cookie)
+10020	FAIL	(Anti-clickjacking Header)
+10021	FAIL	(X-Content-Type-Options Header Missing)
+10038	FAIL	(Content Security Policy (CSP) Header Not Set)
+10036	FAIL	(HTTP Server Response Header)
+10037	FAIL	(Server Leaks Information via "X-Powered-By" HTTP Response Header Field(s))
+10061	FAIL	(X-AspNet-Version Response Header)
+10017	FAIL	(Cross-Domain JavaScript Source File Inclusion)
+10115	FAIL	(Script Served From Malicious Domain (polyfill))
+10098	FAIL	(Cross-Domain Misconfiguration)
+10003	FAIL	(Vulnerable JS Library (Powered by Retire.js))
+10023	FAIL	(Information Disclosure - Debug Error Messages)
+90022	FAIL	(Application Error Disclosure)
+10033	FAIL	(Directory Browsing)
+10202	FAIL	(Absence of Anti-CSRF Tokens)
+3	FAIL	(Session ID in URL Rewrite)
+#
+# IGNORE = vědomě neplatí, s odůvodněním:
+# - 10055 CSP style-src 'unsafe-inline': záměr – Mermaid (diagramy v /Docs) kreslí s inline styly; skripty jsou jen 'self'.
+# - 10062 PII Disclosure: testovací karta Stripe 4242 4242 4242 4242 v příručce, ne skutečné číslo karty.
+# - 2 Private IP Disclosure: rozsah 10.0.0.0/16 v popisu sítě v příručce (nasazeni/cloud-oci), ne adresa serveru.
+# - 10096 Timestamp Disclosure: čísla faktur (2026000001…) a minifikovaný Mermaid, ne časová razítka.
+# - 10027 Suspicious Comments: komentáře v minifikovaných knihovnách třetích stran (Mermaid, Bootstrap).
+# - 10035 HSTS: sken jde přes HTTP; HSTS posílá Web jen přes HTTPS (v produkci za Caddy).
+# - 10116 ZAP is Out of Date: verzi image ZAP zvedáme ručně v ci.yml.
+# - 10111, 10112 Authentication/Session Management Request Identified: jen informace (ZAP našel přihlášení a cookie), ne nález.
+# - 10031 User Controllable HTML Element Attribute: returnUrl ve skrytém poli – Razor ho HTML-kóduje a přesměrování
+#   je jen lokální (LocalRedirect); pasivní pravidlo jen hlásí, že hodnota z URL je v atributu.
+# - 10099 Source Code Disclosure - SQL: ukázka SQL (CREATE DATABASE) v příručce /Docs/architektura/databaze, ne únik kódu.
+# - 10049 Non-Storable / Storable Content: jen informace o cache (přihlášení má správně no-store).
+# - 90004 Insufficient Site Isolation (COEP/CORP): izolace proti útokům typu Spectre. MiniShop nevkládá cizí obsah
+#   a nepoužívá SharedArrayBuffer; hlavičky COEP/CORP = kandidát na samostatné zpevnění (vyzkoušet s Bootstrapem, Mermaidem, Stripe).
+10055	IGNORE	(CSP)
+10062	IGNORE	(PII Disclosure)
+2	IGNORE	(Private IP Disclosure)
+10096	IGNORE	(Timestamp Disclosure)
+10027	IGNORE	(Information Disclosure - Suspicious Comments)
+10035	IGNORE	(Strict-Transport-Security Header)
+10116	IGNORE	(ZAP is Out of Date)
+10111	IGNORE	(Authentication Request Identified)
+10112	IGNORE	(Session Management Response Identified)
+10031	IGNORE	(User Controllable HTML Element Attribute (Potential XSS))
+10099	IGNORE	(Source Code Disclosure - SQL)
+10049	IGNORE	(Non-Storable Content)
+90004	IGNORE	(Insufficient Site Isolation Against Spectre Vulnerability)

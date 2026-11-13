@@ -271,6 +271,95 @@ jobs:
         working-directory: deploy
         run: docker compose down -v
 
+  # Bezpečnost C: OWASP ZAP baseline = PASIVNÍ sken (nic neútočí, jen prochází stránky jako návštěvník a čte odpovědi –
+  # hlavičky, cookies, CSP, chybové stránky, knihovny se známou zranitelností). Aplikace běží v Compose jako v produkci
+  # (jen compose.yaml, bez E2E doplňku). Pravidla s odůvodněním: .github/zap/rules.tsv (FAIL = job zčervená, IGNORE = neplatí pro nás).
+  # Stejně jako E2E: NENÍ povinný check, nasazení na něm nezávisí, žádné secrets.
+  zap:
+    name: ZAP sken
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    env:
+      # Verzi zvedat ručně (Dependabot příkazy docker run nehlídá): https://github.com/zaproxy/zaproxy/releases
+      ZAP_IMAGE: ghcr.io/zaproxy/zaproxy:2.17.0
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build image web
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: src/MiniShop.Web/Dockerfile
+          load: true
+          tags: minishop-web:local
+          cache-from: type=gha,scope=web
+
+      - name: Build image inventory-api
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: src/MiniShop.Inventory.Api/Dockerfile
+          load: true
+          tags: minishop-inventory-api:local
+          cache-from: type=gha,scope=inventory-api
+
+      - name: Konfigurace Compose (hesla za běhu)
+        working-directory: deploy
+        run: |
+          {
+            echo "RABBITMQ_USER=minishop"
+            echo "RABBITMQ_PASSWORD=$(openssl rand -hex 16)"
+            echo "POSTGRES_PASSWORD=$(openssl rand -hex 16)"
+            echo "INVENTORY_API_KEY=$(openssl rand -hex 32)"
+            echo "PAYMENTS_WEBHOOK_SECRET=$(openssl rand -hex 32)"
+            echo "WEB_PORT=8080"
+            echo "IMAGE_TAG=local"
+          } > .env
+
+      - name: Spuštění aplikace
+        working-directory: deploy
+        run: docker compose up -d --no-build --wait --wait-timeout 240
+
+      # ZAP běží v síti Compose (minishop_default) a jde na Web jménem služby. Pracovní složka /zap/wrk = pravidla
+      # dovnitř, reporty ven; kontejner ZAP běží pod jiným uživatelem, proto chmod.
+      # -m 2 = pavouk 2 minuty, -I = varování (WARN) job neshodí, jen pravidla FAIL.
+      - name: ZAP baseline sken
+        run: |
+          mkdir -p zap-report
+          cp .github/zap/rules.tsv zap-report/
+          chmod -R a+rwX zap-report
+          docker run --rm --network minishop_default -v "$PWD/zap-report:/zap/wrk:rw" "$ZAP_IMAGE" \
+            zap-baseline.py -t http://web:8080 -c rules.tsv -m 2 -I \
+            -r zap-report.html -w zap-report.md -J zap-report.json
+
+      - name: Souhrn do přehledu běhu
+        if: always()
+        run: |
+          if [ -f zap-report/zap-report.md ]; then cat zap-report/zap-report.md >> "$GITHUB_STEP_SUMMARY"; fi
+
+      - name: Report jako artefakt
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: zap-report
+          path: |
+            zap-report/zap-report.html
+            zap-report/zap-report.md
+            zap-report/zap-report.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Zastavení aplikace
+        if: always()
+        working-directory: deploy
+        run: docker compose down -v
+
   # Cloud krok 8: po publikaci image z main se commit sám nasadí na VM (workflow deploy.yml).
   deploy:
     name: Nasazení

@@ -47,8 +47,32 @@ sequenceDiagram
 | Pilíř | Co v MiniShopu | Kde vidět |
 | --- | --- | --- |
 | **Trasy** | HTTP, SQL (EF Core), outbox, RabbitMQ, sága | Aspire dashboard → Traces; s historií 14 dní Grafana Cloud → Explore (Tempo) |
-| **Metriky** | doručené/selhané zprávy, zpoždění outboxu, zpracované zprávy consumerů, runtime .NET | Aspire dashboard → Metrics; Grafana Cloud (Mimir) |
+| **Metriky** | doručené/selhané zprávy, zpoždění outboxu, zpracované zprávy consumerů, runtime .NET; od observability G2 i **stav** (viz níže) a doba potvrzení objednávky | Aspire dashboard → Metrics; Grafana Cloud (Mimir) + dashboard „MiniShop – zprávy a ságy“ |
 | **Logy** | Serilog → konzole, denní soubor a OpenTelemetry (propojené s trasou) | Aspire dashboard → Structured logs, Grafana Cloud (Loki), `logs/` |
+
+## Metriky stavu (observabilita G2)
+
+Čítače výše říkají, **co se stalo** („doručena zpráva“). Pro dashboard a alarmy je potřeba i **jak to teď vypadá** – přirovnání:
+počítadlo projetých aut vs. pohled na parkoviště, kolik jich právě stojí.
+
+| Metrika (v Grafaně) | Co znamená | Štítky |
+| --- | --- | --- |
+| `minishop_outbox_pending` | nezpracované zprávy v outboxu modulu (i čekající na další pokus) | `module` |
+| `minishop_outbox_poison` | zprávy, které vyčerpaly pokusy – čekají na člověka | `module` |
+| `minishop_queue_backlog` | zprávy čekající ve frontě modulu v RabbitMQ | `queue` |
+| `minishop_queue_dead_letters` | zprávy v `minishop.{modul}.dead` | `queue` |
+| `minishop_saga_active` | rozpracované ságy (konečné stavy se nehlásí) | `saga` (order/return), `state` |
+| `minishop_order_confirmation_duration_seconds` | histogram: od založení objednávky po potvrzení ságou | `payment` (none/card/cashondelivery) |
+
+- Stav zjišťuje [OperationalMetricsWorker](code:src/MiniShop.Infrastructure/Hosting/OperationalMetricsWorker.cs) každých 30 s
+  ze zdrojů `IOperationalMetricsSource` ([outbox a fronty](code:src/MiniShop.Infrastructure/Observability/MessagingStatusSources.cs),
+  [ságy](code:src/MiniShop.Infrastructure/Ordering/SagaStatusSource.cs)) – **jen na vedoucí kopii** (jinak by dvě kopie Webu hlásily totéž
+  dvakrát). Hodnoty drží [OperationalMetrics](code:src/MiniShop.Infrastructure/Observability/OperationalMetrics.cs) a OpenTelemetry je čte
+  jako *observable gauge*; snímek starší než 2 min se nehlásí (žádná zamrzlá čísla po ztrátě vedení).
+- Doba potvrzení se zapíše v [OrderSagaOrchestrator](code:src/MiniShop.Application/Ordering/Saga/OrderSagaOrchestrator.cs) až po
+  uložení ([OrderingTelemetry](code:src/MiniShop.Application/Ordering/Saga/OrderingTelemetry.cs), zdroj `MiniShop.Ordering`).
+- Štítky nikdy nenesou ID (objednávky, zprávy) – každá kombinace štítků je v Grafaně samostatná řada (limit free tieru 10 000).
+- Jména v Grafaně: tečky → podtržítka, čítač dostane `_total`, jednotka sekundy `_seconds`.
 
 ## Health checky
 

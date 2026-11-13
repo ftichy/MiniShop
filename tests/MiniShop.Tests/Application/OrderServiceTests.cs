@@ -51,6 +51,7 @@ using MiniShop.Infrastructure.Reporting;
 using MiniShop.Infrastructure.Invoicing;
 using MiniShop.Infrastructure.Reviews;
 using MiniShop.Infrastructure.Ordering;
+using MiniShop.Infrastructure.Observability;
 using MiniShop.Tests.TestDoubles;
 using MiniShop.Web.Invoicing;
 
@@ -3107,6 +3108,66 @@ public sealed class OrderServiceTests : IDisposable
 
     private static Task<OrderDto> PlaceAsJan(IOrderService service, CreateOrderRequest request) =>
         service.PlaceOrderAsync(request, Jan);
+
+    // Observabilita G2: metriky stavu ság (OperationalMetricsWorker je čte přes SagaStatusSource) a doba potvrzení objednávky.
+    [Fact]
+    public async Task Metriky_SagyPodleStavu_ADobaPotvrzeniObjednavky()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var durations = new System.Collections.Concurrent.ConcurrentBag<(double Value, string? Payment)>();
+        using var listener = ConfirmationDurationListener(durations);
+
+        var order = await Orders(s => PlaceAsJan(s, CreateRequest((product.Id, 1))));
+        _time.Advance(TimeSpan.FromSeconds(7.25));   // sága potvrdí 7,25 s po založení objednávky
+        await ProcessOutboxAsync();
+
+        Assert.Equal("Confirmed", await StatusAsync(order.Id));
+        Assert.Contains(durations, d => d.Value == 7.25 && d.Payment == "none");   // objednávka z API = bez platby
+
+        var source = _services.GetServices<IOperationalMetricsSource>().OfType<SagaStatusSource>().Single();
+        var readings = await source.ReadAsync(CancellationToken.None);
+        Assert.Equal(1, SagaReading(readings, "order", nameof(OrderSagaState.Reserved)));
+        Assert.Equal(0, SagaReading(readings, "order", nameof(OrderSagaState.AwaitingReservation)));
+        Assert.Equal(0, SagaReading(readings, "return", nameof(ReturnSagaState.AwaitingGoods)));
+        // Každý aktivní stav vždy (i nula), konečné stavy nikdy.
+        Assert.Equal(SagaStatusSource.ActiveOrderStates.Length + SagaStatusSource.ActiveReturnStates.Length, readings.Count);
+        Assert.DoesNotContain(readings, r => r.Tags.Any(t => t.Value as string == nameof(OrderSagaState.Completed)));
+    }
+
+    private static long SagaReading(IReadOnlyList<OperationalReading> readings, string saga, string state) =>
+        readings.Single(r => r.Metric == OperationalMetrics.SagaActive
+                             && r.Tags.Contains(new KeyValuePair<string, object?>("saga", saga))
+                             && r.Tags.Contains(new KeyValuePair<string, object?>("state", state))).Value;
+
+    private static System.Diagnostics.Metrics.MeterListener ConfirmationDurationListener(
+        System.Collections.Concurrent.ConcurrentBag<(double Value, string? Payment)> durations)
+    {
+        var listener = new System.Diagnostics.Metrics.MeterListener
+        {
+            InstrumentPublished = (instrument, l) =>
+            {
+                if (instrument.Meter.Name == OrderingTelemetry.MeterName && instrument.Name == "minishop.order.confirmation.duration")
+                {
+                    l.EnableMeasurementEvents(instrument);
+                }
+            }
+        };
+        listener.SetMeasurementEventCallback<double>((_, value, tags, _) =>
+        {
+            string? payment = null;
+            foreach (var tag in tags)
+            {
+                if (tag.Key == "payment")
+                {
+                    payment = tag.Value as string;
+                }
+            }
+
+            durations.Add((value, payment));
+        });
+        listener.Start();
+        return listener;
+    }
 
     public void Dispose()
     {

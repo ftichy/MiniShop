@@ -138,6 +138,7 @@ Plán: [docs/Observabilita-roadmap.md](code:docs/Observabilita-roadmap.md) – h
 | Krok | Co přinesl | Souhrn |
 | --- | --- | --- |
 | G1 | Grafana Alloy na VM rozděluje telemetrii: vše do Aspire dashboardu, bez osobních údajů do Grafana Cloud (EU) s historií 14 dní; aplikace beze změny, token jen se zápisem | [observabilita-g1](code:docs/kroky-observabilita/krok-g1-grafana-cloud.md) |
+| G2 | Dashboard „MiniShop – zprávy a ságy“ jako kód: metriky stavu (outbox, fronty, dead-letter, ságy) měří jen vedoucí kopie, doba potvrzení objednávky jako histogram; import JSON do Grafany | [observabilita-g2](code:docs/kroky-observabilita/krok-g2-dashboard.md) |
 
 ## Proč po krocích
 

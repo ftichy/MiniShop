@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MiniShop.Infrastructure.Integration.RabbitMq;
+using MiniShop.Infrastructure.Observability;
 
 namespace MiniShop.Infrastructure.Hosting;
 
@@ -42,6 +43,12 @@ public static class MessagingServiceCollectionExtensions
             TimeSpan.FromDays(configuration.GetValue("Messaging:Retention:OutboxDays", 7)),
             TimeSpan.FromDays(configuration.GetValue("Messaging:Retention:InboxDays", 30))));
         services.AddLeaderOnlyHostedService<MessageRetentionWorker>();
+
+        // Observabilita G2: stav outboxu a front (čekající, poison, dead-letter) jako metriky pro Grafanu – měří jen vedoucí kopie.
+        services.AddSingleton<OperationalMetrics>();
+        services.AddSingleton<IOperationalMetricsSource, OutboxStatusSource>();
+        services.AddSingleton<IOperationalMetricsSource, RabbitMqQueueStatusSource>();
+        services.AddLeaderOnlyHostedService<OperationalMetricsWorker>();
 
         return services;
     }

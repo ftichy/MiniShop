@@ -65,3 +65,11 @@ příručka `eda/observabilita.md` (metriky stavu), `nasazeni/monitoring.md` (da
 1. Objednejte na dobírku a sledujte, jak se v dashboardu pohne řádek „Ságy a objednávky“.
 2. Na `/Admin/Messages` je stejné číslo poison/dead-letter jako v řádku „Je vše v pořádku?“.
 3. Změňte časový rozsah na *Last 7 days* – historie zůstává i po nasazení nové verze.
+
+## Nasazení (13. 11. 2026)
+
+- PR #105 → CD (bez změny `deploy.sh`, secrets i Compose). Dashboard naimportovaný ručně (*Dashboards → New → Import*, zdroj `-prom`).
+- Jména metrik v Grafaně sedí (žádný panel s chybným dotazem). Aktivních metrických řad celkem ~660 (limit 10 000).
+- Ověřeno objednávkou na dobírku: ságy `order Reserved` +1, „Potvrzení objednávky p95“ **4,9 s**, bod v „Doba potvrzení“ (`cashondelivery`).
+- **Zpoždění:** nová hodnota je v Grafaně za 1–2 min (export metrik po minutě, stav po 30 s) – hned po objednávce panely ještě nic neukazují.
+- Grafy zpráv při malém provozu ukazují spíš body než čáry (průměr za 5 min z pár zpráv); čárky kolem 16:45 jsou z lokální generálky G1.

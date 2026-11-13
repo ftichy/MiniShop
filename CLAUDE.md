@@ -581,11 +581,14 @@ Souhrny kroků do `docs/kroky-observabilita/`. Aplikace se kvůli Grafaně nemě
 - Endpoint a Instance ID v `production.env` (netajné), token jen se zápisem = secret `GRAFANA_CLOUD_OTLP_TOKEN` (`glc_…`,
   povinný se zapnutým doplňkem; `docs/secrets.md` R15). `compose.grafana.yaml` a `config.alloy` jsou v `deploy.sh` **volitelné soubory**
   (starší commity je nemají). Limit free tieru: **10 000 aktivních metrických řad** – nové metriky bez štítků s vysokou kardinalitou (ID).
+- **Metriky stavu (G2):** nový stav pro Grafanu = `IOperationalMetricsSource` (singleton, `AddSingleton<IOperationalMetricsSource, …>`) + jméno
+  v `OperationalMetrics`; měří `OperationalMetricsWorker` jen na vedoucí kopii, v dashboardu dotazy s `max by (…)`. Dashboard = `deploy/grafana/*.json`
+  (import ručně, `__inputs` pro zdroj dat) – změna = PR + nový import.
 
 | Krok | Stav | Souhrn |
 | --- | --- | --- |
 | G1. Alloy + export do Grafana Cloud (trasy, logy, metriky; filtr osobních údajů; secret `GRAFANA_CLOUD_OTLP_TOKEN`) | hotovo (nasazeno 13. 11. 2026; produkční trasy v Grafaně i v Aspire dashboardu ověřeny) | `docs/kroky-observabilita/krok-g1-grafana-cloud.md` |
-| G2. Dashboard EDA jako kód (metriky stavu outboxu a ság jen z vedoucí kopie, RabbitMQ Prometheus – délky front a dead-letter) | plán | — |
+| G2. Dashboard EDA jako kód (`OperationalMetricsWorker` jen na vedoucí kopii – outbox čekající/poison, fronty backlog/dead-letter, ságy podle stavu; histogram doby potvrzení objednávky; `deploy/grafana/minishop-zpravy-a-sagy.json`, import ručně) | v práci | `docs/kroky-observabilita/krok-g2-dashboard.md` |
 | G3. Alarmy a SLO jako kód (dead-letter, outbox, 5xx, výpadek telemetrie; 99 % objednávek potvrzeno do 30 s) | plán | — |
 | G4. Tutoriál Grafany pro začátečníka (krok za krokem: čas + uživatel → trasa → log → chyba; další běžné případy; dotazy ověřené nad produkčními daty) | plán | — |
 

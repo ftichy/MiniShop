@@ -20,7 +20,8 @@ public sealed class WorkerRegistrationTests(MiniShopWebFactory web)
         _ = web.Services;   // postaví Web (registrace workerů se zachytí před jejich odebráním)
 
         AssertLeaderOnly(web.RegisteredWorkers, "OrderSagaTimeoutWorker", "CartReminderWorker", "CatalogSyncOnStartupWorker",
-            "SalesReportOnStartupWorker", "PurchasesSyncOnStartupWorker", "OutboxWorker", "MessageRetentionWorker", "LoginAttemptRetentionWorker");
+            "SalesReportOnStartupWorker", "PurchasesSyncOnStartupWorker", "OutboxWorker", "MessageRetentionWorker", "LoginAttemptRetentionWorker",
+            "OperationalMetricsWorker");
     }
 
     [Fact]
@@ -29,7 +30,7 @@ public sealed class WorkerRegistrationTests(MiniShopWebFactory web)
         using var api = new InventoryApiFactory();
         _ = api.Services;
 
-        AssertLeaderOnly(api.RegisteredWorkers, "OutboxWorker", "MessageRetentionWorker");
+        AssertLeaderOnly(api.RegisteredWorkers, "OutboxWorker", "MessageRetentionWorker", "OperationalMetricsWorker");
     }
 
     private static void AssertLeaderOnly(List<Type> registered, params string[] expectedLeaderOnly)

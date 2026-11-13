@@ -111,6 +111,11 @@ public sealed class OrderSagaOrchestrator(
         // Souběh se zákazníkem (zrušil mezi načtením a uložením) = ConcurrencyConflictException na Order.Version →
         // zpráva se zopakuje a napodruhé už sága uvidí zrušenou objednávku.
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        if (action == OrderSagaAction.ConfirmOrder)
+        {
+            OrderingTelemetry.RecordConfirmation(order, UtcNow);   // observabilita G2: až po uložení
+        }
+
         return action;
     }
 

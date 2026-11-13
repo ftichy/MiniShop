@@ -68,6 +68,20 @@ Přirovnání: Aspire dashboard je tachometr (jen „teď“), Grafana Cloud če
 - **Limity free tieru:** 10 000 aktivních metrických řad (každá kombinace jména metriky a štítků; po nasazení se každá
   kopie služby počítá zvlášť), 50 GB logů a 50 GB tras měsíčně, 14 dní. Využití: Grafana → *Administration → Cost management / Usage*.
 
+**Dashboard „MiniShop – zprávy a ságy“** (observabilita G2): zdroj pravdy je
+[minishop-zpravy-a-sagy.json](code:deploy/grafana/minishop-zpravy-a-sagy.json) v gitu, do Grafany se **importuje ručně**
+(bez dalšího tokenu): *Dashboards → New → Import → Upload dashboard JSON file* → u „Prometheus (metriky)“ vybrat zdroj
+končící `-prom` → *Import*. Změna = upravit JSON v PR a importovat znovu (stejné `uid` → přepíše se).
+
+| Řádek | Co ukazuje |
+| --- | --- |
+| Je vše v pořádku? | velká čísla: poison, dead-letter, čekající v outboxu a frontách, p95 potvrzení objednávky, chyby 5xx – zelená = v pořádku |
+| Zprávy | doručené a zpracované za minutu, chyby, zpoždění outboxu, co kde čeká |
+| Ságy a objednávky | rozpracované ságy podle stavu, doba potvrzení (podle platby), potvrzené objednávky za hodinu |
+| HTTP | požadavky, doba odpovědi p95, chyby 5xx podle stránky (Web i sklad) |
+
+Metriky stavu popisuje [Observabilita – metriky stavu](../eda/observabilita.md).
+
 **Kde co najít v Grafaně** (https://patientjaguar2071.grafana.net):
 
 | Chci vidět | Kde |

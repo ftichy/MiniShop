@@ -35,6 +35,30 @@ public sealed class RabbitMqDeadLetterService(
     }
 
     /// <summary>
+    /// Observabilita G2: kolik zpráv čeká v hlavní frontě každého modulu (připravené, ještě nepřevzaté consumerem).
+    /// Jen pasivní dotaz – fronta se nezakládá ani nemění (existujícím frontám se argumenty nemění). Fronta, která ještě
+    /// neexistuje (consumer se nespustil), ve výsledku chybí – RabbitMQ při tom zavře kanál, proto kanál na každou frontu.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<string, uint>> GetBacklogCountsAsync(CancellationToken cancellationToken = default)
+    {
+        var counts = new Dictionary<string, uint>();
+        foreach (var queue in Queues)
+        {
+            try
+            {
+                await using var channel = await connection.CreateChannelAsync(publisherConfirms: false, cancellationToken);
+                counts[queue] = (await channel.QueueDeclarePassiveAsync(queue, cancellationToken)).MessageCount;
+            }
+            catch (RabbitMQ.Client.Exceptions.OperationInterruptedException)
+            {
+                // Fronta zatím neexistuje (404) – nic nehlásit.
+            }
+        }
+
+        return counts;
+    }
+
+    /// <summary>
     /// Vrátí zprávy z <c>{fronta}.dead</c> zpět do fronty s vynulovaným počtem pokusů. Každou nejdřív publikuje
     /// (publisher confirms), teprve pak ji v dead-letter frontě potvrdí – při pádu se neztratí, nanejvýš přijde dvakrát (inbox).
     /// </summary>

@@ -7,6 +7,7 @@ using MiniShop.Infrastructure.Hosting;
 using MiniShop.Infrastructure.Inbox;
 using MiniShop.Infrastructure.Integration.RabbitMq;
 using MiniShop.Infrastructure.Ordering;
+using MiniShop.Infrastructure.Observability;
 using MiniShop.Infrastructure.Outbox;
 using MiniShop.Tests.TestDoubles;
 using RabbitMQ.Client;
@@ -76,6 +77,28 @@ public sealed class MessageMaintenanceTests : IDisposable
         Assert.True(await Store.RetryAsync(poison.Id));
         Assert.Equal((2, 0), ((await Store.GetStatusAsync()).Pending, (await Store.GetStatusAsync()).PoisonCount));
         Assert.False(await Store.RetryAsync(Guid.NewGuid()));
+    }
+
+    [Fact]
+    public async Task MetrikyStavu_OutboxCekajiciAPoisonPodleModulu()
+    {
+        await Db(db =>
+        {
+            db.OutboxMessages.AddRange(
+                Message(processedDaysAgo: null, attempts: 1),
+                Message(processedDaysAgo: null, attempts: 0),
+                Message(processedDaysAgo: null, attempts: OutboxProcessor.MaxAttempts),
+                Message(processedDaysAgo: 1));
+            return db.SaveChangesAsync();
+        });
+
+        var readings = await new OutboxStatusSource(_services.GetServices<IMessageStore>()).ReadAsync(CancellationToken.None);
+
+        var ordering = new KeyValuePair<string, object?>("module", "Ordering");
+        Assert.Equal(2, readings.Single(r => r.Metric == OperationalMetrics.OutboxPending && r.Tags.Contains(ordering)).Value);
+        Assert.Equal(1, readings.Single(r => r.Metric == OperationalMetrics.OutboxPoison && r.Tags.Contains(ordering)).Value);
+        // Každý modul služby dvě řady (čekající + poison) – i ten, kde nic není (nula, ne díra v grafu).
+        Assert.Equal(_services.GetServices<IMessageStore>().Count() * 2, readings.Count);
     }
 
     [Fact]

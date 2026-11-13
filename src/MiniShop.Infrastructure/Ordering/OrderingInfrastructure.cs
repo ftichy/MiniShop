@@ -8,9 +8,9 @@ using MiniShop.Application.Ordering.Carts;
 using MiniShop.Application.Ordering.Coupons;
 using MiniShop.Domain.Common;
 using MiniShop.Domain.Orders.Events;
+using MiniShop.Infrastructure.Observability;
 using MiniShop.Infrastructure.Events;
 using MiniShop.Infrastructure.Inbox;
-using MiniShop.Infrastructure.Observability;
 using MiniShop.Infrastructure.Outbox;
 
 using MiniShop.Infrastructure.Persistence;
@@ -29,6 +29,7 @@ public static class OrderingInfrastructure
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<IOrderSagaRepository, OrderSagaRepository>();
         services.AddScoped<IReturnSagaRepository, ReturnSagaRepository>();   // e-shop krok 12
+        services.AddSingleton<IOperationalMetricsSource, SagaStatusSource>();  // observabilita G2: ságy podle stavu (měří OperationalMetricsWorker)
         services.AddScoped<ICouponRepository, CouponRepository>();             // e-shop krok 13
         services.AddScoped<ICatalogProductRepository, CatalogProductRepository>();
         services.AddScoped<ICartRepository, CartRepository>();   // e-shop krok 3

@@ -102,7 +102,8 @@ zdroj `-prom`, složka **MiniShop** (jen pro tyto alarmy – import pravidla ve 
 
 Prahy jsou pro malý provoz MiniShopu – úprava v YAML (PR) a nový import.
 
-**Kde co najít v Grafaně** (https://patientjaguar2071.grafana.net):
+**Kde co najít v Grafaně** (https://patientjaguar2071.grafana.net) – podrobně a krok za krokem na skutečných situacích
+([zákazník hlásí problém s objednávkou](grafana-tutorial.md), alarm, pomalý web, po nasazení) v [Grafana krok za krokem](grafana-tutorial.md):
 
 | Chci vidět | Kde |
 | --- | --- |

@@ -82,6 +82,19 @@ Klikněte na první řádek (*Trace ID*) – otevře se **vodopád** (waterfall)
 - **červený span / ikona vykřičníku = chyba** – klikněte na něj: v *Span Attributes* a *Events* je text výjimky (`exception.message`);
 - mezera mezi spany = čekání (outbox se zpracovává po 2 s, takže pár sekund mezery je normální).
 
+**Co objednávka obsahovala** – klikněte na span a rozbalte **Span Attributes** (úplný seznam v [Observabilita – business údaje](../eda/observabilita.md)):
+
+| Span | Co v atributech uvidíte |
+| --- | --- |
+| `POST Checkout/Index` (odeslání pokladny) | `minishop.order.payment` (Card / CashOnDelivery), `.shipping`, `.quantity`, `.total`, `.lines` (`12×2, 15×1` = produkt × kusy), `.coupon` |
+| `process ReserveStockV1` (sklad) | `minishop.stock.result` = `reserved` nebo **`failed`** (nedostatek zboží), `minishop.stock.lines` |
+| `process StockReservedV1`, `process PaymentSucceededV1`… (sága) | `minishop.saga.state_before` → `minishop.saga.state`, `minishop.saga.action` (`ConfirmOrder`, `RequestPayment`, `RejectOrder`…), `minishop.order.status`, u zamítnutí `minishop.order.rejection_reason` |
+| `process RequestPaymentV1`, webhook platby | `minishop.payment.result` (`requested`, `succeeded`, **`failed`**, `refunded`), `.amount`, `.failure_reason` |
+| `process OrderConfirmedV1` v Notifications | `minishop.email.sent` = `true` (e-mail odešel; adresa se nezapisuje) |
+| `process InvoiceIssuedV1` | `minishop.invoice.number` |
+
+Jména zákazníka, adresa ani e-mail na trase nejsou (data jdou do Grafana Cloud) – ty jsou v detailu objednávky v MiniShopu.
+
 **Krok 5 – logy k trase.** Ve vodopádu u spanu klikněte na ikonu **logů** („Logs for this span“) – Grafana otevře logy se stejným
 Trace ID. Nebo ručně: Explore → zdroj **`…-logs`** → **Code**:
 
@@ -203,6 +216,11 @@ a rozdělit podle štítku; `histogram_quantile(0.95, …)` = hodnota, pod ktero
 | --- | --- | --- |
 | požadavky uživatele | traces | `{ span.enduser.id = "<ID účtu>" }` |
 | příběh objednávky | traces | `{ span.minishop.order.id = 42 }` |
+| objednávky, kterým sklad nerezervoval zboží | traces | `{ span.minishop.stock.result = "failed" }` |
+| zamítnuté objednávky (a proč) | traces | `{ span.minishop.saga.action = "RejectOrder" }` → atribut `minishop.order.rejection_reason` |
+| neúspěšné platby | traces | `{ span.minishop.payment.result = "failed" }` |
+| objednávky s produktem 12 | traces | `{ span.minishop.order.lines =~ "(^\|.*, )12×.*" }` |
+| přidání do košíku | traces | `{ span.minishop.cart.action = "add" }` |
 | požadavky na stránku | traces | `{ resource.service.name = "web" && span.url.path = "/Shop" }` |
 | pomalé požadavky | traces | `{ resource.service.name = "web" && kind = server && duration > 500ms }` |
 | logy k trase | logs | `{service_name="web"} \| trace_id="<Trace ID>"` |

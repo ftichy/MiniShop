@@ -47,6 +47,7 @@ public sealed class CartService(
 
         cart.AddItem(product, quantity, UtcNow);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        OrderTraceTags.TagCart("add", productId, quantity);
         return product.Name;
     }
 
@@ -58,6 +59,7 @@ public sealed class CartService(
 
         cart.ChangeQuantity(productId, quantity, UtcNow);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        OrderTraceTags.TagCart("update", productId, quantity);
     }
 
     public async Task RemoveItemAsync(string customerId, int productId, CancellationToken cancellationToken = default)
@@ -70,6 +72,7 @@ public sealed class CartService(
 
         cart.RemoveItem(productId, UtcNow);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        OrderTraceTags.TagCart("remove", productId);
     }
 
     private DateTime UtcNow => timeProvider.GetUtcNow().UtcDateTime;

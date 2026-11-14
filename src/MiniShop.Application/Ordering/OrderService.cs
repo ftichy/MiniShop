@@ -122,7 +122,7 @@ public sealed class OrderService(
             return first.ToDto();
         }
 
-        TraceTags.TagOrder(order.Id);                            // ID přidělila až databáze
+        OrderTraceTags.TagPlaced(order);                         // ID přidělila až databáze; business údaje na trasu
 
         return order.ToDto();
     }
@@ -154,6 +154,7 @@ public sealed class OrderService(
         change(order);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);   // → outbox → později handlery
+        OrderTraceTags.TagStatus(order);
 
         return order.ToDto();
     }
@@ -165,6 +166,7 @@ public sealed class OrderService(
 
         // Vrácení zboží zajistí sága (příkaz ReleaseStockV1 pro sklad), oznámení handler OrderCancelled.
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        OrderTraceTags.TagStatus(order);
 
         return order.ToDto();
     }
@@ -177,6 +179,7 @@ public sealed class OrderService(
 
         // Dál (převzetí zboží, naskladnění, peníze) řídí ReturnSagaOrchestrator; e-mail „pošlete zboží“ Notifications.
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        OrderTraceTags.TagStatus(order);   // důvod vratky ne – volný text zákazníka
 
         return order.ToDto();
     }

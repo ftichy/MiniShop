@@ -82,6 +82,7 @@ public sealed class ReturnSagaOrchestrator(
         TraceTags.TagOrder(orderId);
         var saga = await sagas.GetAsync(orderId, cancellationToken)
             ?? throw new InvalidOperationException($"Sága vratky objednávky {orderId} neexistuje.");
+        var stateBefore = saga.State;
 
         var action = transition(saga);
         switch (action)
@@ -105,6 +106,9 @@ public sealed class ReturnSagaOrchestrator(
 
         // Souběh (admin × timeout) = concurrency token na ReturnSaga.Version → ConcurrencyConflictException.
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        TraceTags.Tag("minishop.return_saga.state_before", stateBefore.ToString());   // na trasu: stav vratky před → po, akce
+        TraceTags.Tag("minishop.return_saga.state", saga.State.ToString());
+        TraceTags.Tag("minishop.return_saga.action", action.ToString());
         return action;
     }
 

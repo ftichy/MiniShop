@@ -118,6 +118,7 @@ public sealed class InvoicingHandler(
             newInvoice = Invoice.Issue(order, yearSeries.Next(), now);
             invoices.Add(newInvoice);
             publisher.Publish(new InvoiceIssuedV1(Guid.NewGuid(), now, orderId, newInvoice.Number, newInvoice.Total));
+            TraceTags.Tag("minishop.invoice.number", newInvoice.Number);   // na trasu: vystavená faktura
         }
 
         // Krok 15B: dobropis jen k existující faktuře (i k té, která vznikla právě teď) a jen jednou.
@@ -135,6 +136,7 @@ public sealed class InvoicingHandler(
             var creditNote = CreditNote.Issue(invoice, yearSeries.Next(), reason, order.RefundNote ?? string.Empty, now);
             creditNotes.Add(creditNote);
             publisher.Publish(new CreditNoteIssuedV1(Guid.NewGuid(), now, orderId, creditNote.Number, invoice.Number, creditNote.Total));
+            TraceTags.Tag("minishop.credit_note.number", creditNote.Number);
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

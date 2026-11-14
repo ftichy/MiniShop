@@ -26,6 +26,8 @@ public sealed class FulfilReservationHandler(
             reservation.Fulfil(now);
         }
 
+        TraceTags.Tag("minishop.stock.result", "fulfilled");   // zboží odešlo – rezervace vydané
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 }

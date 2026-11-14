@@ -33,6 +33,9 @@ public sealed class PaymentCommandHandlers(
 
         payments.Add(payment);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        TraceTags.Tag("minishop.payment.result", "requested");   // na trasu: platba založená, čeká na zákazníka
+        TraceTags.Tag("minishop.payment.gateway", gateway.GetType().Name);   // FakePaymentGateway / StripePaymentGateway
+        TraceTags.Tag("minishop.payment.amount", (double)command.Amount);
     }
 
     /// <summary>
@@ -57,6 +60,8 @@ public sealed class PaymentCommandHandlers(
         if (payment.Refund(timeProvider.GetUtcNow().UtcDateTime))
         {
             await unitOfWork.SaveChangesAsync(cancellationToken);   // → PaymentRefundedV1
+            TraceTags.Tag("minishop.payment.result", "refunded");
+            TraceTags.Tag("minishop.payment.amount", (double)payment.Amount);
         }
     }
 }

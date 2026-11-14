@@ -69,6 +69,9 @@ public sealed class PaymentWebhookProcessor(
         try
         {
             var changed = failureReason is null ? payment.Succeed(now) : payment.Fail(failureReason, now);
+            TraceTags.Tag("minishop.payment.result", failureReason is null ? "succeeded" : "failed");   // na trasu
+            TraceTags.Tag("minishop.payment.amount", (double)payment.Amount);
+            TraceTags.Tag("minishop.payment.failure_reason", failureReason);   // text od brány (zamítnutá karta…), ne údaje karty
 
             if (changed)
             {

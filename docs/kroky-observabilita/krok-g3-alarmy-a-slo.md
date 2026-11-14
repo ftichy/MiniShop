@@ -73,3 +73,9 @@ kopií padaly do stejné řady. Čítače se střídaly (kopie A: 1, kopie B: 0,
 spouštěč (`ServiceInstance.IdToAdd`, test `ServiceInstanceTests`). Trasy a logy postižené nebyly (každá trasa má vlastní ID).
 Staré pomíchané hodnoty z grafů zmizí s retencí (14 dní); v SLO a „za 7 dní“ do týdne. SLO panely navíc nebarví „žádná data“
 červeně (`mappings` null+nan → šedá).
+
+## Nasazení (14. 11. 2026)
+
+- PR #107 (alarmy, SLO, promtool) a #108 (oprava `service.instance.id`).
+- Grafana: kontakt `minishop-email` (testovací e-mail doručen), import alarmů do složky MiniShop – **9 pravidel Normal**, nový import dashboardu.
+- Po opravě `target_info{job="web"}` = **2 řady** s různým `instance` (jména kontejnerů obou kopií Webu).

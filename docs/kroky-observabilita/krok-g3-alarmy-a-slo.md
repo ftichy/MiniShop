@@ -13,7 +13,7 @@ limit dat v telefonu – „1 % pomalých objednávek“ je rozpočet, graf ukaz
    `description` („co dělat“) a `runbook_url` na příručku.
 2. **Import ručně** do Grafana Cloud: *Alerting → Alert rules → Import to Grafana-managed rules → Import from file* → zdroj `-prom`,
    složka MiniShop. Grafana z nich udělá vlastní („Grafana-managed“) alarmy – bez tokenu se zápisem.
-3. **E-mail**: výchozí kontakt `grafana-default-email` s adresou správce, výchozí politika (připomínka po 4 h, *Resolved* při vyřešení).
+3. **E-mail**: výchozí kontakt v Grafana Cloud se jmenuje `empty` a nemá integraci – přejmenovaný na `minishop-email` + integrace Email s adresou správce (*Test* ověřil doručení); výchozí politika (připomínka po 4 h, *Resolved* při vyřešení).
 4. **SLO**: podíl `minishop_order_confirmation_duration_seconds_bucket{le="30"}` / `…_count` za 7 dní (bez karty – u ní se počítá
    i zadávání karty zákazníkem). Alarm `MiniShopConfirmationSlo` pod 99 %, v dashboardu řádek SLO (podíl, zbývající rozpočet, počet pomalých).
 5. **CI**: krok *Kontrola alarmů Grafany (promtool)* v jobu *Build a testy* + `GrafanaConfigTests` (struktura dashboardu a alarmů).
@@ -58,3 +58,18 @@ limit dat v telefonu – „1 % pomalých objednávek“ je rozpočet, graf ukaz
 1. Otevřete alarm `MiniShopDeadLetter` → *View* → graf dotazu: uvidíte, kdy by se rozsvítil.
 2. Pozastavte jeden alarm (*Pause evaluation*) a zase ho spusťte – tak se alarm vypne při plánované údržbě.
 3. V *Notification policies* si prohlédněte, jak dlouho Grafana čeká, než pošle připomínku.
+
+## Oprava: dvě kopie Webu jako jedna řada metrik (14. 11. 2026)
+
+**Příznak:** řádek SLO ukazoval „žádná objednávka“ (červeně), histogram doby potvrzení v Explore rovnoměrně rostl i v noci
+(`increase(…[7d])` z ~200 na ~900 za 12 h při dvou objednávkách) a graf HTTP měl noční špičky ~6 000 požadavků/min.
+
+**Diagnóza v Grafaně:** `target_info{job="web"}` (vizitka každé kopie služby) vrátil **jednu** řadu bez štítku `instance` –
+přitom Web běží ve dvou kopiích. V Compose nikdo nenastavoval `service.instance.id` (lokálně ho dává Aspire), takže metriky obou
+kopií padaly do stejné řady. Čítače se střídaly (kopie A: 1, kopie B: 0, A: 1…) a Prometheus každé „vynulování“ bral jako restart
+čítače a nový přírůstek. Přirovnání: dva pokladní zapisují tržbu do jednoho sešitu pod stejným jménem.
+
+**Oprava:** `ServiceDefaults` doplní `service.instance.id` = jméno stroje (v kontejneru jméno kontejneru), pokud ho nenastavil
+spouštěč (`ServiceInstance.IdToAdd`, test `ServiceInstanceTests`). Trasy a logy postižené nebyly (každá trasa má vlastní ID).
+Staré pomíchané hodnoty z grafů zmizí s retencí (14 dní); v SLO a „za 7 dní“ do týdne. SLO panely navíc nebarví „žádná data“
+červeně (`mappings` null+nan → šedá).

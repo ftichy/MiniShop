@@ -86,7 +86,7 @@ objednávek potvrzených do 30 s za 7 dní, zbývající rozpočet chyb a počet
 **Alarmy (observabilita G3)** – pravidla v [minishop-alarmy.yaml](code:deploy/grafana/minishop-alarmy.yaml) (formát Prometheus,
 v CI je kontroluje `promtool`), import ručně: *Alerting → Alert rules → Import to Grafana-managed rules → Import from file*,
 zdroj `-prom`, složka **MiniShop** (jen pro tyto alarmy – import pravidla ve složce přepíše). E-mail chodí na kontakt
-`grafana-default-email` (*Alerting → Contact points*, adresu zadává správce), připomínka po 4 h, při vyřešení zpráva *Resolved*.
+`minishop-email` (*Alerting → Contact points*; v Grafana Cloud vznikl přejmenováním výchozího kontaktu `empty` bez integrace + integrace Email s adresou správce – výchozí politika na něj směruje vše), připomínka po 4 h, při vyřešení zpráva *Resolved*.
 
 | Alarm | Kdy | Co dělat |
 | --- | --- | --- |

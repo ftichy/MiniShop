@@ -47,6 +47,8 @@ public sealed class ReserveStockHandler(
             .OfType<string>()
             .ToList();
 
+        TraceTags.Tag("minishop.stock.lines", TraceTags.Lines(lines));   // na trasu: produkt×kusy, výsledek rezervace
+        TraceTags.Tag("minishop.stock.result", problems.Count > 0 ? "failed" : "reserved");
         if (problems.Count > 0)
         {
             publisher.Publish(new StockReservationFailedV1(Guid.NewGuid(), now, command.OrderId,

@@ -162,6 +162,9 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   OpenTelemetry je jen v `ServiceDefaults` (`AddSource/AddMeter("MiniShop.*")`). Nový background worker, který ukládá zprávy,
   má otevřít vlastní span (jako `OrderSagaTimeoutWorker`), jinak zprávy nemají trasu. SQL spany jen s rodičem (filtr v EF instrumentaci).
   Číslo objednávky na span dává `TraceTags.TagOrder` (`Application/Abstractions`, tag `minishop.order.id`) – volá se tam, kde se pracuje s objednávkou.
+  Business údaje na span: `TraceTags.Tag("minishop.…", hodnota)` (objednávka `OrderTraceTags` – vznik, krok ságy, stav, košík; sklad, platby,
+  e-maily, faktury – tabulka v příručce `eda/observabilita.md`). **Nikdy osobní údaje** (jméno, e-mail, adresa, telefon, volný text
+  zákazníka, karta) – trasy jdou do Grafana Cloud; produkty jen ID; částky jako double. Nový atribut = řádek v té tabulce (+ tutoriál, pokud se podle něj hledá).
   Serilog: `ClearProviders()` + `writeToProviders: true` (logy i do OTLP, na konzoli jednou).
 - Objednávka: Pending → Confirmed/Rejected (rozhoduje sága), pak expedice (e-shop krok 6) Confirmed → Packing → Shipped
   → Completed (= doručeno; `MarkDelivered`, událost dál `OrderCompleted`/`OrderCompletedV1`). Zrušit kdykoli před odesláním

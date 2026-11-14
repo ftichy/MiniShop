@@ -31,6 +31,8 @@ public sealed class InvoiceEmailHandler(
             ?? throw new InvalidOperationException($"Faktura {message.InvoiceNumber} k objednávce {message.OrderId} nebyla nalezena.");
 
         await emailSender.SendAsync(templates.Invoice(recipient, message.InvoiceNumber, pdf), cancellationToken);
+        TraceTags.Tag("minishop.email.sent", true);
+        TraceTags.Tag("minishop.invoice.number", message.InvoiceNumber);
     }
 
     /// <summary>E-shop krok 15B: dobropis v příloze.</summary>
@@ -46,6 +48,9 @@ public sealed class InvoiceEmailHandler(
 
         await emailSender.SendAsync(
             templates.CreditNote(recipient, message.CreditNoteNumber, message.InvoiceNumber, pdf), cancellationToken);
+        TraceTags.Tag("minishop.email.sent", true);
+        TraceTags.Tag("minishop.invoice.number", message.InvoiceNumber);
+        TraceTags.Tag("minishop.credit_note.number", message.CreditNoteNumber);
     }
 
     /// <summary>Příjemce e-mailu, nebo null (nikomu neposílat). Ještě neznámý příjemce = výjimka → opakování.</summary>

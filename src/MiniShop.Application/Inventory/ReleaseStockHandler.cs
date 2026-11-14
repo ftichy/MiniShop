@@ -35,6 +35,8 @@ public sealed class ReleaseStockHandler(
             reservation.Release(now);
         }
 
+        TraceTags.Tag("minishop.stock.result", "released");   // na trasu: co se vrátilo na sklad
+        TraceTags.Tag("minishop.stock.lines", TraceTags.Lines(active.Select(r => (r.ProductId, r.Quantity))));
         publisher.Publish(new StockReleasedV1(Guid.NewGuid(), now, command.OrderId));
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }

@@ -209,7 +209,7 @@ public sealed class CheckoutService(
                     : "Košík se mezitím změnil. Zkontrolujte ho a objednejte znovu.");
         }
 
-        TraceTags.TagOrder(order.Id);
+        OrderTraceTags.TagPlaced(order);   // business údaje na trasu (platba, doprava, kusy, celkem)
         return order.ToDto();
     }
 

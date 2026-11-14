@@ -3169,6 +3169,47 @@ public sealed class OrderServiceTests : IDisposable
         return listener;
     }
 
+    // Business údaje na trasách (Grafana): vznik objednávky, sklad, krok ságy – všechno pod jedním trace ID.
+    [Fact]
+    public async Task Trasa_ObjednavkaNeseBusinessUdaje_BezOsobnichUdaju()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var spans = new System.Collections.Concurrent.ConcurrentBag<Activity>();
+        using var testSource = new ActivitySource("MiniShop.Tests.Trace");
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name is "MiniShop.Tests.Trace" or MiniShop.Infrastructure.Observability.MessagingTelemetry.SourceName,
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = spans.Add
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        Activity request;
+        OrderDto order;
+        using (request = testSource.StartActivity("POST Checkout")!)   // jako HTTP požadavek pokladny
+        {
+            order = await Orders(s => PlaceAsJan(s, CreateRequest((product.Id, 3))));
+        }
+
+        await ProcessOutboxAsync();
+
+        Assert.Equal(order.Id, request.GetTagItem(TraceTags.OrderId));
+        Assert.Equal("None", request.GetTagItem("minishop.order.payment"));
+        Assert.Equal(3, request.GetTagItem("minishop.order.quantity"));
+        Assert.Equal($"{product.Id}×3", request.GetTagItem("minishop.order.lines"));
+        Assert.Equal(300d, request.GetTagItem("minishop.order.total"));
+
+        var trace = spans.Where(span => span.TraceId == request.TraceId).ToList();   // jen tahle objednávka
+        Assert.Contains(trace, span => span.GetTagItem("minishop.stock.result") as string == "reserved");
+        Assert.Contains(trace, span => span.GetTagItem("minishop.saga.action") as string == nameof(OrderSagaAction.ConfirmOrder)
+                                       && span.GetTagItem("minishop.saga.state_before") as string == nameof(OrderSagaState.AwaitingReservation)
+                                       && span.GetTagItem("minishop.order.status") as string == "Confirmed");
+
+        // Osobní údaje (jméno a e-mail zákazníka z účtu) na trase nejsou.
+        Assert.DoesNotContain(trace.Append(request).SelectMany(span => span.TagObjects),
+            tag => tag.Value is string text && (text.Contains('@') || text.Contains("Jan", StringComparison.Ordinal)));
+    }
+
     public void Dispose()
     {
         _services.Dispose();

@@ -53,6 +53,8 @@ public sealed class OrderSagaOrchestrator(
             order.Items.Select(i => new StockLineV1(i.ProductId, i.Quantity)).ToList()));
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        TraceTags.Tag("minishop.saga.state", nameof(OrderSagaState.AwaitingReservation));   // start ságy na trase
+        TraceTags.Tag("minishop.saga.action", "ReserveStock");
     }
 
     public Task HandleAsync(StockReservedV1 message, CancellationToken cancellationToken) =>
@@ -96,6 +98,7 @@ public sealed class OrderSagaOrchestrator(
         var saga = await sagas.GetAsync(orderId, cancellationToken)
             ?? throw new InvalidOperationException($"Sága objednávky {orderId} neexistuje.");
         var order = await GetOrderAsync(orderId, cancellationToken);
+        var stateBefore = saga.State;
 
         // E-shop krok 9: zákazník mohl zrušit dřív, než sága dostala událost OrderCancelled (ta jde přes outbox) –
         // odpověď skladu/brány pak přijde první. Zrušení se nejdřív dožene, teprve pak se zpracuje odpověď,
@@ -111,6 +114,7 @@ public sealed class OrderSagaOrchestrator(
         // Souběh se zákazníkem (zrušil mezi načtením a uložením) = ConcurrencyConflictException na Order.Version →
         // zpráva se zopakuje a napodruhé už sága uvidí zrušenou objednávku.
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        OrderTraceTags.TagSagaStep(stateBefore, saga, action, order);   // na trasu: stav před → po, akce, stav objednávky
         if (action == OrderSagaAction.ConfirmOrder)
         {
             OrderingTelemetry.RecordConfirmation(order, UtcNow);   // observabilita G2: až po uložení

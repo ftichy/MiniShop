@@ -165,9 +165,11 @@ public sealed class OrderNotificationsHandler(
         // Prázdný e-mail = zákazník smazal účet (objednávka je anonymizovaná) – není komu psát.
         if (to is null || string.IsNullOrEmpty(to.Email))
         {
+            TraceTags.Tag("minishop.email.sent", false);   // na trasu: e-mail neodešel (smazaný účet) – adresa nikdy
             return Task.CompletedTask;
         }
 
+        TraceTags.Tag("minishop.email.sent", true);   // který e-mail = jméno spanu (process OrderConfirmedV1…)
         return emailSender.SendAsync(template(to), cancellationToken);
     }
 }

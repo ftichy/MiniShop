@@ -50,6 +50,29 @@ sequenceDiagram
 | **Metriky** | doručené/selhané zprávy, zpoždění outboxu, zpracované zprávy consumerů, runtime .NET; od observability G2 i **stav** (viz níže) a doba potvrzení objednávky | Aspire dashboard → Metrics; Grafana Cloud (Mimir) + dashboard „MiniShop – zprávy a ságy“ |
 | **Logy** | Serilog → konzole, denní soubor a OpenTelemetry (propojené s trasou) | Aspire dashboard → Structured logs, Grafana Cloud (Loki), `logs/` |
 
+## Business údaje na trasách
+
+Trasa říká *kdy a kudy*; aby bylo vidět i *co*, nesou spany business údaje (`TraceTags.Tag`, objednávka přes
+[OrderTraceTags](code:src/MiniShop.Application/Ordering/OrderTraceTags.cs)). **Nikdy osobní údaje** – trasy jdou do Grafana Cloud
+(jméno, e-mail, adresa, telefon, text recenze nebo důvodu vratky, údaje o kartě ne; produkty jen ID). Hodnoty SQL dotazů ani těla
+požadavků se nezaznamenávají vůbec – konkrétní data jsou v MiniShopu (detail objednávky, přehrání průběhu, `/Admin/Messages`).
+
+| Span | Atributy |
+| --- | --- |
+| vznik objednávky (pokladna, API) | `minishop.order.id`, `.payment`, `.shipping`, `.items`, `.quantity`, `.total`, `.lines` (`12×2, 15×1`), `.coupon` |
+| krok ságy objednávky | `minishop.saga.state_before`, `.state`, `.action`, `minishop.order.status`, `.rejection_reason` |
+| sága vratky | `minishop.return_saga.state_before`, `.state`, `.action` |
+| změna stavu (expedice, zrušení, vratka) | `minishop.order.status` |
+| sklad | `minishop.stock.result` (reserved / failed / released / fulfilled), `minishop.stock.lines` |
+| platba | `minishop.payment.result` (requested / succeeded / failed / refunded), `.amount`, `.gateway`, `.failure_reason` |
+| košík | `minishop.cart.action` (add / update / remove), `minishop.product.id`, `minishop.cart.quantity` |
+| e-maily | `minishop.email.sent` (který e-mail = jméno spanu, např. `process OrderConfirmedV1`) |
+| faktury | `minishop.invoice.number`, `minishop.credit_note.number` |
+| HTTP požadavek | `enduser.id` (ID účtu) |
+
+Hledání v Grafaně (TraceQL): `{ span.minishop.stock.result = "failed" }`, `{ span.minishop.saga.action = "RejectOrder" }` –
+viz [Grafana krok za krokem](../nasazeni/grafana-tutorial.md).
+
 ## Metriky stavu (observabilita G2)
 
 Čítače výše říkají, **co se stalo** („doručena zpráva“). Pro dashboard a alarmy je potřeba i **jak to teď vypadá** – přirovnání:

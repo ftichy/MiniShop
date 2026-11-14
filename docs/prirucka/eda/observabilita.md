@@ -73,6 +73,9 @@ počítadlo projetých aut vs. pohled na parkoviště, kolik jich právě stojí
   uložení ([OrderingTelemetry](code:src/MiniShop.Application/Ordering/Saga/OrderingTelemetry.cs), zdroj `MiniShop.Ordering`).
 - Štítky nikdy nenesou ID (objednávky, zprávy) – každá kombinace štítků je v Grafaně samostatná řada (limit free tieru 10 000).
 - Jména v Grafaně: tečky → podtržítka, čítač dostane `_total`, jednotka sekundy `_seconds`.
+- Každá kopie služby nese vlastní `service.instance.id` (v Grafaně štítek `instance`; [ServiceInstance](code:src/MiniShop.ServiceDefaults/ServiceInstance.cs) – jméno
+  kontejneru, lokálně z Aspire). Bez něj se metriky dvou kopií Webu slily do jedné řady a čítače dávaly nesmysly (observabilita G3).
+  Kontrola: `target_info{job="web"}` má mít tolik řad, kolik běží kopií.
 
 ## Health checky
 

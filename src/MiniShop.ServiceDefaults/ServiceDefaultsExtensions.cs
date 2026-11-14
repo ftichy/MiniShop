@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using OpenTelemetry;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
 namespace MiniShop.ServiceDefaults;
@@ -80,7 +81,18 @@ public static class ServiceDefaultsExtensions
             logging.IncludeScopes = true;
         });
 
+        // Observabilita G3 (oprava): každá kopie služby vlastní service.instance.id – jinak se metriky dvou kopií Webu
+        // v Grafaně slijí do jedné řady (viz ServiceInstance).
+        var instanceId = ServiceInstance.IdToAdd(builder.Configuration, Environment.MachineName);
+
         builder.Services.AddOpenTelemetry()
+            .ConfigureResource(resource =>
+            {
+                if (instanceId is not null)
+                {
+                    resource.AddAttributes([new KeyValuePair<string, object>(ServiceInstance.AttributeName, instanceId)]);
+                }
+            })
             .WithMetrics(metrics => metrics
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation()

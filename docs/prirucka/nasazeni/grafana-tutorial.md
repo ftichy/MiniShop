@@ -1,6 +1,6 @@
 ---
 title: Grafana krok za krokem
-summary: Tutoriál pro začátečníka – jak v Grafaně ověřit, že objednávka zákazníka proběhla v pořádku, najít chybu, zjistit, proč je web pomalý, a co dělat, když přijde alarm.
+summary: Tutoriál pro začátečníka – jak v Grafaně ověřit, že objednávka zákazníka proběhla v pořádku, najít, co a proč havarovalo, zjistit, proč je web pomalý, a co dělat, když přijde alarm.
 order: 8
 ---
 
@@ -95,6 +95,11 @@ Klikněte na první řádek (*Trace ID*) – otevře se **vodopád** (waterfall)
 
 Jména zákazníka, adresa ani e-mail na trase nejsou (data jdou do Grafana Cloud) – ty jsou v detailu objednávky v MiniShopu.
 
+**Pozor na auditní kopie:** každá zpráva má ve vodopádu i krátký span `process …` (pár ms, **bez potomků**) s atributem
+`messaging.consumer.group.name = minishop.audit` – to je auditní posluchač ve Webu, který jen zapisuje všechny zprávy do logu.
+Business údaje nese **skutečné zpracování**: span se stejným jménem, který má pod sebou dotazy `postgres` nebo další kroky
+(`dispatch …`, `publish …`), u skladu s předponou služby `inventory-api`.
+
 **Krok 5 – logy k trase.** Ve vodopádu u spanu klikněte na ikonu **logů** („Logs for this span“) – Grafana otevře logy se stejným
 Trace ID. Nebo ručně: Explore → zdroj **`…-logs`** → **Code**:
 
@@ -123,7 +128,7 @@ Logy mají úroveň – **Error** a **Warning** jsou to, co hledáte.
 2. V tabulce alarmů v [Monitoring a logy](monitoring.md) je u každého alarmu, kde hledat. Nejčastěji:
    - **dead-letter / poison** → https://minishop-tichy.cz/Admin/Messages → u zprávy je text chyby → opravit příčinu →
      *Vrátit do fronty* / *Zkusit znovu*;
-   - **chyby 5xx** → dashboard → řádek HTTP → *Chyby 5xx podle stránky* → víte, kterou stránku hledat → případ 5 (logy).
+   - **chyby 5xx** → dashboard → řádek HTTP → *Chyby 5xx podle stránky* → víte, kterou stránku hledat → případ 5 (co havarovalo).
 3. Otevřete dashboard se stejným časovým rozsahem, kdy alarm začal – grafy ukážou, co se v tu chvíli změnilo.
 4. Když se problém vyřeší, přijde druhý e-mail **Resolved**. Plánovaná údržba: u alarmu *More → Pause evaluation*
    (a po údržbě zase zapnout).
@@ -155,7 +160,24 @@ Logy mají úroveň – **Error** a **Warning** jsou to, co hledáte.
 3. Porovnejte před a po: *Chyby 5xx*, *Doba odpovědi p95*, *Chyby doručení a zpracování*, *Potvrzení objednávky p95*.
 4. Tlačítko **Split** (vpravo nahoře v Explore) rozdělí obrazovku – vlevo dotaz za včerejšek, vpravo za dnešek.
 
-## Případ 5: Hledání v logu podle textu
+## Případ 5: Něco havarovalo – kde a proč?
+
+1. Explore → **`…-traces`** → **TraceQL**, rozsah třeba *Last 7 days*:
+
+   ```
+   { status = error }
+   ```
+
+   Seznam tras, ve kterých něco selhalo – HTTP odpověď 5xx nebo zpráva, kterou se nepodařilo zpracovat. Prázdný seznam = nic nehavarovalo.
+2. Otevřete trasu – span s chybou má **červenou značku**. Klikněte na něj a rozbalte **Events**: `exception.type`,
+   `exception.message` a `exception.stacktrace` (přesné místo v kódu).
+3. Vpravo nahoře v trase **Logs for this trace** (u spanu **Logs for this span**) – řádky logu, které aplikace během té trasy zapsala.
+4. Všechny chyby bez ohledu na trasu: menu **☰ → Drilldown → Logs** → služba **web** (nebo **inventory-api**) → filtr úrovně
+   (*Levels*) **error** / **warn**.
+5. Selhaná zpráva se sama opakuje (až 5×); když chyba trvá, skončí v dead-letter frontě → `/Admin/Messages` a přijde alarm
+   `MiniShopDeadLetter` (případ 2).
+
+## Případ 6: Hledání v logu podle textu
 
 Nejjednodušší: menu → **Drilldown → Logs** → služba **web** → nahoře pole pro hledání textu a filtry úrovně (*error*, *warn*) klikáním.
 
@@ -172,7 +194,7 @@ Ručně: Explore → **`…-logs`** → **Code**:
 Kliknutím na řádek logu se rozbalí jeho detail – u řádků z požadavku je **Trace ID** s odkazem na trasu (zpět do případu 1, krok 4).
 Do logu se nikdy nepíše e-mail ani heslo – hledejte podle ID účtu nebo čísla objednávky.
 
-## Případ 6: Graf ukazuje nesmysl – jak zjistit proč
+## Případ 7: Graf ukazuje nesmysl – jak zjistit proč
 
 Skutečný případ z MiniShopu (observabilita G3): graf *Požadavky za minutu* ukazoval v noci špičky 6 000 požadavků/min,
 přitom MiniShop má jednotky. Postup:
@@ -187,7 +209,7 @@ přitom MiniShop má jednotky. Postup:
 Obecně: **Query inspector** (pod dotazem) ukáže, co přesně Grafana poslala a co dostala zpět; **Table** místo grafu ukáže
 čísla bez vyhlazování.
 
-## Případ 7: Kolik objednávek a jak rychle?
+## Případ 8: Kolik objednávek a jak rychle?
 
 Explore → **`…-prom`** → **Code** (rozsah klidně *Last 7 days*):
 
@@ -223,6 +245,8 @@ a rozdělit podle štítku; `histogram_quantile(0.95, …)` = hodnota, pod ktero
 | přidání do košíku | traces | `{ span.minishop.cart.action = "add" }` |
 | požadavky na stránku | traces | `{ resource.service.name = "web" && span.url.path = "/Shop" }` |
 | pomalé požadavky | traces | `{ resource.service.name = "web" && kind = server && duration > 500ms }` |
+| co havarovalo | traces | `{ status = error }` → span → *Events* (`exception.*`) |
+| chyby v logu | Drilldown → Logs | služba → *Levels* error |
 | logy k trase | logs | `{service_name="web"} \| trace_id="<Trace ID>"` |
 | text v logu | logs | `{service_name="web"} \|= "text"` |
 | běžící kopie služby | prom | `target_info{job="web"}` |

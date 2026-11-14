@@ -1,0 +1,120 @@
+# Observabilita G3: alarmy MiniShopu ve formátu pravidel Prometheus. Import do Grafana Cloud ručně:
+#   Alerting → Alert rules → (Data source-managed) Import to Grafana-managed rules → Import from file → tento soubor,
+#   zdroj dat grafanacloud-…-prom, složka „MiniShop“ (jen pro tyto alarmy – import přepíše pravidla ve složce).
+# Změna = upravit v PR a importovat znovu. Popis „co dělat“ u každého alarmu: příručka Nasazení → Monitoring a logy.
+#
+# Jména alarmů (alert) bez mezer a diakritiky – některé nástroje je kontrolují jako jméno metriky; česky je summary.
+# Metriky: G2 (stav – měří jen vedoucí kopie, proto max by), HTTP z ASP.NET Core. Prahy jsou pro malý provoz MiniShopu.
+# Nepodporováno při importu: „limit“ u skupiny.
+
+groups:
+  - name: minishop-zpravy
+    interval: 1m
+    rules:
+      - alert: MiniShopDeadLetter
+        expr: sum(max by (queue) (minishop_queue_dead_letters)) > 0
+        for: 5m
+        labels:
+          severity: warning
+          area: zpravy
+        annotations:
+          summary: "Zpráva v dead-letter frontě ({{ $value }})"
+          description: "Consumer zprávu 5× nezpracoval a odložil ji do minishop.{modul}.dead. Na /Admin/Messages zjistěte chybu (hlavička x-minishop-error), opravte příčinu a klikněte Vrátit do fronty."
+          runbook_url: "https://minishop-tichy.cz/Docs/nasazeni/monitoring"
+
+      - alert: MiniShopOutboxPoison
+        expr: sum(max by (module) (minishop_outbox_poison)) > 0
+        for: 5m
+        labels:
+          severity: warning
+          area: zpravy
+        annotations:
+          summary: "Poison zpráva v outboxu ({{ $value }})"
+          description: "Zpráva vyčerpala pokusy o doručení z outboxu. Na /Admin/Messages je u ní chyba – po opravě Zkusit znovu."
+          runbook_url: "https://minishop-tichy.cz/Docs/nasazeni/monitoring"
+
+      - alert: MiniShopOutboxStuck
+        expr: sum(max by (module) (minishop_outbox_pending)) > 0
+        for: 10m
+        labels:
+          severity: warning
+          area: zpravy
+        annotations:
+          summary: "V outboxu 10 minut čekají zprávy ({{ $value }})"
+          description: "Outbox worker běží jen na vedoucí kopii Webu/skladu každé 2 s – trvale čekající zprávy = worker neběží, RabbitMQ je nedostupný nebo doručení opakovaně selhává. Zkontrolujte /health (outbox), logy vedoucí kopie (docker compose logs web | grep Vedoucí) a /Admin/Messages."
+          runbook_url: "https://minishop-tichy.cz/Docs/nasazeni/monitoring"
+
+      - alert: MiniShopQueueBacklog
+        expr: max by (queue) (minishop_queue_backlog) > 50
+        for: 10m
+        labels:
+          severity: warning
+          area: zpravy
+        annotations:
+          summary: "Ve frontě {{ $labels.queue }} čeká {{ $value }} zpráv"
+          description: "Consumer nestíhá nebo neběží. Zkontrolujte, že běží služba, která frontu poslouchá (web: ordering, notifications…, inventory-api: inventory), a její logy."
+          runbook_url: "https://minishop-tichy.cz/Docs/nasazeni/monitoring"
+
+  - name: minishop-objednavky
+    interval: 1m
+    rules:
+      - alert: MiniShopSagaStuck
+        expr: max by (state) (minishop_saga_active{saga="order", state=~"AwaitingReservation|ReleasingStock"}) > 0
+        for: 10m
+        labels:
+          severity: warning
+          area: objednavky
+        annotations:
+          summary: "Ságy ve stavu {{ $labels.state }} déle než 10 minut ({{ $value }})"
+          description: "Sága čeká na odpověď skladu (timeout rezervace je 30 s, takže 10 minut = něco nefunguje). Zkontrolujte inventory-api (/health/inventory), frontu minishop.inventory a dead-letter fronty; trasu objednávky najdete v Grafaně podle minishop.order.id."
+          runbook_url: "https://minishop-tichy.cz/Docs/nasazeni/monitoring"
+
+      - alert: MiniShopSlowConfirmation
+        expr: histogram_quantile(0.95, sum by (le) (rate(minishop_order_confirmation_duration_seconds_bucket{payment!="card"}[1h]))) > 30
+        for: 15m
+        labels:
+          severity: warning
+          area: objednavky
+        annotations:
+          summary: "95 % objednávek (bez karty) se potvrzuje déle než 30 s ({{ $value }} s)"
+          description: "Běžně 4–8 s. Pomalé potvrzení = zpoždění outboxu nebo front (dashboard Zprávy a ságy, řádek Zprávy) nebo pomalý sklad. Podívejte se na trasu pomalé objednávky."
+          runbook_url: "https://minishop-tichy.cz/Docs/nasazeni/monitoring"
+
+      - alert: MiniShopConfirmationSlo
+        expr: |
+          sum(increase(minishop_order_confirmation_duration_seconds_bucket{payment!="card", le="30"}[7d]))
+            / sum(increase(minishop_order_confirmation_duration_seconds_count{payment!="card"}[7d]))
+            < 0.99
+        for: 15m
+        labels:
+          severity: warning
+          area: slo
+        annotations:
+          summary: "SLO: do 30 s se za 7 dní potvrdilo jen {{ $value | humanizePercentage }} objednávek (cíl 99 %)"
+          description: "Rozpočet chyb je vyčerpaný – víc než 1 % objednávek (dobírka, API) se potvrzovalo déle než 30 s. Dashboard Zprávy a ságy, řádek SLO; hledejte příčinu jako u alarmu Pomalé potvrzování."
+          runbook_url: "https://minishop-tichy.cz/Docs/nasazeni/monitoring"
+
+  - name: minishop-provoz
+    interval: 1m
+    rules:
+      - alert: MiniShopHttp5xx
+        expr: sum(increase(http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[10m])) > 3
+        for: 0m
+        labels:
+          severity: warning
+          area: provoz
+        annotations:
+          summary: "Za 10 minut {{ $value }} odpovědí 5xx"
+          description: "Web nebo sklad vrací chyby serveru. Dashboard Zprávy a ságy → Chyby 5xx podle stránky; v Grafaně Explore → -logs, filtr level = Error, z řádku logu odkaz na trasu."
+          runbook_url: "https://minishop-tichy.cz/Docs/nasazeni/monitoring"
+
+      - alert: MiniShopTelemetryMissing
+        expr: absent(minishop_saga_active)
+        for: 10m
+        labels:
+          severity: critical
+          area: provoz
+        annotations:
+          summary: "Z MiniShopu 10 minut nepřišly metriky stavu"
+          description: "Neběží Web (vedoucí kopie), Alloy, nebo export do Grafana Cloud. Zkontrolujte UptimeRobot / https://minishop-tichy.cz/health, na VM docker compose ps (alloy, web) a docker compose logs alloy."
+          runbook_url: "https://minishop-tichy.cz/Docs/nasazeni/monitoring"

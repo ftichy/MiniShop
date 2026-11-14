@@ -24,6 +24,7 @@ flowchart LR
 | Job | Co dělá | Detaily |
 | --- | --- | --- |
 | **Build a testy** | `restore` → `build -c Release` → `test` (nad PostgreSQL – Testcontainers spustí `postgres:18-alpine` v Dockeru runneru, [Databáze – testy](../architektura/databaze.md)) | cache NuGet balíčků (klíč = otisk `.csproj`, `.props`, `global.json`), výsledky testů jako artefakt `.trx` (14 dní) |
+| ↳ **Kontrola alarmů Grafany** | krok v jobu *Build a testy*: `promtool check rules` nad `deploy/grafana/minishop-alarmy.yaml` (observabilita G3) | chybný alarm (YAML, PromQL) shodí povinný check – pozná se v PR, ne až při importu do Grafany |
 | **Image web / inventory-api** | Docker Buildx | PR: jen x86, nic se neukládá (rozbitý Dockerfile se pozná před sloučením). `main`: **amd64 + arm64** (QEMU) a push do GHCR |
 | **Nasazení** | volá `deploy.yml` | jen na `main`, až po úspěšných image – viz [CD](cd.md) |
 | **E2E testy** | celý e-shop v Compose + Playwright (Chromium) | PR i `main`, běží vedle ostatních jobů; **není povinný check** a nasazení neblokuje – viz sekce „E2E testy v prohlížeči“ níže |

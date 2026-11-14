@@ -34,7 +34,7 @@ flowchart LR
 | Hlídač | Co sleduje | Kdy se ozve |
 | --- | --- | --- |
 | **Aspire dashboard** | trasy, strukturované logy, metriky obou služeb – živě, jen v paměti | nic neposílá – díváte se do něj (https://dashboard.minishop-tichy.cz) |
-| **Grafana Cloud** (observabilita G1) | totéž s historií 14 dní: trasy (Tempo), logy (Loki), metriky (Mimir); hledání a grafy přes webové rozhraní | zatím nic neposílá – alarmy přidá krok G3 (https://patientjaguar2071.grafana.net) |
+| **Grafana Cloud** (observabilita G1–G3) | totéž s historií 14 dní: trasy (Tempo), logy (Loki), metriky (Mimir); dashboard „Zprávy a ságy“ | e-mailem při alarmu: dead-letter, poison, zaseklý outbox/fronta/sága, 5xx, pomalé potvrzování, SLO, výpadek telemetrie (https://patientjaguar2071.grafana.net) |
 | **Health checky** `/health` | připravenost služby + [outbox](../eda/outbox.md) (zpráva visí > 5 min → *Degraded*) + od EDA kroku 13 [dead-letter fronty](../eda/provoz-zprav.md) (odložená zpráva → *Degraded*) | využívá je Compose (`up --wait`), Deploy i UptimeRobot |
 | **UptimeRobot** | zvenku `/health` a `/health/inventory`, hledá přesný text `Healthy` | služba neodpovídá nebo není *Healthy* |
 | **Alarmy OCI** ([monitoring.tf](code:infra/monitoring.tf)) | CPU > 80 %, paměť > 90 %, metriky přestaly chodit | podmínka platí 15 min v kuse; připomenutí každé 4 h |
@@ -80,7 +80,27 @@ končící `-prom` → *Import*. Změna = upravit JSON v PR a importovat znovu (
 | Ságy a objednávky | rozpracované ságy podle stavu, doba potvrzení (podle platby), potvrzené objednávky za hodinu |
 | HTTP | požadavky, doba odpovědi p95, chyby 5xx podle stránky (Web i sklad) |
 
-Metriky stavu popisuje [Observabilita – metriky stavu](../eda/observabilita.md).
+Metriky stavu popisuje [Observabilita – metriky stavu](../eda/observabilita.md). Řádek **SLO** (od G3) ukazuje podíl
+objednávek potvrzených do 30 s za 7 dní, zbývající rozpočet chyb a počet pomalých objednávek.
+
+**Alarmy (observabilita G3)** – pravidla v [minishop-alarmy.yaml](code:deploy/grafana/minishop-alarmy.yaml) (formát Prometheus,
+v CI je kontroluje `promtool`), import ručně: *Alerting → Alert rules → Import to Grafana-managed rules → Import from file*,
+zdroj `-prom`, složka **MiniShop** (jen pro tyto alarmy – import pravidla ve složce přepíše). E-mail chodí na kontakt
+`grafana-default-email` (*Alerting → Contact points*, adresu zadává správce), připomínka po 4 h, při vyřešení zpráva *Resolved*.
+
+| Alarm | Kdy | Co dělat |
+| --- | --- | --- |
+| `MiniShopDeadLetter` | zpráva v dead-letter frontě 5 min | `/Admin/Messages` → u fronty chyba (`x-minishop-error`) → opravit příčinu → *Vrátit do fronty* ([provoz zpráv](../eda/provoz-zprav.md)) |
+| `MiniShopOutboxPoison` | poison zpráva v outboxu 5 min | `/Admin/Messages` → chyba u zprávy → opravit → *Zkusit znovu* |
+| `MiniShopOutboxStuck` | zprávy v outboxu čekají 10 min | `/health` (outbox, dead-letters), vedoucí kopie `docker compose logs web \| grep Vedoucí`, RabbitMQ běží? |
+| `MiniShopQueueBacklog` | ve frontě čeká > 50 zpráv 10 min | běží služba, která frontu poslouchá? (`docker compose ps`), její logy |
+| `MiniShopSagaStuck` | sága čeká na sklad 10 min (timeout je 30 s) | `/health/inventory`, fronta `minishop.inventory`, trasa objednávky v Grafaně (`minishop.order.id`) |
+| `MiniShopSlowConfirmation` | p95 potvrzení (bez karty) > 30 s 15 min | dashboard řádek Zprávy (zpoždění outboxu, fronty), trasa pomalé objednávky |
+| `MiniShopConfirmationSlo` | za 7 dní < 99 % objednávek do 30 s | jako u pomalého potvrzování; rozpočet chyb je vyčerpaný |
+| `MiniShopHttp5xx` | > 3 odpovědi 5xx za 10 min | dashboard Chyby 5xx podle stránky, Explore → `-logs` (úroveň Error) → odkaz na trasu |
+| `MiniShopTelemetryMissing` | 10 min nepřišly metriky stavu | `/health`, UptimeRobot, na VM `docker compose ps` (web, alloy), `docker compose logs alloy` |
+
+Prahy jsou pro malý provoz MiniShopu – úprava v YAML (PR) a nový import.
 
 **Kde co najít v Grafaně** (https://patientjaguar2071.grafana.net):
 

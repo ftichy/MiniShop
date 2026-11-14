@@ -68,6 +68,13 @@ jobs:
           --logger "trx;LogFileName=test-results.trx"
           --results-directory TestResults
 
+      # Observabilita G3: alarmy pro Grafanu (deploy/grafana) se importují ručně – chybný PromQL by se poznal až v Grafaně.
+      # promtool = oficiální kontrola pravidel Prometheu (syntaxe YAML i dotazů).
+      - name: Kontrola alarmů Grafany (promtool)
+        run: >
+          docker run --rm -v "$PWD/deploy/grafana:/rules:ro" --entrypoint promtool prom/prometheus:v3.5.0
+          check rules /rules/minishop-alarmy.yaml
+
       # Výsledky testů ke stažení u běhu (i když testy selžou – právě pak jsou nejzajímavější).
       - name: Výsledky testů jako artefakt
         if: ${{ !cancelled() }}

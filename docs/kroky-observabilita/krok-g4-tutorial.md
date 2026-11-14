@@ -15,7 +15,7 @@ Stránka příručky [Grafana krok za krokem](../prirucka/nasazeni/grafana-tutor
 3. **Případ 2: přišel alarm** – e-mail → tabulka alarmů → `/Admin/Messages` / dashboard → *Resolved*, pauza při údržbě.
 4. **Případ 3: web je pomalý** – p95 v dashboardu → TraceQL `duration > 500ms` → nejdelší pruh (SQL, sklad, kód).
 5. **Případ 4: po nasazení** – `target_info` ukáže výměnu kopií, porovnání před/po, *Split*.
-6. **Případ 5: hledání v logu** – Drilldown Logs, LogQL `|=`, `!=`, Trace ID z logu na trasu.
+6. **Případ 6 (původně 5): hledání v logu** – Drilldown Logs, LogQL `|=`, `!=`, Trace ID z logu na trasu.
 7. **Případ 6: graf ukazuje nesmysl** – skutečná diagnóza z G3 (`target_info` = 1 řada pro 2 kopie Webu), Query inspector, Table.
 8. **Případ 7: kolik objednávek a jak rychle** – PromQL s vysvětlením `increase`, `rate`, `sum by`, `histogram_quantile`.
 9. **Tipy a tahák** – uložení dotazu, sdílení odkazu, z panelu do Explore, Ask Assistant, retence 14 dní.
@@ -42,10 +42,17 @@ Stránka příručky [Grafana krok za krokem](../prirucka/nasazeni/grafana-tutor
 ## Jak ověřit
 
 - `/Docs/nasazeni/grafana-tutorial` se zobrazí v sekci Nasazení a provoz; `DocumentationTests` zelené.
-- Projít případ 1 se skutečnou objednávkou (vlastní testovací účet) a případ 5 s textem „Vedoucí“.
+- Projít případ 1 se skutečnou objednávkou (vlastní testovací účet) a případ 6 s textem „Vedoucí“.
 
 ## Vyzkoušejte sami
 
 1. Udělejte objednávku na dobírku a najděte ji podle případu 1 – od ID účtu po e-mail o potvrzení ve vodopádu.
 2. Uložte si dotaz `{ span.minishop.order.id = … }` do *Saved queries*.
 3. Zkuste Ask Assistant: „ukaž chyby webu za poslední hodinu“ a porovnejte jeho dotaz s tahákem.
+
+## Doplnění (14. 11. 2026)
+
+- Nový **případ 5: Něco havarovalo** – `{ status = error }` → červený span → *Events* (`exception.*`), *Logs for this trace*,
+  Drilldown → Logs s filtrem úrovně. Ověřeno uživatelem v produkci; ostatní případy přečíslované (6 hledání v logu, 7 graf ukazuje nesmysl, 8 kolik objednávek).
+- Poznámka o **auditních kopiích** spanů `process …` (`minishop.audit`, bez potomků) – business údaje nese skutečné zpracování.
+- Ověřeno nad produkcí i `{ span.minishop.order.id = … }` a business atributy na trasách (PR #111).

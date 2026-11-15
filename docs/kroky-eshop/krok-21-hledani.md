@@ -50,6 +50,13 @@ Přirovnání: dobrý prodavač – když řeknete „ten notebook s 32 giga“,
 - **Řazení `Sort` nullable:** „nic nevybráno“ = výchozí podle situace; výslovně zvolené řazení (i „podle názvu“) má přednost.
 - **Kontrakty, sklad, Journeys beze změny**, žádný nový secret. Migrace jen přidává (expand) – starší verze kódu s ní běží.
 
+## Oprava po nasazení: klik na návrh
+
+V produkci se po kliknutí na návrh produkt neotevřel. Pole hledání při kliknutí ztratilo fokus a skript nabídku po 150 ms skryl,
+dřív než klik doběhl (delší stisk, telefon). Oprava: `mousedown` v nabídce dělá `preventDefault`, takže pole fokus neztratí.
+Nabídka se zavírá až skutečným odchodem z pole. Hlídá to E2E test `HledaniTests` (klik s delším stiskem na počítači, klepnutí
+na telefonu) – unit testy chování prohlížeče nezachytí.
+
 ## Známá omezení
 
 - Podobnost trojic nepozná přehozená písmena v krátkých slovech („mši“ ≠ „myš“) a velmi zkomolená slova (< 0,4).

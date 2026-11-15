@@ -73,6 +73,7 @@ ovládá skutečný prohlížeč nad skutečně spuštěnou aplikací a odhalí 
 | Nákup kartou | registrace → potvrzení e-mailu → výloha → košík → pokladna (kurýr, adresa) → platba na simulované bráně → detail ve stavu **Potvrzená** |
 | Expedice | admin zabalí → odešle (dopravce + číslo zásilky) → doručeno; zákazník vidí **Doručená** |
 | Mobil | viewport 390×844: menu ☰, filtry v panelu, spodní lišta košíku, pokladna |
+| Hledání | našeptávač: klik na návrh (i dlouhý stisk) a klepnutí na telefonu otevře produkt (e-shop krok 21) |
 
 **Jak job běží** (`e2e` v [ci.yml](code:.github/workflows/ci.yml)):
 

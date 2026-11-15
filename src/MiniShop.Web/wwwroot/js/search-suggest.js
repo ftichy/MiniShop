@@ -53,9 +53,13 @@
             }
         });
 
-        input.addEventListener('blur', function () {
-            setTimeout(close, 150);   // klik do nabídky musí stihnout odkaz
+        // Stisk myši / prstu v nabídce nesmí vzít poli fokus – jinak by blur nabídku skryl dřív, než klik doběhne
+        // (delší stisk, telefon) a odkaz by se neotevřel. Klik pak odkaz otevře běžně.
+        list.addEventListener('mousedown', function (e) {
+            e.preventDefault();
         });
+
+        input.addEventListener('blur', close);   // skutečný odchod z pole (Tab, klik jinam)
 
         function load() {
             var query = input.value.trim();

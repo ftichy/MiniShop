@@ -1,3 +1,5 @@
+using MiniShop.Application.Abstractions;
+
 namespace MiniShop.Application.Ordering;
 
 /// <remarks>
@@ -7,11 +9,16 @@ namespace MiniShop.Application.Ordering;
 public interface IOrderService
 {
     Task<IReadOnlyList<OrderDto>> GetAllAsync(OrderAccess access, CancellationToken cancellationToken = default);
+
+    /// <summary>Stránka objednávek (nejnovější první); <paramref name="orderId"/> = hledání podle čísla (cizí se nenajde).</summary>
+    Task<PagedList<OrderDto>> GetPageAsync(OrderAccess access,
+        PageRequest page, int? orderId = null, CancellationToken cancellationToken = default);
     /// <summary>Krok 10B: nabídka z vlastní kopie katalogu – funguje, i když služba skladu neběží.</summary>
     Task<IReadOnlyList<CatalogItemDto>> GetCatalogAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Účty krok 6: počet objednávek a útrata za zákazníka – jen pro admina (hlídá Web).</summary>
-    Task<IReadOnlyList<CustomerOrderSummaryDto>> GetCustomerSummariesAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<CustomerOrderSummaryDto>> GetCustomerSummariesAsync(IReadOnlyCollection<string>? customerIds = null,
+        CancellationToken cancellationToken = default);
 
     Task<OrderDto> GetByIdAsync(int id, OrderAccess access, CancellationToken cancellationToken = default);
 

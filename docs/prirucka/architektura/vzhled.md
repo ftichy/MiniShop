@@ -87,6 +87,30 @@ flowchart LR
 - Štítky (role, blokace, stav kuponu, typy událostí průběhu objednávky) mají stejné jemné barvy jako zbytek webu
   (`badge-soft-*`), pruhy grafu tržeb barvu značky.
 
+## Stránkování seznamů
+
+Seznamy, které rostou, se ukazují po stránkách – partial [_Pager](code:src/MiniShop.Web/Pages/Shared/_Pager.cshtml)
+(model [PagerModel](code:src/MiniShop.Web/Ui/PagerModel.cs)): „Zobrazeno 21–40 z 135“, odkazy ‹ 1 … 4 5 **6** 7 8 … 20 ›
+a výběr **Na stránku** (10 / 20 / 50 / 100, výchozí 20). Výběr odešle [pager.js](code:src/MiniShop.Web/wwwroot/js/pager.js)
+(bez JavaScriptu tlačítko *Zobrazit*). Parametry v adrese: `p` (stránka – `page` je v Razor Pages rezervované) a `size`;
+odkazy zachovají ostatní parametry (hledání), nesmyslné hodnoty se opraví a stránka za koncem ukáže poslední.
+
+| Stránka | Kde se stránkuje | Hledání |
+| --- | --- | --- |
+| Objednávky (zákazník i admin) | v databázi (nejnovější první) | číslo objednávky (`order`) – cizí se nenajde |
+| Správa → Uživatelé | v databázi (podle e-mailu); útrata jen pro účty na stránce | část e-mailu (`q`) |
+| Správa → Faktury, Hodnocení | v databázi (nejnovější první) | — |
+| Sklad → Produkty, Správa → Slevové kódy | v paměti (seznam celý ze skladu / desítky kuponů) | — |
+| Historie přihlášení (účet, detail uživatele) | v databázi | — |
+
+Záměrně bez stránkování: **Expedice** a **Vratky** (pracovní fronty, hromadné akce), **Zprávy** (poison omezený na 50),
+**Tržby** a **Košíky** (souhrny), průběh jedné objednávky. Akce na stránce (skrýt hodnocení, naskladnit produkt…) vrací
+na stejnou stránku seznamu (`asp-route-p` / `asp-route-size` a `RedirectToPage(new { p, size })`).
+
+Jádro: [PageRequest a PagedList](code:src/MiniShop.Application/Abstractions/Paging.cs) (Application, bez balíčků) a
+[ToPagedListAsync](code:src/MiniShop.Infrastructure/Persistence/PagingExtensions.cs) (COUNT + OFFSET/LIMIT nad seřazeným dotazem).
+**Nový seznam, který roste = `PagedList` + `<partial name="_Pager" model="Model.Pager" />`.**
+
 ## Ikony
 
 [Icons.cs](code:src/MiniShop.Web/Ui/Icons.cs) – pár ikon jako inline SVG (tvary z Bootstrap Icons, licence MIT):

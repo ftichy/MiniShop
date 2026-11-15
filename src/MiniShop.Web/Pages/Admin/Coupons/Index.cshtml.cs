@@ -1,11 +1,13 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using MiniShop.Application.Abstractions;
 using MiniShop.Application.Exceptions;
 using MiniShop.Application.Ordering.Coupons;
 using MiniShop.Domain.Exceptions;
 using MiniShop.Domain.Orders.Coupons;
 using MiniShop.Web.Accounts;
+using MiniShop.Web.Ui;
 
 namespace MiniShop.Web.Pages.Admin.Coupons;
 
@@ -16,7 +18,15 @@ namespace MiniShop.Web.Pages.Admin.Coupons;
 [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
 public sealed class IndexModel(CouponService coupons) : PageModel
 {
-    public IReadOnlyList<CouponDto> Coupons { get; private set; } = [];
+    public PagedList<CouponDto> CouponPage { get; private set; } = new([], 1, PageRequest.DefaultSize, 0);
+    public IReadOnlyList<CouponDto> Coupons => CouponPage.Items;
+    public PagerModel Pager => PagerModel.From(CouponPage, "coupons");
+
+    [BindProperty(SupportsGet = true, Name = PagerModel.PageParameter)]
+    public int? PageNumber { get; set; }
+
+    [BindProperty(SupportsGet = true, Name = PagerModel.SizeParameter)]
+    public int? PageSize { get; set; }
 
     [BindProperty]
     public CreateCouponRequest Input { get; set; } = new();
@@ -28,8 +38,11 @@ public sealed class IndexModel(CouponService coupons) : PageModel
     [TempData]
     public string? StatusMessage { get; set; }
 
-    public async Task OnGetAsync(CancellationToken cancellationToken) =>
-        Coupons = await coupons.GetAllAsync(cancellationToken);
+    public Task OnGetAsync(CancellationToken cancellationToken) => LoadAsync(cancellationToken);
+
+    // Kuponů jsou jednotky až desítky – stránka v paměti (stejný vzhled jako ostatní seznamy).
+    private async Task LoadAsync(CancellationToken cancellationToken) =>
+        CouponPage = (await coupons.GetAllAsync(cancellationToken)).ToPagedList(PageRequest.Of(PageNumber, PageSize));
 
     public async Task<IActionResult> OnPostCreateAsync(CancellationToken cancellationToken)
     {
@@ -49,7 +62,7 @@ public sealed class IndexModel(CouponService coupons) : PageModel
             }
         }
 
-        Coupons = await coupons.GetAllAsync(cancellationToken);
+        await LoadAsync(cancellationToken);
         return Page();
     }
 
@@ -65,7 +78,7 @@ public sealed class IndexModel(CouponService coupons) : PageModel
             StatusMessage = ex is NotFoundException ? "Kupon neexistuje." : "Kupon se mezitím použil – zkuste to znovu.";
         }
 
-        return RedirectToPage();
+        return RedirectToPage(new { p = PageNumber, size = PageSize });   // zpět na stejnou stránku seznamu
     }
 
     public static string ValueText(CouponDto c) => c.Kind == CouponKind.Percent ? $"{c.Value:0.##} %" : $"{c.Value:N0} Kč";

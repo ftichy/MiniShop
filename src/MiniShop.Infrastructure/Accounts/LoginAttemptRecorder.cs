@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using MiniShop.Application.Abstractions;
+using MiniShop.Infrastructure.Persistence;
 
 namespace MiniShop.Infrastructure.Accounts;
 
@@ -42,6 +44,15 @@ public sealed class LoginAttemptRecorder(
             .Take(take)
             .Select(attempt => new LoginAttemptItem(attempt.OccurredAtUtc, attempt.Method, attempt.Result, attempt.IpAddress))
             .ToListAsync(cancellationToken);
+
+    /// <summary>Stránka pokusů účtu, nejnovější první (stránka účtu a detail uživatele pro admina).</summary>
+    public Task<PagedList<LoginAttemptItem>> GetPageAsync(string userId, PageRequest page,
+        CancellationToken cancellationToken = default) =>
+        dbContext.LoginAttempts.AsNoTracking()
+            .Where(attempt => attempt.UserId == userId)
+            .OrderByDescending(attempt => attempt.Id)
+            .Select(attempt => new LoginAttemptItem(attempt.OccurredAtUtc, attempt.Method, attempt.Result, attempt.IpAddress))
+            .ToPagedListAsync(page, cancellationToken);
 
     /// <summary>Smaže pokusy starší než <see cref="Retention"/>; vrací počet smazaných.</summary>
     public async Task<int> PurgeExpiredAsync(CancellationToken cancellationToken = default)

@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using MiniShop.Application.Abstractions;
 using MiniShop.Application.Ordering;
 using MiniShop.Domain.Orders;
+using MiniShop.Infrastructure.Persistence;
 
 namespace MiniShop.Infrastructure.Ordering;
 
@@ -13,11 +15,23 @@ public sealed class OrderRepository(OrderingDbContext db) : IOrderRepository
             .OrderByDescending(o => o.Id)
             .ToListAsync(cancellationToken);
 
-    public async Task<IReadOnlyList<CustomerOrderSummaryDto>> GetCustomerSummariesAsync(CancellationToken cancellationToken = default)
+    public Task<PagedList<Order>> GetPageAsync(string? customerId, int? orderId, PageRequest page,
+        CancellationToken cancellationToken = default) =>
+        db.Orders
+            .Include(o => o.Items)
+            .Where(o => customerId == null || o.CustomerId == customerId)   // cizí objednávky se nenačtou ani nespočítají
+            .Where(o => orderId == null || o.Id == orderId)
+            .OrderByDescending(o => o.Id)
+            .AsSplitQuery()   // Include + stránka: počet řádků podle objednávek, ne podle položek
+            .ToPagedListAsync(page, cancellationToken);
+
+    public async Task<IReadOnlyList<CustomerOrderSummaryDto>> GetCustomerSummariesAsync(IReadOnlyCollection<string>? customerIds = null,
+        CancellationToken cancellationToken = default)
     {
         // Načteme jen potřebné sloupce a sečteme v paměti (z doby SQLite, které neumělo SUM nad decimal; dat je málo).
         var rows = await db.Orders
             .AsNoTracking()
+            .Where(o => customerIds == null || customerIds.Contains(o.CustomerId))   // stránkování: jen zákazníci ze stránky
             .Select(o => new
             {
                 o.CustomerId,

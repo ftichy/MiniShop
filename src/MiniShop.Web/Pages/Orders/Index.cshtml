@@ -36,9 +36,28 @@ else if (Model.NeedsEmailConfirmation)
 @* Účty krok 3: zákazník vidí jen své objednávky, admin všechny. *@
 <h2 class="h4">@(Model.CanManageOrders ? "Všechny objednávky" : "Moje objednávky")</h2>
 
+@* Stránkování: hledání podle čísla (GET – jde poslat odkazem, zachová velikost stránky). *@
+<form method="get" class="row g-2 align-items-end mb-3" role="search" data-track="orders-search">
+    <div class="col-auto">
+        <label for="orders-search-id" class="form-label small mb-0">Číslo objednávky</label>
+        <input id="orders-search-id" name="order" type="number" min="1" value="@Model.SearchId" class="form-control form-control-sm" />
+    </div>
+    @if (Model.PageSize is { } size)
+    {
+        <input type="hidden" name="size" value="@size" />
+    }
+    <div class="col-auto">
+        <button type="submit" class="btn btn-sm btn-outline-secondary">Hledat</button>
+        @if (Model.SearchId is not null)
+        {
+            <a asp-page="/Orders/Index" class="btn btn-sm btn-link">Zrušit hledání</a>
+        }
+    </div>
+</form>
+
 @if (Model.Orders.Count == 0)
 {
-    <p>Zatím žádné objednávky.</p>
+    <p>@(Model.SearchId is null ? "Zatím žádné objednávky." : $"Objednávka č. {Model.SearchId} nebyla nalezena.")</p>
 }
 
 @if (Model.HasPendingOrders)
@@ -138,6 +157,8 @@ else if (Model.NeedsEmailConfirmation)
     </div>
 }
 </div>
+
+<partial name="_Pager" model="Model.Pager" />
 
 @section Scripts {
     @* Účty krok 8: obnovení stránky ze souboru (CSP nepustí inline skript). *@

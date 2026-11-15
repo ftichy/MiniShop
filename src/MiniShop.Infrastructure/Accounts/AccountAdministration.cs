@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using MiniShop.Application.Abstractions;
+using MiniShop.Infrastructure.Persistence;
 using Microsoft.Extensions.Logging;
 
 namespace MiniShop.Infrastructure.Accounts;
@@ -57,6 +59,22 @@ public sealed class AccountAdministration(
         var adminIds = await AdminIdsQuery().ToListAsync(cancellationToken);
         var users = await dbContext.Users.AsNoTracking().OrderBy(user => user.Email).ToListAsync(cancellationToken);
         return users.Select(user => ToSummary(user, adminIds.Contains(user.Id))).ToList();
+    }
+
+    /// <summary>
+    /// Stránka účtů seřazená podle e-mailu; <paramref name="emailSearch"/> = část e-mailu (bez ohledu na velikost písmen,
+    /// hledá se v normalizovaném e-mailu – index Identity).
+    /// </summary>
+    public async Task<PagedList<AccountSummary>> GetAccountsPageAsync(string? emailSearch, PageRequest page,
+        CancellationToken cancellationToken = default)
+    {
+        var search = string.IsNullOrWhiteSpace(emailSearch) ? null : emailSearch.Trim().ToUpperInvariant();
+        var users = await dbContext.Users.AsNoTracking()
+            .Where(user => search == null || user.NormalizedEmail!.Contains(search))
+            .OrderBy(user => user.Email)
+            .ToPagedListAsync(page, cancellationToken);
+        var adminIds = await AdminIdsQuery().ToListAsync(cancellationToken);
+        return users.Map(user => ToSummary(user, adminIds.Contains(user.Id)));
     }
 
     public async Task<AccountSummary?> GetAccountAsync(string id, CancellationToken cancellationToken = default)

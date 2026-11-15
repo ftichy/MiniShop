@@ -2,11 +2,13 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using MiniShop.Application.Abstractions;
 using MiniShop.Application.Inventory;
 using MiniShop.Application.Exceptions;
 using MiniShop.Domain.Exceptions;
 using MiniShop.Web.Accounts;
 using MiniShop.Web.Inventory;
+using MiniShop.Web.Ui;
 
 namespace MiniShop.Web.Pages.Products;
 
@@ -17,7 +19,15 @@ namespace MiniShop.Web.Pages.Products;
 [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]   // účty krok 2: sklad a produkty spravuje jen admin
 public sealed class IndexModel(IProductService productService, ICategoryService categoryService) : PageModel
 {
-    public IReadOnlyList<ProductDto> Products { get; private set; } = [];
+    public PagedList<ProductDto> ProductPage { get; private set; } = new([], 1, PageRequest.DefaultSize, 0);
+    public IReadOnlyList<ProductDto> Products => ProductPage.Items;
+    public PagerModel Pager => PagerModel.From(ProductPage, "products");
+
+    [BindProperty(SupportsGet = true, Name = PagerModel.PageParameter)]
+    public int? PageNumber { get; set; }
+
+    [BindProperty(SupportsGet = true, Name = PagerModel.SizeParameter)]
+    public int? PageSize { get; set; }
 
     public IReadOnlyList<CategoryDto> Categories { get; private set; } = [];
 
@@ -130,7 +140,7 @@ public sealed class IndexModel(IProductService productService, ICategoryService 
         try
         {
             await action();
-            return RedirectToPage();
+            return RedirectToPage(new { p = PageNumber, size = PageSize });   // zpět na stejnou stránku seznamu
         }
         catch (Exception ex) when (ex is DomainException or NotFoundException or InventoryUnavailableException)
         {
@@ -149,13 +159,14 @@ public sealed class IndexModel(IProductService productService, ICategoryService 
     {
         try
         {
-            Products = await productService.GetAllAsync(cancellationToken);
+            // Produkty jdou ze skladu přes API celé (jsou jich desítky) – stránka se vybere tady, API se nemění.
+            ProductPage = (await productService.GetAllAsync(cancellationToken)).ToPagedList(PageRequest.Of(PageNumber, PageSize));
             Categories = await categoryService.GetAllAsync(cancellationToken);
         }
         catch (InventoryUnavailableException ex)
         {
             // Sklad neběží – stránka se ukáže s hláškou místo chyby 500.
-            Products = [];
+            ProductPage = new([], 1, PageRequest.DefaultSize, 0);
             Categories = [];
             var alreadyShown = ModelState[string.Empty]?.Errors.Any(e => e.ErrorMessage == ex.Message) ?? false;
             if (!alreadyShown)

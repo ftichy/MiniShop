@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using MiniShop.Application.Abstractions;
 using MiniShop.Application.Reviews;
 using MiniShop.Domain.Reviews;
+using MiniShop.Infrastructure.Persistence;
 using MiniShop.Infrastructure.Integration;
 
 namespace MiniShop.Infrastructure.Reviews;
@@ -13,8 +15,8 @@ public sealed class ReviewRepository(ReviewsDbContext db) : IReviewRepository
     public Task<Review?> GetByIdAsync(int id, CancellationToken cancellationToken = default) =>
         db.Reviews.FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
 
-    public async Task<IReadOnlyList<Review>> GetLatestAsync(int count, CancellationToken cancellationToken = default) =>
-        await db.Reviews.AsNoTracking().OrderByDescending(r => r.Id).Take(count).ToListAsync(cancellationToken);
+    public Task<PagedList<Review>> GetPageAsync(PageRequest page, CancellationToken cancellationToken = default) =>
+        db.Reviews.AsNoTracking().OrderByDescending(r => r.Id).ToPagedListAsync(page, cancellationToken);
 
     public async Task<IReadOnlyList<Review>> GetByCustomerAsync(string customerId, CancellationToken cancellationToken = default) =>
         await db.Reviews.Where(r => r.CustomerId == customerId).ToListAsync(cancellationToken);

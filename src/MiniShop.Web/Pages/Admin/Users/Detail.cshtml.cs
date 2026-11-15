@@ -3,9 +3,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using MiniShop.Application.Abstractions;
 using MiniShop.Application.Ordering;
 using MiniShop.Infrastructure.Accounts;
 using MiniShop.Web.Accounts;
+using MiniShop.Web.Ui;
 
 namespace MiniShop.Web.Pages.Admin.Users;
 
@@ -21,13 +23,20 @@ public sealed class DetailModel(
     UserManager<ApplicationUser> userManager) : PageModel
 {
     private const int AuditCount = 50;
-    private const int LoginAttemptCount = 20;
 
     public AccountSummary Account { get; private set; } = null!;
     public IReadOnlyList<OrderDto> Orders { get; private set; } = [];
     public IReadOnlyList<AccountAuditItem> Audit { get; private set; } = [];
-    /// <summary>2FA krok B: posledních pár pokusů o přihlášení (i neúspěšných) – k dohledání podezřelého pokusu.</summary>
-    public IReadOnlyList<LoginAttemptItem> LoginAttempts { get; private set; } = [];
+    /// <summary>2FA krok B: pokusy o přihlášení (i neúspěšné) – k dohledání podezřelého pokusu; po stránkách.</summary>
+    public PagedList<LoginAttemptItem> LoginAttemptPage { get; private set; } = new([], 1, PageRequest.DefaultSize, 0);
+    public IReadOnlyList<LoginAttemptItem> LoginAttempts => LoginAttemptPage.Items;
+    public PagerModel LoginAttemptPager => PagerModel.From(LoginAttemptPage, "login-attempts");
+
+    [BindProperty(SupportsGet = true, Name = PagerModel.PageParameter)]
+    public int? PageNumber { get; set; }
+
+    [BindProperty(SupportsGet = true, Name = PagerModel.SizeParameter)]
+    public int? PageSize { get; set; }
 
     public bool IsCurrentUser { get; private set; }
 
@@ -54,7 +63,7 @@ public sealed class DetailModel(
         Orders = await orderService.GetAllAsync(OrderAccess.Customer(id), cancellationToken);
         Audit = await accounts.GetAuditAsync(id, AuditCount, cancellationToken);
         SignInMethods = await SignInMethodsAsync(id);
-        LoginAttempts = await loginAttempts.GetRecentAsync(id, LoginAttemptCount, cancellationToken);
+        LoginAttemptPage = await loginAttempts.GetPageAsync(id, PageRequest.Of(PageNumber, PageSize), cancellationToken);
         return Page();
     }
 

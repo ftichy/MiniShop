@@ -32,14 +32,14 @@
                 <td class="num">@p.Price.ToString("N2") Kč</td>
                 <td class="num">@p.StockQuantity ks</td>
                 <td>
-                    <form method="post" asp-page-handler="AddStock" asp-route-id="@p.Id" class="d-flex gap-1">
+                    <form method="post" asp-page-handler="AddStock" asp-route-id="@p.Id" asp-route-p="@Model.PageNumber" asp-route-size="@Model.PageSize" class="d-flex gap-1">
                         <input type="number" name="quantity" value="10" min="1" class="form-control form-control-sm" style="width: 6rem" />
                         <button type="submit" class="btn btn-sm btn-outline-primary">+</button>
                     </form>
                 </td>
                 <td class="text-nowrap">
                     <a asp-page="/Products/Edit" asp-route-id="@p.Id" class="btn btn-sm btn-outline-secondary">Upravit</a>
-                    <form method="post" asp-page-handler="Delete" asp-route-id="@p.Id" class="d-inline">
+                    <form method="post" asp-page-handler="Delete" asp-route-id="@p.Id" asp-route-p="@Model.PageNumber" asp-route-size="@Model.PageSize" class="d-inline">
                         <button type="submit" class="btn btn-sm btn-outline-danger">Smazat</button>
                     </form>
                 </td>
@@ -47,6 +47,7 @@
         }
     </tbody>
 </table></div>
+<partial name="_Pager" model="Model.Pager" />
 
 <h2 class="h4 mt-4">Nový produkt</h2>
 <form method="post" asp-page-handler="Create" class="row g-2 card card-body flex-row mx-0 admin-form">

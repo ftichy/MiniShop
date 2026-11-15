@@ -40,7 +40,7 @@
                 <td class="text-end">
                     @if (coupon.IsActive)
                     {
-                        <form method="post" asp-page-handler="Deactivate" asp-route-id="@coupon.Id">
+                        <form method="post" asp-page-handler="Deactivate" asp-route-id="@coupon.Id" asp-route-p="@Model.PageNumber" asp-route-size="@Model.PageSize">
                             <button type="submit" class="btn btn-outline-secondary btn-sm" data-track="coupon-deactivate">Vypnout</button>
                         </form>
                     }
@@ -49,6 +49,7 @@
         }
     </tbody>
 </table></div>
+<partial name="_Pager" model="Model.Pager" />
 
 <h2 class="h5 mt-4">Nový kupon</h2>
 <form method="post" asp-page-handler="Create" class="row g-2 align-items-end card card-body flex-row mx-0 admin-form">

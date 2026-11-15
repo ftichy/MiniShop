@@ -22,7 +22,7 @@ public sealed class UserAdministrationTests(MiniShopWebFactory web)
         var orderId = await web.CreateOrderForAsync(_email);
         var admin = await web.LoginAsync(MiniShopWebFactory.AdminEmail, MiniShopWebFactory.AdminPassword);
 
-        var list = await PageAsync(admin, "/Admin/Users");
+        var list = await PageAsync(admin, $"/Admin/Users?q={Uri.EscapeDataString(_email)}");   // seznam je po stránkách – hledání
         var detail = await PageAsync(admin, $"/Admin/Users/Detail/{await UserIdAsync()}");
 
         Assert.Contains(_email, list);

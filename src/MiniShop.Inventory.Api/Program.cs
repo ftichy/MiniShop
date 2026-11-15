@@ -43,6 +43,7 @@ try
     builder.Services.AddSingleton(TimeProvider.System);
     builder.Services.AddScoped<IProductService, ProductService>();
     builder.Services.AddScoped<ICategoryService, CategoryService>();
+    builder.Services.AddScoped<ProductImportService>();   // příkaz import-products (issue #115)
     builder.Services.AddIntegrationMessageHandler<ReserveStockV1, ReserveStockHandler>(IntegrationModules.Inventory);
     builder.Services.AddIntegrationMessageHandler<ReleaseStockV1, ReleaseStockHandler>(IntegrationModules.Inventory);
     builder.Services.AddIntegrationMessageHandler<RestockReturnedGoodsV1, RestockReturnedGoodsHandler>(IntegrationModules.Inventory);   // e-shop krok 12: vratky
@@ -79,6 +80,13 @@ try
     var app = builder.Build();
 
     await InventoryDatabaseInitializer.InitializeAsync(app.Services, app.Services.GetRequiredService<TimeProvider>());
+
+    // Issue #115: "dotnet MiniShop.Inventory.Api.dll import-products" naplní sklad produkty a skončí (službu nespustí).
+    if (ImportProductsCommand.IsRequested(args))
+    {
+        Environment.ExitCode = await ImportProductsCommand.RunAsync(app.Services, args);
+        return;
+    }
 
     if (app.Environment.IsDevelopment())
     {

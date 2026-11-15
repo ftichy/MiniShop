@@ -1,0 +1,244 @@
+{
+  "products": [
+    {
+      "name": "Notebook Nordix Air 14",
+      "description": "14\" IPS 1920×1200, Intel Core Ultra 5, 16 GB RAM, SSD 512 GB, Wi-Fi 6E, podsvícená klávesnice, hmotnost 1,3 kg. Tenký a lehký notebook na cesty i do školy, baterie vydrží až 14 hodin.",
+      "price": 18990,
+      "stockQuantity": 14,
+      "category": "Notebooky",
+      "image": "nordix-air-14.png"
+    },
+    {
+      "name": "Notebook Nordix Pro 16",
+      "description": "16\" QHD+ 165 Hz, AMD Ryzen 7, 32 GB RAM, SSD 1 TB, grafika RTX 4060 8 GB. Výkon pro programování, střih videa i 3D, kvalitní chlazení a hliníkové tělo.",
+      "price": 34990,
+      "stockQuantity": 6,
+      "category": "Notebooky",
+      "image": "nordix-pro-16.png"
+    },
+    {
+      "name": "Herní notebook Voltra Strike 15",
+      "description": "15,6\" FHD 240 Hz, Intel Core i7, 16 GB DDR5, SSD 1 TB, grafika RTX 4070 8 GB, RGB klávesnice. Herní výkon s pokročilým chlazením a rychlým displejem.",
+      "price": 39990,
+      "stockQuantity": 3,
+      "category": "Notebooky",
+      "image": "voltra-strike-15.png"
+    },
+    {
+      "name": "Notebook Nordix Go 15",
+      "description": "15,6\" FHD, Intel Core i3, 8 GB RAM, SSD 256 GB, numerická klávesnice. Spolehlivý kancelářský notebook za rozumnou cenu.",
+      "price": 12490,
+      "stockQuantity": 25,
+      "category": "Notebooky",
+      "image": "nordix-go-15.png"
+    },
+    {
+      "name": "Smartphone Nordix X5 128 GB",
+      "description": "6,5\" AMOLED 120 Hz, 8 GB RAM, úložiště 128 GB, trojitý fotoaparát 50 Mpx, baterie 5000 mAh, rychlé nabíjení 45 W, podpora 5G a dual SIM.",
+      "price": 7490,
+      "stockQuantity": 40,
+      "category": "Telefony a tablety",
+      "image": "nordix-x5.png"
+    },
+    {
+      "name": "Smartphone Nordix X7 Pro 256 GB",
+      "description": "6,7\" LTPO AMOLED 144 Hz, 12 GB RAM, 256 GB, fotoaparát 200 Mpx s optickou stabilizací, bezdrátové nabíjení 50 W, hliníkový rám, odolnost IP68.",
+      "price": 15990,
+      "stockQuantity": 12,
+      "category": "Telefony a tablety",
+      "image": "nordix-x7-pro.png"
+    },
+    {
+      "name": "Tablet Nordix Tab 11",
+      "description": "11\" displej 2K 120 Hz, 8 GB RAM, 256 GB, čtyři reproduktory, baterie 8000 mAh. Vhodný ke čtení, filmům i poznámkám s perem.",
+      "price": 8990,
+      "stockQuantity": 9,
+      "category": "Telefony a tablety",
+      "image": "nordix-tab-11.png"
+    },
+    {
+      "name": "Tablet Nordix Tab Lite 8",
+      "description": "8\" HD displej, 4 GB RAM, 64 GB, Wi-Fi, lehký a skladný. Ideální pro děti, kuchyň nebo jako čtečka.",
+      "price": 3490,
+      "stockQuantity": 0,
+      "category": "Telefony a tablety",
+      "image": "nordix-tab-lite-8.png"
+    },
+    {
+      "name": "Monitor Voltra 24\" Full HD",
+      "description": "24\" IPS 1920×1080, 75 Hz, 5 ms, HDMI + DisplayPort, tenké rámečky, naklápění. Základní monitor do kanceláře.",
+      "price": 3290,
+      "stockQuantity": 30,
+      "category": "Monitory",
+      "image": "voltra-24-fhd.png"
+    },
+    {
+      "name": "Monitor Voltra 27\" 4K UHD",
+      "description": "27\" IPS 3840×2160, 60 Hz, pokrytí sRGB 99 %, USB-C s napájením 65 W, výškově nastavitelný stojan. Ostrý obraz pro práci i grafiku.",
+      "price": 8990,
+      "stockQuantity": 8,
+      "category": "Monitory",
+      "image": "voltra-27-4k.png"
+    },
+    {
+      "name": "Ultraširoký monitor Voltra 34\" UWQHD",
+      "description": "34\" zakřivený VA 3440×1440, 144 Hz, poměr 21:9, HDR400, AMD FreeSync. Víc místa pro okna i do her.",
+      "price": 11990,
+      "stockQuantity": 4,
+      "category": "Monitory",
+      "image": "voltra-34-uw.png"
+    },
+    {
+      "name": "Herní monitor Voltra 27\" 240 Hz",
+      "description": "27\" QHD IPS 2560×1440, 240 Hz, odezva 1 ms, G-Sync Compatible, DisplayPort 1.4. Plynulý obraz pro soutěžní hry.",
+      "price": 9490,
+      "stockQuantity": 2,
+      "category": "Monitory",
+      "image": "voltra-27-240.png"
+    },
+    {
+      "name": "SSD disk NVMe 1 TB",
+      "description": "M.2 2280 PCIe 4.0 x4, čtení až 7000 MB/s, zápis až 5300 MB/s, životnost 600 TBW. Rychlé úložiště pro PC i herní konzole.",
+      "price": 2190,
+      "stockQuantity": 60,
+      "category": "Počítačové komponenty",
+      "image": "ssd-nvme-1tb.png"
+    },
+    {
+      "name": "SSD disk NVMe 2 TB",
+      "description": "M.2 2280 PCIe 4.0 x4, čtení až 7300 MB/s, zápis až 6600 MB/s, chladič v balení, životnost 1200 TBW.",
+      "price": 3990,
+      "stockQuantity": 35,
+      "category": "Počítačové komponenty",
+      "image": "ssd-nvme-2tb.png"
+    },
+    {
+      "name": "Paměť DDR5 32 GB (2× 16 GB) 6000 MHz",
+      "description": "Sada dvou modulů DDR5-6000, CL30, profil XMP/EXPO, hliníkové chladiče. Pro moderní desky AM5 a LGA1700.",
+      "price": 2990,
+      "stockQuantity": 28,
+      "category": "Počítačové komponenty",
+      "image": "ram-ddr5-32.png"
+    },
+    {
+      "name": "Grafická karta GeForce RTX 4060 8 GB",
+      "description": "8 GB GDDR6, PCIe 4.0, DLSS 3, ray tracing, tři DisplayPorty a HDMI 2.1, dvouventilátorové chlazení. Plynulé hraní ve Full HD i QHD.",
+      "price": 8990,
+      "stockQuantity": 2,
+      "category": "Počítačové komponenty",
+      "image": "gpu-rtx-4060.png"
+    },
+    {
+      "name": "Procesor 8jádrový AM5 4,7 GHz",
+      "description": "8 jader / 16 vláken, boost až 5,3 GHz, 32 MB cache, patice AM5, integrovaná grafika, bez chladiče v balení.",
+      "price": 6490,
+      "stockQuantity": 11,
+      "category": "Počítačové komponenty",
+      "image": "cpu-8core-am5.png"
+    },
+    {
+      "name": "PC zdroj 750 W 80 PLUS Gold",
+      "description": "Plně modulární zdroj, účinnost 80 PLUS Gold, tichý ventilátor 135 mm, konektor 12VHPWR pro moderní grafické karty, záruka 7 let.",
+      "price": 2390,
+      "stockQuantity": 17,
+      "category": "Počítačové komponenty",
+      "image": "psu-750-gold.png"
+    },
+    {
+      "name": "Herní myš Voltra Pro Wireless",
+      "description": "Bezdrátová myš 2,4 GHz, senzor 26 000 DPI, váha 63 g, 6 programovatelných tlačítek, výdrž baterie 70 hodin.",
+      "price": 1190,
+      "stockQuantity": 45,
+      "category": "Periferie",
+      "image": "voltra-mys-pro.png"
+    },
+    {
+      "name": "Bezdrátová klávesnice Nordix Slim",
+      "description": "Nízkoprofilová klávesnice s Bluetooth pro 3 zařízení, CZ layout, tiché klávesy, USB-C nabíjení, výdrž až 4 měsíce.",
+      "price": 1490,
+      "stockQuantity": 22,
+      "category": "Periferie",
+      "image": "nordix-klavesnice-bt.png"
+    },
+    {
+      "name": "Webkamera Nordix Cam Full HD",
+      "description": "1080p / 30 fps, automatické ostření, dva mikrofony s potlačením šumu, krytka objektivu, připojení USB-A.",
+      "price": 790,
+      "stockQuantity": 33,
+      "category": "Periferie",
+      "image": "nordix-webkamera-fhd.png"
+    },
+    {
+      "name": "Bluetooth sluchátka Nordix Quiet ANC",
+      "description": "Bezdrátová sluchátka s aktivním potlačením hluku, Bluetooth 5.3, výdrž 40 hodin, multipoint, skládací konstrukce s pouzdrem.",
+      "price": 2990,
+      "stockQuantity": 18,
+      "category": "Audio",
+      "image": "nordix-sluchatka-anc.png"
+    },
+    {
+      "name": "Bluetooth reproduktor Nordix Boom",
+      "description": "Přenosný reproduktor 20 W, voděodolný IP67, výdrž 16 hodin, možnost spárovat dva kusy do stereo dvojice.",
+      "price": 1290,
+      "stockQuantity": 26,
+      "category": "Audio",
+      "image": "nordix-reproduktor-bt.png"
+    },
+    {
+      "name": "Wi-Fi 6 router Nordix AX3000",
+      "description": "Dvoupásmový router Wi-Fi 6 až 3000 Mb/s, 4× gigabitový LAN, WPA3, rodičovská kontrola, snadné nastavení v aplikaci.",
+      "price": 2190,
+      "stockQuantity": 20,
+      "category": "Síťové prvky",
+      "image": "nordix-router-ax3000.png"
+    },
+    {
+      "name": "Wi-Fi mesh systém Nordix Home (3 jednotky)",
+      "description": "Tří-jednotkový mesh Wi-Fi 6 AX1800 pro pokrytí domu do 400 m², jedno jméno sítě, automatické přepínání zařízení.",
+      "price": 5990,
+      "stockQuantity": 7,
+      "category": "Síťové prvky",
+      "image": "nordix-mesh-3.png"
+    },
+    {
+      "name": "Switch Nordix 8× Gigabit",
+      "description": "Nespravovaný 8portový gigabitový switch, kovový kryt, tichý provoz bez ventilátoru, plug and play.",
+      "price": 590,
+      "stockQuantity": 50,
+      "category": "Síťové prvky",
+      "image": "nordix-switch-8.png"
+    },
+    {
+      "name": "Powerbanka Nordix 20 000 mAh",
+      "description": "Kapacita 20 000 mAh, USB-C PD 45 W + 2× USB-A, displej s procenty, dobije notebook i telefon.",
+      "price": 890,
+      "stockQuantity": 38,
+      "category": "Příslušenství",
+      "image": "nordix-powerbanka-20k.png"
+    },
+    {
+      "name": "Nabíječka GaN 65 W",
+      "description": "Kompaktní GaN nabíječka 65 W se dvěma USB-C a jedním USB-A, nabije notebook, tablet i telefon najednou.",
+      "price": 790,
+      "stockQuantity": 42,
+      "category": "Příslušenství",
+      "image": "nordix-nabijecka-gan-65.png"
+    },
+    {
+      "name": "USB-C hub 7v1",
+      "description": "Rozbočovač USB-C: HDMI 4K/60, 2× USB-A 3.0, čtečka SD a microSD, gigabitový LAN, průchozí napájení 100 W.",
+      "price": 1290,
+      "stockQuantity": 24,
+      "category": "Příslušenství",
+      "image": "nordix-hub-7v1.png"
+    },
+    {
+      "name": "Kabel HDMI 2.1 8K, 2 m",
+      "description": "Certifikovaný kabel HDMI 2.1 s podporou 8K/60 a 4K/120, eARC, pozlacené konektory, opletený.",
+      "price": 299,
+      "stockQuantity": 80,
+      "category": "Kabely",
+      "image": "hdmi-21-2m.png"
+    }
+  ]
+}

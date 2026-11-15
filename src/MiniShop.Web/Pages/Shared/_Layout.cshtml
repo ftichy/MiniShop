@@ -102,6 +102,8 @@
     </footer>
     @* Redesign A: Bootstrap JS lokálně (menu na mobilu, rozbalovací nabídky, panel filtrů) – soubor, ne inline skript (CSP). *@
     <script src="~/lib/bootstrap/js/bootstrap.bundle.min.js" asp-append-version="true"></script>
+    @* Stránkování seznamů: výběr velikosti stránky odešle formulář (partial _Pager). *@
+    <script src="~/js/pager.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

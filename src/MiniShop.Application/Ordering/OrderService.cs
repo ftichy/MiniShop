@@ -39,14 +39,19 @@ public sealed class OrderService(
         return visible.Select(o => o.ToDto()).ToList();
     }
 
+    public async Task<PagedList<OrderDto>> GetPageAsync(OrderAccess access,
+        PageRequest page, int? orderId = null, CancellationToken cancellationToken = default) =>
+        (await orders.GetPageAsync(access.CustomerId, orderId, page, cancellationToken)).Map(o => o.ToDto());
+
     public async Task<IReadOnlyList<CatalogItemDto>> GetCatalogAsync(CancellationToken cancellationToken = default)
     {
         var products = await catalog.GetAvailableAsync(cancellationToken);
         return products.Select(p => p.ToCatalogItemDto()).ToList();
     }
 
-    public Task<IReadOnlyList<CustomerOrderSummaryDto>> GetCustomerSummariesAsync(CancellationToken cancellationToken = default) =>
-        orders.GetCustomerSummariesAsync(cancellationToken);
+    public Task<IReadOnlyList<CustomerOrderSummaryDto>> GetCustomerSummariesAsync(IReadOnlyCollection<string>? customerIds = null,
+        CancellationToken cancellationToken = default) =>
+        orders.GetCustomerSummariesAsync(customerIds, cancellationToken);
 
     public async Task<OrderDto> GetByIdAsync(int id, OrderAccess access, CancellationToken cancellationToken = default)
     {

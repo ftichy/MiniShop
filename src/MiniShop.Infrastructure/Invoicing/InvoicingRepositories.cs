@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using MiniShop.Application.Abstractions;
 using MiniShop.Application.Invoicing;
 using MiniShop.Domain.Invoicing;
 using MiniShop.Infrastructure.Integration;
+using MiniShop.Infrastructure.Persistence;
 
 namespace MiniShop.Infrastructure.Invoicing;
 
@@ -24,8 +26,8 @@ public sealed class InvoiceRepository(InvoicingDbContext db) : IInvoiceRepositor
     public Task<bool> ExistsForOrderAsync(int orderId, CancellationToken cancellationToken = default) =>
         db.Invoices.AnyAsync(i => i.OrderId == orderId, cancellationToken);
 
-    public async Task<IReadOnlyList<Invoice>> GetLatestAsync(int count, CancellationToken cancellationToken = default) =>
-        await db.Invoices.AsNoTracking().OrderByDescending(i => i.Id).Take(count).ToListAsync(cancellationToken);
+    public Task<PagedList<Invoice>> GetPageAsync(PageRequest page, CancellationToken cancellationToken = default) =>
+        db.Invoices.AsNoTracking().OrderByDescending(i => i.Id).ToPagedListAsync(page, cancellationToken);
 
     public void Add(Invoice invoice) => db.Invoices.Add(invoice);
 }

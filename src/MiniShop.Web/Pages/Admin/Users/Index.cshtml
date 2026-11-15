@@ -9,6 +9,30 @@
     Útrata = potvrzené a vyřízené objednávky.
 </p>
 
+@* Stránkování: hledání podle části e-mailu (GET – zachová velikost stránky). *@
+<form method="get" class="row g-2 align-items-end mb-2" role="search" data-track="users-search">
+    <div class="col-12 col-sm-auto">
+        <label for="users-search" class="form-label small mb-0">E-mail obsahuje</label>
+        <input id="users-search" name="q" type="search" value="@Model.Search" class="form-control form-control-sm" />
+    </div>
+    @if (Model.PageSize is { } size)
+    {
+        <input type="hidden" name="size" value="@size" />
+    }
+    <div class="col-auto">
+        <button type="submit" class="btn btn-sm btn-outline-secondary">Hledat</button>
+        @if (!string.IsNullOrWhiteSpace(Model.Search))
+        {
+            <a asp-page="/Admin/Users/Index" class="btn btn-sm btn-link">Zrušit hledání</a>
+        }
+    </div>
+</form>
+
+@if (Model.Users.Count == 0 && !string.IsNullOrWhiteSpace(Model.Search))
+{
+    <p class="text-muted">Žádný účet s e-mailem obsahujícím „@Model.Search“.</p>
+}
+
 <div class="table-responsive admin-table"><table class="table table-striped align-middle">
     <thead>
         <tr>
@@ -41,6 +65,8 @@
         }
     </tbody>
 </table></div>
+
+<partial name="_Pager" model="Model.Pager" />
 
 <h2 class="h4 mt-4">Poslední změny</h2>
 @if (Model.RecentAudit.Count == 0)

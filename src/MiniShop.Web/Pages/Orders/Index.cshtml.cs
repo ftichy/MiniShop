@@ -6,7 +6,9 @@ using MiniShop.Application.Ordering.Catalog;
 using MiniShop.Application.Exceptions;
 using MiniShop.Domain.Exceptions;
 using MiniShop.Infrastructure.Accounts;
+using MiniShop.Application.Abstractions;
 using MiniShop.Web.Accounts;
+using MiniShop.Web.Ui;
 
 namespace MiniShop.Web.Pages.Orders;
 
@@ -31,7 +33,22 @@ public sealed class IndexModel(
     /// <summary>Účty krok 2: vyřízení, obnova katalogu a průběh objednávek jen pro admina.</summary>
     public bool CanManageOrders { get; private set; }
 
-    public IReadOnlyList<OrderDto> Orders { get; private set; } = [];
+    /// <summary>Stránkování: aktuální stránka objednávek (nejnovější první).</summary>
+    public PagedList<OrderDto> OrderPage { get; private set; } = new([], 1, PageRequest.DefaultSize, 0);
+
+    public IReadOnlyList<OrderDto> Orders => OrderPage.Items;
+
+    public PagerModel Pager => PagerModel.From(OrderPage, "orders");
+
+    [BindProperty(SupportsGet = true, Name = PagerModel.PageParameter)]
+    public int? PageNumber { get; set; }
+
+    [BindProperty(SupportsGet = true, Name = PagerModel.SizeParameter)]
+    public int? PageSize { get; set; }
+
+    /// <summary>Hledání podle čísla objednávky (zákazník najde jen svou, admin kteroukoli).</summary>
+    [BindProperty(SupportsGet = true, Name = "order")]
+    public int? SearchId { get; set; }
 
     [TempData]
     public string? StatusMessage { get; set; }
@@ -83,7 +100,7 @@ public sealed class IndexModel(
         CanPlaceOrders = await IsAuthorizedAsync(AuthorizationPolicies.RequireCustomer);
         NeedsEmailConfirmation = !CanPlaceOrders && User.IsInRole(AccountRoles.User);
         CanManageOrders = await IsAuthorizedAsync(AuthorizationPolicies.RequireAdmin);
-        Orders = await orderService.GetAllAsync(User.ToOrderAccess(), cancellationToken);
+        OrderPage = await orderService.GetPageAsync(User.ToOrderAccess(), PageRequest.Of(PageNumber, PageSize), SearchId, cancellationToken);
     }
 
     /// <summary>

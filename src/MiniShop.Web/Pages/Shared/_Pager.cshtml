@@ -1,0 +1,69 @@
+@model MiniShop.Web.Ui.PagerModel
+@using MiniShop.Application.Abstractions
+@using MiniShop.Web.Ui
+@*
+    Stránkování seznamů: počet záznamů, velikost stránky (GET formulář – pager.js ho po výběru odešle, bez JavaScriptu
+    tlačítko) a odkazy na stránky. Jen odkazy a formulář – žádný inline skript (CSP). Použití:
+    <partial name="_Pager" model="Model.Pager" />
+*@
+<div class="pager d-flex flex-wrap align-items-center justify-content-between gap-2 my-3" data-track="pager-@Model.Track">
+    <div class="text-muted small">
+        @if (Model.TotalCount == 0)
+        {
+            <span>Žádné záznamy</span>
+        }
+        else
+        {
+            <span>Zobrazeno @Model.FirstItem–@Model.LastItem z @Model.TotalCount</span>
+        }
+    </div>
+
+    @if (Model.PageCount > 1)
+    {
+        <nav aria-label="Stránky">
+            <ul class="pagination pagination-sm flex-wrap mb-0">
+                <li class="page-item @(Model.Page == 1 ? "disabled" : "")">
+                    <a class="page-link" href="@PagerModel.Url(Context.Request, Model.Page - 1, Model.Size)"
+                       aria-label="Předchozí stránka" data-track="pager-@Model.Track-prev">‹</a>
+                </li>
+                @foreach (var number in Model.Window())
+                {
+                    if (number is null)
+                    {
+                        <li class="page-item disabled"><span class="page-link">…</span></li>
+                    }
+                    else
+                    {
+                        <li class="page-item @(number == Model.Page ? "active" : "")">
+                            <a class="page-link" href="@PagerModel.Url(Context.Request, number.Value, Model.Size)"
+                               aria-current="@(number == Model.Page ? "page" : null)">@number</a>
+                        </li>
+                    }
+                }
+                <li class="page-item @(Model.Page == Model.PageCount ? "disabled" : "")">
+                    <a class="page-link" href="@PagerModel.Url(Context.Request, Model.Page + 1, Model.Size)"
+                       aria-label="Další stránka" data-track="pager-@Model.Track-next">›</a>
+                </li>
+            </ul>
+        </nav>
+    }
+
+    @if (Model.TotalCount > PageRequest.Sizes[0])
+    {
+        <form method="get" class="d-flex align-items-center gap-2" data-pager-size-form>
+            @foreach (var parameter in PagerModel.OtherParameters(Context.Request))
+            {
+                <input type="hidden" name="@parameter.Key" value="@parameter.Value" />
+            }
+            <label for="pager-size-@Model.Track" class="small text-muted text-nowrap">Na stránku</label>
+            <select id="pager-size-@Model.Track" name="@PagerModel.SizeParameter" class="form-select form-select-sm w-auto"
+                    data-pager-size data-track="pager-@Model.Track-size">
+                @foreach (var size in PageRequest.Sizes)
+                {
+                    <option value="@size" selected="@(size == Model.Size)">@size</option>
+                }
+            </select>
+            <noscript><button type="submit" class="btn btn-sm btn-outline-secondary">Zobrazit</button></noscript>
+        </form>
+    }
+</div>

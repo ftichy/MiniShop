@@ -48,14 +48,14 @@ public sealed class InvoiceService(
         return new OrderDocumentsDto(invoice.Number, creditNote?.Number);
     }
 
-    public async Task<IReadOnlyList<InvoiceSummaryDto>> GetLatestAsync(int count, CancellationToken cancellationToken = default)
+    /// <summary>Stránka faktur pro přehled admina (nejnovější první) – dobropisy se dohledají jen k fakturám na stránce.</summary>
+    public async Task<MiniShop.Application.Abstractions.PagedList<InvoiceSummaryDto>> GetPageAsync(
+        MiniShop.Application.Abstractions.PageRequest page, CancellationToken cancellationToken = default)
     {
-        var latest = await invoices.GetLatestAsync(count, cancellationToken);
-        var credited = await creditNotes.GetByOrdersAsync(latest.Select(invoice => invoice.OrderId).ToList(), cancellationToken);
-        return latest
-            .Select(invoice => new InvoiceSummaryDto(invoice.Number, invoice.OrderId, invoice.CustomerName, invoice.Total,
-                invoice.IssuedAtUtc, credited.GetValueOrDefault(invoice.OrderId)?.Number))
-            .ToList();
+        var invoicePage = await invoices.GetPageAsync(page, cancellationToken);
+        var credited = await creditNotes.GetByOrdersAsync(invoicePage.Items.Select(invoice => invoice.OrderId).ToList(), cancellationToken);
+        return invoicePage.Map(invoice => new InvoiceSummaryDto(invoice.Number, invoice.OrderId, invoice.CustomerName,
+            invoice.Total, invoice.IssuedAtUtc, credited.GetValueOrDefault(invoice.OrderId)?.Number));
     }
 
     private static bool IsAllowed(string ownerId, string? customerId) => customerId is null || ownerId == customerId;

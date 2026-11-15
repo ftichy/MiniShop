@@ -27,8 +27,8 @@ public interface IInvoiceRepository
 
     Task<bool> ExistsForOrderAsync(int orderId, CancellationToken cancellationToken = default);
 
-    /// <summary>Nejnovější faktury (přehled pro admina).</summary>
-    Task<IReadOnlyList<Invoice>> GetLatestAsync(int count, CancellationToken cancellationToken = default);
+    /// <summary>Stránka faktur, nejnovější první (přehled pro admina – faktury se drží 10 let).</summary>
+    Task<PagedList<Invoice>> GetPageAsync(PageRequest page, CancellationToken cancellationToken = default);
 
     void Add(Invoice invoice);
 }

@@ -100,6 +100,8 @@ Plán (výloha, košík, pokladna, expedice, platba, notifikace): [docs/Eshop-ro
 | 16 | Skutečná platební brána – Stripe Checkout v testovacím režimu jako další implementace `IPaymentGateway` (adaptér), webhook s podpisem `Stripe-Signature`, idempotency key pro založení i refund, skutečný refund pozdní platby; sága ani kontrakty beze změny | [eshop-16](code:docs/kroky-eshop/krok-16-stripe.md) |
 | 17 | Event sourcing košíku – události `CartEvents` jako zdroj pravdy agregátu `Cart`, tabulky košíku jako projekce, přirozený snapshot (od posledního objednání/vyprázdnění), souběh přes verzi proudu, převzetí starých košíků snapshotem; historie košíku a statistika „co zákazníci odebírají“ z událostí | [eshop-17](code:docs/kroky-eshop/krok-17-event-sourcing-kosiku.md) |
 | 18 | „Dejte mi vědět“ – zákazník se u vyprodaného produktu přihlásí k upozornění (lísteček v modulu Notifications), po naskladnění (`StockAvailabilityChangedV1`) dostane jeden e-mail a lísteček se smaže; první krok, který vytvořil agent Claude z GitHub issue ([Agent Claude v issues](github/agent.md)) | [eshop-18](code:docs/kroky-eshop/krok-18-dejte-mi-vedet.md) |
+| 19 | E2E testy v prohlížeči – Playwright (Chromium) projde nákup kartou, expedici a mobil nad aplikací v Compose; Mailpit pro potvrzení e-mailu, nepovinný job v CI | [eshop-19](code:docs/kroky-eshop/krok-19-e2e-testy.md) |
+| 20 | Stránkování seznamů – objednávky, uživatelé, faktury, hodnocení, produkty, kupony a historie přihlášení po stránkách (10/20/50/100), hledání uživatelů podle e-mailu a objednávek podle čísla | [eshop-20](code:docs/kroky-eshop/krok-20-strankovani.md) |
 
 ## Vzhled
 

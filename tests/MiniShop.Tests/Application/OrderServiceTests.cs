@@ -1124,7 +1124,7 @@ public sealed class OrderServiceTests : IDisposable
         var creditNote = (await CreditNoteAsync(order.Id))!.Number;
         Assert.Equal(creditNote, (await service.GetDocumentsAsync(order.Id, Jan.CustomerId)).CreditNoteNumber);
         Assert.Equal(new OrderDocumentsDto(null, null), await service.GetDocumentsAsync(order.Id, Petra.CustomerId));
-        Assert.Equal(creditNote, (await service.GetLatestAsync(10)).Single(i => i.OrderId == order.Id).CreditNoteNumber);
+        Assert.Equal(creditNote, (await service.GetPageAsync(PageRequest.First)).Items.Single(i => i.OrderId == order.Id).CreditNoteNumber);
     }
 
     private Task<CreditNote?> CreditNoteAsync(int orderId) =>
@@ -1192,7 +1192,7 @@ public sealed class OrderServiceTests : IDisposable
         await ProcessOutboxAsync();
         Assert.Equal((2m, 2), await RatingInShopAsync(product.Id));
 
-        var petra = (await Reviews(s => s.GetLatestAsync())).Single(r => r.AuthorName == "Petra M.");
+        var petra = (await Reviews(s => s.GetPageAsync(PageRequest.First))).Items.Single(r => r.AuthorName == "Petra M.");
         await Reviews(s => s.SetHiddenAsync(petra.Id, hidden: true));   // moderace
         await ProcessOutboxAsync();
 

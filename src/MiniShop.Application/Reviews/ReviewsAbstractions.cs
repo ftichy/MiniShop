@@ -17,8 +17,8 @@ public interface IReviewRepository
 
     Task<Review?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
 
-    /// <summary>Nejnovější hodnocení napříč produkty (stránka Hodnocení pro admina).</summary>
-    Task<IReadOnlyList<Review>> GetLatestAsync(int count, CancellationToken cancellationToken = default);
+    /// <summary>Stránka hodnocení napříč produkty, nejnovější první (stránka Hodnocení pro admina).</summary>
+    Task<PagedList<Review>> GetPageAsync(PageRequest page, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<Review>> GetByCustomerAsync(string customerId, CancellationToken cancellationToken = default);
 

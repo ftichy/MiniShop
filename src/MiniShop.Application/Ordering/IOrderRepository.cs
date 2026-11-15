@@ -1,3 +1,4 @@
+using MiniShop.Application.Abstractions;
 using MiniShop.Domain.Orders;
 
 namespace MiniShop.Application.Ordering;
@@ -6,8 +7,13 @@ public interface IOrderRepository
 {
     /// <summary>Objednávky zákazníka, nebo všechny (<paramref name="customerId"/> = null). Účty krok 3.</summary>
     Task<IReadOnlyList<Order>> GetAllAsync(string? customerId, CancellationToken cancellationToken = default);
+
+    /// <summary>Stránka objednávek (nejnovější první) – zákazníka, nebo všech; volitelně jen jedno číslo objednávky (hledání).</summary>
+    Task<PagedList<Order>> GetPageAsync(string? customerId, int? orderId,
+        PageRequest page, CancellationToken cancellationToken = default);
     /// <summary>Počet objednávek a útrata za každého zákazníka (účty krok 6 – přehled uživatelů).</summary>
-    Task<IReadOnlyList<CustomerOrderSummaryDto>> GetCustomerSummariesAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<CustomerOrderSummaryDto>> GetCustomerSummariesAsync(IReadOnlyCollection<string>? customerIds = null,
+        CancellationToken cancellationToken = default);
     Task<Order?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
 
     /// <summary>E-shop krok 6: objednávky v daných stavech (fronty expedice), nejstarší první.</summary>

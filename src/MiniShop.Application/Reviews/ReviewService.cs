@@ -56,10 +56,10 @@ public sealed class ReviewService(
         await SaveWithSummaryAsync(productId, all, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<ReviewAdminDto>> GetLatestAsync(int count = 100, CancellationToken cancellationToken = default) =>
-        (await reviews.GetLatestAsync(count, cancellationToken))
-            .Select(r => new ReviewAdminDto(r.Id, r.ProductId, r.AuthorName, r.Rating, r.Text, r.UpdatedAtUtc, r.IsHidden))
-            .ToList();
+    public async Task<MiniShop.Application.Abstractions.PagedList<ReviewAdminDto>> GetPageAsync(
+        MiniShop.Application.Abstractions.PageRequest page, CancellationToken cancellationToken = default) =>
+        (await reviews.GetPageAsync(page, cancellationToken))
+            .Map(r => new ReviewAdminDto(r.Id, r.ProductId, r.AuthorName, r.Rating, r.Text, r.UpdatedAtUtc, r.IsHidden));
 
     /// <summary>Moderace – skryté hodnocení zmizí ze stránky i z průměru (nový souhrn jde do výlohy).</summary>
     public async Task SetHiddenAsync(int reviewId, bool hidden, CancellationToken cancellationToken = default)

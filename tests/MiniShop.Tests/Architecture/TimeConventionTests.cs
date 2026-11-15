@@ -21,6 +21,27 @@ public sealed class TimeConventionTests
         Assert.True(offenders.Count == 0, "Použijte CzechTime místo ToLocalTime: " + string.Join(", ", offenders));
     }
 
+    /// <summary>
+    /// Totéž opačným směrem: „místní“ datum z formuláře převádět přes CzechTime.ToUtc, ne přes DateTimeKind.Local
+    /// + ToUniversalTime (zóna serveru – kupon „platí do 31. 12.“ platil v kontejneru o hodinu déle). Výjimka:
+    /// převodník v ModuleDatabase, který jen pojistí UTC u hodnot, které by EF dostal s Kind = Local.
+    /// </summary>
+    [Fact]
+    public void ZdrojoveKody_NepouzivajiDateTimeKindLocal()
+    {
+        var root = FindRepositoryRoot();
+        var offenders = Directory.EnumerateFiles(Path.Combine(root, "src"), "*.*", SearchOption.AllDirectories)
+            .Where(f => f.EndsWith(".cs") || f.EndsWith(".cshtml"))
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
+                        && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")
+                        && !f.EndsWith("ModuleDatabase.cs", StringComparison.Ordinal))
+            .Where(f => File.ReadAllText(f).Contains("DateTimeKind.Local", StringComparison.Ordinal))
+            .Select(f => Path.GetRelativePath(root, f))
+            .ToList();
+
+        Assert.True(offenders.Count == 0, "Použijte CzechTime.ToUtc místo DateTimeKind.Local: " + string.Join(", ", offenders));
+    }
+
     private static string FindRepositoryRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);

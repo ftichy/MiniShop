@@ -16,6 +16,9 @@ order: 10
 - **Nikdy `DateTime.ToLocalTime()`** – ten bere časovou zónu stroje. Kontejner v produkci běží v UTC, takže časy by byly
   o hodinu (v létě o dvě) pozadu; na Windows s českou zónou by se chyba lokálně neprojevila. Hlídá to
   `TimeConventionTests`.
+- **Opačný směr stejně:** datum z formuláře („kupon platí do 31. 12.“) je český den → `CzechTime.ToUtc(den.ToDateTime(…))`,
+  **ne** `DateTimeKind.Local` + `ToUniversalTime()` (zóna stroje – kupon v kontejneru platil o hodinu, v létě o dvě déle).
+  Také hlídá `TimeConventionTests`.
 
 ## Proč ne `TZ` v kontejneru
 

@@ -40,6 +40,9 @@ public sealed class IndexModel(CouponService coupons) : PageModel
 
     public Task OnGetAsync(CancellationToken cancellationToken) => LoadAsync(cancellationToken);
 
+    /// <summary>„Platí do“ = konec zvoleného dne v českém čase, převedený na UTC (zóna serveru nehraje roli).</summary>
+    public static DateTime EndOfDayUtc(DateOnly day) => CzechTime.ToUtc(day.ToDateTime(TimeOnly.MaxValue));
+
     // Kuponů jsou jednotky až desítky – stránka v paměti (stejný vzhled jako ostatní seznamy).
     private async Task LoadAsync(CancellationToken cancellationToken) =>
         CouponPage = (await coupons.GetAllAsync(cancellationToken)).ToPagedList(PageRequest.Of(PageNumber, PageSize));
@@ -50,8 +53,9 @@ public sealed class IndexModel(CouponService coupons) : PageModel
         {
             try
             {
-                // Konec zvoleného dne v místním čase → UTC (kupon „do 31. 12.“ platí celý 31. 12.).
-                Input.ValidUntilUtc = ValidUntil?.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Local).ToUniversalTime();
+                // Konec zvoleného dne v českém čase → UTC (kupon „do 31. 12.“ platí celý 31. 12. podle Prahy, ne podle zóny
+                // serveru – v kontejneru je UTC, dřív tak kupon platil o hodinu, v létě o dvě déle).
+                Input.ValidUntilUtc = ValidUntil is { } day ? EndOfDayUtc(day) : null;
                 var created = await coupons.CreateAsync(Input, cancellationToken);
                 StatusMessage = $"Kupon {created.Code} založen.";
                 return RedirectToPage();

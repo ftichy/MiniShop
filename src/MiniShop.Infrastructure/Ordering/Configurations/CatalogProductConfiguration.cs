@@ -21,6 +21,9 @@ internal sealed class CatalogProductConfiguration : IEntityTypeConfiguration<Cat
         builder.Property(p => p.ImageFileName).HasMaxLength(200);
         builder.Property(p => p.Availability).HasConversion<string>().HasMaxLength(20);   // text – čitelné v DB
         builder.Property(p => p.SearchText).IsRequired().HasMaxLength(800);
+
+        // E-shop krok 21: index trojic písmen (pg_trgm) – zrychlí LIKE '%slovo%' i hledání podobných slov.
+        builder.HasIndex(p => p.SearchText).HasMethod("gin").HasOperators("gin_trgm_ops");
         builder.Ignore(p => p.IsOrderable);
         builder.Property(p => p.RatingAverage).HasPrecision(3, 1);   // e-shop krok 14: hodnocení z modulu Reviews
     }

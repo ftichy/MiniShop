@@ -102,6 +102,7 @@ Plán (výloha, košík, pokladna, expedice, platba, notifikace): [docs/Eshop-ro
 | 18 | „Dejte mi vědět“ – zákazník se u vyprodaného produktu přihlásí k upozornění (lísteček v modulu Notifications), po naskladnění (`StockAvailabilityChangedV1`) dostane jeden e-mail a lísteček se smaže; první krok, který vytvořil agent Claude z GitHub issue ([Agent Claude v issues](github/agent.md)) | [eshop-18](code:docs/kroky-eshop/krok-18-dejte-mi-vedet.md) |
 | 19 | E2E testy v prohlížeči – Playwright (Chromium) projde nákup kartou, expedici a mobil nad aplikací v Compose; Mailpit pro potvrzení e-mailu, nepovinný job v CI | [eshop-19](code:docs/kroky-eshop/krok-19-e2e-testy.md) |
 | 20 | Stránkování seznamů – objednávky, uživatelé, faktury, hodnocení, produkty, kupony a historie přihlášení po stránkách (10/20/50/100), hledání uživatelů podle e-mailu a objednávek podle čísla | [eshop-20](code:docs/kroky-eshop/krok-20-strankovani.md) |
+| 21 | Lepší hledání ve výloze – po slovech v libovolném pořadí, řazení podle relevance, překlepy přes PostgreSQL pg_trgm (jen když přesně nic), našeptávač v hlavičce i na stránce Obchod; text dotazu do tras nejde | [eshop-21](code:docs/kroky-eshop/krok-21-hledani.md) |
 
 ## Vzhled
 

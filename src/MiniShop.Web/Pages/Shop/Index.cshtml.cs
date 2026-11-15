@@ -28,7 +28,7 @@ public sealed class IndexModel(ICatalogQueryService catalog, IAuthorizationServi
     public bool InStockOnly { get; set; }
 
     [BindProperty(SupportsGet = true, Name = "sort")]
-    public CatalogSort Sort { get; set; }
+    public CatalogSort? Sort { get; set; }   // e-shop krok 21: prázdné = výchozí (s hledáním relevance, jinak název)
 
     [BindProperty(SupportsGet = true, Name = "p")]
     public int PageNumber { get; set; } = 1;
@@ -50,6 +50,8 @@ public sealed class IndexModel(ICatalogQueryService catalog, IAuthorizationServi
     /// <summary>Tahle stránka i s filtry – kam se vrátit po přidání do košíku nebo po přihlášení.</summary>
     public string CurrentUrl => Request.Path + Request.QueryString;
 
+    public bool HasQuery => !string.IsNullOrWhiteSpace(Query);
+
     public bool HasFilter => !string.IsNullOrWhiteSpace(Query) || CategoryId is not null || InStockOnly;
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
@@ -59,7 +61,7 @@ public sealed class IndexModel(ICatalogQueryService catalog, IAuthorizationServi
         {
             ModelState.Clear();
             CategoryId = null;
-            Sort = CatalogSort.Name;
+            Sort = null;
             PageNumber = 1;
         }
 
@@ -84,7 +86,7 @@ public sealed class IndexModel(ICatalogQueryService catalog, IAuthorizationServi
         if (!string.IsNullOrWhiteSpace(Query)) values["q"] = Query.Trim();
         if (categoryId is not null) values["category"] = categoryId.Value.ToString();
         if (InStockOnly) values["instock"] = "true";
-        if (Sort != CatalogSort.Name) values["sort"] = Sort.ToString();
+        if (Sort is not null) values["sort"] = Sort.Value.ToString();
         return values;
     }
 }

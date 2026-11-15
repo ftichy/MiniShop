@@ -47,4 +47,23 @@ public static class CatalogSearchText
 
         return result.ToString().TrimEnd();
     }
+
+    /// <summary>Nejvýš tolik slov z dotazu – delší dotaz je spíš omyl (vložený text) než hledání.</summary>
+    public const int MaxWords = 8;
+
+    /// <summary>
+    /// E-shop krok 21: dotaz rozdělený na slova (normalizovaná, bez interpunkce na krajích, bez opakování).
+    /// „Notebook, 32 GB!“ → [„notebook“, „32“, „gb“]. Každé slovo pak musí být v textu produktu – v libovolném pořadí.
+    /// </summary>
+    public static IReadOnlyList<string> Words(string? query) =>
+        Normalize(query)
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Select(word => word.Trim(TrimmedPunctuation))
+            .Where(word => word.Length > 0)
+            .Distinct()
+            .Take(MaxWords)
+            .ToList();
+
+    // Interpunkce na krajích slova („myš,“ „(usb-c)“); uvnitř zůstane („usb-c“, „2.5“, „14"“ se zkrátí na „14“).
+    private static readonly char[] TrimmedPunctuation = ".,;:!?\"'()[]{}“”„‚‘’«»…-–—/\\*+".ToCharArray();
 }

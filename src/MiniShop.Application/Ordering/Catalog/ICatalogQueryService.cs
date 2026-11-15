@@ -8,6 +8,9 @@ public interface ICatalogQueryService
 {
     Task<CatalogSearchResult> SearchAsync(CatalogSearchRequest request, CancellationToken cancellationToken = default);
 
+    /// <summary>E-shop krok 21: našeptávač – pár kategorií a nejlepších produktů k rozepsanému dotazu (krátký dotaz = nic).</summary>
+    Task<CatalogSuggestions> SuggestAsync(string? query, CancellationToken cancellationToken = default);
+
     /// <summary>E-shop krok 14: jeden produkt pro stránku detailu (/Shop/{id}); null = neexistuje nebo je stažený z nabídky.</summary>
     Task<CatalogItemDto?> GetProductAsync(int productId, CancellationToken cancellationToken = default);
 }

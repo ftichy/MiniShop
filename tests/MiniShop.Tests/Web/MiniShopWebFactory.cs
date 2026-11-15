@@ -60,6 +60,7 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
         builder.UseSetting("InventoryApi:ApiKey", new string('k', 64));
         // Účty krok 8: limit formulářů účtu vysoko – testy se přihlašují stokrát z jedné „IP“. Limit zkouší vlastní test.
         builder.UseSetting("RateLimiting:AccountForms:PermitLimit", "100000");
+        builder.UseSetting("RateLimiting:CatalogSuggest:PermitLimit", "100000");
 
         // První admin z konfigurace (seed) – stejně jako ve vývoji, jen bez vynucené změny hesla.
         builder.UseSetting("AdminBootstrap:Email", AdminEmail);

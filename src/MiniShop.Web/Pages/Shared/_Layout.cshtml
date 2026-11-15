@@ -63,10 +63,11 @@
                         <li class="nav-item"><a class="nav-link" href="/Docs" data-track="nav-docs">Dokumentace</a></li>
                     </ul>
                     @* Redesign A: hledání přímo z hlavičky – stejný formulář GET jako na stránce Obchod (/Shop?q=…). *@
-                    <form class="header-search my-2 my-lg-0 me-lg-3 flex-grow-1" method="get" action="/Shop" role="search">
+                    <form class="header-search search-suggest my-2 my-lg-0 me-lg-3 flex-grow-1" method="get" action="/Shop" role="search">
                         <div class="input-group">
                             <span class="input-group-text bg-white">@Icons.Search</span>
-                            <input class="form-control border-start-0" type="search" name="q" placeholder="Hledat zboží…" aria-label="Hledat zboží" maxlength="100" data-track="nav-search" />
+                            <input class="form-control border-start-0" type="search" name="q" placeholder="Hledat zboží…" aria-label="Hledat zboží" maxlength="100" data-track="nav-search"
+                                   data-suggest="@Url.Content("~/api/catalog/suggest")" autocomplete="off" />
                         </div>
                     </form>
                     <partial name="_LoginPartial" />
@@ -104,6 +105,7 @@
     <script src="~/lib/bootstrap/js/bootstrap.bundle.min.js" asp-append-version="true"></script>
     @* Stránkování seznamů: výběr velikosti stránky odešle formulář (partial _Pager). *@
     <script src="~/js/pager.js" asp-append-version="true"></script>
+    <script src="~/js/search-suggest.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

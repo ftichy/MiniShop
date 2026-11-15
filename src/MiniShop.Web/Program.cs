@@ -73,6 +73,7 @@ try
 
     // Účty krok 8: zpevnění – limit odeslání formulářů účtu z jedné IP a HSTS (prohlížeč pak chodí jen přes HTTPS).
     builder.Services.AddAccountRateLimiting(builder.Configuration);
+    builder.Services.AddCatalogRateLimiting(builder.Configuration);   // e-shop krok 21: našeptávač
     // Bez preload a bez subdomén: preload jde jen velmi pomalu vrátit (cloud krok 13: vlastní doména minishop-tichy.cz).
     builder.Services.AddHsts(options => options.MaxAge = TimeSpan.FromDays(365));
 

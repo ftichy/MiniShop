@@ -292,6 +292,9 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
 
     public static TheoryData<Who, string, string, Expect> Api() => new()
     {
+        { Who.Anonymous, "GET", "/api/catalog/suggest?q=mys", Expect.Allowed },   // e-shop krok 21: našeptávač je veřejný jako výloha
+        { Who.User, "GET", "/api/catalog/suggest?q=mys", Expect.Allowed },
+        { Who.Admin, "GET", "/api/catalog/suggest?q=mys", Expect.Allowed },
         { Who.Anonymous, "GET", "/api/orders", Expect.Unauthorized },
         { Who.User, "GET", "/api/orders", Expect.Allowed },
         { Who.Admin, "GET", "/api/orders", Expect.Allowed },

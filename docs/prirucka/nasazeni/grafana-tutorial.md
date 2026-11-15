@@ -243,6 +243,8 @@ a rozdělit podle štítku; `histogram_quantile(0.95, …)` = hodnota, pod ktero
 | neúspěšné platby | traces | `{ span.minishop.payment.result = "failed" }` |
 | objednávky s produktem 12 | traces | `{ span.minishop.order.lines =~ "(^\|.*, )12×.*" }` |
 | přidání do košíku | traces | `{ span.minishop.cart.action = "add" }` |
+| hledání bez výsledku (co v nabídce chybí) | traces | `{ span.minishop.search.results = 0 }` – text dotazu se neukládá (volný text zákazníka) |
+| hledání, které zachránily překlepy | traces | `{ span.minishop.search.similar = true }` |
 | požadavky na stránku | traces | `{ resource.service.name = "web" && span.url.path = "/Shop" }` |
 | pomalé požadavky | traces | `{ resource.service.name = "web" && kind = server && duration > 500ms }` |
 | co havarovalo | traces | `{ status = error }` → span → *Events* (`exception.*`) |

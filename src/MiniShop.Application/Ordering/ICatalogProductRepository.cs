@@ -27,10 +27,21 @@ public interface ICatalogProductRepository
 
     /// <summary>
     /// E-shop krok 2: hledání ve výloze (bez odebraných). Filtruje databáze; řadí volající (z doby SQLite, které neřadilo decimal).
+    /// E-shop krok 21: každé slovo musí být v textu produktu (<see cref="CatalogProduct.SearchText"/>), v libovolném pořadí.
     /// </summary>
-    /// <param name="searchText">Už normalizovaný text (<see cref="CatalogSearchText"/>); prázdný = bez hledání.</param>
-    Task<IReadOnlyList<CatalogProduct>> SearchAsync(string searchText, int? categoryId, bool inStockOnly,
+    /// <param name="words">Slova z <see cref="CatalogSearchText.Words"/>; prázdné = bez hledání.</param>
+    Task<IReadOnlyList<CatalogProduct>> SearchAsync(IReadOnlyList<string> words, int? categoryId, bool inStockOnly,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// E-shop krok 21: hledání s překlepy – každé slovo je v textu přesně, <b>nebo</b> se podobá některému slovu textu
+    /// aspoň na <paramref name="threshold"/> (0–1, PostgreSQL pg_trgm <c>word_similarity</c>). Nejpodobnější první.
+    /// </summary>
+    Task<IReadOnlyList<CatalogSimilarProduct>> SearchSimilarAsync(IReadOnlyList<string> words, int? categoryId, bool inStockOnly,
+        double threshold, int limit, CancellationToken cancellationToken = default);
 
     void Add(CatalogProduct product);
 }
+
+/// <summary>E-shop krok 21: produkt nalezený podle podobnosti a jak moc se dotazu podobá (0–1).</summary>
+public sealed record CatalogSimilarProduct(CatalogProduct Product, double Similarity);

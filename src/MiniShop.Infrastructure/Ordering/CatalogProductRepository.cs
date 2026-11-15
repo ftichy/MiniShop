@@ -30,15 +30,51 @@ public sealed class CatalogProductRepository(OrderingDbContext db) : ICatalogPro
         return await db.CatalogProducts.Where(p => idList.Contains(p.Id) && !p.IsRemoved).ToListAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<CatalogProduct>> SearchAsync(string searchText, int? categoryId, bool inStockOnly,
+    public async Task<IReadOnlyList<CatalogProduct>> SearchAsync(IReadOnlyList<string> words, int? categoryId, bool inStockOnly,
         CancellationToken cancellationToken = default)
     {
-        var query = db.CatalogProducts.Where(p => !p.IsRemoved);
-        if (searchText.Length > 0)
+        var query = Filter(categoryId, inStockOnly);
+        foreach (var word in words)
         {
-            query = query.Where(p => p.SearchText.Contains(searchText));   // SQL: instr(SearchText, @text) > 0
+            // E-shop krok 21: každé slovo zvlášť (AND) – SQL: "SearchText" LIKE '%slovo%' (zrychluje GIN index s pg_trgm).
+            var pattern = ContainsPattern(word);
+            query = query.Where(p => EF.Functions.Like(p.SearchText, pattern, LikeEscape));
         }
 
+        return await query.ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<CatalogSimilarProduct>> SearchSimilarAsync(IReadOnlyList<string> words, int? categoryId,
+        bool inStockOnly, double threshold, int limit, CancellationToken cancellationToken = default)
+    {
+        if (words.Count == 0)
+        {
+            return [];
+        }
+
+        var query = Filter(categoryId, inStockOnly);
+        foreach (var word in words)
+        {
+            // Slovo je v textu přesně, nebo se podobá některému jeho slovu (pg_trgm word_similarity – trojice písmen).
+            var pattern = ContainsPattern(word);
+            query = query.Where(p => EF.Functions.Like(p.SearchText, pattern, LikeEscape)
+                                     || EF.Functions.TrigramsWordSimilarity(word, p.SearchText) >= threshold);
+        }
+
+        // Pořadí podle podobnosti celého dotazu („notbuk 32“ ↔ text produktu).
+        var phrase = string.Join(' ', words);
+        var rows = await query
+            .Select(p => new { Product = p, Similarity = EF.Functions.TrigramsWordSimilarity(phrase, p.SearchText) })
+            .OrderByDescending(r => r.Similarity)
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+
+        return rows.Select(r => new CatalogSimilarProduct(r.Product, r.Similarity)).ToList();
+    }
+
+    private IQueryable<CatalogProduct> Filter(int? categoryId, bool inStockOnly)
+    {
+        var query = db.CatalogProducts.Where(p => !p.IsRemoved);
         if (categoryId is not null)
         {
             query = query.Where(p => p.CategoryId == categoryId);
@@ -49,8 +85,15 @@ public sealed class CatalogProductRepository(OrderingDbContext db) : ICatalogPro
             query = query.Where(p => p.Availability == CatalogAvailability.InStock || p.Availability == CatalogAvailability.LowStock);
         }
 
-        return await query.ToListAsync(cancellationToken);
+        return query;
     }
+
+    // Escape znak pro LIKE. Bez něj Npgsql napíše ESCAPE '' a zpětné lomítko by nic neznamenalo.
+    private const string LikeEscape = @"\";
+
+    /// <summary>„%slovo%“ pro LIKE – znaky %, _ a \ ze zákazníkova textu se berou doslova.</summary>
+    internal static string ContainsPattern(string word) =>
+        "%" + word.Replace(@"\", @"\\").Replace("%", @"\%").Replace("_", @"\_") + "%";
 
     public void Add(CatalogProduct product) => db.CatalogProducts.Add(product);
 }

@@ -45,8 +45,12 @@
                 <form method="get" class="card card-body w-100 d-flex flex-column gap-3" role="search">
                     <div>
                         <label for="q" class="form-label fw-semibold">Hledat</label>
-                        <input id="q" name="q" value="@Model.Query" type="search" maxlength="100" placeholder="např. myš, kabel…"
-                               class="form-control" data-track="shop-search" />
+                        @* E-shop krok 21: našeptávač (search-suggest.js) – bez JavaScriptu je to obyčejné pole formuláře. *@
+                        <div class="search-suggest">
+                            <input id="q" name="q" value="@Model.Query" type="search" maxlength="100" placeholder="např. myš, kabel…"
+                                   class="form-control" data-track="shop-search" data-suggest="@Url.Content("~/api/catalog/suggest")"
+                                   autocomplete="off" />
+                        </div>
                     </div>
                     <div>
                         <label for="category" class="form-label fw-semibold">Kategorie</label>
@@ -61,10 +65,15 @@
                     <div>
                         <label for="sort" class="form-label fw-semibold">Řadit</label>
                         <select id="sort" name="sort" class="form-select" data-track="shop-sort">
-                            <option value="@CatalogSort.Name" selected="@(Model.Sort == CatalogSort.Name)">podle názvu</option>
-                            <option value="@CatalogSort.PriceAscending" selected="@(Model.Sort == CatalogSort.PriceAscending)">od nejlevnějšího</option>
-                            <option value="@CatalogSort.PriceDescending" selected="@(Model.Sort == CatalogSort.PriceDescending)">od nejdražšího</option>
-                            <option value="@CatalogSort.BestRated" selected="@(Model.Sort == CatalogSort.BestRated)">nejlépe hodnocené</option>
+                            @* E-shop krok 21: vybrané je řazení, které se opravdu použilo (s hledáním výchozí „nejrelevantnější“). *@
+                            @if (Model.HasQuery)
+                            {
+                                <option value="@CatalogSort.Relevance" selected="@(Model.Result.Sort == CatalogSort.Relevance)">nejrelevantnější</option>
+                            }
+                            <option value="@CatalogSort.Name" selected="@(Model.Result.Sort == CatalogSort.Name)">podle názvu</option>
+                            <option value="@CatalogSort.PriceAscending" selected="@(Model.Result.Sort == CatalogSort.PriceAscending)">od nejlevnějšího</option>
+                            <option value="@CatalogSort.PriceDescending" selected="@(Model.Result.Sort == CatalogSort.PriceDescending)">od nejdražšího</option>
+                            <option value="@CatalogSort.BestRated" selected="@(Model.Result.Sort == CatalogSort.BestRated)">nejlépe hodnocené</option>
                         </select>
                     </div>
                     <div class="form-check form-switch">
@@ -92,6 +101,14 @@
                     </a>
                 }
             </nav>
+        }
+
+        @if (Model.Result.IsSimilarMatch)
+        {
+            @* E-shop krok 21: přesná shoda nebyla – ukazujeme podobná slova (nejspíš překlep). *@
+            <div class="alert alert-warning" data-track="shop-similar">
+                Na „@Model.Query“ jsme přesně nic nenašli. Zobrazujeme podobné výsledky – zkontrolujte, prosím, překlep.
+            </div>
         }
 
         @if (Model.Result.Items.Count == 0)

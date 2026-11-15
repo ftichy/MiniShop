@@ -2073,7 +2073,7 @@ public sealed class OrderServiceTests : IDisposable
         await AddProductAsync("Sluchátka", 1590m, stock: 0, audio.Id);
         await AddProductAsync("Myš pro hráče", 1290m, stock: 3, UncategorizedId);
 
-        var mys = await Shop(new CatalogSearchRequest(Query: "MYS"));
+        var mys = await Shop(new CatalogSearchRequest(Query: "MYS", Sort: CatalogSort.Name));
         Assert.Equal(["Bezdrátová myš", "Myš pro hráče"], mys.Items.Select(i => i.Name));
 
         var byCategory = await Shop(new CatalogSearchRequest(Query: "audio"));   // hledá i v názvu kategorie
@@ -2101,6 +2101,97 @@ public sealed class OrderServiceTests : IDisposable
         Assert.Equal(2, second.PageCount);
         Assert.Equal(["Produkt 13", "Produkt 14"], second.Items.Select(i => i.Name));
         Assert.Equal(2, (await Shop(new CatalogSearchRequest(Page: 99))).Page);   // mimo rozsah = poslední stránka
+    }
+
+    // ---------- E-shop krok 21: lepší hledání ----------
+
+    private async Task SearchCatalogAsync()
+    {
+        var notebooks = await Categories(s => s.CreateAsync(new CategoryRequest { Name = "Notebooky" }));
+        var peripherals = await Categories(s => s.CreateAsync(new CategoryRequest { Name = "Periferie" }));
+        await AddProductAsync("Notebook Nordix Air 14", 18990m, stock: 10, notebooks.Id, "Intel Core Ultra 5, 16 GB RAM, SSD 512 GB");
+        await AddProductAsync("Notebook Nordix Pro 16", 34990m, stock: 5, notebooks.Id, "AMD Ryzen 7, 32 GB RAM, SSD 1 TB");
+        await AddProductAsync("Bezdrátová klávesnice", 990m, stock: 20, peripherals.Id, "Tichá klávesnice ke každému notebooku");
+        await AddProductAsync("Herní myš", 1290m, stock: 0, peripherals.Id, "Myš pro hráče, 26 000 DPI");
+    }
+
+    [Fact]
+    public async Task Hledani_ViceSlovVLibovolnemPoradi_AZacatekSlova()
+    {
+        await SearchCatalogAsync();
+
+        var ram = await Shop(new CatalogSearchRequest(Query: "32 GB notebook"));   // slova nejdou v textu za sebou
+        Assert.Equal("Notebook Nordix Pro 16", Assert.Single(ram.Items).Name);
+        Assert.False(ram.IsSimilarMatch);
+
+        var prefix = await Shop(new CatalogSearchRequest(Query: "nord air"));     // stačí začátek slova
+        Assert.Equal("Notebook Nordix Air 14", Assert.Single(prefix.Items).Name);
+
+        var accents = await Shop(new CatalogSearchRequest(Query: "KLÁVES, bezdrát!"));   // diakritika, velikost, interpunkce
+        Assert.Equal("Bezdrátová klávesnice", Assert.Single(accents.Items).Name);
+
+        var none = await Shop(new CatalogSearchRequest(Query: "notebook 64"));    // všechna slova musí sedět
+        Assert.Empty(none.Items);
+    }
+
+    [Fact]
+    public async Task Hledani_RadiPodleRelevance_NazevPredPopisem()
+    {
+        await SearchCatalogAsync();
+
+        var result = await Shop(new CatalogSearchRequest(Query: "notebook"));
+
+        Assert.Equal(CatalogSort.Relevance, result.Sort);   // s hledáním výchozí řazení
+        // Notebooky mají slovo v názvu (a začínají jím), klávesnice jen „notebooku“ v popisu → poslední.
+        Assert.Equal(["Notebook Nordix Air 14", "Notebook Nordix Pro 16", "Bezdrátová klávesnice"], result.Items.Select(i => i.Name));
+
+        var byPrice = await Shop(new CatalogSearchRequest(Query: "notebook", Sort: CatalogSort.PriceAscending));
+        Assert.Equal("Bezdrátová klávesnice", byPrice.Items[0].Name);   // zvolené řazení má přednost
+        Assert.Equal(CatalogSort.Name, (await Shop(new CatalogSearchRequest())).Sort);   // bez hledání podle názvu
+    }
+
+    [Fact]
+    public async Task Hledani_SPreklepem_NajdePodobne()
+    {
+        await SearchCatalogAsync();
+
+        var typo = await Shop(new CatalogSearchRequest(Query: "klavesnyce"));
+        Assert.True(typo.IsSimilarMatch);
+        Assert.Equal("Bezdrátová klávesnice", typo.Items[0].Name);
+
+        var mixed = await Shop(new CatalogSearchRequest(Query: "notebok 32"));   // „32“ přesně, „notebok“ podobně
+        Assert.True(mixed.IsSimilarMatch);
+        Assert.Equal("Notebook Nordix Pro 16", Assert.Single(mixed.Items).Name);
+
+        var nonsense = await Shop(new CatalogSearchRequest(Query: "xqzwv"));
+        Assert.Empty(nonsense.Items);
+        Assert.False(nonsense.IsSimilarMatch);
+
+        var inStock = await Shop(new CatalogSearchRequest(Query: "herni mis", InStockOnly: true));   // filtr platí i pro podobné
+        Assert.Empty(inStock.Items);
+    }
+
+    [Fact]
+    public async Task Naseptavac_KategorieAProdukty()
+    {
+        await SearchCatalogAsync();
+
+        var suggestions = await Catalog(s => s.SuggestAsync("note"));
+
+        Assert.Equal("Notebooky", Assert.Single(suggestions.Categories).Name);
+        Assert.Equal(["Notebook Nordix Air 14", "Notebook Nordix Pro 16", "Bezdrátová klávesnice"], suggestions.Products.Select(p => p.Name));
+        Assert.Same(CatalogSuggestions.Empty, await Catalog(s => s.SuggestAsync("n")));   // jedno písmeno = nic
+        Assert.True((await Catalog(s => s.SuggestAsync("klavesnyce"))).IsSimilarMatch);
+    }
+
+    [Fact]
+    public async Task Hledani_ZnakyLikeBereDoslova()
+    {
+        await AddProductAsync("Sleva 100% na kabel_USB", 99m, stock: 5, UncategorizedId);
+        await AddProductAsync("Sleva 1000 na kabel", 99m, stock: 5, UncategorizedId);
+
+        Assert.Equal("Sleva 100% na kabel_USB", Assert.Single((await Shop(new CatalogSearchRequest(Query: "100%"))).Items).Name);
+        Assert.Equal("Sleva 100% na kabel_USB", Assert.Single((await Shop(new CatalogSearchRequest(Query: "kabel_"))).Items).Name);
     }
 
     // ---------- E-shop krok 2B: obrázky produktů ----------
@@ -3021,14 +3112,15 @@ public sealed class OrderServiceTests : IDisposable
     /// Založí produkt ve skladu a nechá ho promítnout do kopie katalogu v Orderingu (krok 10) –
     /// teprve pak jde objednat. Zprávy z přípravy dat se z "brokeru" smažou, ať nepletou testy.
     /// </summary>
-    private async Task<ProductDto> AddProductAsync(string name, decimal price, int stock, int categoryId)
+    private async Task<ProductDto> AddProductAsync(string name, decimal price, int stock, int categoryId, string? description = null)
     {
         var product = await Products(s => s.CreateAsync(new CreateProductRequest
         {
             Name = name,
             Price = price,
             StockQuantity = stock,
-            CategoryId = categoryId
+            CategoryId = categoryId,
+            Description = description
         }));
         await ProcessOutboxAsync();
         _bus.Published.Clear();

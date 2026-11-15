@@ -68,6 +68,7 @@ požadavků se nezaznamenávají vůbec – konkrétní data jsou v MiniShopu (d
 | košík | `minishop.cart.action` (add / update / remove), `minishop.product.id`, `minishop.cart.quantity` |
 | e-maily | `minishop.email.sent` (který e-mail = jméno spanu, např. `process OrderConfirmedV1`) |
 | faktury | `minishop.invoice.number`, `minishop.credit_note.number` |
+| hledání ve výloze a našeptávač | `minishop.search.results` (počet nalezených), `minishop.search.similar` (true = výsledky z podobných slov) – **text dotazu ne** (volný text zákazníka; `url.query` maže i Alloy) |
 | HTTP požadavek | `enduser.id` (ID účtu) |
 
 Hledání v Grafaně (TraceQL): `{ span.minishop.stock.result = "failed" }`, `{ span.minishop.saga.action = "RejectOrder" }` –

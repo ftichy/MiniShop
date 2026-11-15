@@ -104,6 +104,40 @@ upraví i hledaný text. To je podstata CQRS: data pro čtení jsou uložená ta
 
 - Filtr (text, kategorie, „jen skladem“) dělá databáze; řazení podle ceny a české řazení názvů až aplikace
   (z doby SQLite, které neřadilo `decimal`) – u stovek produktů to nevadí.
+
+### Po slovech, s překlepy a našeptávačem (e-shop krok 21)
+
+Hledání je jako prodavač, který rozumí i nepřesnému dotazu: „notebook 32 gb“ najde notebook s 32 GB RAM, i když slova
+v popisu nejdou za sebou, a „klavesnyce“ najde klávesnici.
+
+```mermaid
+flowchart LR
+    q["„Notebok, 32 GB!“"] -->|"CatalogSearchText.Words"| w["notebok · 32 · gb"]
+    w -->|"každé slovo LIKE '%slovo%'"| exact{"našlo se něco?"}
+    exact -->|ano| rel["řazení Nejrelevantnější<br/>(CatalogRelevance)"]
+    exact -->|ne| sim["podobná slova<br/>pg_trgm word_similarity ≥ 0,4"]
+    sim --> note["stránka: „zobrazujeme podobné výsledky“"]
+```
+
+- **Slova** ([CatalogSearchText.Words](code:src/MiniShop.Domain/Orders/CatalogSearchText.cs)): dotaz se normalizuje
+  (malá písmena bez diakritiky), rozdělí na slova a z krajů slov se ořízne interpunkce. **Každé** slovo musí být v `SearchText`
+  (v libovolném pořadí, stačí kus slova – „nord“ najde „Nordix“). Znaky `%` a `_` z dotazu se v `LIKE` berou doslova.
+- **Relevance** ([CatalogRelevance](code:src/MiniShop.Application/Ordering/Catalog/CatalogRelevance.cs)): s hledaným textem je
+  výchozí řazení „Nejrelevantnější“ – shoda v názvu má váhu 3, v kategorii 2, v popisu 1; celé slovo > začátek slova > kus slova.
+  Ostatní řazení (cena, hodnocení, název) jde dál vybrat.
+- **Překlepy** – rozšíření PostgreSQL **pg_trgm** rozloží slova na trojice písmen („klavesnyce“ → `kla`, `lav`, `ave`…) a změří,
+  kolik jich má dotaz společných s textem produktu (`word_similarity`, 0–1). Použije se, **jen když přesné hledání nic nenajde**
+  (přesná shoda má přednost, jinak by se do výsledků pletl šum); hranice 0,4 je naměřená
+  (`CatalogQueryService.SimilarityThreshold`). Rozšíření a index GIN (`gin_trgm_ops`, zrychlí i `LIKE '%…%'`) zakládá migrace
+  `CatalogSearchTrigrams` – rozšíření patří celé databázi (schéma `public`), index je ve schématu `ordering`.
+- **Našeptávač** – `GET /api/catalog/suggest?q=` ([CatalogController](code:src/MiniShop.Web/Controllers/CatalogController.cs),
+  veřejný, limit 120 dotazů za minutu z IP – `CatalogRateLimiting`) vrátí až 3 kategorie a 6 produktů;
+  [search-suggest.js](code:src/MiniShop.Web/wwwroot/js/search-suggest.js) je ukáže pod polem v hlavičce i na stránce Obchod
+  (200 ms po dopsání, šipky, Enter, Esc). Bez JavaScriptu zůstává obyčejný formulář.
+- **Bez osobních údajů:** text dotazu je volný text zákazníka – do trasy jde jen počet výsledků (`minishop.search.results`)
+  a příznak podobných slov (`minishop.search.similar`), Serilog loguje cestu bez parametrů a Alloy maže `url.query`.
+- **Záměrně ne:** český slovník (stemming) PostgreSQL – ve výchozí instalaci není a v kontejneru by se musel doinstalovat;
+  tvary („notebooky“) pokryje kus slova a podobnost trojic.
 - Kategorie ve filtru vznikají z kopie (jen ty, ve kterých je něco v nabídce). Kategorie samotné spravuje sklad;
   Ordering zná jejich jméno jen ze zpráv o produktech – přejmenování kategorie proto sklad oznámí novou
   `ProductUpdatedV2` pro každý její produkt.

@@ -70,7 +70,12 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
     protected override IEnumerable<OutboxMessage> ToOutboxMessages(IDomainEvent domainEvent) =>
         [OrderingDomainEvents.ToOutboxMessage(domainEvent)];
 
-    protected override void ConfigureModule(ModelBuilder modelBuilder) =>
+    protected override void ConfigureModule(ModelBuilder modelBuilder)
+    {
+        // E-shop krok 21: rozšíření PostgreSQL pro hledání podobných slov (překlepy). Patří celé databázi; bez schématu ho PostgreSQL založí v „public“
+        // (je v search_path všech spojení); od PostgreSQL 13 „trusted“ – stačí vlastník databáze, ne superuživatel.
+        modelBuilder.HasPostgresExtension("pg_trgm");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(OrderingDbContext).Assembly,
             type => type.Namespace == typeof(OrderConfiguration).Namespace);
+    }
 }

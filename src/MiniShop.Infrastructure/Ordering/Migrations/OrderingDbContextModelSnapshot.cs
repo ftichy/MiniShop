@@ -21,6 +21,7 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
                 .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pg_trgm");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("MiniShop.Domain.Orders.Carts.Cart", b =>
@@ -146,6 +147,11 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
                         .HasColumnType("character varying(800)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("SearchText");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("SearchText"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("SearchText"), new[] { "gin_trgm_ops" });
 
                     b.ToTable("CatalogProducts", "ordering");
                 });

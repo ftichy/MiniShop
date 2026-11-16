@@ -35,10 +35,11 @@ public static class AccountsServiceCollectionExtensions
         services.AddAuthentication().AddGoogleLogin(configuration);
 
         services.AddAuthorizationBuilder()
-            // 2FA krok A2: admin musí mít zapnuté dvoufázové ověření – s uniklým heslem by jinak šlo převzít e-shop.
-            // Jediné místo pravidla: platí pro heslo, Google i účet z create-admin/AdminBootstrap a pro povýšené uživatele.
+            // 2FA krok A2: správa vyžaduje zapnuté dvoufázové ověření – s uniklým heslem by jinak šlo převzít e-shop.
+            // Jediné místo pravidla: platí pro heslo, Google i účet z create-admin/AdminBootstrap a pro nově přidělené role.
+            // Účty krok 12A: kterákoli zaměstnanecká role (zatím celá správa – dělení po oblastech je krok 12B).
             .AddPolicy(AuthorizationPolicies.RequireAdmin, policy => policy
-                .RequireRole(AccountRoles.Admin)
+                .RequireRole(AccountRoles.Staff)
                 .RequireClaim(AccountClaimTypes.TwoFactorEnabled, "true"))
             // Účty krok 9: objednávat jde až s potvrzeným e-mailem – robot s vymyšlenou adresou nic neobjedná
             // a e-maily o objednávkách nechodí cizím lidem. Claim dává AccountClaimsPrincipalFactory.

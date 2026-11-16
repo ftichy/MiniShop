@@ -1,6 +1,6 @@
 ---
 title: Modul Accounts
-summary: Uživatelské účty a role – registrace, přihlášení (i přes Google), role User/Admin, kdo smí co, první admin, správa uživatelů a audit. Data ve schématu accounts (migrace).
+summary: Uživatelské účty a role – registrace, přihlášení (i přes Google), zákazník a 7 zaměstnaneckých rolí (víc najednou), kdo smí co, první admin, správa uživatelů a audit. Data ve schématu accounts (migrace).
 order: 4
 ---
 
@@ -11,16 +11,41 @@ order: 4
 Modul vzniká postupně podle plánu [Uživatelské účty a role](code:docs/Ucty-roadmap.md). Hotové jsou kroky 1
 (registrace, přihlášení), 2 (role, oprávnění, první admin), 3 (vlastník objednávky – zákazník vidí jen své,
 viz [Ordering](ordering.md)), 5 ([e-maily](../emaily.md)), 6 (správa uživatelů a audit), 8 ([zpevnění](#zpevnění)),
-9 ([otevřený web](#otevřený-web-a-osobní-údaje)) a 10 ([přihlášení přes Google](#přihlášení-přes-google)); krok 7 zabezpečil sklad ([Inventory](inventory.md)).
+9 ([otevřený web](#otevřený-web-a-osobní-údaje)), 10 ([přihlášení přes Google](#přihlášení-přes-google)) a 12A ([víc rolí najednou](#zaměstnanecké-role)); krok 7 zabezpečil sklad ([Inventory](inventory.md)).
+
+## Zaměstnanecké role
+
+Účty krok 12A: místo jedné role Admin je **sedm zaměstnaneckých rolí** podle práce ve skutečném e-shopu a k nim role
+**Zákazník** (v databázi `User`). Uživatel jich může mít **víc najednou** – třeba skladník, který si v e-shopu i nakupuje.
+
+| Role (v kódu) | Česky | Kdo to v praxi je | Na co je (dělení správy po oblastech = krok 12B) |
+| --- | --- | --- | --- |
+| `User` | Zákazník | kdokoli s účtem | výloha, košík, pokladna, své objednávky, vratky, hodnocení |
+| `UserAdmin` | Správce uživatelů | IT / vedoucí | přiděluje role, blokuje účty, audit, historie přihlášení |
+| `CatalogManager` | Správce sortimentu | produktový manažer | produkty, kategorie, obrázky, import, obnova katalogu |
+| `Warehouse` | Sklad a expedice | skladník | balení, odeslání, doručení, převzetí vrácené zásilky |
+| `CustomerSupport` | Zákaznická podpora | operátor podpory | všechny objednávky, zrušení za zákazníka, zamítnutí vratky, hodnocení, průběh objednávky |
+| `Marketing` | Marketing | marketér | slevové kódy, statistika košíků |
+| `Accounting` | Účetní | účetní | faktury, dobropisy, přehled tržeb |
+| `Operations` | Provoz | vývojář / provozní | zprávy a fronty (`/Admin/Messages`) |
+
+- **Zatím (12A)** pustí kterákoli zaměstnanecká role do celé správy jako dřív Admin (policy `RequireAdmin` = kterákoli
+  z `AccountRoles.Staff` + 2FA). Výjimka: **role přiděluje jen správce uživatelů**.
+- **Každá zaměstnanecká role vyžaduje dvoufázové ověření**; zákazník ho mít nemusí.
+- **Zaměstnanec, který je i zákazník:** objednává jako zákazník, na stránce Objednávky přepíná **Moje / Všechny**.
+  Akce zákazníka (vratka, platba) dělá jen u svých objednávek (`ToCustomerOrderAccess`) – cizí objednávku jako podpora
+  vidí a smí ji zrušit, ale „vrátit za zákazníka“ ne.
+- **Původní role Admin** se při nasazení převedla na všechny zaměstnanecké role (migrace `StaffRoles`, ruční SQL).
+  V databázi zůstává kvůli postupnému nasazení (starší verze kódu ji čte) a uložení rolí v aplikaci ji odebere.
 
 ## Role a oprávnění
 
-| Kde | Nepřihlášený | User (zákazník) | Admin |
+| Kde | Nepřihlášený | User (zákazník) | Zaměstnanec (Admin) |
 | --- | :-: | :-: | :-: |
 | Úvod, Dokumentace, Přihlášení, Registrace, Ochrana osobních údajů, `/health` | ✅ | ✅ | ✅ |
 | Objednávky – seznam a detail | → přihlášení | jen své (cizí = 404) | všechny |
 | Objednávky – založit (stránka i `POST /api/orders`) | ❌ | ✅ jen s **potvrzeným e-mailem** (jméno a e-mail z účtu) | ❌ |
-| Smazat vlastní účet | ❌ | ✅ (bez nevyřízených objednávek) | ❌ (nejdřív vrátit na usera) |
+| Smazat vlastní účet | ❌ | ✅ (bez nevyřízených objednávek) | ❌ (nejdřív odebrat zaměstnanecké role) |
 | Objednávky – zrušit (kdykoli před odesláním, e-shop krok 9) | ❌ | jen svou | jakoukoli |
 | Expedice – balit, odeslat, doručeno (`/Admin/Fulfilment`, e-shop krok 6), obnovit katalog | ❌ | ❌ | ✅ |
 | Produkty – přidat, naskladnit, upravit, smazat | ❌ | ❌ | ✅ |
@@ -30,7 +55,8 @@ viz [Ordering](ordering.md)), 5 ([e-maily](../emaily.md)), 6 (správa uživatel�
 | Nastavení e-mailů – souhlas s připomínkou košíku (`/Account/EmailPreferences`, e-shop krok 10, výchozí vypnuto) | ❌ | ✅ | ❌ |
 | Dvoufázové ověření – zapnout, záchranné kódy (`/Account/TwoFactor`, bezpečnost A1); vypnout jen zákazník | ❌ | ✅ | ✅ (vypnout ne) |
 | Cokoli v administraci, když admin **nemá zapnuté 2FA** (bezpečnost A2) | ❌ | ❌ | ❌ – přesměrování na `/Account/TwoFactor` (API 403) |
-| Uživatelé – přehled, detail, povýšit / vrátit na usera, zablokovat / odblokovat (`/Admin/…`) | ❌ | ❌ | ✅ (ne sám sobě) |
+| Uživatelé – přehled, detail, zablokovat / odblokovat (`/Admin/…`) | ❌ | ❌ | ✅ (zablokovat ne sám sebe) |
+| Uživatelé – přidělit role (zaškrtávátka na detailu, účty krok 12A) | ❌ | ❌ | jen **Správce uživatelů** (i sobě, správu uživatelů si ale neodebere) |
 
 Pravidla jsou pojmenovaná na jednom místě – **policies** `RequireAdmin` a `RequireCustomer`
 v [AuthorizationPolicies.cs](code:src/MiniShop.Web/Accounts/AuthorizationPolicies.cs), registrované v
@@ -78,31 +104,35 @@ Admina jmenuje admin – kdo ale jmenuje prvního? (Problém slepice a vejce.)
 - **Existující účet se adminem nikdy nestane.** Bez potvrzení e-mailu by si kdokoli mohl adminův e-mail zaregistrovat
   dřív a seed by mu práva admina dal.
 - Účty z kroku 1 (bez role) dostanou při startu roli User. Kód: [AccountsSeeder.cs](code:src/MiniShop.Infrastructure/Accounts/AccountsSeeder.cs).
-- **Další admini** vznikají povýšením v aplikaci (níže). Nový admin se nejdřív sám zaregistruje – heslo tak zná jen on.
+- **První admin** dostane všechny zaměstnanecké role (účty krok 12A); „admin existuje“ = existuje správce uživatelů.
+- **Další zaměstnanci** vznikají přidělením rolí v aplikaci (níže). Nový zaměstnanec se nejdřív sám zaregistruje – heslo tak zná jen on.
 
 ## Správa uživatelů
 
 Menu **Uživatelé** (jen admin): přehled všech účtů s rolí, stavem, počtem objednávek a útratou, detail s objednávkami
-a historií změn. Na detailu jsou tlačítka **Povýšit na admina / Vrátit na usera** a **Zablokovat / Odblokovat**.
+a historií změn. Na detailu jsou **zaškrtávátka rolí** s tlačítkem **Uložit role** (jen správce uživatelů, účty krok 12A)
+a tlačítka **Zablokovat / Odblokovat**. Když se změní zaměstnanecká role, dostane uživatel **e-mail** („změna oprávnění“) –
+nečekaná nová práva jsou signál, že někdo zneužil účet správce.
 
 ```mermaid
 flowchart TD
-    act(["Admin klikne na akci"]) --> tx["transakce ve schématu accounts"]
-    tx --> actor{"je volající pořád<br/>aktivní admin? (databáze)"}
+    act(["Správce klikne na akci"]) --> tx["transakce ve schématu accounts"]
+    tx --> actor{"je volající pořád aktivní<br/>správce uživatelů? (databáze)"}
     actor -->|ne| fail(["chyba – nic se nezmění"])
-    actor -->|ano| last{"zůstane aspoň jeden<br/>jiný aktivní admin?"}
-    last -->|"ne (vrátit / zablokovat posledního)"| fail
+    actor -->|ano| last{"zůstane aspoň jeden jiný<br/>aktivní správce uživatelů?"}
+    last -->|"ne (odebrat / zablokovat posledního)"| fail
     last -->|ano| self{"jde o vlastní účet?"}
-    self -->|"ano (vrátit / zablokovat)"| fail
-    self -->|ne| change["změna role User ↔ Admin<br/>nebo zámek účtu"]
+    self -->|"ano (odebrat si správu / zablokovat se)"| fail
+    self -->|ne| change["nová sada rolí<br/>nebo zámek účtu"]
     change --> stamp["nový security stamp"]
     stamp --> audit["záznam do AccountAuditEntries<br/>kdo, komu, co, kdy"]
     audit --> commit(["commit"])
+    commit --> mail["změna zaměstnanecké role:<br/>e-mail dotyčnému"]
 ```
 
 - **Rozhoduje databáze, ne cookie.** Admin, kterému jiný admin právě roli odebral, má možná ještě starou cookie –
   akce mu přesto neprojde.
-- **Vždy zůstane aktivní admin** a nikdo si nemůže sám odebrat roli ani se zablokovat. Kontrola i změna jsou v jedné
+- **Vždy zůstane aktivní správce uživatelů** a nikdo si nemůže sám odebrat správu uživatelů ani se zablokovat (jiné role si měnit smí – třeba přidat Zákazníka). Kontrola i změna jsou v jedné
   transakci: když dva admini ve stejnou chvíli odebírají jeden druhého, zámek v PostgreSQL (`pg_advisory_xact_lock`) změny seřadí a druhá už vidí výsledek první (škálování krok 3C).
 - **Zablokování** = zámek účtu Identity „navždy“ (do odblokování). Přihlášení skončí stejnou hláškou jako špatné
   heslo – jiná by prozradila, že účet existuje.
@@ -110,7 +140,8 @@ flowchart TD
   porovná s databází (`SecurityStampValidator`, interval v
   [AccountsServiceCollectionExtensions.cs](code:src/MiniShop.Web/Extensions/AccountsServiceCollectionExtensions.cs));
   nesedí-li, cookie zahodí. Přirovnání: přenastavený zámek – staré klíče přestanou fungovat.
-- **Audit** jen přibývá (žádná úprava ani mazání), e-maily v něm jsou kopie z doby akce.
+- **Audit** jen přibývá (žádná úprava ani mazání), e-maily v něm jsou kopie z doby akce. Změna rolí má podrobnost
+  („+Sklad a expedice, −Marketing“, sloupec `Detail`).
 - **Objednávky** dodá Ordering (`IOrderService.GetCustomerSummariesAsync`, detail přes `OrderAccess.Customer(id)`) –
   moduly se neznají, spojí je až stránka ve Webu přes ID uživatele.
 
@@ -184,7 +215,7 @@ sequenceDiagram
   nic nepokazí). Obráceně by mohl zůstat smazaný účet s objednávkami, na kterých je pořád jeho e-mail.
 - **Objednávky zůstanou** (položky, ceny, stav – účetnictví a statistiky), `CustomerId` také: po smazání účtu
   sám nikoho neidentifikuje. E-mail o objednávce se na prázdnou adresu neposílá.
-- **Admin** si účet smazat nemůže (pravidlo „vždy zůstane admin“) – jiný admin ho nejdřív vrátí na usera.
+- **Zaměstnanec** si účet smazat nemůže – správce uživatelů mu nejdřív odebere zaměstnanecké role (účty krok 12A; dřív Admin).
 - **Stránka [Ochrana osobních údajů](code:src/MiniShop.Web/Pages/Privacy.cshtml)** (odkaz v patičce a u registrace):
   co MiniShop ukládá, proč, jak dlouho (zálohy 7 dní), kdo zpracovává (Oracle Cloud, Gmail), jen nezbytné cookies.
 
@@ -301,7 +332,7 @@ Je to **dobrovolné pro zákazníka** (část A1) a **povinné pro admina** (č�
   `ToOrderAccess` dá „všechny objednávky“ jen adminovi s 2FA.
 - **Google:** Google se jako druhý faktor **nepočítá**. `ExternalLogin` už nepoužívá `bypassTwoFactor`, takže kdo má 2FA zapnuté
   (admin vždy), zadá po Googlu ještě kód z aplikace; admin bez vlastního TOTP projde Googlem, ale administrace zůstane zamčená.
-- **Povýšení uživatele na admina:** role se změní s novým security stampem. Zapamatované zařízení z doby zákazníka se u admina
+- **Přidělení zaměstnanecké role (dřív povýšení na admina):** role se změní s novým security stampem. Zapamatované zařízení z doby zákazníka se u zaměstnance
   **neuznává** – [AccountSignInManager](code:src/MiniShop.Web/Accounts/AccountSignInManager.cs) přepisuje `IsTwoFactorClientRememberedAsync`
   podle role, takže nezáleží na tom, v jakém prohlížeči cookie zůstala. Nový admin si 2FA nastaví při prvním přihlášení.
 - **Vývoj (`AdminBootstrap`):** vývojový admin `admin@minishop.local` je admin bez 2FA. Po přihlášení (a změně hesla) ho přesměruje

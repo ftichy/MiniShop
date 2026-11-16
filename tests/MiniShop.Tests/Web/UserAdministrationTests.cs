@@ -31,15 +31,16 @@ public sealed class UserAdministrationTests(MiniShopWebFactory web)
     }
 
     [Fact]
-    public async Task Povyseni_PoNovemPrihlaseni_MaUzivatelPristupKProduktum()
+    public async Task PrideleniRole_PoNovemPrihlaseni_MaUzivatelPristupKProduktum()
     {
         await web.CreateUserAsync(_email, Password);
         var admin = await web.LoginAsync(MiniShopWebFactory.AdminEmail, MiniShopWebFactory.AdminPassword);
 
-        var detail = await PostActionAsync(admin, "Promote");
+        // Účty krok 12A: role zaškrtávátky (dřív tlačítko „Povýšit na admina“).
+        var detail = await PostActionAsync(admin, "Roles", ("roles", AccountRoles.CatalogManager));
 
-        Assert.Contains($"{_email} je teď admin.", detail);
-        Assert.Contains("povýšen na admina", detail);   // historie změn
+        Assert.Contains($"Role účtu {_email} uložené.", detail);
+        Assert.Contains("změna rolí: +Správce sortimentu, −Zákazník", detail);   // historie změn
         var promoted = await web.LoginAsync(_email, Password);
         // 2FA krok A2: povýšený uživatel má roli hned, ale administrace se odemkne až po nastavení dvoufázového ověření.
         var locked = await promoted.GetAsync("/Products");
@@ -81,14 +82,15 @@ public sealed class UserAdministrationTests(MiniShopWebFactory web)
     }
 
     /// <summary>Odeslání tlačítka na detailu uživatele (Post/Redirect/Get) – vrátí stránku po přesměrování.</summary>
-    private async Task<string> PostActionAsync(HttpClient admin, string handler)
+    private async Task<string> PostActionAsync(HttpClient admin, string handler, params (string Name, string Value)[] fields)
     {
         var detailUrl = $"/Admin/Users/Detail/{await UserIdAsync()}";
-        var response = await admin.PostAsync($"{detailUrl}?handler={handler}", new FormUrlEncodedContent(
-            new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = await MiniShopWebFactory.GetAntiforgeryTokenAsync(admin, detailUrl)
-            }));
+        var form = new List<KeyValuePair<string, string>>
+        {
+            new("__RequestVerificationToken", await MiniShopWebFactory.GetAntiforgeryTokenAsync(admin, detailUrl))
+        };
+        form.AddRange(fields.Select(field => new KeyValuePair<string, string>(field.Name, field.Value)));
+        var response = await admin.PostAsync($"{detailUrl}?handler={handler}", new FormUrlEncodedContent(form));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         return await PageAsync(admin, response.Headers.Location!.OriginalString);

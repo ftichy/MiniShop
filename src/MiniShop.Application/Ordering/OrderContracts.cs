@@ -41,6 +41,7 @@ public sealed record OrderStatusChangeDto(string Status, DateTime? ChangedAtUtc,
 /// <param name="ReturnableUntilUtc">E-shop krok 12: do kdy jde objednávku vrátit; null = vrátit nejde (nedoručená, po termínu, vratka běží, nic nezbývá).</param>
 /// <param name="Returns">E-shop krok 22: vratky po částech (null = žádné).</param>
 /// <param name="ReturnableItems">E-shop krok 22: kolik kusů čeho jde ještě vrátit (formulář vratky); null = vrátit nejde.</param>
+/// <param name="CustomerId">Účty krok 12A: vlastník objednávky (ID účtu) – zaměstnanec, který je i zákazník, vidí akce zákazníka jen u svých.</param>
 public sealed record OrderDetailDto(
     OrderDto Order,
     IReadOnlyList<OrderStatusChangeDto> History,
@@ -48,7 +49,8 @@ public sealed record OrderDetailDto(
     string? ReturnReason = null,
     string? ReturnRejectionReason = null,
     IReadOnlyList<OrderReturnDto>? Returns = null,
-    IReadOnlyList<ReturnableItemDto>? ReturnableItems = null);
+    IReadOnlyList<ReturnableItemDto>? ReturnableItems = null,
+    string? CustomerId = null);
 
 /// <summary>E-shop krok 22: vratka po částech na detailu objednávky a na stránce Vratky.</summary>
 /// <param name="Status"><c>Requested</c>, <c>Completed</c>, <c>Rejected</c>.</param>

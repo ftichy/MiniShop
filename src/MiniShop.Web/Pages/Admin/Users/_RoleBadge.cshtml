@@ -1,9 +1,11 @@
-@model bool
-@if (Model)
+@using MiniShop.Infrastructure.Accounts
+@model IReadOnlyList<string>
+@* Účty krok 12A: štítek za každou roli (zaměstnanecké tmavě, zákazník světle). *@
+@if (Model.Count == 0)
 {
-    <span class="badge badge-soft-dark">admin</span>
+    <span class="text-muted small">bez role</span>
 }
-else
+@foreach (var role in Model)
 {
-    <span class="badge badge-soft-secondary">user</span>
+    <span class="badge @(AccountRoles.IsStaff(role) ? "badge-soft-dark" : "badge-soft-secondary") me-1" data-track="user-role">@AccountRoles.Label(role)</span>
 }

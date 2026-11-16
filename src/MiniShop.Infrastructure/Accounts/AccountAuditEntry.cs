@@ -9,7 +9,10 @@ public enum AccountAuditAction
     Unlocked,
 
     /// <summary>2FA krok A2: příkaz na serveru (<c>reset-2fa</c>) zrušil dvoufázové ověření – ztráta telefonu.</summary>
-    TwoFactorReset
+    TwoFactorReset,
+
+    /// <summary>Účty krok 12A: správce uživatelů změnil role (co přibylo a ubylo je v <see cref="AccountAuditEntry.Detail"/>).</summary>
+    RolesChanged
 }
 
 /// <summary>
@@ -27,8 +30,10 @@ public sealed class AccountAuditEntry
     {
     }
 
-    public AccountAuditEntry(ApplicationUser actor, ApplicationUser target, AccountAuditAction action, DateTime occurredAtUtc)
+    public AccountAuditEntry(ApplicationUser actor, ApplicationUser target, AccountAuditAction action, DateTime occurredAtUtc,
+        string? detail = null)
     {
+        Detail = detail?[..Math.Min(detail.Length, DetailMaxLength)];
         ActorUserId = actor.Id;
         ActorEmail = actor.Email ?? string.Empty;
         TargetUserId = target.Id;
@@ -58,6 +63,11 @@ public sealed class AccountAuditEntry
     public string TargetUserId { get; private set; } = string.Empty;
     public string TargetEmail { get; private set; } = string.Empty;
     public AccountAuditAction Action { get; private set; }
+
+    public const int DetailMaxLength = 500;
+
+    /// <summary>Účty krok 12A: podrobnost akce – u změny rolí „+Sklad a expedice, −Marketing“. Null u starších záznamů.</summary>
+    public string? Detail { get; private set; }
 
     /// <summary>Místo e-mailu smazaného účtu (účty krok 9).</summary>
     public const string DeletedAccountEmail = "smazaný účet";

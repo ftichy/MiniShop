@@ -101,7 +101,7 @@ public sealed class IndexModel(
         try
         {
             Payment = await payments.GetForCustomerAsync(OrderId, User.ToCustomerId(), cancellationToken);
-            OrderCancelled = (await orders.GetByIdAsync(OrderId, User.ToOrderAccess(), cancellationToken)).Status
+            OrderCancelled = (await orders.GetByIdAsync(OrderId, User.ToCustomerOrderAccess(), cancellationToken)).Status
                 == "Cancelled";
             return true;
         }

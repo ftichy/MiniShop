@@ -52,6 +52,8 @@ public sealed class IndexModel(AccountAdministration accounts, IOrderService ord
         AccountAuditAction.DemotedToUser => "vrácen na usera",
         AccountAuditAction.Locked => "zablokován",
         AccountAuditAction.Unlocked => "odblokován",
+        AccountAuditAction.TwoFactorReset => "dvoufázové ověření zrušeno",
+        AccountAuditAction.RolesChanged => "změna rolí",   // účty krok 12A (co přesně – sloupec Detail)
         _ => action.ToString()
     };
 

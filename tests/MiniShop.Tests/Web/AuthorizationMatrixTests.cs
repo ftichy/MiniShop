@@ -284,10 +284,10 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Admin, "/Products/Edit/1?handler=RemoveImage", Expect.Allowed },
 
         // Účty krok 6: akce na detailu uživatele – jen admin (neexistující ID: projde autorizací, nic nezmění)
-        { Who.Anonymous, "/Admin/Users/Detail/neexistuje?handler=Promote", Expect.Login },
-        { Who.User, "/Admin/Users/Detail/neexistuje?handler=Promote", Expect.Denied },
-        { Who.Admin, "/Admin/Users/Detail/neexistuje?handler=Promote", Expect.Allowed },
-        { Who.User, "/Admin/Users/Detail/neexistuje?handler=Demote", Expect.Denied },
+        // Účty krok 12A: role zaškrtávátky (dřív Promote/Demote) – kontrolu „jen správce uživatelů“ dělá AccountAdministration
+        { Who.Anonymous, "/Admin/Users/Detail/neexistuje?handler=Roles", Expect.Login },
+        { Who.User, "/Admin/Users/Detail/neexistuje?handler=Roles", Expect.Denied },
+        { Who.Admin, "/Admin/Users/Detail/neexistuje?handler=Roles", Expect.Allowed },
         { Who.User, "/Admin/Users/Detail/neexistuje?handler=Lock", Expect.Denied },
         { Who.Admin, "/Admin/Users/Detail/neexistuje?handler=Lock", Expect.Allowed },
         { Who.User, "/Admin/Users/Detail/neexistuje?handler=Unlock", Expect.Denied },

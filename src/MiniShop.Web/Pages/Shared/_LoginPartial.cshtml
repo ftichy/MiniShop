@@ -9,9 +9,10 @@
             <a class="nav-link dropdown-toggle d-flex align-items-center gap-2" href="#" role="button" data-bs-toggle="dropdown"
                aria-expanded="false" data-track="nav-account-menu">
                 @Icons.Person <span>@name</span>
-                @if (User.IsInRole(AccountRoles.Admin))
+                @if (AccountRoles.Staff.Any(User.IsInRole))
                 {
-                    <span class="badge badge-soft-warning">admin</span>
+                    @* Účty krok 12A: kterákoli zaměstnanecká role. *@
+                    <span class="badge badge-soft-warning">správa</span>
                 }
             </a>
             <ul class="dropdown-menu dropdown-menu-lg-end">

@@ -57,7 +57,7 @@
                         <span class="badge badge-soft-secondary ms-1" title="E-mail není potvrzený">nepotvrzený</span>
                     }
                 </td>
-                <td><partial name="_RoleBadge" model="account.IsAdmin" /></td>
+                <td><partial name="_RoleBadge" model="account.Roles" /></td>
                 <td><partial name="_LockBadge" model="account" /></td>
                 <td class="num">@row.OrderCount</td>
                 <td class="num">@row.TotalSpent.ToString("N2") Kč</td>
@@ -83,7 +83,7 @@ else
                     <td class="text-nowrap">@entry.OccurredAtUtc.ToCzechString()</td>
                     <td>
                         <a asp-page="/Admin/Users/Detail" asp-route-id="@entry.TargetUserId">@entry.TargetEmail</a>
-                        @IndexModel.ActionText(entry.Action)
+                        @IndexModel.ActionText(entry.Action)@(entry.Detail is null ? "" : $": {entry.Detail}")
                     </td>
                     <td class="text-muted">provedl @entry.ActorEmail</td>
                 </tr>

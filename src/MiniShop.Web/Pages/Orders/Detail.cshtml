@@ -157,12 +157,13 @@ else if (order.Status == "Completed" && Model.Detail.ReturnRejectionReason is no
                                 č. @Model.Documents.InvoiceNumber –
                                 <a asp-page="/Orders/Invoice" asp-route-id="@order.Id" data-track="order-detail-invoice">stáhnout PDF</a>
                             </div>
-                            @if (Model.Documents.CreditNoteNumber is not null)
+                            @foreach (var creditNote in Model.Documents.CreditNotes)
                             {
-                                @* E-shop krok 15B: zrušení/vrácení po vystavení faktury = dobropis, faktura zůstává beze změny. *@
+                                @* E-shop krok 15B: zrušení/vrácení po vystavení faktury = dobropis, faktura zůstává beze změny.
+                                   Krok 22: každá vratka po částech má vlastní dobropis. *@
                                 <div>
-                                    Dobropis č. @Model.Documents.CreditNoteNumber –
-                                    <a asp-page="/Orders/CreditNote" asp-route-id="@order.Id" data-track="order-detail-credit-note">stáhnout PDF</a>
+                                    Dobropis č. @creditNote.Number@(creditNote.ReturnNumber > 0 ? $" (vratka {creditNote.ReturnNumber})" : "") –
+                                    <a asp-page="/Orders/CreditNote" asp-route-id="@order.Id" asp-route-number="@creditNote.Number" data-track="order-detail-credit-note">stáhnout PDF</a>
                                 </div>
                             }
                         </div>

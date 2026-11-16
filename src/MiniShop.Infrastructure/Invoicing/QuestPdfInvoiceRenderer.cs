@@ -50,18 +50,21 @@ public sealed class QuestPdfInvoiceRenderer : IInvoicePdfRenderer
             [
                 $"Datum vystavení: {Date(creditNote.IssuedAtUtc)}",
                 $"K faktuře: {creditNote.InvoiceNumber}",
-                $"Objednávka: {creditNote.OrderId}"
+                $"Objednávka: {creditNote.OrderId}",
+                .. (creditNote.IsPartial ? [$"Vratka: {creditNote.ReturnNumber}"] : Array.Empty<string>())
             ],
             CustomerName: creditNote.CustomerName,
             DeliveryAddress: creditNote.DeliveryAddress,
             Lines: creditNote.Lines,
-            ShippingMethod: creditNote.ShippingMethod,
+            // E-shop krok 22: vratka po částech dopravu nevrací – řádek „Doprava 0 Kč“ by mátl.
+            ShippingMethod: creditNote.IsPartial && creditNote.ShippingPrice == 0 ? string.Empty : creditNote.ShippingMethod,
             ShippingPrice: creditNote.ShippingPrice,
             Total: creditNote.Total,
             Sign: -1,
             Notes:
             [
-                $"Opravný doklad k faktuře č. {creditNote.InvoiceNumber}. Důvod: {ReasonLabel(creditNote.Reason)}.",
+                $"Opravný doklad k faktuře č. {creditNote.InvoiceNumber}. Důvod: "
+                    + (creditNote.IsPartial ? $"vrácení části zboží (vratka {creditNote.ReturnNumber})." : $"{ReasonLabel(creditNote.Reason)}."),
                 $"{creditNote.RefundNote}: {Money(creditNote.Total)}."
             ]),
             seller);

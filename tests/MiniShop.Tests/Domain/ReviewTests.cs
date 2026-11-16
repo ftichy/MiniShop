@@ -70,4 +70,20 @@ public class ReviewTests
         Assert.True(order.AllowsReviewOf("zakaznik-1", 7));
         Assert.Single(order.Products);
     }
+
+    /// <summary>E-shop krok 22: produkt vrácený celý vratkami po částech hodnotit nejde, ostatní ano – i když snímek přijde později.</summary>
+    [Fact]
+    public void Nakup_VratkaPoCastech_BlokujeJenProduktVracenyCely()
+    {
+        var order = PurchasedOrder.Create(42);
+        order.ApplyPlaced("zakaznik-1", "Jan Novák", [7, 8]);
+        order.MarkDelivered();
+
+        order.MarkProductsReturned([8, 8]);
+        order.ApplyPlaced("zakaznik-1", "Jan Novák", [7, 8]);   // pozdní vznik / snímek seznam vrácených nepřepíše
+
+        Assert.True(order.AllowsReviewOf("zakaznik-1", 7));
+        Assert.False(order.AllowsReviewOf("zakaznik-1", 8));
+        Assert.Single(order.ReturnedProducts);
+    }
 }

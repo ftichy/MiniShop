@@ -128,6 +128,9 @@ namespace MiniShop.Infrastructure.Invoicing.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<int>("ReturnNumber")
+                        .HasColumnType("integer");
+
                     b.Property<string>("ShippingMethod")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -148,7 +151,7 @@ namespace MiniShop.Infrastructure.Invoicing.Migrations
                     b.HasIndex("Number")
                         .IsUnique();
 
-                    b.HasIndex("OrderId")
+                    b.HasIndex("OrderId", "ReturnNumber")
                         .IsUnique();
 
                     b.ToTable("CreditNotes", "invoicing");

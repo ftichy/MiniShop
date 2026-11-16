@@ -93,6 +93,32 @@ public class InvoiceTests
         Assert.Throws<DomainException>(() => CreditNote.Issue(invoice, "D2026000002", CreditNoteReason.Cancelled, "x", Now.AddDays(-1)));
     }
 
+    /// <summary>E-shop krok 22: vratka po částech = dobropis jen s vrácenými řádky; dobropisy nepřesáhnou fakturu.</summary>
+    [Fact]
+    public void DobropisZaVratkuPoCastech_JenVraceneRadky_SoucetNejvysFaktura()
+    {
+        var order = Placed(5);
+        order.MarkPaid(Now, "Kartou");
+        var invoice = Invoice.Issue(order, "2026000007", Now);   // 2× Myš 200 Kč + kurýr 50 Kč = 250 Kč
+        InvoiceLine[] oneMouse = [new InvoiceLine("Myš", 1, 100m, 0m, 100m)];
+
+        var first = CreditNote.IssueForReturn(invoice, "D2026000001", 1, oneMouse, 0m, "Vráceno na kartu", 0m, Now.AddDays(3));
+
+        Assert.Equal((1, true, 100m, 0m, CreditNoteReason.Returned), (first.ReturnNumber, first.IsPartial, first.Total,
+            first.ShippingPrice, first.Reason));
+        Assert.Equal(oneMouse, first.Lines);
+        Assert.Equal(("2026000007", "Eva"), (first.InvoiceNumber, first.CustomerName));   // hlavička z faktury
+
+        var second = CreditNote.IssueForReturn(invoice, "D2026000002", 2, oneMouse, 50m, "x", 100m, Now.AddDays(4));
+        Assert.Equal(150m, second.Total);   // i s dopravou – celkem 250 = faktura
+
+        Assert.Throws<DomainException>(() =>   // třetí by přesáhla fakturu
+            CreditNote.IssueForReturn(invoice, "D2026000003", 3, [new InvoiceLine("Myš", 1, 0.01m, 0m, 0.01m)], 0m, "x", 250m, Now.AddDays(5)));
+        Assert.Throws<DomainException>(() => CreditNote.IssueForReturn(invoice, "D2026000003", 0, oneMouse, 0m, "x", 0m, Now));
+        Assert.Throws<DomainException>(() => CreditNote.IssueForReturn(invoice, "D2026000003", 3, [], 0m, "x", 0m, Now));
+        Assert.False(CreditNote.Issue(invoice, "D2026000004", CreditNoteReason.Returned, "x", Now).IsPartial);
+    }
+
     private static BillableOrder Placed(int orderId)
     {
         var order = BillableOrder.Create(orderId);

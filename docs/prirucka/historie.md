@@ -104,6 +104,7 @@ Plán (výloha, košík, pokladna, expedice, platba, notifikace): [docs/Eshop-ro
 | 20 | Stránkování seznamů – objednávky, uživatelé, faktury, hodnocení, produkty, kupony a historie přihlášení po stránkách (10/20/50/100), hledání uživatelů podle e-mailu a objednávek podle čísla | [eshop-20](code:docs/kroky-eshop/krok-20-strankovani.md) |
 | 21 | Lepší hledání ve výloze – po slovech v libovolném pořadí, řazení podle relevance, překlepy přes PostgreSQL pg_trgm (jen když přesně nic), našeptávač v hlavičce i na stránce Obchod; text dotazu do tras nejde | [eshop-21](code:docs/kroky-eshop/krok-21-hledani.md) |
 | 22A | Vratka po částech, část 1 – sklad a Payments umí vrátit jen vybrané kusy a jen část peněz (`RestockReturnedGoodsV2`, `RefundPaymentV2`, každá vratka jednou); zavádí se od konce, zprávy V2 zatím nikdo neposílá | [eshop-22a](code:docs/kroky-eshop/krok-22a-vratka-po-castech-sklad-a-platby.md) |
+| 22B | Vratka po částech, část 2 – dobropis jen za vrácené řádky (víc dobropisů k jedné faktuře, součet nikdy nad fakturu), e-maily se seznamem vracených položek, tržba bez vrácené částky, hodnocení blokuje jen produkt vrácený celý (`ReturnRequestedV2`, `ReturnRejectedV2`, `ReturnCompletedV2`); zprávy zatím nikdo neposílá | [eshop-22b](code:docs/kroky-eshop/krok-22b-vratka-po-castech-doklady-a-odberatele.md) |
 
 ## Vzhled
 

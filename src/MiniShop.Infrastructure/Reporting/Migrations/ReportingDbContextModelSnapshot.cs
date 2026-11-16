@@ -162,7 +162,74 @@ namespace MiniShop.Infrastructure.Reporting.Migrations
                                 .HasForeignKey("OrderId");
                         });
 
+                    b.OwnsMany("MiniShop.Domain.Reporting.SalesOrderReturn", "Returns", b1 =>
+                        {
+                            b1.Property<int>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer");
+
+                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+
+                            b1.Property<decimal>("Amount")
+                                .HasPrecision(18, 2)
+                                .HasColumnType("numeric(18,2)");
+
+                            b1.Property<int>("OrderId")
+                                .HasColumnType("integer");
+
+                            b1.Property<int>("ReturnNumber")
+                                .HasColumnType("integer");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("OrderId", "ReturnNumber")
+                                .IsUnique();
+
+                            b1.ToTable("SalesOrderReturns", "reporting");
+
+                            b1.WithOwner()
+                                .HasForeignKey("OrderId");
+                        });
+
+                    b.OwnsMany("MiniShop.Domain.Reporting.SalesOrderReturnLine", "ReturnedLines", b1 =>
+                        {
+                            b1.Property<int>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer");
+
+                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+
+                            b1.Property<decimal>("LineTotal")
+                                .HasPrecision(18, 2)
+                                .HasColumnType("numeric(18,2)");
+
+                            b1.Property<int>("OrderId")
+                                .HasColumnType("integer");
+
+                            b1.Property<int>("ProductId")
+                                .HasColumnType("integer");
+
+                            b1.Property<int>("Quantity")
+                                .HasColumnType("integer");
+
+                            b1.Property<int>("ReturnNumber")
+                                .HasColumnType("integer");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("OrderId");
+
+                            b1.ToTable("SalesOrderReturnLines", "reporting");
+
+                            b1.WithOwner()
+                                .HasForeignKey("OrderId");
+                        });
+
                     b.Navigation("Lines");
+
+                    b.Navigation("ReturnedLines");
+
+                    b.Navigation("Returns");
                 });
 #pragma warning restore 612, 618
         }

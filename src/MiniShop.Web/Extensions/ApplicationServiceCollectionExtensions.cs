@@ -66,6 +66,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddIntegrationMessageHandler<OrderPlacedV2, PurchaseProjectionHandler>(IntegrationModules.Reviews);
         services.AddIntegrationMessageHandler<OrderCompletedV1, PurchaseProjectionHandler>(IntegrationModules.Reviews);
         services.AddIntegrationMessageHandler<ReturnCompletedV1, PurchaseProjectionHandler>(IntegrationModules.Reviews);
+        services.AddIntegrationMessageHandler<ReturnCompletedV2, PurchaseProjectionHandler>(IntegrationModules.Reviews);   // e-shop krok 22: vratka po částech
         services.AddIntegrationMessageHandler<OrderSnapshotV2, PurchaseProjectionHandler>(IntegrationModules.Reviews);
         services.AddIntegrationMessageHandler<CustomerAnonymizedV1, PurchaseProjectionHandler>(IntegrationModules.Reviews);
         return services;
@@ -95,6 +96,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddIntegrationMessageHandler<OrderRejectedV1, InvoicingHandler>(IntegrationModules.Invoicing);
         services.AddIntegrationMessageHandler<OrderCancelledV1, InvoicingHandler>(IntegrationModules.Invoicing);
         services.AddIntegrationMessageHandler<ReturnCompletedV1, InvoicingHandler>(IntegrationModules.Invoicing);   // e-shop krok 15B: dobropis
+        services.AddIntegrationMessageHandler<ReturnCompletedV2, InvoicingHandler>(IntegrationModules.Invoicing);   // e-shop krok 22: dobropis za vratku po částech
         services.AddIntegrationMessageHandler<CustomerAnonymizedV1, InvoicingHandler>(IntegrationModules.Invoicing);
         return services;
     }
@@ -110,6 +112,8 @@ public static class ApplicationServiceCollectionExtensions
         services.AddIntegrationMessageHandler<PaymentRefundedV1, SalesProjectionHandler>(IntegrationModules.Reporting);
         services.AddIntegrationMessageHandler<OrderSnapshotV1, SalesProjectionHandler>(IntegrationModules.Reporting);
         services.AddIntegrationMessageHandler<ReturnCompletedV1, SalesProjectionHandler>(IntegrationModules.Reporting);   // e-shop krok 12
+        services.AddIntegrationMessageHandler<ReturnCompletedV2, SalesProjectionHandler>(IntegrationModules.Reporting);   // e-shop krok 22: vratka po částech
+        services.AddIntegrationMessageHandler<PaymentRefundedV2, SalesProjectionHandler>(IntegrationModules.Reporting);
         return services;
     }
 
@@ -146,6 +150,9 @@ public static class ApplicationServiceCollectionExtensions
         services.AddIntegrationMessageHandler<ReturnRequestedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);   // e-shop krok 12
         services.AddIntegrationMessageHandler<ReturnRejectedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<ReturnCompletedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<ReturnRequestedV2, OrderNotificationsHandler>(IntegrationModules.Notifications);   // e-shop krok 22: vratka po částech
+        services.AddIntegrationMessageHandler<ReturnRejectedV2, OrderNotificationsHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<ReturnCompletedV2, OrderNotificationsHandler>(IntegrationModules.Notifications);
 
         // E-shop krok 10: připomínka opuštěného košíku – kontakt a souhlas až při odeslání (z účtů, přes Web).
         services.AddSingleton<CartEmailTemplates>();

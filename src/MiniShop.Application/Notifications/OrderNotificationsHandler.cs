@@ -39,7 +39,10 @@ public sealed class OrderNotificationsHandler(
     IIntegrationMessageHandler<PaymentRefundedV1>,
     IIntegrationMessageHandler<ReturnRequestedV1>,
     IIntegrationMessageHandler<ReturnRejectedV1>,
-    IIntegrationMessageHandler<ReturnCompletedV1>
+    IIntegrationMessageHandler<ReturnCompletedV1>,
+    IIntegrationMessageHandler<ReturnRequestedV2>,
+    IIntegrationMessageHandler<ReturnRejectedV2>,
+    IIntegrationMessageHandler<ReturnCompletedV2>
 {
     /// <summary>Jak dlouho čekat, než dorazí OrderPlacedV2 (zpráva mimo pořadí), u potvrzení a zamítnutí.</summary>
     public static readonly TimeSpan MaxWaitForPlacedOrder = TimeSpan.FromMinutes(5);
@@ -113,6 +116,20 @@ public sealed class OrderNotificationsHandler(
     public async Task HandleAsync(ReturnCompletedV1 message, CancellationToken cancellationToken) =>
         await SendAsync(await RecipientOrFallbackAsync(message.OrderId, message.CustomerEmail, cancellationToken),
             to => templates.ReturnCompleted(to, message.Amount, message.RefundedByCard), cancellationToken);
+
+    /// <summary>E-shop krok 22: vratka po částech – které položky poslat, kam a do kdy.</summary>
+    public async Task HandleAsync(ReturnRequestedV2 message, CancellationToken cancellationToken) =>
+        await SendAsync(await RecipientOrFallbackAsync(message.OrderId, message.CustomerEmail, cancellationToken),
+            to => templates.PartialReturnRequested(to, message.ReturnNumber, message.SendByUtc, message.Items), cancellationToken);
+
+    public async Task HandleAsync(ReturnRejectedV2 message, CancellationToken cancellationToken) =>
+        await SendAsync(await RecipientOrFallbackAsync(message.OrderId, message.CustomerEmail, cancellationToken),
+            to => templates.PartialReturnRejected(to, message.ReturnNumber, message.Reason), cancellationToken);
+
+    public async Task HandleAsync(ReturnCompletedV2 message, CancellationToken cancellationToken) =>
+        await SendAsync(await RecipientOrFallbackAsync(message.OrderId, message.CustomerEmail, cancellationToken),
+            to => templates.PartialReturnCompleted(to, message.ReturnNumber, message.Items, message.ShippingRefund,
+                message.Amount, message.RefundedByCard), cancellationToken);
 
     /// <summary>Zákazník smazal účet → zapomenout jeho jméno, e-mail, adresu i souhrny objednávek.</summary>
     public async Task HandleAsync(CustomerAnonymizedV1 message, CancellationToken cancellationToken)

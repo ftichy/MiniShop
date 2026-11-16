@@ -60,6 +60,7 @@ flowchart TB
 | `CustomerAnonymizedV1` | žádný – smaže jméno, e-mail, adresu a souhrny zákazníka |
 | `PaymentRefundedV1` | „Platbu vracíme“ – pozdní platba nebo zrušená zaplacená objednávka (e-shop krok 8 a 9, zprávu posílá modul Payments) |
 | `ReturnRequestedV1`, `ReturnRejectedV1`, `ReturnCompletedV1` | E-shop krok 12: „pošlete nám zboží do …“, „vrácení nebylo přijato“ (důvod), „objednávka je vrácená“ (kartou / převodem) – viz [Vrácení zboží](../../toky/vraceni-zbozi.md) |
+| `ReturnRequestedV2`, `ReturnRejectedV2`, `ReturnCompletedV2` | E-shop krok 22: totéž pro vratku po částech – „Vratka 2 k objednávce …“, se seznamem vracených položek a částkou (`ReturnItemV1`) |
 | `CartAbandonedV1` | „Ve vašem košíku zůstalo zboží“ – jen se souhlasem a potvrzeným e-mailem, které `CartReminderHandler` ověří přes `ICustomerContacts` až při odeslání (e-shop krok 10, [opuštěný košík](../../toky/opusteny-kosik.md)) |
 | `StockAvailabilityChangedV1` | E-shop krok 18: „Produkt je zase skladem“ – jen přihlášeným na lísteček „Dejte mi vědět“ a jen jednou (lísteček se po odeslání smaže); přechod na „Vyprodáno“ nic neposílá |
 | `InvoiceIssuedV1` | E-shop krok 15: „Faktura … k objednávce č. …“ s **PDF v příloze** – PDF si `InvoiceEmailHandler` vezme přes `IInvoiceDocuments` (implementace `InvoiceDocuments` ve Webu nad modulem [Invoicing](invoicing.md)), PDF tak nejde přes RabbitMQ ([Vystavení faktury](../../toky/faktura.md)) |

@@ -39,7 +39,7 @@ public sealed class SalesReportService(
 
         var topProducts = recent
             .Where(o => o.CountsAsRevenue)
-            .SelectMany(o => o.Lines)
+            .SelectMany(o => o.KeptLines())   // e-shop krok 22: bez vrácených kusů
             .GroupBy(l => l.ProductId)
             .Select(g => new TopProductDto(g.Key, g.Last().ProductName, g.Sum(l => l.Quantity), g.Sum(l => l.LineTotal)))
             .OrderByDescending(p => p.Quantity)
@@ -86,7 +86,7 @@ public sealed class SalesReportService(
     private static SalesDayDto ToDay(DateOnly day, IEnumerable<SalesOrder> placed)
     {
         var counted = placed.Where(o => o.CountsAsRevenue).ToList();
-        return new SalesDayDto(day, counted.Count, counted.Sum(o => o.TotalPrice));
+        return new SalesDayDto(day, counted.Count, counted.Sum(o => o.Revenue));
     }
 
     private DateTime UtcNow => timeProvider.GetUtcNow().UtcDateTime;
@@ -106,7 +106,7 @@ public sealed record SalesReportDto(
     DateTime? LastUpdatedAtUtc);
 
 /// <param name="OrderCount">Objednávky, které nejsou zamítnuté ani zrušené.</param>
-/// <param name="Revenue">Jejich součet včetně dopravy.</param>
+/// <param name="Revenue">Jejich součet včetně dopravy, bez vratek po částech (e-shop krok 22).</param>
 public sealed record SalesDayDto(DateOnly Day, int OrderCount, decimal Revenue);
 
 public sealed record TopProductDto(int ProductId, string Name, int Quantity, decimal Revenue);

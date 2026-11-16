@@ -7,7 +7,9 @@ namespace MiniShop.Domain.Invoicing;
 /// zruší nebo vrátí, vznikne nový doklad, který na fakturu odkazuje a celou její částku vrací (faktura + dobropis = 0).
 /// </summary>
 /// <remarks>
-/// Jeden dobropis na objednávku (unikátní <see cref="OrderId"/>) – jen celý, částečné vrácení MiniShop nezná.
+/// Celý dobropis (<see cref="Issue"/>) je k objednávce nejvýš jeden. E-shop krok 22: vratka po částech má vlastní dobropis
+/// jen s vrácenými řádky (<see cref="IssueForReturn"/>) – unikátní je dvojice <see cref="OrderId"/> + <see cref="ReturnNumber"/>
+/// a součet dobropisů nikdy nepřesáhne fakturu.
 /// Skládá se z kopie faktury, ne z kopie objednávky: ta po smazání účtu zmizí, faktura zůstává.
 /// Číslo přiděluje <see cref="CreditNoteNumberSeries"/> ve stejné transakci (řada bez děr jako u faktur).
 /// </remarks>
@@ -30,6 +32,15 @@ public sealed class CreditNote
 
     public int OrderId { get; private set; }
 
+    /// <summary>
+    /// E-shop krok 22: číslo vratky v objednávce (1, 2, …); <see cref="WholeOrder"/> (0) = celý dobropis – zrušení, zamítnutí,
+    /// vratka celé objednávky a všechny dobropisy z doby před krokem 22.
+    /// </summary>
+    public int ReturnNumber { get; private set; }
+
+    /// <summary>Vrací se jen část faktury (vratka po částech).</summary>
+    public bool IsPartial => ReturnNumber != WholeOrder;
+
     /// <summary>Komu patří (stažení PDF jen vlastník nebo admin). Zůstává i po smazání účtu – jako faktura.</summary>
     public string CustomerId { get; private set; } = string.Empty;
 
@@ -41,7 +52,7 @@ public sealed class CreditNote
 
     public decimal ShippingPrice { get; private set; }
 
-    /// <summary>Kolik se vrací – celá částka faktury (kladné číslo; v PDF se znaménkem minus).</summary>
+    /// <summary>Kolik se vrací – celá částka faktury, u vratky po částech jen vrácené řádky + doprava (kladné číslo; v PDF se znaménkem minus).</summary>
     public decimal Total { get; private set; }
 
     public CreditNoteReason Reason { get; private set; }
@@ -51,7 +62,10 @@ public sealed class CreditNote
 
     public DateTime IssuedAtUtc { get; private set; }
 
-    /// <summary>Řádky opravované faktury (vrací se celé).</summary>
+    /// <summary>Celý dobropis = <see cref="ReturnNumber"/> 0.</summary>
+    public const int WholeOrder = 0;
+
+    /// <summary>Řádky opravované faktury (celý dobropis), nebo jen vrácené řádky (vratka po částech).</summary>
     public IReadOnlyCollection<InvoiceLine> Lines => _lines.AsReadOnly();
 
     /// <summary>Vystaví dobropis k faktuře s číslem z řady dobropisů.</summary>
@@ -78,6 +92,46 @@ public sealed class CreditNote
             IssuedAtUtc = issuedAtUtc
         };
         creditNote._lines.AddRange(invoice.Lines);
+        return creditNote;
+    }
+
+    /// <summary>
+    /// E-shop krok 22: dobropis k vratce po částech – hlavička z faktury, řádky jen vrácené. Pojistka: s dosavadními dobropisy
+    /// (<paramref name="alreadyCredited"/>) nesmí přesáhnout fakturu – hlavní pravidlo „nevrátit víc, než se koupilo“ hlídá Ordering.
+    /// </summary>
+    public static CreditNote IssueForReturn(
+        Invoice invoice,
+        string number,
+        int returnNumber,
+        IReadOnlyCollection<InvoiceLine> lines,
+        decimal shippingRefund,
+        string refundNote,
+        decimal alreadyCredited,
+        DateTime issuedAtUtc)
+    {
+        if (returnNumber <= WholeOrder)
+        {
+            throw new DomainException($"Číslo vratky musí být kladné (je {returnNumber}).");
+        }
+
+        if (lines.Count == 0 || lines.Any(line => line.Quantity <= 0 || line.LineTotal < 0) || shippingRefund < 0)
+        {
+            throw new DomainException($"Vratka {returnNumber} objednávky {invoice.OrderId} nemá co dobropisovat.");
+        }
+
+        var total = lines.Sum(line => line.LineTotal) + shippingRefund;
+        if (alreadyCredited + total > invoice.Total)
+        {
+            throw new DomainException(
+                $"Dobropisy k faktuře {invoice.Number} by přesáhly její částku ({alreadyCredited + total} > {invoice.Total}).");
+        }
+
+        var creditNote = Issue(invoice, number, CreditNoteReason.Returned, refundNote, issuedAtUtc);
+        creditNote.ReturnNumber = returnNumber;
+        creditNote.ShippingPrice = shippingRefund;
+        creditNote.Total = total;
+        creditNote._lines.Clear();
+        creditNote._lines.AddRange(lines);
         return creditNote;
     }
 }

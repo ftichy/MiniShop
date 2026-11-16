@@ -162,6 +162,9 @@ public sealed class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<ReturnRequestedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);   // e-shop krok 12
         services.AddIntegrationMessageHandler<ReturnRejectedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<ReturnCompletedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<ReturnRequestedV2, OrderNotificationsHandler>(IntegrationModules.Notifications);   // e-shop krok 22: vratka po částech
+        services.AddIntegrationMessageHandler<ReturnRejectedV2, OrderNotificationsHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<ReturnCompletedV2, OrderNotificationsHandler>(IntegrationModules.Notifications);
 
         // E-shop krok 10: opuštěný košík – služba v Orderingu, připomínka v Notifications, kontakty místo účtů v paměti.
         services.AddSingleton(new CartReminderSettings(CartAbandonedAfter, TimeSpan.FromMinutes(15)));
@@ -193,6 +196,8 @@ public sealed class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<PaymentRefundedV1, SalesProjectionHandler>(IntegrationModules.Reporting);
         services.AddIntegrationMessageHandler<OrderSnapshotV1, SalesProjectionHandler>(IntegrationModules.Reporting);
         services.AddIntegrationMessageHandler<ReturnCompletedV1, SalesProjectionHandler>(IntegrationModules.Reporting);   // e-shop krok 12
+        services.AddIntegrationMessageHandler<ReturnCompletedV2, SalesProjectionHandler>(IntegrationModules.Reporting);   // e-shop krok 22: vratka po částech
+        services.AddIntegrationMessageHandler<PaymentRefundedV2, SalesProjectionHandler>(IntegrationModules.Reporting);
         services.AddIntegrationMessageHandler<RebuildSalesReportV1, RebuildSalesReportHandler>(IntegrationModules.Ordering);
 
         // E-shop krok 14: modul Reviews (kopie nákupů, hodnocení) – jako AddReviewsModule + AddReviewsInfrastructure ve Webu,
@@ -202,6 +207,7 @@ public sealed class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<OrderPlacedV2, PurchaseProjectionHandler>(IntegrationModules.Reviews);
         services.AddIntegrationMessageHandler<OrderCompletedV1, PurchaseProjectionHandler>(IntegrationModules.Reviews);
         services.AddIntegrationMessageHandler<ReturnCompletedV1, PurchaseProjectionHandler>(IntegrationModules.Reviews);
+        services.AddIntegrationMessageHandler<ReturnCompletedV2, PurchaseProjectionHandler>(IntegrationModules.Reviews);   // e-shop krok 22: vratka po částech
         services.AddIntegrationMessageHandler<OrderSnapshotV2, PurchaseProjectionHandler>(IntegrationModules.Reviews);
         services.AddIntegrationMessageHandler<CustomerAnonymizedV1, PurchaseProjectionHandler>(IntegrationModules.Reviews);
         services.AddIntegrationMessageHandler<SyncPurchasesV1, SyncPurchasesHandler>(IntegrationModules.Ordering);
@@ -218,6 +224,7 @@ public sealed class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<OrderRejectedV1, InvoicingHandler>(IntegrationModules.Invoicing);
         services.AddIntegrationMessageHandler<OrderCancelledV1, InvoicingHandler>(IntegrationModules.Invoicing);
         services.AddIntegrationMessageHandler<ReturnCompletedV1, InvoicingHandler>(IntegrationModules.Invoicing);   // e-shop krok 15B: dobropis
+        services.AddIntegrationMessageHandler<ReturnCompletedV2, InvoicingHandler>(IntegrationModules.Invoicing);   // e-shop krok 22: dobropis za vratku po částech
         services.AddIntegrationMessageHandler<CustomerAnonymizedV1, InvoicingHandler>(IntegrationModules.Invoicing);
         services.AddScoped<IInvoiceDocuments, InvoiceDocuments>();
         services.AddIntegrationMessageHandler<InvoiceIssuedV1, InvoiceEmailHandler>(IntegrationModules.Notifications);
@@ -1124,9 +1131,13 @@ public sealed class OrderServiceTests : IDisposable
         Assert.Null(await service.GetCreditNotePdfAsync(order.Id, Petra.CustomerId));
         Assert.NotNull(await service.GetCreditNotePdfAsync(order.Id, customerId: null));
         var creditNote = (await CreditNoteAsync(order.Id))!.Number;
-        Assert.Equal(creditNote, (await service.GetDocumentsAsync(order.Id, Jan.CustomerId)).CreditNoteNumber);
-        Assert.Equal(new OrderDocumentsDto(null, null), await service.GetDocumentsAsync(order.Id, Petra.CustomerId));
-        Assert.Equal(creditNote, (await service.GetPageAsync(PageRequest.First)).Items.Single(i => i.OrderId == order.Id).CreditNoteNumber);
+        Assert.Equal(creditNote, Assert.Single((await service.GetDocumentsAsync(order.Id, Jan.CustomerId)).CreditNotes).Number);
+        var foreign = await service.GetDocumentsAsync(order.Id, Petra.CustomerId);
+        Assert.Null(foreign.InvoiceNumber);
+        Assert.Empty(foreign.CreditNotes);
+        Assert.Equal([creditNote], (await service.GetPageAsync(PageRequest.First)).Items.Single(i => i.OrderId == order.Id).CreditNoteNumbers);
+        Assert.NotNull(await service.GetCreditNotePdfAsync(order.Id, Jan.CustomerId, creditNote));
+        Assert.Null(await service.GetCreditNotePdfAsync(order.Id + 1, customerId: null, creditNote));   // číslo k jiné objednávce
     }
 
     private Task<CreditNote?> CreditNoteAsync(int orderId) =>
@@ -1504,6 +1515,76 @@ public sealed class OrderServiceTests : IDisposable
         Assert.Equal(PaymentStatus.Refunded, await PaymentStatusAsync(order.Id));
     }
 
+
+    /// <summary>
+    /// E-shop krok 22B: vratku po částech (V2 posílá Ordering až od 22C) se naučili příjemci – Invoicing vystaví dobropis jen
+    /// za vrácené (každou vratku jednou, nikdy nad fakturu), Notifications napíšou, Reporting odečte tržbu, Reviews zablokují
+    /// hodnocení produktu vráceného celého.
+    /// </summary>
+    [Fact]
+    public async Task VratkaPoCastech_DobropisEmailTrzbaHodnoceni()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await DeliveredOrderAsync(product.Id, quantity: 2, PaymentMethod.Card);   // zaplaceno a vyfakturováno 200 Kč
+        var invoice = await InvoiceAsync(order.Id) ?? throw new InvalidOperationException("Faktura nevznikla.");
+        ReturnItemV1[] oneMouse = [new ReturnItemV1(product.Id, product.Name, 1, 100m, 0m, 100m)];
+        string[] modules = [IntegrationModules.Invoicing, IntegrationModules.Notifications, IntegrationModules.Reporting, IntegrationModules.Reviews];
+        async Task DeliverAsync(ReturnCompletedV2 message)
+        {
+            foreach (var module in modules)
+            {
+                await RedeliverAsync(message, module);
+            }
+        }
+
+        await RedeliverAsync(new ReturnRequestedV2(Guid.NewGuid(), Now.UtcDateTime, order.Id, 1, "jan@example.com", "Nesedí",
+            Now.UtcDateTime.AddDays(14), oneMouse), IntegrationModules.Notifications);
+        var requested = Assert.Single(_emails.Sent, e => e.Subject.Contains($"Vratka 1 k objednávce č. {order.Id}"));
+        Assert.Contains($"1 × {product.Name}", requested.TextBody);
+
+        var first = new ReturnCompletedV2(Guid.NewGuid(), Now.UtcDateTime, order.Id, 1, "jan@example.com", oneMouse, 0m, 100m, true, []);
+        await DeliverAsync(first);
+        await DeliverAsync(first with { EventId = Guid.NewGuid() });   // stejná vratka znovu (jiné ID zprávy)
+        await ProcessOutboxAsync();   // CreditNoteIssuedV1 → e-mail s PDF
+
+        var creditNote = Assert.Single(await InvoicingDb(db => db.CreditNotes.AsNoTracking().Where(c => c.OrderId == order.Id).ToListAsync()));
+        Assert.Equal((1, 100m, invoice.Number, InvoicingHandler.RefundedToCard), (creditNote.ReturnNumber, creditNote.Total,
+            creditNote.InvoiceNumber, creditNote.RefundNote));
+        Assert.Equal(1, Assert.Single(creditNote.Lines).Quantity);
+        var email = Assert.Single(_emails.Sent, e => NotifierEvent(e) == $"credit-note:{order.Id}");
+        Assert.Equal($"dobropis-{creditNote.Number}.pdf", Assert.Single(email.Attachments).FileName);
+        Assert.Equal(2, _emails.Sent.Count(e => e.Subject.Contains("je vyřízená")));   // inbox Notifications zná jen ID zprávy
+        Assert.True(await CanReviewAsync());
+
+        await DeliverAsync(new ReturnCompletedV2(Guid.NewGuid(), Now.UtcDateTime, order.Id, 2, "jan@example.com", oneMouse, 0m, 100m, true,
+            [product.Id]));
+        await ProcessOutboxAsync();
+
+        var documents = await InvoicingDb(db => db.CreditNotes.AsNoTracking().Where(c => c.OrderId == order.Id).OrderBy(c => c.Id).ToListAsync());
+        Assert.Equal([1, 2], documents.Select(c => c.ReturnNumber));
+        Assert.Equal(invoice.Total, documents.Sum(c => c.Total));
+        Assert.Equal(2, _bus.Published.OfType<CreditNoteIssuedV1>().Count(c => c.OrderId == order.Id && c.Amount == 100m));
+        Assert.False(await CanReviewAsync());   // obě myši vrácené
+
+        await using (var scope = _services.CreateAsyncScope())
+        {
+            var sales = await scope.ServiceProvider.GetRequiredService<ISalesOrderRepository>().GetAsync(order.Id);
+            Assert.Equal((SalesOrderStatus.Completed, 0m), (sales!.Status, sales.Revenue));
+            Assert.Empty(sales.KeptLines());
+        }
+
+        // Třetí vratka by přesáhla fakturu – pojistka v Invoicingu (zpráva by skončila v dead-letter frontě).
+        var tooMuch = await Assert.ThrowsAnyAsync<Exception>(() => RedeliverAsync(
+            new ReturnCompletedV2(Guid.NewGuid(), Now.UtcDateTime, order.Id, 3, "jan@example.com", oneMouse, 0m, 100m, true, []),
+            IntegrationModules.Invoicing));
+        Assert.IsType<DomainException>(tooMuch is AggregateException aggregate ? aggregate.Flatten().InnerException : tooMuch);
+
+        async Task<bool> CanReviewAsync()
+        {
+            await using var scope = _services.CreateAsyncScope();
+            return await scope.ServiceProvider.GetRequiredService<IPurchaseRepository>().FindReviewableAsync(Jan.CustomerId, product.Id) is not null;
+        }
+    }
     [Fact]
     public async Task Vratka_Dobirka_PenizeVraciAdminRucne()
     {

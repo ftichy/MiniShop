@@ -87,32 +87,30 @@ public sealed class AccountAdministrationTests : IDisposable
     }
 
     /// <summary>
-    /// Účty krok 12A: migrace StaffRoles převede původní roli Admin na všechny zaměstnanecké role (Admin zůstane – starší
-    /// verze kódu); uložení rolí v aplikaci ji pak odebere.
+    /// Účty krok 12A + 12B: migrace StaffRoles převede původní roli Admin na všechny zaměstnanecké role a RemoveLegacyAdminRole
+    /// (contract) roli Admin smaže – nikdo nepřijde o práva.
     /// </summary>
     [Fact]
-    public async Task Migrace_PuvodniAdminDostaneVsechnyZamestnaneckeRole_UlozeniHoUklidi()
+    public async Task Migrace_PuvodniAdminDostaneVsechnyZamestnaneckeRole_RoleAdminZmizi()
     {
+        const string LegacyAdmin = "Admin";   // role z účtů kroku 2–11
         var oldAdminId = await CreateUserAsync("stary-admin@example.com");
         await using (var scope = _services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
             await Microsoft.EntityFrameworkCore.Infrastructure.AccessorExtensions.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>(db).MigrateAsync("20261113081925_LoginAttempts");
             var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-            await roles.CreateAsync(new IdentityRole(AccountRoles.LegacyAdmin));
+            await roles.CreateAsync(new IdentityRole(LegacyAdmin));
             var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var oldAdmin = (await users.FindByIdAsync(oldAdminId))!;
             await users.RemoveFromRoleAsync(oldAdmin, AccountRoles.User);
-            await users.AddToRoleAsync(oldAdmin, AccountRoles.LegacyAdmin);
-            await db.Database.MigrateAsync();   // znovu StaffRoles
+            await users.AddToRoleAsync(oldAdmin, LegacyAdmin);
+            await db.Database.MigrateAsync();   // znovu StaffRoles a RemoveLegacyAdminRole
         }
 
         var rolesAfter = await Users(async m => await m.GetRolesAsync((await m.FindByIdAsync(oldAdminId))!));
-        Assert.Equal(AccountRoles.Staff.Append(AccountRoles.LegacyAdmin).Order(), rolesAfter.Order());
-        Assert.Equal(AccountRoles.Staff, (await Admin(a => a.GetAccountAsync(oldAdminId)))!.Roles);   // původní Admin se neukazuje
-
-        Assert.True((await Admin(a => a.SetRolesAsync(_adminId, oldAdminId, AccountRoles.Staff))).Succeeded);   // jen úklid
-        Assert.DoesNotContain(AccountRoles.LegacyAdmin, await Users(async m => await m.GetRolesAsync((await m.FindByIdAsync(oldAdminId))!)));
+        Assert.Equal(AccountRoles.Staff.Order(), rolesAfter.Order());
+        Assert.False(await _services.CreateScope().ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>().RoleExistsAsync(LegacyAdmin));
     }
 
     [Fact]

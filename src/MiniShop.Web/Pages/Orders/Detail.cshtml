@@ -226,7 +226,8 @@ else if (order.Status == "Completed" && Model.Detail.ReturnRejectionReason is no
 
         @* E-shop krok 6 a 9: zrušit jde kdykoli před odesláním (i během čekání na sklad nebo platbu). Handler i kontrola práv jsou na stránce
            Objednávky (zákazník ruší jen svou); balení a odeslání má admin na stránce Expedice. *@
-        @if (OrderStatusLabels.CanCancel(order.Status))
+        @* Účty krok 12B: cizí objednávku ruší jen podpora. *@
+        @if (OrderStatusLabels.CanCancel(order.Status) && (Model.IsOwnOrder || Model.CanSupport))
         {
             <form method="post" asp-page="/Orders/Index" asp-page-handler="Cancel" asp-route-id="@order.Id">
                 <button type="submit" class="btn btn-outline-danger w-100">Zrušit objednávku</button>
@@ -266,12 +267,19 @@ else if (order.Status == "Completed" && Model.Detail.ReturnRejectionReason is no
             </details>
         }
 
-        @if (Model.CanManageOrders)
+        @* Účty krok 12B: odkazy podle oblasti – Expedice sklad, průběh a přehrání podpora. *@
+        @if (Model.CanFulfil || Model.CanSupport)
         {
             <p class="small mb-0">
-                <a asp-page="/Admin/Fulfilment/Index">Expedice</a> ·
-                <a asp-page="/Orders/Journey" asp-route-orderId="@order.Id">Průběh zadání</a> ·
-                <a asp-page="/Orders/Replay" asp-route-orderId="@order.Id" asp-route-autoplay="1">▶ Přehrát</a>
+                @if (Model.CanFulfil)
+                {
+                    <a asp-page="/Admin/Fulfilment/Index">Expedice</a>
+                }
+                @if (Model.CanSupport)
+                {
+                    <a asp-page="/Orders/Journey" asp-route-orderId="@order.Id">Průběh zadání</a> <text>·</text>
+                    <a asp-page="/Orders/Replay" asp-route-orderId="@order.Id" asp-route-autoplay="1">▶ Přehrát</a>
+                }
             </p>
         }
     </div>

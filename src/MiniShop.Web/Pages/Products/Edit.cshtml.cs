@@ -19,7 +19,7 @@ namespace MiniShop.Web.Pages.Products;
 /// Limit velikosti požadavku je o kousek vyšší než limit obrázku – větší soubor server ani nedočte (413),
 /// o něco menší překročení ohlásí stránka srozumitelnou hláškou.
 /// </remarks>
-[Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+[Authorize(Policy = AuthorizationPolicies.RequireCatalog)]   // účty krok 12B
 [RequestSizeLimit(ProductImageFormat.MaxBytes + 256 * 1024)]
 [RequestFormLimits(MultipartBodyLengthLimit = ProductImageFormat.MaxBytes + 256 * 1024)]
 public sealed class EditModel(

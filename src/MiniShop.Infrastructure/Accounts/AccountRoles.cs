@@ -32,13 +32,6 @@ public static class AccountRoles
     /// <summary>Provoz: zprávy a fronty (dead-letter, zkusit znovu), technické akce.</summary>
     public const string Operations = "Operations";
 
-    /// <summary>
-    /// Účty krok 2–11: jediná role správce. Od kroku 12A ji nový kód nepoužívá – převedla se na všechny zaměstnanecké role
-    /// (migrace <c>StaffRoles</c>). V databázi zůstává, dokud může běžet starší verze kódu (expand → contract);
-    /// při uložení rolí v aplikaci se odebere.
-    /// </summary>
-    public const string LegacyAdmin = "Admin";
-
     /// <summary>Zaměstnanecké role – každá vyžaduje dvoufázové ověření.</summary>
     public static readonly IReadOnlyList<string> Staff =
         [UserAdmin, CatalogManager, Warehouse, CustomerSupport, Marketing, Accounting, Operations];
@@ -59,7 +52,6 @@ public static class AccountRoles
         Marketing => "Marketing",
         Accounting => "Účetní",
         Operations => "Provoz",
-        LegacyAdmin => "Admin (původní)",
         _ => role
     };
 }

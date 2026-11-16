@@ -15,7 +15,7 @@ namespace MiniShop.Web.Pages.Admin.Coupons;
 /// E-shop krok 13: slevové kódy pro admina – přehled s počtem použití, založení a vypnutí.
 /// Počet použití se mění v pokladně (+1) a po zamítnutí či zrušení objednávky (−1, ReleaseCouponHandler).
 /// </summary>
-[Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+[Authorize(Policy = AuthorizationPolicies.RequireMarketing)]   // účty krok 12B
 public sealed class IndexModel(CouponService coupons) : PageModel
 {
     public PagedList<CouponDto> CouponPage { get; private set; } = new([], 1, PageRequest.DefaultSize, 0);

@@ -29,7 +29,7 @@ public static partial class TwoFactorHelper
     public static bool MayDisable(IEnumerable<string> roles) => !IsStaff(roles);
 
     private static bool IsStaff(IEnumerable<string> roles) =>
-        roles.Any(role => AccountRoles.IsStaff(role) || role == AccountRoles.LegacyAdmin);
+        roles.Any(AccountRoles.IsStaff);
 
     /// <summary>Kód z aplikace bez mezer a pomlček (aplikace ho zobrazují jako „123 456“).</summary>
     public static string NormalizeCode(string? code) =>

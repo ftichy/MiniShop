@@ -13,7 +13,7 @@ namespace MiniShop.Web.Pages.Admin.Sales;
 /// databázi objednávek. Data jsou o pár sekund pozadu (projekce z událostí), proto stránka ukazuje „data k…“.
 /// </summary>
 /// <remarks>Přestavět = smazat čtecí model a nechat si od Orderingu poslat snímky všech objednávek znovu.</remarks>
-[Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+[Authorize(Policy = AuthorizationPolicies.RequireAccounting)]   // účty krok 12B
 public sealed class IndexModel(SalesReportService reports) : PageModel
 {
     private static readonly CultureInfo Czech = new("cs-CZ");

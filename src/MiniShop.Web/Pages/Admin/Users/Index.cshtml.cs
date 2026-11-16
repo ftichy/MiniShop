@@ -13,7 +13,7 @@ namespace MiniShop.Web.Pages.Admin.Users;
 /// Účty krok 6: přehled uživatelů pro admina. Účty jsou v modulu Accounts (users.db), objednávky v Orderingu
 /// (ordering.db) – moduly se neznají, spojí je až tahle stránka přes ID uživatele (= CustomerId objednávky).
 /// </summary>
-[Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+[Authorize(Policy = AuthorizationPolicies.RequireUserAdmin)]   // účty krok 12B
 public sealed class IndexModel(AccountAdministration accounts, IOrderService orderService) : PageModel
 {
     private const int RecentAuditCount = 20;

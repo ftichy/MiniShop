@@ -16,9 +16,13 @@ namespace MiniShop.Web.Pages.Products;
 /// Správa produktů. Krok 10B: produkty patří službě skladu – <see cref="IProductService"/> je tu
 /// <see cref="InventoryApiClient"/>, který volá její HTTP API. E-shop krok 2: i kategorie (<see cref="ICategoryService"/>).
 /// </summary>
-[Authorize(Policy = AuthorizationPolicies.RequireAdmin)]   // účty krok 2: sklad a produkty spravuje jen admin
-public sealed class IndexModel(IProductService productService, ICategoryService categoryService) : PageModel
+[Authorize(Policy = AuthorizationPolicies.RequireStock)]   // účty krok 12B: přehled a naskladnění (sortiment i sklad), úpravy jen sortiment – kontrola v handlerech
+public sealed class IndexModel(IProductService productService, ICategoryService categoryService, IAuthorizationService authorization)
+    : PageModel
 {
+    /// <summary>Účty krok 12B: zakládat, mazat a kategorie smí jen správce sortimentu (sklad jen naskladňuje).</summary>
+    public bool CanEditCatalog { get; private set; }
+
     public PagedList<ProductDto> ProductPage { get; private set; } = new([], 1, PageRequest.DefaultSize, 0);
     public IReadOnlyList<ProductDto> Products => ProductPage.Items;
     public PagerModel Pager => PagerModel.From(ProductPage, "products");
@@ -44,6 +48,11 @@ public sealed class IndexModel(IProductService productService, ICategoryService 
 
     public async Task<IActionResult> OnPostCreateAsync(CancellationToken cancellationToken)
     {
+        if (!await IsCatalogEditorAsync())
+        {
+            return Forbid();
+        }
+
         if (!ModelState.IsValid)
         {
             return await ReloadAsync(cancellationToken);
@@ -66,10 +75,15 @@ public sealed class IndexModel(IProductService productService, ICategoryService 
         }, cancellationToken);
     }
 
-    public Task<IActionResult> OnPostDeleteAsync(int id, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostDeleteAsync(int id, CancellationToken cancellationToken)
     {
+        if (!await IsCatalogEditorAsync())
+        {
+            return Forbid();
+        }
+
         ModelState.Clear();
-        return ExecuteAsync(async () =>
+        return await ExecuteAsync(async () =>
         {
             await productService.DeleteAsync(id, cancellationToken);
             StatusMessage = "Produkt byl smazán.";
@@ -80,6 +94,11 @@ public sealed class IndexModel(IProductService productService, ICategoryService 
 
     public async Task<IActionResult> OnPostCreateCategoryAsync(CategoryRequest category, CancellationToken cancellationToken)
     {
+        if (!await IsCatalogEditorAsync())
+        {
+            return Forbid();
+        }
+
         if (!IsCategoryValid(category))
         {
             return await ReloadAsync(cancellationToken);
@@ -94,6 +113,11 @@ public sealed class IndexModel(IProductService productService, ICategoryService 
 
     public async Task<IActionResult> OnPostRenameCategoryAsync(int id, CategoryRequest category, CancellationToken cancellationToken)
     {
+        if (!await IsCatalogEditorAsync())
+        {
+            return Forbid();
+        }
+
         if (!IsCategoryValid(category))
         {
             return await ReloadAsync(cancellationToken);
@@ -106,10 +130,15 @@ public sealed class IndexModel(IProductService productService, ICategoryService 
         }, cancellationToken);
     }
 
-    public Task<IActionResult> OnPostDeleteCategoryAsync(int id, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostDeleteCategoryAsync(int id, CancellationToken cancellationToken)
     {
+        if (!await IsCatalogEditorAsync())
+        {
+            return Forbid();
+        }
+
         ModelState.Clear();
-        return ExecuteAsync(async () =>
+        return await ExecuteAsync(async () =>
         {
             await categoryService.DeleteAsync(id, cancellationToken);
             StatusMessage = "Kategorie byla smazána.";
@@ -155,8 +184,12 @@ public sealed class IndexModel(IProductService productService, ICategoryService 
         return Page();
     }
 
+    private async Task<bool> IsCatalogEditorAsync() =>
+        (await authorization.AuthorizeAsync(User, AuthorizationPolicies.RequireCatalog)).Succeeded;
+
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
+        CanEditCatalog = await IsCatalogEditorAsync();
         try
         {
             // Produkty jdou ze skladu přes API celé (jsou jich desítky) – stránka se vybere tady, API se nemění.

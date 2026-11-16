@@ -17,7 +17,20 @@ public static class OrderAccessExtensions
     /// </summary>
     public static OrderAccess ToOrderAccess(this ClaimsPrincipal user) =>
         // 2FA krok A2: správa bez dvoufázového ověření nevidí cizí objednávky ani tady (pojistka k policy RequireAdmin).
-        user.IsStaff() && user.HasClaim(AccountClaimTypes.TwoFactorEnabled, "true")
+        // Účty krok 12B: všechny objednávky jen role s přehledem objednávek (sklad, podpora, účetní) – stejné role jako
+        // politika RequireOrderOverview.
+        StaffPolicies.Roles[AuthorizationPolicies.RequireOrderOverview].Any(user.IsInRole)
+        && user.HasClaim(AccountClaimTypes.TwoFactorEnabled, "true")
+            ? OrderAccess.AllOrders
+            : OrderAccess.Customer(user.GetUserId());
+
+    /// <summary>
+    /// Účty krok 12B: zrušení objednávky – cizí jen zákaznická podpora (politika RequireSupport), ostatní (i sklad a účetní,
+    /// kteří cizí objednávky vidí) jen svou.
+    /// </summary>
+    public static OrderAccess ToCancelAccess(this ClaimsPrincipal user) =>
+        StaffPolicies.Roles[AuthorizationPolicies.RequireSupport].Any(user.IsInRole)
+        && user.HasClaim(AccountClaimTypes.TwoFactorEnabled, "true")
             ? OrderAccess.AllOrders
             : OrderAccess.Customer(user.GetUserId());
 

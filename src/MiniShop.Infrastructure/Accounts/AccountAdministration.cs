@@ -120,8 +120,7 @@ public sealed class AccountAdministration(
             .ToListAsync(cancellationToken);
 
     /// <summary>
-    /// Účty krok 12A: nastaví uživateli přesně tuto sadu rolí (zaškrtnuté na stránce). Původní role Admin se při tom odebere –
-    /// jeho práva už mají zaměstnanecké role.
+    /// Účty krok 12A: nastaví uživateli přesně tuto sadu rolí (zaškrtnuté na stránce).
     /// </summary>
     public async Task<AccountAdminResult> SetRolesAsync(string actorId, string targetId, IReadOnlyCollection<string> roles,
         CancellationToken cancellationToken = default)
@@ -138,8 +137,7 @@ public sealed class AccountAdministration(
             var current = await userManager.GetRolesAsync(target);
             var added = wanted.Where(role => !current.Contains(role)).ToList();
             var removed = AccountRoles.All.Where(role => current.Contains(role) && !wanted.Contains(role)).ToList();
-            var legacy = current.Contains(AccountRoles.LegacyAdmin);
-            if (added.Count == 0 && removed.Count == 0 && !legacy)
+            if (added.Count == 0 && removed.Count == 0)
             {
                 return (AccountAdminResult.Failed("Role se nezměnily."), null);
             }
@@ -158,10 +156,9 @@ public sealed class AccountAdministration(
             }
 
             var result = IdentityResult.Success;
-            var toRemove = removed.Concat(legacy ? new[] { AccountRoles.LegacyAdmin } : Array.Empty<string>()).ToList();
-            if (toRemove.Count > 0)
+            if (removed.Count > 0)
             {
-                result = await userManager.RemoveFromRolesAsync(target, toRemove);
+                result = await userManager.RemoveFromRolesAsync(target, removed);
             }
 
             if (result.Succeeded && added.Count > 0)

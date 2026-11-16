@@ -16,7 +16,7 @@ namespace MiniShop.Web.Pages.Admin.Fulfilment;
 /// „Doručeno“ simuluje dopravce – skutečný by poslal webhook (e-shop krok 8). Souběh (zákazník mezitím zrušil)
 /// skončí hláškou místo přepsání (Order.Version). Složka /Admin je zamčená i konvencí AuthorizeFolder.
 /// </remarks>
-[Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+[Authorize(Policy = AuthorizationPolicies.RequireFulfilment)]   // účty krok 12B
 public sealed class IndexModel(IOrderService orderService) : PageModel
 {
     /// <summary>Nabídka dopravců ve formuláři odeslání (jde napsat i jiného).</summary>

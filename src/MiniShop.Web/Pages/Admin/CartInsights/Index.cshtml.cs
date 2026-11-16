@@ -9,7 +9,7 @@ namespace MiniShop.Web.Pages.Admin.CartInsights;
 /// E-shop krok 17: statistika košíků pro admina – spočítaná při každém zobrazení z událostí košíků (event sourcing).
 /// Dřív by šla jen dopředu: tabulka košíku znala jen poslední stav, co zákazník odebral, se nikde neuložilo.
 /// </summary>
-[Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+[Authorize(Policy = AuthorizationPolicies.RequireMarketing)]   // účty krok 12B
 public sealed class IndexModel(CartHistoryService history) : PageModel
 {
     public CartInsightsDto Insights { get; private set; } = new(null, 0, 0, 0, 0, 0, []);

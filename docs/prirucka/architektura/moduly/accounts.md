@@ -18,7 +18,7 @@ viz [Ordering](ordering.md)), 5 ([e-maily](../emaily.md)), 6 (správa uživatel�
 Účty krok 12A: místo jedné role Admin je **sedm zaměstnaneckých rolí** podle práce ve skutečném e-shopu a k nim role
 **Zákazník** (v databázi `User`). Uživatel jich může mít **víc najednou** – třeba skladník, který si v e-shopu i nakupuje.
 
-| Role (v kódu) | Česky | Kdo to v praxi je | Na co je (dělení správy po oblastech = krok 12B) |
+| Role (v kódu) | Česky | Kdo to v praxi je | Na co je (oblasti správy – viz níže) |
 | --- | --- | --- | --- |
 | `User` | Zákazník | kdokoli s účtem | výloha, košík, pokladna, své objednávky, vratky, hodnocení |
 | `UserAdmin` | Správce uživatelů | IT / vedoucí | přiděluje role, blokuje účty, audit, historie přihlášení |
@@ -29,18 +29,43 @@ viz [Ordering](ordering.md)), 5 ([e-maily](../emaily.md)), 6 (správa uživatel�
 | `Accounting` | Účetní | účetní | faktury, dobropisy, přehled tržeb |
 | `Operations` | Provoz | vývojář / provozní | zprávy a fronty (`/Admin/Messages`) |
 
-- **Zatím (12A)** pustí kterákoli zaměstnanecká role do celé správy jako dřív Admin (policy `RequireAdmin` = kterákoli
-  z `AccountRoles.Staff` + 2FA). Výjimka: **role přiděluje jen správce uživatelů**.
 - **Každá zaměstnanecká role vyžaduje dvoufázové ověření**; zákazník ho mít nemusí.
 - **Zaměstnanec, který je i zákazník:** objednává jako zákazník, na stránce Objednávky přepíná **Moje / Všechny**.
   Akce zákazníka (vratka, platba) dělá jen u svých objednávek (`ToCustomerOrderAccess`) – cizí objednávku jako podpora
   vidí a smí ji zrušit, ale „vrátit za zákazníka“ ne.
-- **Původní role Admin** se při nasazení převedla na všechny zaměstnanecké role (migrace `StaffRoles`, ruční SQL).
-  V databázi zůstává kvůli postupnému nasazení (starší verze kódu ji čte) a uložení rolí v aplikaci ji odebere.
+- **Původní role Admin** se v kroku 12A převedla na všechny zaměstnanecké role (migrace `StaffRoles`) a v kroku 12B
+  zmizela (migrace `RemoveLegacyAdminRole` – expand → contract).
+- **Vlastní role platí hned:** když si správce změní role sám sobě, Web mu obnoví přihlášení (`RefreshSignInAsync`).
+
+### Správa po oblastech (účty krok 12B)
+
+Každá oblast má vlastní politiku (role + 2FA); role jsou na jednom místě v `StaffPolicies`
+([AuthorizationPolicies.cs](code:src/MiniShop.Web/Accounts/AuthorizationPolicies.cs)). `RequireAdmin` = kterákoli
+zaměstnanecká role – zámek složky `/Admin`, štítek „správa“ a přesměrování na nastavení 2FA. Menu **Správa** ukazuje jen
+oblasti, na které má uživatel roli; stránky s víc akcemi (Produkty, Vratky, Objednávky) ověřují politiku v každé akci.
+
+| Stránka / akce | Politika | Správce uživatelů | Sortiment | Sklad | Podpora | Marketing | Účetní | Provoz |
+| --- | --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| Uživatelé, role, blokace, historie přihlášení | `RequireUserAdmin` | ✅ | | | | | | |
+| Produkty a kategorie – založit, upravit, smazat, obrázky | `RequireCatalog` | | ✅ | | | | | |
+| Produkty – přehled a naskladnit | `RequireStock` | | ✅ | ✅ | | | | |
+| Expedice (i API `complete`) | `RequireFulfilment` | | | ✅ | | | | |
+| Vratky – přehled | `RequireReturns` | | | ✅ | ✅ | | | |
+| Vratky – Přijato / Zamítnout | `RequireFulfilment` / `RequireSupport` | | | ✅ / – | – / ✅ | | | |
+| Všechny objednávky (seznam a detail) | `RequireOrderOverview` | | | ✅ | ✅ | | ✅ | |
+| Zrušit cizí objednávku, průběh a přehrání, hodnocení | `RequireSupport` | | | | ✅ | | | |
+| Kupony, statistika košíků | `RequireMarketing` | | | | | ✅ | | |
+| Faktury a dobropisy (přehled, PDF cizí objednávky) | `RequireInvoices` | | | | ✅ | | ✅ | |
+| Tržby (i přestavění) | `RequireAccounting` | | | | | | ✅ | |
+| Zprávy a fronty | `RequireOperations` | | | | | | | ✅ |
+| Obnovit katalog ze skladu | `RequireCatalogSync` | | ✅ | | | | | ✅ |
+
+Tabulku ověřuje [StaffAreaTests](code:tests/MiniShop.Tests/Web/StaffAreaTests.cs) – každá řádka × všech 7 rolí.
+**Nová stránka správy = politika oblasti + řádek tam.**
 
 ## Role a oprávnění
 
-| Kde | Nepřihlášený | User (zákazník) | Zaměstnanec (Admin) |
+| Kde | Nepřihlášený | User (zákazník) | Zaměstnanec (podle oblasti – viz výše) |
 | --- | :-: | :-: | :-: |
 | Úvod, Dokumentace, Přihlášení, Registrace, Ochrana osobních údajů, `/health` | ✅ | ✅ | ✅ |
 | Objednávky – seznam a detail | → přihlášení | jen své (cizí = 404) | všechny |

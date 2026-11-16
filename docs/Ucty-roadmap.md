@@ -274,9 +274,9 @@ Místo role Admin sedm zaměstnaneckých rolí (správce uživatelů, sortiment,
 marketing, účetní, provoz) + Zákazník; uživatel jich má víc najednou (i zaměstnanec nakupuje), přiděluje je jen správce
 uživatelů, změna oprávnění = e-mail. Rozhodnuto 16. 11. 2026.
 
-- **12A** – víc rolí na účet, převod adminů (migrace), zaškrtávání rolí, pojistky, e-mail. *Hotovo v PR – souhrn
-  [krok-12a-vice-roli](kroky-ucty/krok-12a-vice-roli.md).*
-- **12B** – správa po oblastech: policy pro každou oblast, menu Správa podle rolí, rozšířená matice oprávnění.
+- **12A** – víc rolí na účet, převod adminů (migrace), zaškrtávání rolí, pojistky, e-mail. *Hotovo (nasazeno 16. 11. 2026) – souhrn [krok-12a-vice-roli](kroky-ucty/krok-12a-vice-roli.md).*
+- **12B** – správa po oblastech: policy pro každou oblast, menu Správa podle rolí, test všech rolí × stránek, úklid role
+  Admin. *Hotovo v PR – souhrn [krok-12b-sprava-po-oblastech](kroky-ucty/krok-12b-sprava-po-oblastech.md).*
 - **12C** – střet zájmů: zaměstnanec nevyřizuje vlastní objednávku, vratku ani nemoderuje hodnocení svého nákupu.
 
 ## Volitelně: kam dál

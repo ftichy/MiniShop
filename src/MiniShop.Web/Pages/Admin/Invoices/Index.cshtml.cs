@@ -9,7 +9,7 @@ using MiniShop.Web.Ui;
 namespace MiniShop.Web.Pages.Admin.Invoices;
 
 /// <summary>E-shop krok 15: přehled vystavených faktur (nejnovější nahoře) s odkazem na PDF a objednávku – po stránkách.</summary>
-[Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+[Authorize(Policy = AuthorizationPolicies.RequireInvoices)]   // účty krok 12B
 public sealed class IndexModel(InvoiceService invoices) : PageModel
 {
     public PagedList<InvoiceSummaryDto> InvoicePage { get; private set; } = new([], 1, PageRequest.DefaultSize, 0);

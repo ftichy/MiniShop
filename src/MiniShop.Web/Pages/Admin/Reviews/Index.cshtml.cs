@@ -13,7 +13,7 @@ namespace MiniShop.Web.Pages.Admin.Reviews;
 /// E-shop krok 14: moderace hodnocení – nejnovější hodnocení a tlačítko Skrýt/Zobrazit. Skrytí přepočítá průměr
 /// a pošle nový souhrn (ProductRatingChangedV1) do výlohy.
 /// </summary>
-[Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+[Authorize(Policy = AuthorizationPolicies.RequireSupport)]   // účty krok 12B
 public sealed class IndexModel(ReviewService reviews) : PageModel
 {
     public PagedList<ReviewAdminDto> ReviewPage { get; private set; } = new([], 1, PageRequest.DefaultSize, 0);

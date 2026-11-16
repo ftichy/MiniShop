@@ -8,7 +8,7 @@ using MiniShop.Web.Accounts;
 namespace MiniShop.Web.Pages.Orders;
 
 /// <summary>Krok 12A: průběh zakládání objednávky – souhrn a časová osa z projekce proudu událostí.</summary>
-[Authorize(Policy = AuthorizationPolicies.RequireAdmin)]   // účty krok 2: obsahuje i napsané osobní údaje
+[Authorize(Policy = AuthorizationPolicies.RequireSupport)]   // účty krok 12B: jen podpora – obsahuje i napsané osobní údaje
 public sealed class JourneyModel(IJourneyService journeyService) : PageModel
 {
     /// <summary>Číslo objednávky – z adresy (/Orders/Journey/3) nebo z formuláře na stránce Objednávky (?orderId=3).</summary>

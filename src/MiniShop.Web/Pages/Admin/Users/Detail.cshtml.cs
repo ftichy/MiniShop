@@ -16,13 +16,14 @@ namespace MiniShop.Web.Pages.Admin.Users;
 /// Účty krok 12A: role zaškrtávátky (víc najednou, i sám sobě) – jen správce uživatelů; pravidla (poslední správce,
 /// sám sobě neodebere správu uživatelů) hlídá <see cref="AccountAdministration"/>, změna zaměstnanecké role = e-mail.
 /// </summary>
-[Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+[Authorize(Policy = AuthorizationPolicies.RequireUserAdmin)]   // účty krok 12B
 public sealed class DetailModel(
     AccountAdministration accounts,
     LoginAttemptRecorder loginAttempts,
     IOrderService orderService,
     UserManager<ApplicationUser> userManager,
     AccountEmails emails,
+    SignInManager<ApplicationUser> signInManager,
     ILogger<DetailModel> logger) : PageModel
 {
     private const int AuditCount = 50;
@@ -95,6 +96,13 @@ public sealed class DetailModel(
     public async Task<IActionResult> OnPostRolesAsync(string id, string[]? roles, CancellationToken cancellationToken)
     {
         var result = await accounts.SetRolesAsync(CurrentUserId, id, roles ?? [], cancellationToken);
+        if (result.Succeeded && id == CurrentUserId && await userManager.FindByIdAsync(id) is { } self)
+        {
+            // Účty krok 12B: vlastní role platí hned – nová cookie s novými rolemi (jinak až po odhlášení a přihlášení;
+            // změna security stampu by staré přihlášení za minutu jen zahodila).
+            await signInManager.RefreshSignInAsync(self);
+        }
+
         if (result.RoleChange is { ChangesStaffAccess: true } change)
         {
             try

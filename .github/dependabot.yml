@@ -13,6 +13,19 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: deps
+    # Přechod na novou hlavní verzi .NET (10 → 11) je vědomý krok (SDK, image, všechny balíčky naráz), ne týdenní PR –
+    # jeden balíček z .NET 11 mezi ostatními z .NET 10 rozbije sladěné verze. Opravy (10.0.x) chodí dál.
+    ignore:
+      - dependency-name: "Microsoft.AspNetCore.*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.EntityFrameworkCore*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.Extensions.*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "System.*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Npgsql*"
+        update-types: ["version-update:semver-major"]
     groups:
       microsoft:
         patterns: ["Microsoft.*", "Aspire.*"]
@@ -47,3 +60,7 @@ updates:
       day: monday
     commit-message:
       prefix: docker
+    # Runtime/SDK .NET 11 aplikaci pro .NET 10 nespustí – hlavní verze jen spolu s přechodem celé aplikace.
+    ignore:
+      - dependency-name: "dotnet/*"
+        update-types: ["version-update:semver-major"]

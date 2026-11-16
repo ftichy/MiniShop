@@ -34,6 +34,12 @@ Před zveřejněním se prošla celá historie nástrojem **gitleaks** – nena�
 
 Každý jeho PR projde stejným CI jako jakákoli jiná změna; sloučení je ruční.
 
+**Hlavní verze .NET Dependabot nenabízí** (`ignore` … `semver-major` pro `Microsoft.AspNetCore.*`,
+`Microsoft.EntityFrameworkCore*`, `Microsoft.Extensions.*`, `System.*`, `Npgsql*` a image `dotnet/*`). Přechod z .NET 10
+na 11 je samostatný krok – SDK v `global.json`, image a všechny balíčky naráz. Jeden balíček z .NET 11 mezi ostatními
+z .NET 10 build rozbije (tak padl PR #127) a runtime 11 aplikaci pro .NET 10 nespustí (PR #126). Opravy `10.0.x`
+a nové verze ostatních knihoven (MailKit, Stripe…) chodí dál.
+
 ## Pravidla práce
 
 1. Nová větev → commity → `git push` → pull request.

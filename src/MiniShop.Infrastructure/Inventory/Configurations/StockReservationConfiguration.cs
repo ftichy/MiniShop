@@ -16,5 +16,7 @@ internal sealed class StockReservationConfiguration : IEntityTypeConfiguration<S
         builder.HasIndex(r => r.OrderId);
 
         builder.Ignore(r => r.CanBeReturned);
+        builder.Ignore(r => r.ReturnableQuantity);
+        // ReturnedQuantity (e-shop krok 22): migrace přidá sloupec s výchozí 0 – starší verze kódu ho nezná a nevadí to.
     }
 }

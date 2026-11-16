@@ -43,6 +43,52 @@ public sealed class PaymentTests
         Assert.Throws<DomainException>(() => NewPayment().Refund(Now));
     }
 
+    // ---------- E-shop krok 22: vrácení po částech ----------
+
+    [Fact]
+    public void CastecneVraceni_KazdaVratkaJednou_PosledniCastJeCeleVraceni()
+    {
+        var payment = NewPayment();   // 250 Kč
+        payment.Succeed(Now);
+
+        var first = payment.RefundPart(1, 100m, Now);
+        Assert.NotNull(first);
+        Assert.Null(payment.RefundPart(1, 100m, Now));   // stejná vratka podruhé – nic
+        Assert.Equal((100m, 150m, PaymentStatus.Succeeded), (payment.RefundedAmount, payment.RefundableAmount, payment.Status));
+
+        Assert.Throws<DomainException>(() => payment.RefundPart(2, 150.01m, Now));   // víc, než zbývá
+        Assert.Throws<DomainException>(() => payment.RefundPart(2, 0m, Now));
+
+        payment.RefundPart(2, 150m, Now);
+        Assert.Equal((250m, 0m, PaymentStatus.Refunded), (payment.RefundedAmount, payment.RefundableAmount, payment.Status));
+        Assert.False(payment.Refund(Now));   // celé vrácení už nic nevrátí
+        Assert.Equal(2, payment.DomainEvents.OfType<PaymentPartlyRefunded>().Count());
+        Assert.Empty(payment.DomainEvents.OfType<PaymentRefunded>());   // V1 („vráceno celé“) jen z Refund
+    }
+
+    [Fact]
+    public void CeleVraceniPoCastecnem_VratiJenZbytek()
+    {
+        var payment = NewPayment();
+        payment.Succeed(Now);
+        payment.RefundPart(1, 50m, Now);
+
+        Assert.True(payment.Refund(Now));
+
+        Assert.Equal(200m, payment.DomainEvents.OfType<PaymentRefunded>().Single().Amount);
+        Assert.Equal(250m, payment.RefundedAmount);
+        Assert.Throws<DomainException>(() => payment.RefundPart(2, 1m, Now));   // vrácená celá
+    }
+
+    [Fact]
+    public void CastecneVraceni_JenZaplacene()
+    {
+        Assert.Throws<DomainException>(() => NewPayment().RefundPart(1, 10m, Now));
+        var payment = NewPayment();
+        payment.Succeed(Now);
+        Assert.Throws<DomainException>(() => payment.RefundPart(0, 10m, Now));   // 0 = celé vrácení, ne vratka
+    }
+
     [Fact]
     public void Podpis_ZmenaTelaHoRozbije()
     {

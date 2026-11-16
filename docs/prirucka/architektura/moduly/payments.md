@@ -44,8 +44,8 @@ flowchart TB
 
 | Komponenta | K čemu slouží | Kód |
 | --- | --- | --- |
-| **Payment** | Stavový automat platby. `Succeed` / `Fail` na stejný výsledek podruhé jen vrátí false (opakovaný webhook nic nezdvojí); `Refund` jen ze zaplacené. Doménové události `PaymentSucceeded`, `PaymentFailed`, `PaymentRefunded` se při uložení rovnou převedou na integrační zprávy. | [Payment.cs](code:src/MiniShop.Domain/Payments/Payment.cs) |
-| **PaymentCommandHandlers** | `RequestPaymentV1` → založí platbu (jedna na objednávku, unikátní index) a u brány stránku k zaplacení; `RefundPaymentV1` → vrátí peníze. | [PaymentCommandHandlers.cs](code:src/MiniShop.Application/Payments/PaymentCommandHandlers.cs) |
+| **Payment** | Stavový automat platby. `Succeed` / `Fail` na stejný výsledek podruhé jen vrátí false (opakovaný webhook nic nezdvojí); `Refund` jen ze zaplacené. E-shop krok 22: `RefundPart(číslo vratky, částka)` – vrácení po částech (`PaymentRefund`, tabulka `PaymentRefunds`, unikátní platba + číslo vratky; součet nesmí přesáhnout zaplacené, souběh hlídá `Version`; poslední část = `Refunded`; `Refund` po částečných vrátí jen zbytek). Doménové události `PaymentSucceeded`, `PaymentFailed`, `PaymentRefunded` (a od e-shop kroku 22 `PaymentPartlyRefunded` → `PaymentRefundedV2`) se při uložení rovnou převedou na integrační zprávy. | [Payment.cs](code:src/MiniShop.Domain/Payments/Payment.cs) |
+| **PaymentCommandHandlers** | `RequestPaymentV1` → založí platbu (jedna na objednávku, unikátní index) a u brány stránku k zaplacení; `RefundPaymentV1` → vrátí peníze; e-shop krok 22: `RefundPaymentV2` → vrátí jen částku jedné vratky (nejdřív pravidla platby, pak brána s klíčem platba + číslo vratky, pak uložení). | [PaymentCommandHandlers.cs](code:src/MiniShop.Application/Payments/PaymentCommandHandlers.cs) |
 | **PaymentWebhookProcessor** | Nejdřív **podpis** (HMAC-SHA256 těla sdíleným tajemstvím, porovnání v konstantním čase), pak teprve obsah. Výsledky: přijato (200), špatný podpis (401), nečitelné (400), neznámá platba (404). | [PaymentWebhookProcessor.cs](code:src/MiniShop.Application/Payments/PaymentWebhookProcessor.cs), [WebhookSignature.cs](code:src/MiniShop.Application/Payments/WebhookSignature.cs) |
 | **IPaymentGateway** / **FakePaymentGateway** | Rozhraní brány (DIP) a simulace: „založí“ platbu a pošle zákazníka na `/Pay/{objednávka}`. `FakePaymentGatewaySimulator` po kliknutí vyrobí webhook stejně jako skutečná brána (JSON + podpis) a předá ho stejnému zpracování jako HTTP endpoint. | [IPaymentGateway.cs](code:src/MiniShop.Application/Payments/IPaymentGateway.cs), [FakePaymentGateway.cs](code:src/MiniShop.Infrastructure/Payments/FakePaymentGateway.cs) |
 | **Stránka brány** | `/Pay/{objednávka}` – jen zákazník a jen svou platbu (cizí = 404); tlačítka Zaplatit / Zamítnout, po termínu „vypršelo“. | [Pay/Index.cshtml.cs](code:src/MiniShop.Web/Pages/Pay/Index.cshtml.cs) |
@@ -56,8 +56,8 @@ flowchart TB
 
 | Směr | Zprávy |
 | --- | --- |
-| přijímá (příkazy, fronta `minishop.payments`) | `RequestPaymentV1`, `RefundPaymentV1` |
-| posílá (události) | `PaymentSucceededV1`, `PaymentFailedV1` (čte sága), `PaymentRefundedV1` (čtou notifikace) |
+| přijímá (příkazy, fronta `minishop.payments`) | `RequestPaymentV1`, `RefundPaymentV1`, `RefundPaymentV2` (e-shop krok 22: vratka po částech) |
+| posílá (události) | `PaymentSucceededV1`, `PaymentFailedV1` (čte sága), `PaymentRefundedV1` (čtou notifikace), `PaymentRefundedV2` (e-shop krok 22 – zatím ho nikdo nečte, sága vratky ho začne číst v kroku 22C) |
 
 ## Tajemství webhooku
 
@@ -94,7 +94,7 @@ sequenceDiagram
 
 | Součást | K čemu | Kód |
 | --- | --- | --- |
-| **StripePaymentGateway** | Checkout Session (`CreateAsync`) a refund přes PaymentIntent session (`RefundAsync`), obojí s **idempotency key** | [StripePaymentGateway.cs](code:src/MiniShop.Infrastructure/Payments/Stripe/StripePaymentGateway.cs) |
+| **StripePaymentGateway** | Checkout Session (`CreateAsync`) a refund přes PaymentIntent session (`RefundAsync`; e-shop krok 22: `RefundPartAsync` s `amount` a klíčem `…-return-{číslo}`), vše s **idempotency key** | [StripePaymentGateway.cs](code:src/MiniShop.Infrastructure/Payments/Stripe/StripePaymentGateway.cs) |
 | **StripeWebhookProcessor** | podpis `Stripe-Signature` (`EventUtility.ConstructEvent`), `completed` = zaplaceno, `expired` = nezaplaceno, jiné události 200 bez efektu; výsledek předá `PaymentWebhookProcessor.ApplyResultAsync` | [StripeWebhookProcessor.cs](code:src/MiniShop.Infrastructure/Payments/Stripe/StripeWebhookProcessor.cs) |
 | **StripeSettings** | klíče z konfigurace; bez nich nebo s živým klíčem `sk_live_` se Web **nespustí** | [StripeSettings.cs](code:src/MiniShop.Infrastructure/Payments/Stripe/StripeSettings.cs) |
 | **StripeWebhookController** | `POST /api/payments/stripe-webhook` – `[AllowAnonymous]`, bez Stripu 404 | [StripeWebhookController.cs](code:src/MiniShop.Web/Controllers/StripeWebhookController.cs) |

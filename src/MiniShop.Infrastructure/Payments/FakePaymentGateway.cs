@@ -15,6 +15,9 @@ public sealed class FakePaymentGateway : IPaymentGateway
 
     /// <summary>Simulace peníze nedrží – vrácení je jen změna stavu platby (handler).</summary>
     public Task RefundAsync(Payment payment, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+    public Task RefundPartAsync(Payment payment, PaymentRefund refund, CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
 }
 
 /// <summary>

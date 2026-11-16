@@ -46,21 +46,60 @@ public sealed class StockReservation
 
     /// <summary>
     /// E-shop krok 12: kdy se vydané zboží vrátilo na sklad (vratka zákazníka); null = nevrácené.
-    /// Vrátit jde jen vydanou rezervaci a jen jednou.
+    /// Od e-shop kroku 22 = kdy se vrátil <b>poslední</b> kus (rezervace je vrácená celá).
     /// </summary>
     public DateTime? ReturnedAtUtc { get; private set; }
+
+    /// <summary>
+    /// E-shop krok 22: kolik kusů z rezervace se už vrátilo na sklad (vratky po částech). Starší celé vratky mají
+    /// jen <see cref="ReturnedAtUtc"/> – migrace jim doplnila celé množství.
+    /// </summary>
+    public int ReturnedQuantity { get; private set; }
 
     /// <summary>Platí ještě (zboží „pod pultem“) – ani uvolněná, ani vydaná.</summary>
     public bool IsActive => ReleasedAtUtc is null && FulfilledAtUtc is null;
 
-    /// <summary>E-shop krok 12: zboží odešlo a ještě se nevrátilo – vratka ho smí naskladnit.</summary>
-    public bool CanBeReturned => FulfilledAtUtc is not null && ReturnedAtUtc is null;
+    /// <summary>
+    /// E-shop krok 22: kolik kusů ještě jde vrátit – jen u vydaného zboží. Vrácená rezervace (<see cref="ReturnedAtUtc"/>,
+    /// i ze starší verze kódu, která množství nepočítá) už nic.
+    /// </summary>
+    public int ReturnableQuantity => FulfilledAtUtc is null || ReturnedAtUtc is not null ? 0 : Quantity - ReturnedQuantity;
+
+    /// <summary>E-shop krok 12: zboží odešlo a ještě se (celé) nevrátilo – vratka ho smí naskladnit.</summary>
+    public bool CanBeReturned => ReturnableQuantity > 0;
 
     /// <summary>
-    /// E-shop krok 12: vydané zboží se vrátilo (vratka). Kusy vrací na sklad volající (<c>Product.AddStock</c>) –
-    /// rezervace jen eviduje, že se to stalo, aby se nenaskladnilo dvakrát.
+    /// E-shop krok 12: vydané zboží se vrátilo celé (vratka celé objednávky) – vrátí se všechny zbývající kusy.
+    /// Kusy vrací na sklad volající (<c>Product.AddStock</c>) – rezervace jen eviduje, že se to stalo, aby se nenaskladnilo dvakrát.
     /// </summary>
-    public void MarkReturned(DateTime returnedAtUtc)
+    /// <returns>Kolik kusů se vrátilo (zbytek po předchozích částečných vratkách).</returns>
+    public int MarkReturned(DateTime returnedAtUtc)
+    {
+        EnsureReturnable();
+        var quantity = ReturnableQuantity;
+        Return(quantity, returnedAtUtc);
+        return quantity;
+    }
+
+    /// <summary>
+    /// E-shop krok 22: vrátila se část kusů (jedna vratka). Poslední kus nastaví <see cref="ReturnedAtUtc"/>.
+    /// </summary>
+    public void Return(int quantity, DateTime returnedAtUtc)
+    {
+        EnsureReturnable();
+        if (quantity <= 0 || quantity > ReturnableQuantity)
+        {
+            throw new DomainException($"Vrátit lze 1 až {ReturnableQuantity} ks z této rezervace.");
+        }
+
+        ReturnedQuantity += quantity;
+        if (ReturnedQuantity == Quantity)
+        {
+            ReturnedAtUtc = returnedAtUtc;
+        }
+    }
+
+    private void EnsureReturnable()
     {
         if (!CanBeReturned)
         {
@@ -68,8 +107,6 @@ public sealed class StockReservation
                 ? "Vrátit lze jen vydané zboží."
                 : "Zboží z této rezervace už je zpět na skladu.");
         }
-
-        ReturnedAtUtc = returnedAtUtc;
     }
 
     public void Release(DateTime releasedAtUtc)

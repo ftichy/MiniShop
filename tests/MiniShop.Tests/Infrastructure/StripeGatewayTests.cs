@@ -75,6 +75,24 @@ public class StripeGatewayTests
         Assert.Equal($"minishop-refund-{payment.Id:N}", api.Requests[1].IdempotencyKey);
     }
 
+    [Fact]
+    public async Task RefundPart_PosleCastkuVHalerichAKlicVratky()
+    {
+        var api = new RecordingStripeApi(
+            """{"id":"cs_test_1","object":"checkout.session","payment_intent":"pi_123"}""",
+            """{"id":"re_2","object":"refund","status":"succeeded"}""");
+        var payment = NewPayment(42, 300m);
+        payment.AttachGateway("cs_test_1", "https://checkout.stripe.com/x");
+        payment.Succeed(DateTime.UtcNow);
+        var refund = payment.RefundPart(2, 99.5m, DateTime.UtcNow)!;   // e-shop krok 22: vratka č. 2
+
+        await Gateway(api).RefundPartAsync(payment, refund);
+
+        Assert.Equal((HttpMethod.Post, "/v1/refunds"), (api.Requests[1].Method, api.Requests[1].Path));
+        Assert.Equal(("pi_123", "9950"), (api.Requests[1].Form["payment_intent"], api.Requests[1].Form["amount"]));
+        Assert.Equal($"minishop-refund-{payment.Id:N}-return-2", api.Requests[1].IdempotencyKey);   // jiná vratka = jiný klíč
+    }
+
     [Theory]
     [InlineData(0.01, 1)]
     [InlineData(1250, 125000)]

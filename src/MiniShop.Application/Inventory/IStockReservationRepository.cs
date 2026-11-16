@@ -11,5 +11,10 @@ public interface IStockReservationRepository
     /// <summary>E-shop krok 12: vydané a ještě nevrácené rezervace objednávky (podklad pro naskladnění vratky).</summary>
     Task<IReadOnlyList<StockReservation>> GetReturnableByOrderIdAsync(int orderId, CancellationToken cancellationToken = default);
 
+    /// <summary>E-shop krok 22: už naskladněná vratka (objednávka + pořadí vratky), nebo null.</summary>
+    Task<StockReturn?> GetReturnAsync(int orderId, int returnNumber, CancellationToken cancellationToken = default);
+
     void Add(StockReservation reservation);
+
+    void AddReturn(StockReturn stockReturn);
 }

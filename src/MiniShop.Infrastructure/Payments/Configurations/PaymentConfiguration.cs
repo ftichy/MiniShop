@@ -23,5 +23,12 @@ internal sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
         builder.Property(p => p.FailureReason).HasMaxLength(500);
         builder.Ignore(p => p.DomainEvents);
 
+        // E-shop krok 22: vrácení po částech (tabulka PaymentRefunds) – jedna vratka jen jednou; součty hlídá Version.
+        builder.Property(p => p.Version).IsConcurrencyToken();
+        builder.Ignore(p => p.RefundedAmount);
+        builder.Ignore(p => p.RefundableAmount);
+        builder.HasMany(p => p.Refunds).WithOne().HasForeignKey(r => r.PaymentId).OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(p => p.Refunds).HasField("_refunds").UsePropertyAccessMode(PropertyAccessMode.Field).AutoInclude();
+
     }
 }

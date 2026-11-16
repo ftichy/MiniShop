@@ -27,6 +27,7 @@ public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> opti
 
     public DbSet<Product> Products => Set<Product>();
     public DbSet<StockReservation> StockReservations => Set<StockReservation>();
+    public DbSet<StockReturn> StockReturns => Set<StockReturn>();   // e-shop krok 22
 
     public DbSet<Category> Categories => Set<Category>();
 

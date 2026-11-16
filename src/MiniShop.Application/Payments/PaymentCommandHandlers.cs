@@ -14,7 +14,8 @@ public sealed class PaymentCommandHandlers(
     IPaymentsUnitOfWork unitOfWork,
     TimeProvider timeProvider) :
     IIntegrationMessageHandler<RequestPaymentV1>,
-    IIntegrationMessageHandler<RefundPaymentV1>
+    IIntegrationMessageHandler<RefundPaymentV1>,
+    IIntegrationMessageHandler<RefundPaymentV2>
 {
     /// <summary>Založit platbu a u brány stránku k zaplacení. Výsledek přijde později webhookem.</summary>
     public async Task HandleAsync(RequestPaymentV1 command, CancellationToken cancellationToken)
@@ -57,11 +58,40 @@ public sealed class PaymentCommandHandlers(
             await gateway.RefundAsync(payment, cancellationToken);
         }
 
+        var refundable = payment.RefundableAmount;
         if (payment.Refund(timeProvider.GetUtcNow().UtcDateTime))
         {
             await unitOfWork.SaveChangesAsync(cancellationToken);   // → PaymentRefundedV1
             TraceTags.Tag("minishop.payment.result", "refunded");
-            TraceTags.Tag("minishop.payment.amount", (double)payment.Amount);
+            TraceTags.Tag("minishop.payment.amount", (double)refundable);
         }
+    }
+
+    /// <summary>
+    /// E-shop krok 22: vratka zboží po částech – vrátit jen částku za vrácené položky. Stejná vratka podruhé nic neudělá.
+    /// </summary>
+    /// <remarks>
+    /// Pořadí: nejdřív pravidla platby (<see cref="Payment.RefundPart"/> – součet nesmí přesáhnout zaplacené), pak brána,
+    /// pak uložení. Když brána selže, nic se neuloží a consumer to zkusí znovu; pád po bráně zopakuje volání se stejným
+    /// klíčem idempotence (platba + číslo vratky), takže peníze neodejdou dvakrát. Souběh dvou vratek téže platby
+    /// zastaví <c>Payment.Version</c> (concurrency token) – druhá se zopakuje nad aktuálním součtem.
+    /// </remarks>
+    public async Task HandleAsync(RefundPaymentV2 command, CancellationToken cancellationToken)
+    {
+        TraceTags.TagOrder(command.OrderId);
+        TraceTags.Tag("minishop.return.number", command.ReturnNumber);
+        var payment = await payments.GetByOrderIdAsync(command.OrderId, cancellationToken)
+            ?? throw new InvalidOperationException($"Platba objednávky {command.OrderId} neexistuje.");
+
+        var refund = payment.RefundPart(command.ReturnNumber, command.Amount, timeProvider.GetUtcNow().UtcDateTime);
+        if (refund is null)
+        {
+            return;   // tahle vratka už peníze dostala (odpověď PaymentRefundedV2 odešla s jejím uložením)
+        }
+
+        await gateway.RefundPartAsync(payment, refund, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);   // → PaymentRefundedV2
+        TraceTags.Tag("minishop.payment.result", "partly_refunded");
+        TraceTags.Tag("minishop.payment.amount", (double)refund.Amount);
     }
 }

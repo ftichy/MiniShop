@@ -62,22 +62,44 @@ public sealed class StripePaymentGateway(IStripeClient stripe, StripeSettings se
 
     public async Task RefundAsync(Payment payment, CancellationToken cancellationToken = default)
     {
+        // Bez částky Stripe vrátí zbytek PaymentIntentu – po částečných vratkách (e-shop krok 22) jen to, co ještě nevrátil.
+        await new RefundService(stripe).CreateAsync(
+            new RefundCreateOptions { PaymentIntent = await PaymentIntentIdAsync(payment, cancellationToken) },
+            new RequestOptions { IdempotencyKey = $"minishop-refund-{payment.Id:N}" },
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// E-shop krok 22: vrácení části (jedna vratka). Klíč idempotence = platba + číslo vratky – stejná vratka podruhé
+    /// peníze nevrátí, další vratka téže platby má vlastní klíč.
+    /// </summary>
+    public async Task RefundPartAsync(Payment payment, PaymentRefund refund, CancellationToken cancellationToken = default)
+    {
+        await new RefundService(stripe).CreateAsync(
+            new RefundCreateOptions
+            {
+                PaymentIntent = await PaymentIntentIdAsync(payment, cancellationToken),
+                Amount = ToMinorUnits(refund.Amount)
+            },
+            new RequestOptions { IdempotencyKey = $"minishop-refund-{payment.Id:N}-return-{refund.ReturnNumber}" },
+            cancellationToken);
+    }
+
+    /// <summary>Peníze drží PaymentIntent session – zjistíme ho až při vrácení (neukládáme ho, tabulka plateb se tak nemění).</summary>
+    private async Task<string> PaymentIntentIdAsync(Payment payment, CancellationToken cancellationToken)
+    {
         if (string.IsNullOrEmpty(payment.ExternalId))
         {
             throw new InvalidOperationException($"Platba objednávky {payment.OrderId} nemá ID session u Stripu.");
         }
 
-        // Peníze drží PaymentIntent session – zjistíme ho až teď (neukládáme ho, tabulka plateb se tak nemění).
         var session = await new SessionService(stripe).GetAsync(payment.ExternalId, cancellationToken: cancellationToken);
         if (string.IsNullOrEmpty(session.PaymentIntentId))
         {
             throw new InvalidOperationException($"Session {session.Id} (objednávka {payment.OrderId}) nemá platbu k vrácení.");
         }
 
-        await new RefundService(stripe).CreateAsync(
-            new RefundCreateOptions { PaymentIntent = session.PaymentIntentId },
-            new RequestOptions { IdempotencyKey = $"minishop-refund-{payment.Id:N}" },
-            cancellationToken);
+        return session.PaymentIntentId;
     }
 
     /// <summary>Stripe počítá v nejmenší jednotce měny – u korun v haléřích (199,90 Kč = 19990).</summary>

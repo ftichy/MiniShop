@@ -69,6 +69,17 @@ Vrátit jde objednávku **jen jednou**. Po zamítnutí nebo vypršení tlačítk
 - **Přehled tržeb** (Reporting) dostane `ReturnCompletedV1` a vrácenou objednávku z tržby odečte – ani o tom Ordering neví.
 - Rozpracovaná vratka blokuje smazání účtu (`Order.IsActive`).
 
+**Vratka po částech (e-shop krok 22, rozpracováno):** zákazník bude moct vrátit jen vybrané kusy a k jedné objednávce
+udělat víc vratek. Zavádí se „od konce“ – nejdřív se nové zprávy naučí příjemci, až nakonec je začne posílat Ordering:
+
+| Část | Stav | Co umí |
+| --- | --- | --- |
+| 22A – sklad a Payments | hotovo | `RestockReturnedGoodsV2` (jen uvedené kusy, každá vratka jednou – `StockReturn`) → `ReturnedGoodsRestockedV2`; `RefundPaymentV2` (jen částka vratky, součet ≤ zaplaceno, Stripe `amount`) → `PaymentRefundedV2` |
+| 22B – dobropisy, e-maily, tržby, hodnocení | plán | částečný dobropis jen s vrácenými řádky, víc dobropisů na fakturu |
+| 22C – Ordering a obrazovky | plán | výběr položek a kusů, sága pro každou vratku, odesílání V2 |
+
+Dokud 22C není hotové, zprávy V2 nikdo neposílá – vratka celé objednávky funguje beze změny (V1).
+
 **Dobropis (e-shop krok 15B):** `ReturnCompletedV1` poslouchá i modul Invoicing – k faktuře vystaví dobropis
 („Vráceno na kartu“, u dobírky „Vrátíme převodem na účet“) a zákazník ho dostane e-mailem v PDF
 ([Vystavení faktury a dobropisu](faktura.md)).

@@ -7,7 +7,7 @@
 
 # --platform=$BUILDPLATFORM: SDK běží na architektuře stroje, který staví (rychle), a výstup se jen
 # překompiluje pro cílovou architekturu (-a $TARGETARCH) – tak vznikne image pro ARM VM i na x86 PC (krok 7).
-FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:11.0 AS build
 ARG TARGETARCH
 WORKDIR /src
 

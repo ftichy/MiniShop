@@ -38,7 +38,7 @@ public sealed class SmtpEmailSender(IOptions<EmailSettings> options, ILogger<Smt
             await client.AuthenticateAsync(settings.UserName, settings.Password ?? string.Empty, cancellationToken);
         }
 
-        await client.SendAsync(mime, cancellationToken);
+        await client.SendAsync(new SmtpSendRequest(mime), cancellationToken);   // MailKit 5: zpráva v SmtpSendRequest
         await client.DisconnectAsync(quit: true, cancellationToken);
 
         // Adresát je osobní údaj, obsah může nést odkaz s tokenem – do logu jen předmět.

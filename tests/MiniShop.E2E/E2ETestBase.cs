@@ -73,6 +73,9 @@ public abstract class E2ETestBase : IAsyncLifetime
     {
         public IPage Page => page;
 
+        /// <summary>Kontext prohlížeče (např. <c>SetOfflineAsync</c> – vzhled krok D).</summary>
+        public IBrowserContext Context => context;
+
         public async Task SaveFailureArtifactsAsync()
         {
             Directory.CreateDirectory(E2EEnvironment.ArtifactsDir);

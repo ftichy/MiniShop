@@ -31,8 +31,17 @@
 <html lang="cs">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    @* Vzhled krok D: viewport-fit=cover – na iPhonu stránka až k okrajům displeje, spodní lišta si odsadí „bradu“ (safe-area). *@
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#4f46e5" />
+    @* Vzhled krok D: instalovatelná aplikace (PWA) – manifest = jméno, ikony, spuštění bez lišty prohlížeče. *@
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/icons/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="MiniShop" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
     <title>@ViewData["Title"] – MiniShop</title>
     @* Účty krok 8: Bootstrap 5.3.3 lokálně (ne z CDN) – CSP pouští jen vlastní soubory a cizí server nevidí návštěvníky. *@
     <link rel="stylesheet" href="~/lib/bootstrap/css/bootstrap.min.css" asp-append-version="true" />
@@ -179,12 +188,20 @@
                 <a href="https://github.com/ftichy/MiniShop">Zdrojový kód</a>
             </nav>
         </div>
+        @* Vzhled krok D: nabídka instalace – tlačítko ukáže pwa.js, jen když ji prohlížeč umí (Android/Chrome/Edge);
+           na iPhonu instalace tlačítkem nejde, ukáže se návod. *@
+        <div class="container small mt-2">
+            <button type="button" class="btn btn-sm btn-outline-primary" data-pwa-install data-track="pwa-install" hidden>Nainstalovat aplikaci</button>
+            <span class="text-body-secondary" data-pwa-ios-hint hidden>Aplikace na iPhonu: v Safari klepněte na <strong>Sdílet</strong> → <strong>Přidat na plochu</strong>.</span>
+        </div>
     </footer>
+    <partial name="_TabBar" />
     @* Redesign A: Bootstrap JS lokálně (menu na mobilu, rozbalovací nabídky, panel filtrů) – soubor, ne inline skript (CSP). *@
     <script src="~/lib/bootstrap/js/bootstrap.bundle.min.js" asp-append-version="true"></script>
     @* Stránkování seznamů: výběr velikosti stránky odešle formulář (partial _Pager). *@
     <script src="~/js/pager.js" asp-append-version="true"></script>
     <script src="~/js/search-suggest.js" asp-append-version="true"></script>
+    <script src="~/js/pwa.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

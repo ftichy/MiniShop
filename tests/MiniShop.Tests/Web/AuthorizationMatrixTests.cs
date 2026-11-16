@@ -43,6 +43,10 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.User, "/Shop", Expect.Allowed },
         { Who.Admin, "/Shop", Expect.Allowed },
         { Who.Anonymous, "/media/products/1-0123456789ab.png", Expect.Allowed },   // e-shop krok 2B: obrázky výlohy
+        { Who.Anonymous, "/manifest.webmanifest", Expect.Allowed },          // vzhled krok D: instalovatelná aplikace
+        { Who.Anonymous, "/sw.js", Expect.Allowed },
+        { Who.Anonymous, "/offline.html", Expect.Allowed },
+        { Who.Anonymous, "/icons/icon-192.png", Expect.Allowed },
         { Who.Anonymous, "/Shop/1", Expect.Allowed },                       // e-shop krok 14: detail produktu (neexistující = 404)
         { Who.User, "/Shop/1", Expect.Allowed },
 

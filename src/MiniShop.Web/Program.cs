@@ -21,6 +21,7 @@ using MiniShop.Web.Documentation;
 using MiniShop.Web.ErrorHandling;
 using MiniShop.Web.Extensions;
 using MiniShop.Web.Security;
+using MiniShop.Web.Ui;
 using Serilog;
 
 // Dočasný logger pro start aplikace: zachytí i chyby dřív, než se načte konfigurace.
@@ -181,7 +182,9 @@ try
         SupportedUICultures = [czech]
     });
 
-    app.UseStaticFiles();
+    // Vzhled krok D: service worker a manifest se nesmí držet v cache – prohlížeč by po nasazení nepoznal novou verzi
+    // (PwaFiles.NoCachePaths). Ostatní soubory mají v adrese otisk obsahu (asp-append-version).
+    app.UseStaticFiles(new StaticFileOptions { OnPrepareResponse = PwaFiles.ApplyCacheHeaders });
 
     // Jeden řádek na HTTP požadavek (metoda, cesta, status, doba trvání). Statické soubory se nelogují.
     // Pořadí je důležité: request logging musí být VNĚ exception handleru. Jinak vidí výjimku dřív,

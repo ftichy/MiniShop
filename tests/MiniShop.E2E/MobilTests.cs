@@ -52,4 +52,43 @@ public sealed class MobilTests : E2ETestBase
             await phone.DisposeAsync();
         }
     }
+
+    /// <summary>
+    /// Vzhled krok D: aplikace na telefonu – spodní lišta, service worker se zaregistruje a bez signálu ukáže offline
+    /// stránku (místo chyby prohlížeče); po návratu sítě „Zkusit znovu“ načte stránku normálně.
+    /// </summary>
+    [E2EFact]
+    public async Task Mobil_Aplikace_SpodniListaAOfflineStranka()
+    {
+        Session? phone = null;
+        await RunAsync(async () =>
+        {
+            phone = await NewSessionAsync("mobil-aplikace", mobile: true);
+            var page = phone.Page;
+
+            await page.GotoAsync("/Shop");
+            await Expect(page.Locator("[data-track=tab-bar]")).ToBeVisibleAsync();
+            await Expect(page.Locator("[data-track=tab-shop]")).ToHaveClassAsync(new Regex(@"(^|\s)active(\s|$)"));
+
+            // Service worker běží jen v bezpečném kontextu – E2E jede na http://localhost (ten se za bezpečný považuje).
+            var controlled = await page.EvaluateAsync<bool>(
+                "async () => { await navigator.serviceWorker.ready; " +
+                "if (!navigator.serviceWorker.controller) { await new Promise(r => navigator.serviceWorker.addEventListener('controllerchange', r, { once: true })); } " +
+                "return true; }");
+            Assert.True(controlled);
+
+            await phone.Context.SetOfflineAsync(true);
+            await page.GotoAsync("/Shop?offline-test=1");
+            await Expect(page.Locator("[data-track=offline-page]")).ToBeVisibleAsync();
+
+            await phone.Context.SetOfflineAsync(false);
+            await page.Locator("[data-track=offline-retry]").ClickAsync();
+            await Expect(page.Locator("[data-track=tab-bar]")).ToBeVisibleAsync();
+        }, () => phone);
+
+        if (phone is not null)
+        {
+            await phone.DisposeAsync();
+        }
+    }
 }

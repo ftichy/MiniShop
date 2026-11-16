@@ -547,7 +547,7 @@ nové moduly Notifications (odběratel událostí) a Payments (účastník ságy
 | 22C. Vratka po částech – Ordering a obrazovky (`OrderReturn` v agregátu `Order`, formulář s počty kusů, jedna rozpracovaná vratka, celá objednávka jen jako první, doprava jen u celé; `ReturnSaga` klíč `OrderId + ReturnNumber`, V2 zprávy; `/Admin/Returns` po vratkách; `OrderPartialReturnsSnapshotV1` pro přestavění tržeb; E2E *Vratka po částech*) | hotovo (nasazeno 16. 11. 2026; v produkci ověřena vratka 1 ze 2 kusů kartou – částečný refund ve Stripu, dobropis jen za vrácený kus, objednávka dál doručená) | `docs/kroky-eshop/krok-22c-vratka-po-castech-ordering.md` |
 
 ## Stav vzhledu (moderní vzhled a mobil, příručka `architektura/vzhled.md`)
-Bootstrap 5.3 lokálně (CSS + JS bundle, SRI ověřen) + design systém v `wwwroot/css/site.css` (proměnné `--ms-*` přepisují `--bs-*`,
+**PWA (krok D): stránky (HTML) service worker nikdy neukládá; po změně `offline.html` nebo ikony nový `PRECACHE_VERSION` v `sw.js` (hodnotu napíše `PwaTests`); nová položka spodní lišty = `_TabBar` + `data-track` `tab-…`.** Bootstrap 5.3 lokálně (CSS + JS bundle, SRI ověřen) + design systém v `wwwroot/css/site.css` (proměnné `--ms-*` přepisují `--bs-*`,
 indigo `#4f46e5`, systémové písmo, dotyková plocha 44 px). **Nová barva/rozměr = proměnná v `:root`**, ikony jen `Ui/Icons.cs`
 (inline SVG), karta produktu jen partial `_ProductCard` (`ProductCardModel`). Hlavička: `navbar-expand-lg` + `collapse`, košík mimo
 collapse (vidět na mobilu), admin odkazy v nabídce *Správa* (`data-track` zůstaly), účet v nabídce. Výloha: filtry `offcanvas-lg`,
@@ -559,6 +559,7 @@ GET formulář beze změny. Rozbalování jen atributy Bootstrapu (`data-bs-togg
 | A. Kostra a výloha (design systém, hlavička + mobilní menu, Bootstrap JS, úvod pro zákazníka, `_ProductCard`, filtry v panelu, detail s nákupním boxem, ikony) | hotovo (nasazeno 11. 11. 2026, ověřeno na telefonu) | `docs/kroky-vzhled/krok-a-kostra-a-vyloha.md` |
 | B. Nákupní cesta (košík s kartami a spodní lištou, pokladna se souhrnem a `.choice-card` – Journeys beze změny, `Replay.cshtml` stejně, objednávky jako karty + časová osa, účet v `_AccountLayout`) | hotovo (nasazeno 12. 11. 2026, ověřeno na telefonu) | `docs/kroky-vzhled/krok-b-nakupni-cesta.md` |
 | C. Administrace (`_AdminHeader` s drobečkovou navigací, tabulky v `table-responsive admin-table`, Expedice jako seznam, formuláře v kartě, jemné štítky) | hotovo (nasazeno 12. 11. 2026, ověřeno na telefonu) | `docs/kroky-vzhled/krok-c-administrace.md` |
+| D. Instalovatelná aplikace – PWA (`manifest.webmanifest`, ikony v `wwwroot/icons`, service worker `sw.js` – statické soubory z telefonu, stránky nikdy, bez sítě `offline.html`; `pwa.js` registrace + tlačítko instalace + návod pro iPhone; spodní lišta `_TabBar`; `PwaFiles` no-cache; `PwaTests`, E2E *Mobil – aplikace*) | v PR | `docs/kroky-vzhled/krok-d-pwa.md` |
 
 ## Stav škálování (viz `docs/Skalovani-roadmap.md`)
 Cíl: víc instancí služeb (a později víc strojů). Nejdřív PostgreSQL (kontejner na Always Free VM, 0 Kč), pak víc instancí.

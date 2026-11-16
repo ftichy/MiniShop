@@ -111,6 +111,52 @@ Jádro: [PageRequest a PagedList](code:src/MiniShop.Application/Abstractions/Pag
 [ToPagedListAsync](code:src/MiniShop.Infrastructure/Persistence/PagingExtensions.cs) (COUNT + OFFSET/LIMIT nad seřazeným dotazem).
 **Nový seznam, který roste = `PagedList` + `<partial name="_Pager" model="Model.Pager" />`.**
 
+## Instalovatelná aplikace – PWA (vzhled krok D)
+
+MiniShop jde „nainstalovat“ na plochu telefonu (Android/Chrome/Edge tlačítkem **Nainstalovat aplikaci** v patičce nebo
+v nabídce účtu, iPhone v Safari přes *Sdílet → Přidat na plochu*). Spustí se z ikony přes celý displej, bez adresního
+řádku, bez signálu ukáže stránku „Jste offline“. Je to pořád stejný web – žádný druhý kód ani obchod s aplikacemi.
+Na Androidu z něj Chrome sestaví skutečný balíček (WebAPK): aplikace je v seznamu aplikací a odinstaluje se jako každá jiná.
+
+```mermaid
+flowchart LR
+    P[Stránka MiniShopu] -->|každý požadavek| SW{"Service worker<br/>sw.js"}
+    SW -->|"CSS, JS, ikony,<br/>obrázky produktů"| C[(Mezipaměť<br/>telefonu)]
+    C -.->|chybí| N[Server]
+    SW -->|"stránka (HTML)"| N
+    N -.->|bez sítě| O[offline.html]
+    SW -->|"POST, /api, Stripe,<br/>Google"| X[Server – bez zásahu]
+```
+
+| Soubor | Co dělá |
+| --- | --- |
+| [manifest.webmanifest](code:src/MiniShop.Web/wwwroot/manifest.webmanifest) | „vizitka“: jméno, ikony (192, 512, *maskable*), barvy, spuštění `/Shop` v režimu `standalone`, zástupci Košík a Moje objednávky |
+| [sw.js](code:src/MiniShop.Web/wwwroot/sw.js) | service worker – „vrátný“ mezi stránkou a sítí (pravidla níže) |
+| [offline.html](code:src/MiniShop.Web/wwwroot/offline.html) | samostatná stránka bez skriptu a cizích stylů, předem uložená v telefonu |
+| [pwa.js](code:src/MiniShop.Web/wwwroot/js/pwa.js) | registrace service workeru, tlačítko instalace (`beforeinstallprompt`), návod pro iPhone |
+| [icons/](code:src/MiniShop.Web/wwwroot/icons/icon.svg) | logo (taška v indigo čtverci) jako SVG a PNG; favicon a `apple-touch-icon` |
+| [_TabBar](code:src/MiniShop.Web/Pages/Shared/_TabBar.cshtml) | spodní lišta na telefonu: Obchod, Košík (s počtem kusů), Objednávky, Účet / Přihlásit |
+| [PwaFiles](code:src/MiniShop.Web/Ui/PwaFiles.cs) | `Cache-Control: no-cache` pro manifest, `sw.js` a offline stránku |
+
+**Pravidla service workeru:**
+
+- **Stránky (HTML) nikdy do mezipaměti** – jsou v nich objednávky, adresy, správa; na sdíleném telefonu nesmí zůstat.
+  Stránka jde vždy ze sítě, bez sítě offline stránka.
+- **Statické soubory** (`/css/`, `/js/`, `/lib/`, `/icons/`, `/media/products/`) z mezipaměti – rychlý start. Adresy CSS/JS
+  mají otisk obsahu (`asp-append-version`), nová verze = nová adresa. Mezipaměť drží nejvýš 150 souborů.
+- **POST, cizí weby (Stripe, Google) a ostatní cesty (`/api`)** service worker vůbec neobsluhuje.
+- `PRECACHE_VERSION` v `sw.js` = otisk offline stránky a ikony. **Po změně `offline.html` nebo ikony** ho
+  [PwaTests](code:tests/MiniShop.Tests/Web/PwaTests.cs) nechá spadnout a napíše správnou hodnotu – nový otisk = nový
+  service worker, telefon si stáhne novou offline stránku a starou mezipaměť smaže.
+- Service worker běží jen přes HTTPS (nebo `localhost`). E2E scénář *Mobil – aplikace* ověří lištu, registraci a offline stránku
+  (`SetOfflineAsync`).
+
+Spodní lišta je jen pod šířkou `lg`; hlavička nahoře zůstala beze změny (`data-track` pro Journeys a E2E). Lišta „K pokladně“
+v košíku se drží nad ní (`--ms-tab-bar-height`), `viewport-fit=cover` + `env(safe-area-inset-*)` odsadí výřez a „bradu“ iPhonu.
+
+Mimo tento krok: **oznámení push** (klíče VAPID, souhlas, modul Notifications) a **Google Play** přes TWA (Trusted Web Activity –
+balíček z této PWA, účet vývojáře a soubor `/.well-known/assetlinks.json`).
+
 ## Ikony
 
 [Icons.cs](code:src/MiniShop.Web/Ui/Icons.cs) – pár ikon jako inline SVG (tvary z Bootstrap Icons, licence MIT):

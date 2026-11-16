@@ -1,0 +1,35 @@
+@using MiniShop.Web.Carts
+@* Vzhled krok D: spodní lišta jako v mobilní aplikaci – jen na telefonu a tabletu (pod lg). Hlavička nahoře zůstává
+   beze změny (data-track pro Journeys a E2E), tady jsou jen nejčastější cesty na dosah palce. *@
+@{
+    var path = ViewContext.HttpContext.Request.Path;
+    var signedIn = User.Identity?.IsAuthenticated == true;
+    var shopActive = path == "/" || path.StartsWithSegments("/Shop");
+    var ordersActive = path.StartsWithSegments("/Orders");
+    var accountActive = path.StartsWithSegments("/Account");
+}
+<nav class="tab-bar d-lg-none" aria-label="Spodní menu" data-track="tab-bar">
+    <a class="tab-bar-item@(shopActive ? " active" : "")" asp-page="/Shop/Index" data-track="tab-shop" aria-current="@(shopActive ? "page" : null)">
+        <span class="tab-bar-icon">@Icons.Bag</span>
+        <span>Obchod</span>
+    </a>
+    @await Component.InvokeAsync("CartBadge", new { variant = CartBadgeViewComponent.TabVariant })
+    @if (signedIn)
+    {
+        <a class="tab-bar-item@(ordersActive ? " active" : "")" asp-page="/Orders/Index" data-track="tab-orders" aria-current="@(ordersActive ? "page" : null)">
+            <span class="tab-bar-icon">@Icons.Truck</span>
+            <span>Objednávky</span>
+        </a>
+        <a class="tab-bar-item@(accountActive ? " active" : "")" asp-page="/Account/ChangePassword" data-track="tab-account" aria-current="@(accountActive ? "page" : null)">
+            <span class="tab-bar-icon">@Icons.Person</span>
+            <span>Účet</span>
+        </a>
+    }
+    else
+    {
+        <a class="tab-bar-item@(accountActive ? " active" : "")" asp-page="/Account/Login" data-track="tab-login" aria-current="@(accountActive ? "page" : null)">
+            <span class="tab-bar-icon">@Icons.Person</span>
+            <span>Přihlásit</span>
+        </a>
+    }
+</nav>

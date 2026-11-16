@@ -130,6 +130,44 @@ public sealed class StaffRolesTests(MiniShopWebFactory web)
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/Cart")).StatusCode);   // Zákazník hned
     }
 
+    /// <summary>Účty krok 12C: zaměstnanec bez 2FA vidí upozornění a v menu cestu k nastavení (dřív správu prostě neviděl).</summary>
+    [Fact]
+    public async Task ZamestnanecBez2fa_VidiUpozorneniACestuKNastaveni()
+    {
+        var email = NewEmail();
+        await web.CreateAdminAsync(email, Password, twoFactor: false);
+        var client = await web.LoginAsync(email, Password);
+
+        var home = WebUtility.HtmlDecode(await client.GetStringAsync("/"));
+        var customer = WebUtility.HtmlDecode(await (await web.LoginAsync(MiniShopWebFactory.UserEmail, MiniShopWebFactory.UserPassword))
+            .GetStringAsync("/"));
+
+        Assert.Contains("data-track=\"two-factor-required\"", home);
+        Assert.Contains("data-track=\"nav-admin-2fa\"", home);
+        Assert.DoesNotContain("data-track=\"two-factor-required\"", customer);
+    }
+
+    /// <summary>Účty krok 12C: skladník, který je i zákazník, má u vlastní objednávky v Expedici štítek místo akcí.</summary>
+    [Fact]
+    public async Task Expedice_VlastniObjednavka_StitekAOdmitnuti()
+    {
+        var email = NewEmail();
+        await web.CreateWithRolesAsync(email, Password, AccountRoles.Warehouse, AccountRoles.User);
+        var own = await web.CreateConfirmedOrderForAsync(email, MiniShop.Domain.Orders.ShippingMethod.Courier);
+        var client = await web.LoginAsync(email, Password);
+
+        var page = WebUtility.HtmlDecode(await client.GetStringAsync("/Admin/Fulfilment"));
+        Assert.Contains("data-track=\"own-order\"", page);
+
+        var response = await client.PostAsync("/Admin/Fulfilment?handler=StartPacking", new FormUrlEncodedContent(
+        [
+            new("__RequestVerificationToken", await MiniShopWebFactory.GetAntiforgeryTokenAsync(client, "/Admin/Fulfilment")),
+            new("ids", own.ToString())
+        ]));
+        var after = WebUtility.HtmlDecode(await client.GetStringAsync(response.Headers.Location?.OriginalString ?? "/Admin/Fulfilment"));
+        Assert.Contains("vyřídit kolega", after);
+    }
+
     private static string NewEmail() => $"role-{Guid.NewGuid():N}@test.local";
 
     private async Task<string> UserIdAsync(string email)

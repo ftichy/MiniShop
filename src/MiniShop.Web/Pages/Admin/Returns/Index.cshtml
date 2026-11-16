@@ -31,6 +31,7 @@ else
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
                     <div>
                         <a asp-page="/Orders/Detail" asp-route-id="@order.Id"><strong>č. @order.Id</strong></a>
+                        <partial name="_OwnOrderBadge" model="row.Detail.CustomerId == Model.CurrentUserId" />
                         @if (row.Return is not null)
                         {
                             <span class="badge badge-soft-info" data-track="return-number">vratka @row.Return.Number</span>
@@ -58,14 +59,14 @@ else
                 {
                     <div class="small text-muted mt-1">Zboží musí dorazit do @row.Saga.GoodsDeadlineUtc.ToCzechString().</div>
                     <div class="d-flex flex-wrap gap-2 mt-2">
-                        @if (Model.CanAccept)
+                        @if (Model.CanAccept && row.Detail.CustomerId != Model.CurrentUserId)
                         {
                         <form method="post" asp-page-handler="Accept" asp-route-id="@order.Id">
                             <input type="hidden" name="returnNumber" value="@row.Saga.ReturnNumber" />
                             <button type="submit" class="btn btn-success btn-sm" data-track="return-accept">Přijato v pořádku</button>
                         </form>
                         }
-                        @if (Model.CanReject)
+                        @if (Model.CanReject && row.Detail.CustomerId != Model.CurrentUserId)
                         {
                         <form method="post" asp-page-handler="Reject" asp-route-id="@order.Id" class="d-flex gap-2">
                             <input type="hidden" name="returnNumber" value="@row.Saga.ReturnNumber" />

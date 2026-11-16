@@ -50,6 +50,9 @@ public static class OrderAccessExtensions
             user.FindFirstValue(AccountClaimTypes.DisplayName) ?? user.Identity?.Name ?? string.Empty,
             user.FindFirstValue(ClaimTypes.Email) ?? user.Identity?.Name ?? string.Empty);
 
+    /// <summary>Účty krok 12C: kdo akci správy dělá – ID účtu pro pravidlo střetu zájmů (vlastní objednávku nevyřizuje).</summary>
+    public static string ToActingUserId(this ClaimsPrincipal user) => user.GetUserId();
+
     /// <summary>E-shop krok 3: čí je košík – ID účtu (jako vlastník objednávky).</summary>
     public static string ToCustomerId(this ClaimsPrincipal user) => user.GetUserId();
 

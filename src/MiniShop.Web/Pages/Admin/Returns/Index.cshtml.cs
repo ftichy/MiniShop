@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -19,6 +20,9 @@ namespace MiniShop.Web.Pages.Admin.Returns;
 public sealed class IndexModel(IOrderService orderService, ReturnSagaOrchestrator returns, IAuthorizationService authorization)
     : PageModel
 {
+    /// <summary>Účty krok 12C: vlastní vratku zaměstnanec nevyřizuje – tlačítka skrytá (server to hlídá i tak).</summary>
+    public string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
+
     /// <summary>Účty krok 12B: převzetí zásilky (Přijato) – sklad.</summary>
     public bool CanAccept { get; private set; }
 
@@ -46,11 +50,11 @@ public sealed class IndexModel(IOrderService orderService, ReturnSagaOrchestrato
     }
 
     public async Task<IActionResult> OnPostAcceptAsync(int id, int returnNumber, CancellationToken cancellationToken) =>
-        !await IsAllowedAsync(AuthorizationPolicies.RequireFulfilment) ? Forbid() : await ExecuteAsync(id, async () => await returns.AcceptGoodsAsync(id, returnNumber, cancellationToken),
+        !await IsAllowedAsync(AuthorizationPolicies.RequireFulfilment) ? Forbid() : await ExecuteAsync(id, async () => await returns.AcceptGoodsAsync(id, returnNumber, User.ToActingUserId(), cancellationToken),
             $"Vratka č. {id} převzata – sklad zboží naskladní a zákazník dostane peníze zpět.");
 
     public async Task<IActionResult> OnPostRejectAsync(int id, int returnNumber, string? reason, CancellationToken cancellationToken) =>
-        !await IsAllowedAsync(AuthorizationPolicies.RequireSupport) ? Forbid() : await ExecuteAsync(id, async () => await returns.RejectAsync(id, reason ?? string.Empty, returnNumber, cancellationToken),
+        !await IsAllowedAsync(AuthorizationPolicies.RequireSupport) ? Forbid() : await ExecuteAsync(id, async () => await returns.RejectAsync(id, reason ?? string.Empty, returnNumber, User.ToActingUserId(), cancellationToken),
             $"Vrácení objednávky č. {id} zamítnuto – zákazník dostane e-mail s důvodem.");
 
     private async Task<bool> IsAllowedAsync(string policy) => (await authorization.AuthorizeAsync(User, policy)).Succeeded;

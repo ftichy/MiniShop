@@ -276,8 +276,9 @@ uživatelů, změna oprávnění = e-mail. Rozhodnuto 16. 11. 2026.
 
 - **12A** – víc rolí na účet, převod adminů (migrace), zaškrtávání rolí, pojistky, e-mail. *Hotovo (nasazeno 16. 11. 2026) – souhrn [krok-12a-vice-roli](kroky-ucty/krok-12a-vice-roli.md).*
 - **12B** – správa po oblastech: policy pro každou oblast, menu Správa podle rolí, test všech rolí × stránek, úklid role
-  Admin. *Hotovo v PR – souhrn [krok-12b-sprava-po-oblastech](kroky-ucty/krok-12b-sprava-po-oblastech.md).*
-- **12C** – střet zájmů: zaměstnanec nevyřizuje vlastní objednávku, vratku ani nemoderuje hodnocení svého nákupu.
+  Admin. *Hotovo (nasazeno 16. 11. 2026) – souhrn [krok-12b-sprava-po-oblastech](kroky-ucty/krok-12b-sprava-po-oblastech.md).*
+- **12C** – střet zájmů: zaměstnanec nevyřizuje vlastní objednávku, vratku ani nemoderuje hodnocení svého nákupu. *Hotovo v PR –
+  souhrn [krok-12c-stret-zajmu](kroky-ucty/krok-12c-stret-zajmu.md).*
 
 ## Volitelně: kam dál
 

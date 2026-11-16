@@ -24,6 +24,12 @@ public interface IPaymentGateway
     /// (idempotence u brány). Simulace nedělá nic.
     /// </summary>
     Task RefundAsync(Payment payment, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// E-shop krok 22: vrátit <b>část</b> peněz (jedna vratka zboží). Idempotence u brány podle platby + čísla vratky –
+    /// opakování téhož vrácení peníze podruhé nepošle. Simulace nedělá nic.
+    /// </summary>
+    Task RefundPartAsync(Payment payment, PaymentRefund refund, CancellationToken cancellationToken = default);
 }
 
 /// <param name="ExternalId">ID platby u brány.</param>

@@ -16,5 +16,10 @@ public sealed class StockReservationRepository(InventoryDbContext db) : IStockRe
             .Where(r => r.OrderId == orderId && r.FulfilledAtUtc != null && r.ReturnedAtUtc == null)   // e-shop krok 12
             .ToListAsync(cancellationToken);
 
+    public Task<StockReturn?> GetReturnAsync(int orderId, int returnNumber, CancellationToken cancellationToken = default) =>
+        db.StockReturns.FirstOrDefaultAsync(r => r.OrderId == orderId && r.ReturnNumber == returnNumber, cancellationToken);
+
     public void Add(StockReservation reservation) => db.StockReservations.Add(reservation);
+
+    public void AddReturn(StockReturn stockReturn) => db.StockReturns.Add(stockReturn);
 }

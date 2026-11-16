@@ -31,7 +31,10 @@ public sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> option
         PaymentFailed e =>
             [OutboxMessageFactory.Create(new PaymentFailedV1(e.EventId, e.OccurredAtUtc, e.Payment.OrderId, e.Payment.FailureReason!))],
         PaymentRefunded e =>
-            [OutboxMessageFactory.Create(new PaymentRefundedV1(e.EventId, e.OccurredAtUtc, e.Payment.OrderId, e.Payment.Amount))],
+            [OutboxMessageFactory.Create(new PaymentRefundedV1(e.EventId, e.OccurredAtUtc, e.Payment.OrderId, e.Amount))],
+        PaymentPartlyRefunded e =>   // e-shop krok 22: vratka po částech
+            [OutboxMessageFactory.Create(new PaymentRefundedV2(e.EventId, e.OccurredAtUtc, e.Payment.OrderId, e.Refund.ReturnNumber,
+                e.Refund.Amount, e.Payment.RefundedAmount))],
         _ => throw new InvalidOperationException(
             $"Událost {domainEvent.GetType().Name} nemá převod do outboxu. Doplňte ji do {nameof(PaymentsDbContext)}.")
     };

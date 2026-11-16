@@ -121,6 +121,7 @@ public static class ApplicationServiceCollectionExtensions
     {
         services.AddIntegrationMessageHandler<RequestPaymentV1, PaymentCommandHandlers>(IntegrationModules.Payments);
         services.AddIntegrationMessageHandler<RefundPaymentV1, PaymentCommandHandlers>(IntegrationModules.Payments);
+        services.AddIntegrationMessageHandler<RefundPaymentV2, PaymentCommandHandlers>(IntegrationModules.Payments);   // e-shop krok 22: vratka po částech
         return services;
     }
 

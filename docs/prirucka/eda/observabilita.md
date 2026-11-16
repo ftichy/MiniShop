@@ -63,8 +63,9 @@ požadavků se nezaznamenávají vůbec – konkrétní data jsou v MiniShopu (d
 | krok ságy objednávky | `minishop.saga.state_before`, `.state`, `.action`, `minishop.order.status`, `.rejection_reason` |
 | sága vratky | `minishop.return_saga.state_before`, `.state`, `.action` |
 | změna stavu (expedice, zrušení, vratka) | `minishop.order.status` |
-| sklad | `minishop.stock.result` (reserved / failed / released / fulfilled), `minishop.stock.lines` |
-| platba | `minishop.payment.result` (requested / succeeded / failed / refunded), `.amount`, `.gateway`, `.failure_reason` |
+| sklad | `minishop.stock.result` (reserved / failed / released / fulfilled / returned), `minishop.stock.lines`, `minishop.stock.quantity` (naskladněné kusy vratky), `minishop.stock.missing` (vratka chtěla víc kusů, než bylo vydáno) |
+| platba | `minishop.payment.result` (requested / succeeded / failed / refunded / partly_refunded), `.amount`, `.gateway`, `.failure_reason` |
+| vratka po částech (e-shop krok 22) | `minishop.return.number` (pořadí vratky v objednávce – sklad i Payments) |
 | košík | `minishop.cart.action` (add / update / remove), `minishop.product.id`, `minishop.cart.quantity` |
 | e-maily | `minishop.email.sent` (který e-mail = jméno spanu, např. `process OrderConfirmedV1`) |
 | faktury | `minishop.invoice.number`, `minishop.credit_note.number` |

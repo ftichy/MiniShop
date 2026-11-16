@@ -117,11 +117,42 @@ namespace MiniShop.Infrastructure.Inventory.Migrations
                     b.Property<DateTime?>("ReturnedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("ReturnedQuantity")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("OrderId");
 
                     b.ToTable("StockReservations", "inventory");
+                });
+
+            modelBuilder.Entity("MiniShop.Domain.Inventory.StockReturn", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("OrderId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("RestockedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ReturnNumber")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId", "ReturnNumber")
+                        .IsUnique();
+
+                    b.ToTable("StockReturns", "inventory");
                 });
 
             modelBuilder.Entity("MiniShop.Infrastructure.Inbox.ProcessedMessage", b =>

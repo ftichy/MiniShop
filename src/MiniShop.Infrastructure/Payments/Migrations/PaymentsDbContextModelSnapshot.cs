@@ -66,12 +66,45 @@ namespace MiniShop.Infrastructure.Payments.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("OrderId")
                         .IsUnique();
 
                     b.ToTable("Payments", "payments");
+                });
+
+            modelBuilder.Entity("MiniShop.Domain.Payments.PaymentRefund", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("PaymentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("RefundedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ReturnNumber")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PaymentId", "ReturnNumber")
+                        .IsUnique();
+
+                    b.ToTable("PaymentRefunds", "payments");
                 });
 
             modelBuilder.Entity("MiniShop.Infrastructure.Inbox.ProcessedMessage", b =>
@@ -138,6 +171,20 @@ namespace MiniShop.Infrastructure.Payments.Migrations
                     b.HasIndex("ProcessedAtUtc");
 
                     b.ToTable("OutboxMessages", "payments");
+                });
+
+            modelBuilder.Entity("MiniShop.Domain.Payments.PaymentRefund", b =>
+                {
+                    b.HasOne("MiniShop.Domain.Payments.Payment", null)
+                        .WithMany("Refunds")
+                        .HasForeignKey("PaymentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MiniShop.Domain.Payments.Payment", b =>
+                {
+                    b.Navigation("Refunds");
                 });
 #pragma warning restore 612, 618
         }

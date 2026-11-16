@@ -142,6 +142,7 @@ public sealed class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<ReserveStockV1, ReserveStockHandler>(IntegrationModules.Inventory);
         services.AddIntegrationMessageHandler<ReleaseStockV1, ReleaseStockHandler>(IntegrationModules.Inventory);
         services.AddIntegrationMessageHandler<RestockReturnedGoodsV1, RestockReturnedGoodsHandler>(IntegrationModules.Inventory);   // e-shop krok 12
+        services.AddIntegrationMessageHandler<RestockReturnedGoodsV2, RestockReturnedGoodsHandler>(IntegrationModules.Inventory);   // e-shop krok 22
         services.AddIntegrationMessageHandler<OrderShippedV1, FulfilReservationHandler>(IntegrationModules.Inventory);
         services.AddIntegrationMessageHandler<SyncCatalogV1, SyncCatalogHandler>(IntegrationModules.Inventory);
         services.AddScoped<CatalogSyncService>();
@@ -178,6 +179,7 @@ public sealed class OrderServiceTests : IDisposable
         services.AddPaymentsInfrastructure(_databases.Payments, WebhookSecret);
         services.AddIntegrationMessageHandler<RequestPaymentV1, PaymentCommandHandlers>(IntegrationModules.Payments);
         services.AddIntegrationMessageHandler<RefundPaymentV1, PaymentCommandHandlers>(IntegrationModules.Payments);
+        services.AddIntegrationMessageHandler<RefundPaymentV2, PaymentCommandHandlers>(IntegrationModules.Payments);   // e-shop krok 22: vratka po částech
 
         // E-shop krok 11: modul Reporting (přehled tržeb) – jako AddReportingModule + AddReportingInfrastructure ve Webu,
         // a snímky objednávek pro přestavění (handler v Orderingu).
@@ -1445,6 +1447,61 @@ public sealed class OrderServiceTests : IDisposable
 
         var report = await Report(s => s.GetAsync());   // CQRS přehled: vrácená se do tržby nepočítá
         Assert.Equal((1, 0m), (report.StatusCounts[SalesOrderStatus.Returned], report.Today.Revenue));
+    }
+
+    // ---------- E-shop krok 22A: sklad a Payments umí vratku po částech (zprávy V2 zatím posílá jen test) ----------
+
+    [Fact]
+    public async Task VratkaPoCastech_SkladNaskladniJenUvedeneKusy_KazdouVratkuJednou()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await DeliveredOrderAsync(product.Id, quantity: 3, PaymentMethod.CashOnDelivery);
+        Assert.Equal(2, await StockAsync());
+        _bus.Published.Clear();
+
+        var first = new RestockReturnedGoodsV2(Guid.NewGuid(), DateTime.UtcNow, order.Id, 1, [new StockLineV1(product.Id, 1)]);
+        await RedeliverAsync(first, IntegrationModules.Inventory);
+        await RedeliverAsync(first with { CommandId = Guid.NewGuid() }, IntegrationModules.Inventory);   // stejná vratka znovu (jiné ID)
+        await ProcessOutboxAsync();
+        Assert.Equal(3, await StockAsync());   // naskladněno jen jednou
+        Assert.All(_bus.Published.OfType<ReturnedGoodsRestockedV2>(), r => Assert.Equal((1, 1), (r.ReturnNumber, r.Quantity)));
+        Assert.Equal(2, _bus.Published.OfType<ReturnedGoodsRestockedV2>().Count());   // odpověď i na opakování
+
+        // Druhá vratka chce víc, než zbývá (nekonzistence) – naskladní se jen zbylé 2 kusy.
+        await RedeliverAsync(new RestockReturnedGoodsV2(Guid.NewGuid(), DateTime.UtcNow, order.Id, 2, [new StockLineV1(product.Id, 5)]),
+            IntegrationModules.Inventory);
+        await ProcessOutboxAsync();
+        Assert.Equal(5, await StockAsync());
+        Assert.Equal(2, _bus.Published.OfType<ReturnedGoodsRestockedV2>().Single(r => r.ReturnNumber == 2).Quantity);
+        // Celá vratka (V1) po částečných vrací jen zbytek – StockReservationTests (V1 posílá jen sága vratky).
+    }
+
+    [Fact]
+    public async Task VratkaPoCastech_PlatbaVratiJenCastAJenJednou_CeleVraceniPakZbytek()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await DeliveredOrderAsync(product.Id, quantity: 2, PaymentMethod.Card);   // zaplaceno 200 Kč
+        _bus.Published.Clear();
+
+        var refund = new RefundPaymentV2(Guid.NewGuid(), DateTime.UtcNow, order.Id, 1, 100m);
+        await RedeliverAsync(refund, IntegrationModules.Payments);
+        await RedeliverAsync(refund with { CommandId = Guid.NewGuid() }, IntegrationModules.Payments);   // stejná vratka znovu
+        await ProcessOutboxAsync();
+
+        var refunded = Assert.Single(_bus.Published.OfType<PaymentRefundedV2>());
+        Assert.Equal((1, 100m, 100m), (refunded.ReturnNumber, refunded.Amount, refunded.TotalRefunded));
+        Assert.Equal(PaymentStatus.Succeeded, await PaymentStatusAsync(order.Id));   // vrácená jen část
+
+        // Víc, než zbývá – Payments odmítne (pojistka; hlídá to už Ordering).
+        var tooMuch = await Assert.ThrowsAnyAsync<Exception>(() =>
+            RedeliverAsync(new RefundPaymentV2(Guid.NewGuid(), DateTime.UtcNow, order.Id, 2, 200m), IntegrationModules.Payments));
+        Assert.IsType<DomainException>(tooMuch is AggregateException aggregate ? aggregate.Flatten().InnerException : tooMuch);
+
+        // Celé vrácení (V1) vrátí jen zbytek.
+        await RedeliverAsync(new RefundPaymentV1(Guid.NewGuid(), DateTime.UtcNow, order.Id), IntegrationModules.Payments);
+        await ProcessOutboxAsync();
+        Assert.Equal(100m, Assert.Single(_bus.Published.OfType<PaymentRefundedV1>()).Amount);
+        Assert.Equal(PaymentStatus.Refunded, await PaymentStatusAsync(order.Id));
     }
 
     [Fact]

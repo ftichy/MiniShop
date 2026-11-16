@@ -111,6 +111,24 @@ public sealed class IntegrationContractTests
         Assert.All(contracts, t => Assert.Matches(@"V\d+$", t.Name));
     }
 
+    /// <summary>E-shop krok 22: vratka po částech – příkazy a odpovědi skladu a Payments s číslem vratky.</summary>
+    [Fact]
+    public void VratkaPoCastechV2_TvarJsonuSeNezmenil()
+    {
+        Assert.Equal(
+            """{"CommandId":"11111111-2222-3333-4444-555555555555","OccurredAtUtc":"2026-01-15T10:00:00Z","OrderId":42,"ReturnNumber":2,"Lines":[{"ProductId":7,"Quantity":1}]}""",
+            OutboxMessageFactory.Create(new RestockReturnedGoodsV2(EventId, OccurredAtUtc, 42, 2, [new StockLineV1(7, 1)])).Payload);
+        Assert.Equal(
+            """{"EventId":"11111111-2222-3333-4444-555555555555","OccurredAtUtc":"2026-01-15T10:00:00Z","OrderId":42,"ReturnNumber":2,"Quantity":1}""",
+            OutboxMessageFactory.Create(new ReturnedGoodsRestockedV2(EventId, OccurredAtUtc, 42, 2, 1)).Payload);
+        Assert.Equal(
+            """{"CommandId":"11111111-2222-3333-4444-555555555555","OccurredAtUtc":"2026-01-15T10:00:00Z","OrderId":42,"ReturnNumber":2,"Amount":99.5}""",
+            OutboxMessageFactory.Create(new MiniShop.Contracts.Payments.RefundPaymentV2(EventId, OccurredAtUtc, 42, 2, 99.5m)).Payload);
+        Assert.Equal(
+            """{"EventId":"11111111-2222-3333-4444-555555555555","OccurredAtUtc":"2026-01-15T10:00:00Z","OrderId":42,"ReturnNumber":2,"Amount":99.5,"TotalRefunded":150}""",
+            OutboxMessageFactory.Create(new MiniShop.Contracts.Payments.PaymentRefundedV2(EventId, OccurredAtUtc, 42, 2, 99.5m, 150m)).Payload);
+    }
+
     /// <summary>Krok 9: příkaz pro sklad je také kontrakt – jeho tvar hlídá stejný test.</summary>
     [Fact]
     public void ReserveStockV1_TvarJsonuSeNezmenil()

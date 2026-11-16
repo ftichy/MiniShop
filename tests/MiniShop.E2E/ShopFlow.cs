@@ -48,11 +48,30 @@ public static class ShopFlow
     private static string? _adminTotpKey;
 
     /// <summary>
+    /// Admin scénáře běží paralelně (Expedice, Vratka – e-shop krok 22): první přihlášení 2FA nastavuje, ostatní musí počkat,
+    /// jinak by dva testy zapínaly 2FA témuž účtu naráz.
+    /// </summary>
+    private static readonly SemaphoreSlim AdminLoginLock = new(1, 1);
+
+    /// <summary>
     /// Přihlášení admina s dvoufázovým ověřením. Admin z <c>create-admin</c> ho zatím nemá – po přihlášení heslem
     /// ho přes UI nastaví (klíč přečte ze stránky, první kód spočítá sám); další přihlášení zadá kód.
     /// Žádná zadní vrátka v aplikaci: stejné kroky udělá člověk s telefonem.
     /// </summary>
     public static async Task LoginAdminAsync(IPage page, string email, string password)
+    {
+        await AdminLoginLock.WaitAsync();
+        try
+        {
+            await LoginAdminCoreAsync(page, email, password);
+        }
+        finally
+        {
+            AdminLoginLock.Release();
+        }
+    }
+
+    private static async Task LoginAdminCoreAsync(IPage page, string email, string password)
     {
         await page.GotoAsync("/Account/Login");
         await page.Locator("#Input_Email").FillAsync(email);

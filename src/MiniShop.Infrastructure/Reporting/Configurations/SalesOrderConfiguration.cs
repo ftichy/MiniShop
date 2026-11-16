@@ -21,6 +21,8 @@ internal sealed class SalesOrderConfiguration : IEntityTypeConfiguration<SalesOr
         builder.Property(o => o.ShippingPrice).HasPrecision(18, 2);
         builder.Property(o => o.RefundedAmount).HasPrecision(18, 2);
         builder.Ignore(o => o.CountsAsRevenue);
+        builder.Ignore(o => o.ReturnedAmount);
+        builder.Ignore(o => o.Revenue);
 
         // Řádky jen pro „top produkty“ – vlastní tabulka, smažou se s objednávkou.
         builder.OwnsMany(o => o.Lines, line =>
@@ -33,5 +35,27 @@ internal sealed class SalesOrderConfiguration : IEntityTypeConfiguration<SalesOr
             line.Property(l => l.LineTotal).HasPrecision(18, 2);
         });
         builder.Navigation(o => o.Lines).UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        // E-shop krok 22: vratky po částech a vrácené kusy – vlastní tabulky, smažou se s objednávkou (přestavění).
+        builder.OwnsMany(o => o.Returns, ret =>
+        {
+            ret.ToTable("SalesOrderReturns");
+            ret.WithOwner().HasForeignKey("OrderId");
+            ret.Property<int>("Id");
+            ret.HasKey("Id");
+            ret.HasIndex("OrderId", nameof(SalesOrderReturn.ReturnNumber)).IsUnique();
+            ret.Property(r => r.Amount).HasPrecision(18, 2);
+        });
+        builder.Navigation(o => o.Returns).UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.OwnsMany(o => o.ReturnedLines, line =>
+        {
+            line.ToTable("SalesOrderReturnLines");
+            line.WithOwner().HasForeignKey("OrderId");
+            line.Property<int>("Id");
+            line.HasKey("Id");
+            line.Property(l => l.LineTotal).HasPrecision(18, 2);
+        });
+        builder.Navigation(o => o.ReturnedLines).UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }

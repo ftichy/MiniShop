@@ -35,9 +35,8 @@ public sealed class DetailModel(
     /// <summary>E-shop krok 8: kolik minut má zákazník na platbu kartou (termín ságy).</summary>
     public int PaymentMinutes => (int)sagaSettings.PaymentTimeout.TotalMinutes;
 
-    /// <summary>E-shop krok 15: číslo faktury (odkaz na PDF), null = zatím nevystavená.</summary>
-    /// <summary>E-shop krok 15/15B: čísla faktury a dobropisu (null = zatím není).</summary>
-    public OrderDocumentsDto Documents { get; private set; } = new(null, null);
+    /// <summary>E-shop krok 15/15B: číslo faktury (null = zatím není) a dobropisy (krok 22: i víc – vratky po částech).</summary>
+    public OrderDocumentsDto Documents { get; private set; } = new(null, []);
 
     /// <summary>Hláška z pokladny („Objednávka č. 5 přijata…“) – pokladna sem po odeslání přesměruje.</summary>
     [TempData]

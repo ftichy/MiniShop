@@ -20,6 +20,7 @@ public sealed class PurchaseProjectionHandler(
     IIntegrationMessageHandler<OrderPlacedV2>,
     IIntegrationMessageHandler<OrderCompletedV1>,
     IIntegrationMessageHandler<ReturnCompletedV1>,
+    IIntegrationMessageHandler<ReturnCompletedV2>,
     IIntegrationMessageHandler<OrderSnapshotV2>,
     IIntegrationMessageHandler<CustomerAnonymizedV1>
 {
@@ -35,6 +36,13 @@ public sealed class PurchaseProjectionHandler(
     /// <summary>Vráceno (e-shop krok 12) – nové hodnocení už ne (napsané zůstává).</summary>
     public Task HandleAsync(ReturnCompletedV1 message, CancellationToken cancellationToken) =>
         ChangeAsync(message.OrderId, order => order.MarkReturned(), cancellationToken);
+
+    /// <summary>
+    /// E-shop krok 22: vratka po částech – produkty, ze kterých si zákazník nenechal ani kus, už z této objednávky hodnotit
+    /// nesmí. Když si aspoň kus nechal, hodnotit dál smí (napsané hodnocení zůstává vždy).
+    /// </summary>
+    public Task HandleAsync(ReturnCompletedV2 message, CancellationToken cancellationToken) =>
+        ChangeAsync(message.OrderId, order => order.MarkProductsReturned(message.FullyReturnedProductIds), cancellationToken);
 
     /// <summary>Snímek ze žádosti o nákupy (objednávky z doby před modulem Reviews).</summary>
     public Task HandleAsync(OrderSnapshotV2 message, CancellationToken cancellationToken) =>

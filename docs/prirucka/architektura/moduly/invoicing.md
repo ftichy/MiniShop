@@ -32,7 +32,7 @@ Tok a diagram: [Vystavení faktury a dobropisu](../../toky/faktura.md).
 
 | Směr | Zprávy |
 | --- | --- |
-| poslouchá (fronta `minishop.invoicing`) | `OrderPlacedV2` (komu a co), `PaymentSucceededV1` (zaplaceno kartou), `OrderCompletedV1` (doručeno = dobírka zaplacena), `OrderRejectedV1` + `OrderCancelledV1` (před fakturou nefakturovat, po ní dobropis), `ReturnCompletedV1` (dobropis, krok 15B), `CustomerAnonymizedV1` |
+| poslouchá (fronta `minishop.invoicing`) | `OrderPlacedV2` (komu a co), `PaymentSucceededV1` (zaplaceno kartou), `OrderCompletedV1` (doručeno = dobírka zaplacena), `OrderRejectedV1` + `OrderCancelledV1` (před fakturou nefakturovat, po ní dobropis), `ReturnCompletedV1` (dobropis, krok 15B), `ReturnCompletedV2` (dobropis za vratku po částech, krok 22), `CustomerAnonymizedV1` |
 | posílá | `InvoiceIssuedV1` (číslo, objednávka, částka), `CreditNoteIssuedV1` (číslo dobropisu, číslo faktury, částka) – obě odebírá Notifications |
 
 ## Pravidla
@@ -53,6 +53,12 @@ Tok a diagram: [Vystavení faktury a dobropisu](../../toky/faktura.md).
   – dobropis je jen doklad.
 - **Řada dobropisů** je vlastní tabulka `CreditNoteNumberSeries`, ne sloupec „druh“ v řadě faktur: změna klíče
   existující tabulky by při postupném nasazení rozbila starší verzi kódu (expand → contract).
+- **Vratka po částech (krok 22):** `ReturnCompletedV2` = dobropis **jen s vrácenými řádky** (`CreditNote.IssueForReturn` – hlavička
+  z faktury, řádky a částka ze zprávy, doprava jen `ShippingRefund`). K faktuře tak může být **víc dobropisů**: unikátní je
+  objednávka + `ReturnNumber` (0 = celý dobropis, i všechny starší), každá vratka jednou. Pojistka: součet dobropisů nikdy
+  nepřesáhne fakturu (jinak výjimka → zpráva skončí v dead-letter frontě). Faktura ještě není = výjimka a opakování.
+  Celý dobropis po vratkách po částech nevznikne (Ordering ho po nich neposílá). PDF ukáže číslo vratky, stažení
+  `/Orders/{id}/CreditNote/{číslo}` (bez čísla poslední), e-mail najde PDF podle čísla dobropisu.
 - **Smazaný účet:** kopie objednávek se smažou, **faktury a dobropisy zůstávají** (zákon je chce 10 let) – uvedeno v Ochraně osobních údajů.
 - **Neplátce DPH** a fiktivní prodávající (`Invoicing:Seller`, výchozí v `InvoiceSeller.Default`) – výukový projekt.
 - **Musí do zálohy** – faktury a dobropisy z událostí přestavět nejde (čísla). Schéma je v nočním `pg_dump` celé databáze.

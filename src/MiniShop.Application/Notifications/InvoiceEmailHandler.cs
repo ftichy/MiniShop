@@ -43,7 +43,7 @@ public sealed class InvoiceEmailHandler(
             return;
         }
 
-        var pdf = await documents.GetCreditNoteAsync(message.OrderId, cancellationToken)
+        var pdf = await documents.GetCreditNoteAsync(message.OrderId, message.CreditNoteNumber, cancellationToken)
             ?? throw new InvalidOperationException($"Dobropis {message.CreditNoteNumber} k objednávce {message.OrderId} nebyl nalezen.");
 
         await emailSender.SendAsync(

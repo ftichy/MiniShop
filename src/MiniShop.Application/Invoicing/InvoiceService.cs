@@ -2,7 +2,8 @@ namespace MiniShop.Application.Invoicing;
 
 /// <summary>
 /// E-shop krok 15: čtení faktur – PDF ke stažení (zákazník jen svou, admin jakoukoli) a přehled pro admina.
-/// E-shop krok 15B: totéž pro dobropisy. Kdo smí co, rozhoduje volající (Web) parametrem <c>customerId</c>: null = admin.
+/// E-shop krok 15B: totéž pro dobropisy (od kroku 22 jich k objednávce může být víc). Kdo smí co, rozhoduje volající (Web)
+/// parametrem <c>customerId</c>: null = admin.
 /// </summary>
 public sealed class InvoiceService(
     IInvoiceRepository invoices,
@@ -23,11 +24,17 @@ public sealed class InvoiceService(
         return new InvoicePdf($"faktura-{invoice.Number}.pdf", renderer.Render(invoice, seller));
     }
 
-    /// <summary>E-shop krok 15B: PDF dobropisu k objednávce, nebo null (není, nebo je cizí).</summary>
-    public async Task<InvoicePdf?> GetCreditNotePdfAsync(int orderId, string? customerId, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// E-shop krok 15B: PDF dobropisu k objednávce, nebo null (není, nebo je cizí). Krok 22: <paramref name="number"/> vybere
+    /// konkrétní dobropis; bez čísla = poslední vystavený (odkazy ze starších e-mailů a stránek).
+    /// </summary>
+    public async Task<InvoicePdf?> GetCreditNotePdfAsync(
+        int orderId, string? customerId, string? number = null, CancellationToken cancellationToken = default)
     {
-        var creditNote = await creditNotes.GetByOrderAsync(orderId, cancellationToken);
-        if (creditNote is null || !IsAllowed(creditNote.CustomerId, customerId))
+        var creditNote = number is null
+            ? (await creditNotes.GetForOrderAsync(orderId, cancellationToken)).LastOrDefault()
+            : await creditNotes.GetByNumberAsync(number, cancellationToken);
+        if (creditNote is null || creditNote.OrderId != orderId || !IsAllowed(creditNote.CustomerId, customerId))
         {
             return null;
         }
@@ -35,17 +42,18 @@ public sealed class InvoiceService(
         return new InvoicePdf($"dobropis-{creditNote.Number}.pdf", renderer.Render(creditNote, seller));
     }
 
-    /// <summary>Čísla faktury a dobropisu k objednávce (odkazy na detailu objednávky).</summary>
+    /// <summary>Číslo faktury a dobropisy k objednávce (odkazy na detailu objednávky).</summary>
     public async Task<OrderDocumentsDto> GetDocumentsAsync(int orderId, string? customerId, CancellationToken cancellationToken = default)
     {
         var invoice = await invoices.GetByOrderAsync(orderId, cancellationToken);
         if (invoice is null || !IsAllowed(invoice.CustomerId, customerId))
         {
-            return new OrderDocumentsDto(null, null);
+            return new OrderDocumentsDto(null, []);
         }
 
-        var creditNote = await creditNotes.GetByOrderAsync(orderId, cancellationToken);
-        return new OrderDocumentsDto(invoice.Number, creditNote?.Number);
+        var credited = await creditNotes.GetForOrderAsync(orderId, cancellationToken);
+        return new OrderDocumentsDto(invoice.Number,
+            credited.Select(note => new CreditNoteSummaryDto(note.Number, note.Total, note.ReturnNumber)).ToList());
     }
 
     /// <summary>Stránka faktur pro přehled admina (nejnovější první) – dobropisy se dohledají jen k fakturám na stránce.</summary>
@@ -55,7 +63,8 @@ public sealed class InvoiceService(
         var invoicePage = await invoices.GetPageAsync(page, cancellationToken);
         var credited = await creditNotes.GetByOrdersAsync(invoicePage.Items.Select(invoice => invoice.OrderId).ToList(), cancellationToken);
         return invoicePage.Map(invoice => new InvoiceSummaryDto(invoice.Number, invoice.OrderId, invoice.CustomerName,
-            invoice.Total, invoice.IssuedAtUtc, credited.GetValueOrDefault(invoice.OrderId)?.Number));
+            invoice.Total, invoice.IssuedAtUtc,
+            credited.TryGetValue(invoice.OrderId, out var notes) ? notes.Select(note => note.Number).ToList() : []));
     }
 
     private static bool IsAllowed(string ownerId, string? customerId) => customerId is null || ownerId == customerId;

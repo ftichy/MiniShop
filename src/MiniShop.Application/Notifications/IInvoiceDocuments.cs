@@ -12,6 +12,6 @@ public interface IInvoiceDocuments
     /// <summary>PDF faktury k objednávce jako příloha, nebo null (faktura neexistuje).</summary>
     Task<EmailAttachment?> GetInvoiceAsync(int orderId, CancellationToken cancellationToken = default);
 
-    /// <summary>E-shop krok 15B: PDF dobropisu k objednávce jako příloha, nebo null (dobropis neexistuje).</summary>
-    Task<EmailAttachment?> GetCreditNoteAsync(int orderId, CancellationToken cancellationToken = default);
+    /// <summary>E-shop krok 15B: PDF dobropisu jako příloha, nebo null (neexistuje). Krok 22: podle čísla – k objednávce jich může být víc.</summary>
+    Task<EmailAttachment?> GetCreditNoteAsync(int orderId, string creditNoteNumber, CancellationToken cancellationToken = default);
 }

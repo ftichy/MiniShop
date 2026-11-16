@@ -93,7 +93,10 @@ internal sealed class InvoiceNumberSeriesConfiguration : IEntityTypeConfiguratio
     }
 }
 
-/// <summary>E-shop krok 15B: dobropis – jeden na objednávku, každé číslo jen jednou, řádky kopie faktury.</summary>
+/// <summary>
+/// E-shop krok 15B: dobropis – každé číslo jen jednou, řádky kopie faktury. Krok 22: unikátní objednávka + číslo vratky
+/// (celý dobropis má číslo 0 – starší verze kódu, která číslo nezná, je tak chráněná stejně jako dřív).
+/// </summary>
 internal sealed class CreditNoteConfiguration : IEntityTypeConfiguration<CreditNote>
 {
     public void Configure(EntityTypeBuilder<CreditNote> builder)
@@ -101,7 +104,7 @@ internal sealed class CreditNoteConfiguration : IEntityTypeConfiguration<CreditN
         builder.ToTable("CreditNotes");
         builder.HasKey(c => c.Id);
 
-        builder.HasIndex(c => c.OrderId).IsUnique();
+        builder.HasIndex(c => new { c.OrderId, c.ReturnNumber }).IsUnique();
         builder.Property(c => c.Number).HasMaxLength(20);
         builder.HasIndex(c => c.Number).IsUnique();
         builder.Property(c => c.InvoiceNumber).HasMaxLength(20);

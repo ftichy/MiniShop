@@ -26,13 +26,15 @@ Tok a diagramy: [Hodnocení produktu](../../toky/hodnoceni-produktu.md).
 
 | Směr | Zprávy |
 | --- | --- |
-| poslouchá (fronta `minishop.reviews`) | `OrderPlacedV2`, `OrderCompletedV1` (doručeno), `ReturnCompletedV1` (vráceno), `OrderSnapshotV2` (nákupy z doby před modulem), `CustomerAnonymizedV1` |
+| poslouchá (fronta `minishop.reviews`) | `OrderPlacedV2`, `OrderCompletedV1` (doručeno), `ReturnCompletedV1` (vráceno), `ReturnCompletedV2` (vratka po částech – produkty vrácené celé), `OrderSnapshotV2` (nákupy z doby před modulem), `CustomerAnonymizedV1` |
 | posílá | `ProductRatingChangedV1` (souhrn pro výlohu – odebírá Ordering), `SyncPurchasesV1` (příkaz pro Ordering) |
 
 ## Pravidla
 
 - **Hodnotit smí jen zákazník, který produkt dostal a nevrátil** – rozhoduje kopie nákupů, ne dotaz do Orderingu.
 - **Jedno hodnocení na zákazníka a produkt** (unikátní index, mimo anonymizovaná). Druhé odeslání = úprava.
-- **Vrácené zboží**: napsané hodnocení zůstane, nové ani úprava už ne.
+- **Vrácené zboží**: napsané hodnocení zůstane, nové ani úprava už ne. Vratka po částech (krok 22) blokuje jen produkty, ze kterých
+  si zákazník nenechal ani kus (`FullyReturnedProductIds` → `PurchasedReturnedProducts`, vlastní tabulka – vznik ani snímek
+  ji nepřepíšou).
 - **Smazaný účet**: kopie nákupů se smaže, hodnocení zůstane jako „Smazaný zákazník“.
 - **Skryté hodnocení** se nezobrazuje a nepočítá do průměru – skrytí pošle nový souhrn.

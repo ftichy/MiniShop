@@ -129,6 +129,22 @@ public sealed class IntegrationContractTests
             OutboxMessageFactory.Create(new MiniShop.Contracts.Payments.PaymentRefundedV2(EventId, OccurredAtUtc, 42, 2, 99.5m, 150m)).Payload);
     }
 
+    /// <summary>E-shop krok 22B: vratka po částech – zprávy Orderingu (posílat je začne krok 22C).</summary>
+    [Fact]
+    public void VratkaPoCastechOrderingV2_TvarJsonuSeNezmenil()
+    {
+        ReturnItemV1[] items = [new ReturnItemV1(7, "Mouse", 1, 100m, 10m, 90m)];
+        Assert.Equal(
+            """{"EventId":"11111111-2222-3333-4444-555555555555","OccurredAtUtc":"2026-01-15T10:00:00Z","OrderId":42,"ReturnNumber":2,"CustomerEmail":"jan@example.com","Reason":"Size","SendByUtc":"2026-01-29T10:00:00Z","Items":[{"ProductId":7,"ProductName":"Mouse","Quantity":1,"UnitPrice":100,"Discount":10,"LineTotal":90}]}""",
+            OutboxMessageFactory.Create(new ReturnRequestedV2(EventId, OccurredAtUtc, 42, 2, "jan@example.com", "Size", OccurredAtUtc.AddDays(14), items)).Payload);
+        Assert.Equal(
+            """{"EventId":"11111111-2222-3333-4444-555555555555","OccurredAtUtc":"2026-01-15T10:00:00Z","OrderId":42,"ReturnNumber":2,"CustomerEmail":"jan@example.com","Reason":"Broken"}""",
+            OutboxMessageFactory.Create(new ReturnRejectedV2(EventId, OccurredAtUtc, 42, 2, "jan@example.com", "Broken")).Payload);
+        Assert.Equal(
+            """{"EventId":"11111111-2222-3333-4444-555555555555","OccurredAtUtc":"2026-01-15T10:00:00Z","OrderId":42,"ReturnNumber":2,"CustomerEmail":"jan@example.com","Items":[{"ProductId":7,"ProductName":"Mouse","Quantity":1,"UnitPrice":100,"Discount":10,"LineTotal":90}],"ShippingRefund":0,"Amount":90,"RefundedByCard":true,"FullyReturnedProductIds":[7]}""",
+            OutboxMessageFactory.Create(new ReturnCompletedV2(EventId, OccurredAtUtc, 42, 2, "jan@example.com", items, 0m, 90m, true, [7])).Payload);
+    }
+
     /// <summary>Krok 9: příkaz pro sklad je také kontrakt – jeho tvar hlídá stejný test.</summary>
     [Fact]
     public void ReserveStockV1_TvarJsonuSeNezmenil()

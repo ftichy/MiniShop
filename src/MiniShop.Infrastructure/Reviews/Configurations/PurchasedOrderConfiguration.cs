@@ -26,5 +26,16 @@ internal sealed class PurchasedOrderConfiguration : IEntityTypeConfiguration<Pur
             product.HasIndex(p => p.ProductId);
         });
         builder.Navigation(o => o.Products).UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        // E-shop krok 22: produkty vrácené celé vratkami po částech – vlastní tabulka (vznik ani snímek ji nepřepíšou).
+        builder.OwnsMany(o => o.ReturnedProducts, product =>
+        {
+            product.ToTable("PurchasedReturnedProducts");
+            product.WithOwner().HasForeignKey("OrderId");
+            product.Property<int>("Id");
+            product.HasKey("Id");
+            product.HasIndex("OrderId", nameof(ReturnedProduct.ProductId)).IsUnique();
+        });
+        builder.Navigation(o => o.ReturnedProducts).UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }

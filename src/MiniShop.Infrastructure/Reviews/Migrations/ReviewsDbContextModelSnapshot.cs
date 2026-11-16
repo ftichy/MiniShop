@@ -192,7 +192,34 @@ namespace MiniShop.Infrastructure.Reviews.Migrations
                                 .HasForeignKey("OrderId");
                         });
 
+                    b.OwnsMany("MiniShop.Domain.Reviews.ReturnedProduct", "ReturnedProducts", b1 =>
+                        {
+                            b1.Property<int>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer");
+
+                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+
+                            b1.Property<int>("OrderId")
+                                .HasColumnType("integer");
+
+                            b1.Property<int>("ProductId")
+                                .HasColumnType("integer");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("OrderId", "ProductId")
+                                .IsUnique();
+
+                            b1.ToTable("PurchasedReturnedProducts", "reviews");
+
+                            b1.WithOwner()
+                                .HasForeignKey("OrderId");
+                        });
+
                     b.Navigation("Products");
+
+                    b.Navigation("ReturnedProducts");
                 });
 #pragma warning restore 612, 618
         }

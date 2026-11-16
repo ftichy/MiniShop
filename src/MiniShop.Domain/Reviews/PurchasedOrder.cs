@@ -12,6 +12,7 @@ namespace MiniShop.Domain.Reviews;
 public sealed class PurchasedOrder
 {
     private readonly List<PurchasedProduct> _products = new();
+    private readonly List<ReturnedProduct> _returnedProducts = new();
 
     // Konstruktor pro EF Core.
     private PurchasedOrder()
@@ -33,9 +34,16 @@ public sealed class PurchasedOrder
 
     public IReadOnlyCollection<PurchasedProduct> Products => _products.AsReadOnly();
 
-    /// <summary>Smí zákazník hodnotit tenhle produkt z téhle objednávky? Dostal ho a nevrátil.</summary>
+    /// <summary>
+    /// E-shop krok 22: produkty, které zákazník vratkami po částech vrátil celé – ty z této objednávky hodnotit nesmí.
+    /// Vlastní seznam (ne příznak u produktu): vznik ani snímek ho nepřepíšou, takže nezáleží na pořadí zpráv.
+    /// </summary>
+    public IReadOnlyCollection<ReturnedProduct> ReturnedProducts => _returnedProducts.AsReadOnly();
+
+    /// <summary>Smí zákazník hodnotit tenhle produkt z téhle objednávky? Dostal ho a nevrátil (celou objednávku ani celý produkt).</summary>
     public bool AllowsReviewOf(string customerId, int productId) =>
-        CustomerId == customerId && IsDelivered && !IsReturned && _products.Any(p => p.ProductId == productId);
+        CustomerId == customerId && IsDelivered && !IsReturned && _products.Any(p => p.ProductId == productId)
+        && _returnedProducts.All(p => p.ProductId != productId);
 
     public static PurchasedOrder Create(int orderId) => new() { OrderId = orderId };
 
@@ -51,7 +59,22 @@ public sealed class PurchasedOrder
     public void MarkDelivered() => IsDelivered = true;
 
     public void MarkReturned() => IsReturned = true;
+
+    /// <summary>E-shop krok 22: vratka po částech – tyhle produkty si zákazník nenechal ani kus. Jen přidává.</summary>
+    public void MarkProductsReturned(IEnumerable<int> productIds)
+    {
+        foreach (var productId in productIds.Distinct())
+        {
+            if (_returnedProducts.All(p => p.ProductId != productId))
+            {
+                _returnedProducts.Add(new ReturnedProduct(productId));
+            }
+        }
+    }
 }
 
 /// <summary>Produkt z objednávky (jen ID – název ukazuje výloha z kopie katalogu Orderingu).</summary>
 public sealed record PurchasedProduct(int ProductId);
+
+/// <summary>E-shop krok 22: produkt vrácený celý (vratkami po částech).</summary>
+public sealed record ReturnedProduct(int ProductId);

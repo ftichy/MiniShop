@@ -85,10 +85,11 @@ sequenceDiagram
 | `OrderCancelledV1` | zaplaceno kartou, zrušeno před odesláním (dobírka fakturu před doručením nemá) | Vráceno na kartu |
 | `OrderRejectedV1` | vzácný souběh: pozdní platba stihla fakturu dřív, než dorazilo zamítnutí | Vráceno na kartu |
 | `ReturnCompletedV1` | vratka – kartou i dobírkou (`RefundedByCard`) | Vráceno na kartu / Vrátíme převodem na účet |
+| `ReturnCompletedV2` | vratka po částech (e-shop krok 22) – dobropis **jen s vrácenými řádky**, k faktuře jich může být víc | Vráceno na kartu / Vrátíme převodem na účet |
 
 - Zrušení **před** fakturou = faktura nevznikne vůbec, dobropis není potřeba.
 - Peníze vrací dál sága a Payments (`RefundPaymentV1`) – dobropis je jen **doklad**, nic neplatí.
-- Opakovaná zpráva → pořád jeden dobropis (unikátní `OrderId`). Vratka dřív než faktura → faktura a hned po ní dobropis.
+- Opakovaná zpráva → pořád jeden dobropis (unikátní `OrderId` + `ReturnNumber`, celý dobropis má 0). Součet dobropisů nikdy nepřesáhne fakturu. Vratka dřív než faktura → faktura a hned po ní dobropis.
 - Vlastní řada `D2026000001`… se stejnou ochranou proti souběhu jako řada faktur (níže).
 
 ## Co vidí zákazník a admin

@@ -28,7 +28,9 @@ public sealed class SalesProjectionHandler(
     IIntegrationMessageHandler<OrderCompletedV1>,
     IIntegrationMessageHandler<PaymentRefundedV1>,
     IIntegrationMessageHandler<OrderSnapshotV1>,
-    IIntegrationMessageHandler<ReturnCompletedV1>
+    IIntegrationMessageHandler<ReturnCompletedV1>,
+    IIntegrationMessageHandler<ReturnCompletedV2>,
+    IIntegrationMessageHandler<PaymentRefundedV2>
 {
     public Task HandleAsync(OrderPlacedV2 message, CancellationToken cancellationToken) =>
         ChangeAsync(message.OrderId, order => order.ApplyPlaced(message.OccurredAtUtc, message.TotalPrice,
@@ -49,6 +51,19 @@ public sealed class SalesProjectionHandler(
     /// <summary>E-shop krok 12: vrácená objednávka – z tržby zmizí (dobírka i karta).</summary>
     public Task HandleAsync(ReturnCompletedV1 message, CancellationToken cancellationToken) =>
         ChangeAsync(message.OrderId, order => order.ApplyStatus(SalesOrderStatus.Returned, UtcNow), cancellationToken);
+
+    /// <summary>
+    /// E-shop krok 22: vratka po částech – objednávka zůstává doručená, z tržby a „top produktů“ se odečte jen vrácené.
+    /// Snímek z přestavění (OrderSnapshotV1) vratky po částech nezná – doplní je Ordering v kroku 22C.
+    /// </summary>
+    public Task HandleAsync(ReturnCompletedV2 message, CancellationToken cancellationToken) =>
+        ChangeAsync(message.OrderId, order => order.ApplyReturn(message.ReturnNumber, message.Amount,
+            message.Items.Select(i => new SalesOrderReturnLine(message.ReturnNumber, i.ProductId, i.Quantity, i.LineTotal)), UtcNow),
+            cancellationToken);
+
+    /// <summary>E-shop krok 22: peníze vrácené kartou za vratku po částech (Payments) – jako ostatní vrácené peníze.</summary>
+    public Task HandleAsync(PaymentRefundedV2 message, CancellationToken cancellationToken) =>
+        ChangeAsync(message.OrderId, order => order.AddRefund(message.Amount, UtcNow), cancellationToken);
 
     /// <summary>Vrácené peníze (pozdní platba, zrušená zaplacená objednávka) – posílá je modul Payments.</summary>
     public Task HandleAsync(PaymentRefundedV1 message, CancellationToken cancellationToken) =>

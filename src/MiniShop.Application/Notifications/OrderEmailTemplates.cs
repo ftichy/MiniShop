@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net;
 using System.Text;
 using MiniShop.Application.Abstractions;
+using MiniShop.Contracts.Orders;
 using MiniShop.Domain.Notifications;
 
 namespace MiniShop.Application.Notifications;
@@ -84,6 +85,28 @@ public sealed class OrderEmailTemplates(NotificationSettings settings)
                 : string.Format(Czech, "vrácené zboží jsme převzali. Částku {0:N2} Kč vám pošleme převodem – " +
                     "odpovězte prosím na tento e-mail s číslem účtu.", amount));
 
+    /// <summary>E-shop krok 22: žádost o vratku po částech – které položky, kam a do kdy poslat.</summary>
+    public EmailMessage PartialReturnRequested(OrderMailRecipient to, int returnNumber, DateTime sendByUtc, IEnumerable<ReturnItemV1> items) =>
+        Build(to, $"Vratka {returnNumber} k objednávce č. {to.OrderId} – pošlete nám zboží",
+            string.Format(Czech, "žádost o vrácení části zboží jsme přijali. Níže uvedené zboží pošlete do {0:d. M. yyyy} na adresu " +
+                "MiniShop, Skladová 1, 110 00 Praha. Jakmile ho převezmeme, vrátíme vám peníze za vrácené kusy.", CzechTime.FromUtc(sendByUtc)),
+            ReturnLines(items, total: null));
+
+    /// <summary>E-shop krok 22: vratka po částech neprošla – zamítá se celá vratka, objednávka zůstává beze změny.</summary>
+    public EmailMessage PartialReturnRejected(OrderMailRecipient to, int returnNumber, string reason) =>
+        Build(to, $"Vratka {returnNumber} k objednávce č. {to.OrderId} nebyla přijata",
+            $"omlouváme se, vrácení jsme nepřijali: {reason}");
+
+    /// <summary>E-shop krok 22: vrácené kusy jsou zpět na skladu – co a kolik vracíme (kartou Payments, dobírku admin převodem).</summary>
+    public EmailMessage PartialReturnCompleted(OrderMailRecipient to, int returnNumber, IEnumerable<ReturnItemV1> items,
+        decimal shippingRefund, decimal amount, bool refundedByCard) =>
+        Build(to, $"Vratka {returnNumber} k objednávce č. {to.OrderId} je vyřízená",
+            refundedByCard
+                ? string.Format(Czech, "vrácené zboží jsme převzali. Částku {0:N2} Kč vám vracíme na kartu.", amount)
+                : string.Format(Czech, "vrácené zboží jsme převzali. Částku {0:N2} Kč vám pošleme převodem – " +
+                    "odpovězte prosím na tento e-mail s číslem účtu.", amount),
+            ReturnLines(items, total: amount, shippingRefund));
+
     /// <summary>E-shop krok 15: faktura k zaplacené objednávce – PDF v příloze.</summary>
     public EmailMessage Invoice(OrderMailRecipient to, string invoiceNumber, EmailAttachment pdf) =>
         Build(to, $"Faktura {invoiceNumber} k objednávce č. {to.OrderId}",
@@ -93,17 +116,20 @@ public sealed class OrderEmailTemplates(NotificationSettings settings)
     /// <summary>E-shop krok 15B: dobropis k faktuře v příloze (zrušená, zamítnutá nebo vrácená zaplacená objednávka).</summary>
     public EmailMessage CreditNote(OrderMailRecipient to, string creditNoteNumber, string invoiceNumber, EmailAttachment pdf) =>
         Build(to, $"Dobropis {creditNoteNumber} k objednávce č. {to.OrderId}",
-            $"v příloze posíláme dobropis č. {creditNoteNumber}, který ruší fakturu č. {invoiceNumber}. "
+            $"v příloze posíláme dobropis č. {creditNoteNumber}, který opravuje fakturu č. {invoiceNumber} (vrací celou objednávku nebo vrácené zboží). "
             + "Jak vám peníze vracíme, najdete v dokladu.")
         with { Attachments = [pdf] };
 
     public EmailMessage Cancelled(OrderMailRecipient to) =>
         Build(to, $"Objednávka č. {to.OrderId} je zrušená", "objednávka byla zrušena, rezervované zboží se vrací na sklad.");
 
-    private EmailMessage Build(OrderMailRecipient to, string subject, string message, bool withSummary = false)
+    private EmailMessage Build(OrderMailRecipient to, string subject, string message, bool withSummary = false) =>
+        Build(to, subject, message, withSummary && to.Order is not null ? SummaryLines(to.Order) : []);
+
+    /// <summary>E-mail s vlastním seznamem pod textem (e-shop krok 22: vrácené položky místo souhrnu objednávky).</summary>
+    private EmailMessage Build(OrderMailRecipient to, string subject, string message, List<string> summary)
     {
         var greeting = to.Order is { CustomerName.Length: > 0 } order ? $"Dobrý den, {order.CustomerName}," : "Dobrý den,";
-        var summary = withSummary && to.Order is not null ? SummaryLines(to.Order) : [];
         var link = settings.OrderLink(to.OrderId);
 
         var text = new StringBuilder()
@@ -160,6 +186,24 @@ public sealed class OrderEmailTemplates(NotificationSettings settings)
         }
 
         lines.Add(string.Format(Czech, "Celkem: {0:N2} Kč", order.TotalPrice));
+        return lines;
+    }
+
+    private static List<string> ReturnLines(IEnumerable<ReturnItemV1> items, decimal? total, decimal shippingRefund = 0)
+    {
+        var lines = items
+            .Select(i => string.Format(Czech, "{0} × {1} … {2:N2} Kč", i.Quantity, i.ProductName, i.LineTotal))
+            .ToList();
+        if (shippingRefund > 0)
+        {
+            lines.Add(string.Format(Czech, "Doprava … {0:N2} Kč", shippingRefund));
+        }
+
+        if (total is not null)
+        {
+            lines.Add(string.Format(Czech, "Vracíme celkem: {0:N2} Kč", total));
+        }
+
         return lines;
     }
 

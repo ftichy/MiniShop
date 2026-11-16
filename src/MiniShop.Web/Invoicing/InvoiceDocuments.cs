@@ -18,9 +18,9 @@ public sealed class InvoiceDocuments(InvoiceService invoices) : IInvoiceDocument
     }
 
     /// <summary>E-shop krok 15B: dobropis do přílohy.</summary>
-    public async Task<EmailAttachment?> GetCreditNoteAsync(int orderId, CancellationToken cancellationToken = default)
+    public async Task<EmailAttachment?> GetCreditNoteAsync(int orderId, string creditNoteNumber, CancellationToken cancellationToken = default)
     {
-        var pdf = await invoices.GetCreditNotePdfAsync(orderId, customerId: null, cancellationToken);
+        var pdf = await invoices.GetCreditNotePdfAsync(orderId, customerId: null, creditNoteNumber, cancellationToken);
         return pdf is null ? null : new EmailAttachment(pdf.FileName, InvoicePdf.ContentType, pdf.Content);
     }
 }

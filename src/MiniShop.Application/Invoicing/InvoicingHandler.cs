@@ -38,6 +38,7 @@ public sealed class InvoicingHandler(
     IIntegrationMessageHandler<OrderRejectedV1>,
     IIntegrationMessageHandler<OrderCancelledV1>,
     IIntegrationMessageHandler<ReturnCompletedV1>,
+    IIntegrationMessageHandler<ReturnCompletedV2>,
     IIntegrationMessageHandler<CustomerAnonymizedV1>
 {
     public const string PaidByCard = "Uhrazeno kartou online";
@@ -83,6 +84,44 @@ public sealed class InvoicingHandler(
         ChangeAsync(message.OrderId, order => order.MarkReturned(message.RefundedByCard ? RefundedToCard : RefundedByTransfer),
             cancellationToken);
 
+    /// <summary>
+    /// E-shop krok 22: vratka po částech = dobropis jen s vrácenými řádky (víc dobropisů k jedné faktuře). Kopii objednávky
+    /// nemění – faktura dál platí, opravují ji jednotlivé dobropisy. Každá vratka jednou (<c>OrderId + ReturnNumber</c>).
+    /// </summary>
+    /// <remarks>
+    /// Faktura musí existovat (vratka přichází dny po doručení) – jinak výjimka a consumer zprávu zopakuje. Pojistka
+    /// v <see cref="CreditNote.IssueForReturn"/>: dobropisy nikdy nepřesáhnou fakturu (jinak zpráva skončí v dead-letter frontě).
+    /// </remarks>
+    public async Task HandleAsync(ReturnCompletedV2 message, CancellationToken cancellationToken)
+    {
+        TraceTags.TagOrder(message.OrderId);
+        TraceTags.Tag("minishop.return.number", message.ReturnNumber);
+        if (await creditNotes.ExistsForReturnAsync(message.OrderId, message.ReturnNumber, cancellationToken))
+        {
+            return;   // dobropis k této vratce už je (opakované doručení s jiným ID zprávy)
+        }
+
+        var invoice = await invoices.GetByOrderAsync(message.OrderId, cancellationToken)
+            ?? throw new InvalidOperationException(
+                $"Faktura k objednávce {message.OrderId} zatím není – dobropis k vratce {message.ReturnNumber} se zkusí znovu.");
+
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        var creditNote = CreditNote.IssueForReturn(
+            invoice,
+            await NextCreditNoteNumberAsync(now, cancellationToken),
+            message.ReturnNumber,
+            message.Items.Select(item => new InvoiceLine(item.ProductName, item.Quantity, item.UnitPrice, item.Discount, item.LineTotal)).ToList(),
+            message.ShippingRefund,
+            message.RefundedByCard ? RefundedToCard : RefundedByTransfer,
+            await creditNotes.GetCreditedAmountAsync(message.OrderId, cancellationToken),
+            now);
+        creditNotes.Add(creditNote);
+        publisher.Publish(new CreditNoteIssuedV1(Guid.NewGuid(), now, message.OrderId, creditNote.Number, invoice.Number, creditNote.Total));
+        TraceTags.Tag("minishop.credit_note.number", creditNote.Number);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
     /// <summary>Smazaný účet: kopie objednávek pryč. Vystavené faktury a dobropisy zůstávají – zákon je chce 10 let.</summary>
     public async Task HandleAsync(CustomerAnonymizedV1 message, CancellationToken cancellationToken)
     {
@@ -121,24 +160,33 @@ public sealed class InvoicingHandler(
             TraceTags.Tag("minishop.invoice.number", newInvoice.Number);   // na trasu: vystavená faktura
         }
 
-        // Krok 15B: dobropis jen k existující faktuře (i k té, která vznikla právě teď) a jen jednou.
+        // Krok 15B: celý dobropis jen k existující faktuře (i k té, která vznikla právě teď) a jen jednou.
+        // Krok 22: ani po vratkách po částech ne (nevrátit víc, než je na faktuře) – Ordering po nich celou vratku neposílá.
         if (order.CreditReason is { } reason
             && (newInvoice ?? await invoices.GetByOrderAsync(orderId, cancellationToken)) is { } invoice
             && !await creditNotes.ExistsForOrderAsync(orderId, cancellationToken))
         {
-            var yearSeries = await creditNoteSeries.GetAsync(year, cancellationToken);
-            if (yearSeries is null)
-            {
-                yearSeries = CreditNoteNumberSeries.Start(year);
-                creditNoteSeries.Add(yearSeries);
-            }
-
-            var creditNote = CreditNote.Issue(invoice, yearSeries.Next(), reason, order.RefundNote ?? string.Empty, now);
+            var creditNote = CreditNote.Issue(
+                invoice, await NextCreditNoteNumberAsync(now, cancellationToken), reason, order.RefundNote ?? string.Empty, now);
             creditNotes.Add(creditNote);
             publisher.Publish(new CreditNoteIssuedV1(Guid.NewGuid(), now, orderId, creditNote.Number, invoice.Number, creditNote.Total));
             TraceTags.Tag("minishop.credit_note.number", creditNote.Number);
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>Další číslo z řady dobropisů roku (řada se založí s prvním dobropisem roku). Uloží se se zbytkem transakce.</summary>
+    private async Task<string> NextCreditNoteNumberAsync(DateTime nowUtc, CancellationToken cancellationToken)
+    {
+        var year = CzechTime.FromUtc(nowUtc).Year;
+        var yearSeries = await creditNoteSeries.GetAsync(year, cancellationToken);
+        if (yearSeries is null)
+        {
+            yearSeries = CreditNoteNumberSeries.Start(year);
+            creditNoteSeries.Add(yearSeries);
+        }
+
+        return yearSeries.Next();
     }
 }

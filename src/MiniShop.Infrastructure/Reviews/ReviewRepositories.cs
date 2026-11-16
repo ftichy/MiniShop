@@ -31,7 +31,8 @@ public sealed class PurchaseRepository(ReviewsDbContext db) : IPurchaseRepositor
 
     public Task<PurchasedOrder?> FindReviewableAsync(string customerId, int productId, CancellationToken cancellationToken = default) =>
         db.PurchasedOrders
-            .Where(o => o.CustomerId == customerId && o.IsDelivered && !o.IsReturned && o.Products.Any(p => p.ProductId == productId))
+            .Where(o => o.CustomerId == customerId && o.IsDelivered && !o.IsReturned && o.Products.Any(p => p.ProductId == productId)
+                && !o.ReturnedProducts.Any(p => p.ProductId == productId))   // e-shop krok 22: vrácený celý
             .FirstOrDefaultAsync(cancellationToken);
 
     public Task<bool> AnyAsync(CancellationToken cancellationToken = default) => db.PurchasedOrders.AnyAsync(cancellationToken);

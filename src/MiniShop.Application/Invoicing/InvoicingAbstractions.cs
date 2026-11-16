@@ -41,15 +41,27 @@ public interface IInvoiceNumberSeriesRepository
     void Add(InvoiceNumberSeries series);
 }
 
-/// <summary>E-shop krok 15B: vystavené dobropisy (nejvýš jeden na objednávku).</summary>
+/// <summary>
+/// E-shop krok 15B: vystavené dobropisy. Krok 22: k objednávce jich může být víc (jeden na vratku po částech).
+/// </summary>
 public interface ICreditNoteRepository
 {
-    Task<CreditNote?> GetByOrderAsync(int orderId, CancellationToken cancellationToken = default);
+    Task<CreditNote?> GetByNumberAsync(string number, CancellationToken cancellationToken = default);
 
+    /// <summary>Dobropisy k objednávce v pořadí vystavení.</summary>
+    Task<IReadOnlyList<CreditNote>> GetForOrderAsync(int orderId, CancellationToken cancellationToken = default);
+
+    /// <summary>Má objednávka nějaký dobropis (celý dobropis vznikne jen k objednávce bez dobropisu)?</summary>
     Task<bool> ExistsForOrderAsync(int orderId, CancellationToken cancellationToken = default);
 
+    /// <summary>E-shop krok 22: má už tahle vratka dobropis?</summary>
+    Task<bool> ExistsForReturnAsync(int orderId, int returnNumber, CancellationToken cancellationToken = default);
+
+    /// <summary>E-shop krok 22: kolik už dobropisy k objednávce vrátily celkem.</summary>
+    Task<decimal> GetCreditedAmountAsync(int orderId, CancellationToken cancellationToken = default);
+
     /// <summary>Dobropisy k objednávkám (přehled faktur pro admina) – klíč = číslo objednávky.</summary>
-    Task<IReadOnlyDictionary<int, CreditNote>> GetByOrdersAsync(IReadOnlyCollection<int> orderIds, CancellationToken cancellationToken = default);
+    Task<IReadOnlyDictionary<int, IReadOnlyList<CreditNote>>> GetByOrdersAsync(IReadOnlyCollection<int> orderIds, CancellationToken cancellationToken = default);
 
     void Add(CreditNote creditNote);
 }
@@ -84,17 +96,22 @@ public sealed record InvoiceSeller(string Name, string Address, string? CompanyI
         "Nejsem plátce DPH. Výukový projekt – doklad nemá účetní platnost.");
 }
 
-/// <summary>Faktura v přehledu; <paramref name="CreditNoteNumber"/> = dobropis k ní (e-shop krok 15B), null = žádný.</summary>
+/// <summary>
+/// Faktura v přehledu; <paramref name="CreditNoteNumbers"/> = dobropisy k ní (e-shop krok 15B, od kroku 22 i víc), prázdné = žádný.
+/// </summary>
 public sealed record InvoiceSummaryDto(
     string Number,
     int OrderId,
     string CustomerName,
     decimal Total,
     DateTime IssuedAtUtc,
-    string? CreditNoteNumber = null);
+    IReadOnlyList<string> CreditNoteNumbers);
 
-/// <summary>Doklady k objednávce (detail objednávky): číslo faktury a dobropisu, null = zatím není.</summary>
-public sealed record OrderDocumentsDto(string? InvoiceNumber, string? CreditNoteNumber);
+/// <summary>Doklady k objednávce (detail objednávky): číslo faktury (null = zatím není) a dobropisy v pořadí vystavení.</summary>
+public sealed record OrderDocumentsDto(string? InvoiceNumber, IReadOnlyList<CreditNoteSummaryDto> CreditNotes);
+
+/// <summary>E-shop krok 22: dobropis na detailu objednávky – číslo, částka a číslo vratky (0 = celý dobropis).</summary>
+public sealed record CreditNoteSummaryDto(string Number, decimal Total, int ReturnNumber);
 
 /// <summary>PDF faktury ke stažení nebo do přílohy e-mailu.</summary>
 public sealed record InvoicePdf(string FileName, byte[] Content)

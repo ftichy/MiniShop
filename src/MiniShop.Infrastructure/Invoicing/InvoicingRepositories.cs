@@ -42,15 +42,26 @@ public sealed class InvoiceNumberSeriesRepository(InvoicingDbContext db) : IInvo
 
 public sealed class CreditNoteRepository(InvoicingDbContext db) : ICreditNoteRepository
 {
-    public Task<CreditNote?> GetByOrderAsync(int orderId, CancellationToken cancellationToken = default) =>
-        db.CreditNotes.AsNoTracking().FirstOrDefaultAsync(c => c.OrderId == orderId, cancellationToken);
+    public Task<CreditNote?> GetByNumberAsync(string number, CancellationToken cancellationToken = default) =>
+        db.CreditNotes.AsNoTracking().FirstOrDefaultAsync(c => c.Number == number, cancellationToken);
+
+    public async Task<IReadOnlyList<CreditNote>> GetForOrderAsync(int orderId, CancellationToken cancellationToken = default) =>
+        await db.CreditNotes.AsNoTracking().Where(c => c.OrderId == orderId).OrderBy(c => c.Id).ToListAsync(cancellationToken);
 
     public Task<bool> ExistsForOrderAsync(int orderId, CancellationToken cancellationToken = default) =>
         db.CreditNotes.AnyAsync(c => c.OrderId == orderId, cancellationToken);
 
-    public async Task<IReadOnlyDictionary<int, CreditNote>> GetByOrdersAsync(
+    public Task<bool> ExistsForReturnAsync(int orderId, int returnNumber, CancellationToken cancellationToken = default) =>
+        db.CreditNotes.AnyAsync(c => c.OrderId == orderId && c.ReturnNumber == returnNumber, cancellationToken);
+
+    public Task<decimal> GetCreditedAmountAsync(int orderId, CancellationToken cancellationToken = default) =>
+        db.CreditNotes.Where(c => c.OrderId == orderId).SumAsync(c => c.Total, cancellationToken);
+
+    public async Task<IReadOnlyDictionary<int, IReadOnlyList<CreditNote>>> GetByOrdersAsync(
         IReadOnlyCollection<int> orderIds, CancellationToken cancellationToken = default) =>
-        await db.CreditNotes.AsNoTracking().Where(c => orderIds.Contains(c.OrderId)).ToDictionaryAsync(c => c.OrderId, cancellationToken);
+        (await db.CreditNotes.AsNoTracking().Where(c => orderIds.Contains(c.OrderId)).OrderBy(c => c.Id).ToListAsync(cancellationToken))
+            .GroupBy(c => c.OrderId)
+            .ToDictionary(group => group.Key, group => (IReadOnlyList<CreditNote>)group.ToList());
 
     public void Add(CreditNote creditNote) => db.CreditNotes.Add(creditNote);
 }

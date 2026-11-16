@@ -49,4 +49,22 @@ public class SalesOrderTests
 
         Assert.Single(order.Lines);
     }
+
+    /// <summary>E-shop krok 22: vratka po částech – stav zůstává, z tržby a top produktů se odečte jen vrácené, každá vratka jednou.</summary>
+    [Fact]
+    public void VratkaPoCastech_OdectiJenVraceneAJednou()
+    {
+        var order = SalesOrder.Create(1, Now);
+        order.ApplyPlaced(Now, 349m, 49m, [new SalesOrderLine(7, "Myš", 2, 200m), new SalesOrderLine(8, "Klávesnice", 1, 100m)], Now);
+        order.ApplyStatus(SalesOrderStatus.Completed, Now);
+
+        Assert.True(order.ApplyReturn(1, 100m, [new SalesOrderReturnLine(1, 7, 1, 100m)], Now));
+        Assert.False(order.ApplyReturn(1, 100m, [new SalesOrderReturnLine(1, 7, 1, 100m)], Now));   // stejná vratka podruhé
+        Assert.True(order.ApplyReturn(2, 100m, [new SalesOrderReturnLine(2, 8, 1, 100m)], Now));
+
+        Assert.Equal(SalesOrderStatus.Completed, order.Status);
+        Assert.True(order.CountsAsRevenue);
+        Assert.Equal((200m, 149m), (order.ReturnedAmount, order.Revenue));
+        Assert.Equal([new SalesOrderLine(7, "Myš", 1, 100m)], order.KeptLines());   // klávesnice vrácená celá zmizí
+    }
 }

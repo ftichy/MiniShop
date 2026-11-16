@@ -25,7 +25,7 @@ Princip a diagramy: [CQRS – přehled tržeb](../../eda/cqrs.md).
 
 | Směr | Zprávy |
 | --- | --- |
-| poslouchá (fronta `minishop.reporting`) | `OrderPlacedV2`, `OrderConfirmedV1`, `OrderRejectedV1`, `OrderCancelledV1`, `OrderCompletedV1`, `PaymentRefundedV1`, `OrderSnapshotV1`, `ReturnCompletedV1` (e-shop krok 12 – vrácená se do tržby nepočítá), `ReturnCompletedV2` + `PaymentRefundedV2` (e-shop krok 22 – vratka po částech) |
+| poslouchá (fronta `minishop.reporting`) | `OrderPlacedV2`, `OrderConfirmedV1`, `OrderRejectedV1`, `OrderCancelledV1`, `OrderCompletedV1`, `PaymentRefundedV1`, `OrderSnapshotV1`, `ReturnCompletedV1` (e-shop krok 12 – vrácená se do tržby nepočítá), `ReturnCompletedV2` + `PaymentRefundedV2` + `OrderPartialReturnsSnapshotV1` (e-shop krok 22 – vratka po částech) |
 | posílá (příkaz pro Ordering) | `RebuildSalesReportV1` → Ordering odpoví `OrderSnapshotV1` pro každou objednávku |
 
 ## Co přehled počítá
@@ -35,6 +35,6 @@ Princip a diagramy: [CQRS – přehled tržeb](../../eda/cqrs.md).
 - **Top 10 produktů** za 30 dní podle kusů (stejné pravidlo – jen platné objednávky).
 - **Vratka po částech (krok 22):** objednávka zůstává doručená, z tržby se odečte jen vrácená částka (`SalesOrder.Revenue`)
   a z top produktů vrácené kusy (`KeptLines`). Každá vratka jednou (`SalesOrderReturns`, unikátní objednávka + číslo vratky).
-  Přestavění zatím vratky po částech nezná (snímek `OrderSnapshotV1` je nenese – doplní krok 22C).
+  Přestavění je dostane ve snímku `OrderPartialReturnsSnapshotV1` (Ordering ho pošle vedle `OrderSnapshotV1`, jen u objednávek s vratkou).
 - **Vráceno** – součet `PaymentRefundedV1` za 30 dní (po přestavění 0 – platby zná jen Payments).
 - **Počty podle stavu** – zjednodušené stavy: čeká, potvrzená (i balená a odeslaná), doručená, zamítnutá, zrušená.

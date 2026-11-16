@@ -343,6 +343,48 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
                     b.ToTable("OrderItems", "ordering");
                 });
 
+            modelBuilder.Entity("MiniShop.Domain.Orders.OrderReturn", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Number")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("OrderId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("RequestedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ResolvedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId", "Number")
+                        .IsUnique();
+
+                    b.ToTable("OrderReturns", "ordering");
+                });
+
             modelBuilder.Entity("MiniShop.Domain.Orders.OrderStatusChange", b =>
                 {
                     b.Property<int>("Id")
@@ -423,6 +465,9 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
                     b.Property<int>("OrderId")
                         .HasColumnType("integer");
 
+                    b.Property<int>("ReturnNumber")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("GoodsDeadlineUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -448,7 +493,7 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
                         .IsConcurrencyToken()
                         .HasColumnType("integer");
 
-                    b.HasKey("OrderId");
+                    b.HasKey("OrderId", "ReturnNumber");
 
                     b.HasIndex("State", "GoodsDeadlineUtc");
 
@@ -609,6 +654,57 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("MiniShop.Domain.Orders.OrderReturn", b =>
+                {
+                    b.HasOne("MiniShop.Domain.Orders.Order", null)
+                        .WithMany("Returns")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.OwnsMany("MiniShop.Domain.Orders.OrderReturnLine", "Lines", b1 =>
+                        {
+                            b1.Property<int>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer");
+
+                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+
+                            b1.Property<decimal>("Discount")
+                                .HasPrecision(18, 2)
+                                .HasColumnType("numeric(18,2)");
+
+                            b1.Property<int>("OrderReturnId")
+                                .HasColumnType("integer");
+
+                            b1.Property<int>("ProductId")
+                                .HasColumnType("integer");
+
+                            b1.Property<string>("ProductName")
+                                .IsRequired()
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)");
+
+                            b1.Property<int>("Quantity")
+                                .HasColumnType("integer");
+
+                            b1.Property<decimal>("UnitPrice")
+                                .HasPrecision(18, 2)
+                                .HasColumnType("numeric(18,2)");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("OrderReturnId");
+
+                            b1.ToTable("OrderReturnLines", "ordering");
+
+                            b1.WithOwner()
+                                .HasForeignKey("OrderReturnId");
+                        });
+
+                    b.Navigation("Lines");
+                });
+
             modelBuilder.Entity("MiniShop.Domain.Orders.OrderStatusChange", b =>
                 {
                     b.HasOne("MiniShop.Domain.Orders.Order", null)
@@ -637,6 +733,8 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
             modelBuilder.Entity("MiniShop.Domain.Orders.Order", b =>
                 {
                     b.Navigation("Items");
+
+                    b.Navigation("Returns");
 
                     b.Navigation("StatusHistory");
                 });

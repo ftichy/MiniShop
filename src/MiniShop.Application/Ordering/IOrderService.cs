@@ -41,8 +41,15 @@ public interface IOrderService
     /// <summary>E-shop krok 12: zákazník chce doručenou objednávku vrátit (do 14 dní, jednou). Cizí = 404.</summary>
     Task<OrderDto> RequestReturnAsync(int id, OrderAccess access, string reason, CancellationToken cancellationToken = default);
 
-    /// <summary>E-shop krok 12: objednávky čekající na vrácení (stránka Vratky). Jen admin.</summary>
-    Task<IReadOnlyList<OrderDto>> GetReturnQueueAsync(CancellationToken cancellationToken = default);
+    /// <summary>
+    /// E-shop krok 22: zákazník vrací vybrané kusy (produkt → kusy). Vrací číslo vratky; 0 = vratka celé objednávky
+    /// (vybral všechno a je to první vratka). Cizí = 404.
+    /// </summary>
+    Task<int> RequestReturnAsync(int id, OrderAccess access, string reason, IReadOnlyDictionary<int, int> quantities,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>E-shop krok 12: objednávky čekající na vrácení (stránka Vratky; krok 22 i s vratkou po částech). Jen admin.</summary>
+    Task<IReadOnlyList<OrderDetailDto>> GetReturnQueueAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Účty krok 9: zákazník maže účet – jeho objednávky přijdou o jméno a e-mail (zůstanou položky a ceny).

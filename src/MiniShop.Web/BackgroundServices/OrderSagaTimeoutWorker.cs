@@ -76,24 +76,26 @@ public sealed class OrderSagaTimeoutWorker(
     /// <summary>E-shop krok 12: vratky, kde zboží nedorazilo do termínu → vrácení vyprší (objednávka zůstane doručená).</summary>
     private async Task CheckReturnTimeoutsAsync(CancellationToken cancellationToken)
     {
-        IReadOnlyList<int> expired;
+        IReadOnlyList<ReturnSagaKey> expired;
         await using (var scope = scopeFactory.CreateAsyncScope())
         {
             expired = await scope.ServiceProvider.GetRequiredService<IReturnSagaRepository>()
-                .GetExpiredOrderIdsAsync(timeProvider.GetUtcNow().UtcDateTime, cancellationToken);
+                .GetExpiredAsync(timeProvider.GetUtcNow().UtcDateTime, cancellationToken);
         }
 
-        foreach (var orderId in expired)
+        foreach (var (orderId, returnNumber) in expired)
         {
             using var activity = MessagingTelemetry.ActivitySource.StartActivity("return timeout");
             activity?.SetTag(TraceTags.OrderId, orderId);
+            activity?.SetTag("minishop.return.number", returnNumber);   // e-shop krok 22: 0 = celá objednávka
 
             try
             {
                 await using var scope = scopeFactory.CreateAsyncScope();
-                if (await scope.ServiceProvider.GetRequiredService<ReturnSagaOrchestrator>().TimeOutAsync(orderId, cancellationToken))
+                if (await scope.ServiceProvider.GetRequiredService<ReturnSagaOrchestrator>().TimeOutAsync(orderId, returnNumber, cancellationToken))
                 {
-                    logger.LogWarning("[Vratka] Objednávka {OrderId}: vrácené zboží nedorazilo včas, vrácení vypršelo", orderId);
+                    logger.LogWarning("[Vratka] Objednávka {OrderId}, vratka {ReturnNumber}: vrácené zboží nedorazilo včas, vrácení vypršelo",
+                        orderId, returnNumber);
                 }
             }
             catch (Exception ex) when (!cancellationToken.IsCancellationRequested)

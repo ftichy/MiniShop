@@ -19,6 +19,9 @@ public interface IOrderRepository
     /// <summary>E-shop krok 6: objednávky v daných stavech (fronty expedice), nejstarší první.</summary>
     Task<IReadOnlyList<Order>> GetByStatusesAsync(IReadOnlyCollection<OrderStatus> statuses, CancellationToken cancellationToken = default);
 
+    /// <summary>E-shop krok 22: objednávky s rozpracovanou vratkou – celou (ReturnRequested) nebo po částech, nejstarší první.</summary>
+    Task<IReadOnlyList<Order>> GetReturnQueueAsync(CancellationToken cancellationToken = default);
+
     /// <summary>E-shop krok 4: objednávka zákazníka z daného odeslání pokladny (idempotence), nebo null.</summary>
     Task<Order?> GetByCheckoutIdAsync(string customerId, Guid checkoutId, CancellationToken cancellationToken = default);
 

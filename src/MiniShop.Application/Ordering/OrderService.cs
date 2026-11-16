@@ -64,8 +64,15 @@ public sealed class OrderService(
         var order = await GetOrderAsync(id, access, cancellationToken);
         return order.ToDetailDto() with
         {
-            // E-shop krok 12: tlačítko Vrátit zboží jen do 14 dní od doručení a jen jednou (rozhoduje Order).
-            ReturnableUntilUtc = order.CanRequestReturn(UtcNow, returnSettings.Window) ? order.DeliveredAtUtc + returnSettings.Window : null,
+            // E-shop krok 12: tlačítko Vrátit zboží jen do 14 dní od doručení (rozhoduje Order). Krok 22: i po částech –
+            // formulář nabídne jen kusy, které jde ještě vrátit.
+            ReturnableUntilUtc = CanReturn(order) ? order.DeliveredAtUtc + returnSettings.Window : null,
+            ReturnableItems = CanReturn(order)
+                ? order.Items.GroupBy(i => i.ProductId)
+                    .Select(g => new ReturnableItemDto(g.Key, g.First().ProductName, order.ReturnableQuantity(g.Key)))
+                    .Where(i => i.MaxQuantity > 0)
+                    .ToList()
+                : null,
             ReturnReason = order.ReturnReason,
             ReturnRejectionReason = order.ReturnRejectionReason
         };
@@ -176,6 +183,21 @@ public sealed class OrderService(
         return order.ToDto();
     }
 
+    /// <summary>
+    /// E-shop krok 22: zákazník vrací vybrané kusy. Všechno jako první vratka = vratka celé objednávky (číslo 0, dnešní cesta),
+    /// jinak vratka po částech (číslo 1, 2, …). Pravidla hlídá <see cref="Order.RequestReturn(string, IReadOnlyDictionary{int, int}, DateTime, TimeSpan)"/>.
+    /// </summary>
+    public async Task<int> RequestReturnAsync(int id, OrderAccess access, string reason, IReadOnlyDictionary<int, int> quantities,
+        CancellationToken cancellationToken = default)
+    {
+        var order = await GetOrderAsync(id, access, cancellationToken);
+        var returnNumber = order.RequestReturn(reason, quantities, UtcNow, returnSettings.Window);   // → sága vratky
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        OrderTraceTags.TagStatus(order);   // důvod vratky ne – volný text zákazníka
+        TraceTags.Tag("minishop.return.number", returnNumber);
+        return returnNumber;
+    }
+
     public async Task<OrderDto> RequestReturnAsync(int id, OrderAccess access, string reason,
         CancellationToken cancellationToken = default)
     {
@@ -189,9 +211,15 @@ public sealed class OrderService(
         return order.ToDto();
     }
 
-    /// <summary>E-shop krok 12: objednávky čekající na vrácení (stránka Vratky) – jen admin, hlídá Web.</summary>
-    public async Task<IReadOnlyList<OrderDto>> GetReturnQueueAsync(CancellationToken cancellationToken = default) =>
-        (await orders.GetByStatusesAsync([OrderStatus.ReturnRequested], cancellationToken)).Select(o => o.ToDto()).ToList();
+    /// <summary>
+    /// E-shop krok 12: objednávky čekající na vrácení (stránka Vratky) – jen admin, hlídá Web. Krok 22: i s rozpracovanou
+    /// vratkou po částech (detail kvůli seznamu vracených kusů).
+    /// </summary>
+    public async Task<IReadOnlyList<OrderDetailDto>> GetReturnQueueAsync(CancellationToken cancellationToken = default) =>
+        (await orders.GetReturnQueueAsync(cancellationToken)).Select(o => o.ToDetailDto()).ToList();
+
+    private bool CanReturn(Order order) =>
+        order.CanRequestReturn(UtcNow, returnSettings.Window) || order.CanRequestPartialReturn(UtcNow, returnSettings.Window);
 
     public async Task<int> AnonymizeCustomerAsync(string customerId, CancellationToken cancellationToken = default)
     {

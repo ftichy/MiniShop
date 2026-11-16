@@ -30,7 +30,8 @@ public sealed class SalesProjectionHandler(
     IIntegrationMessageHandler<OrderSnapshotV1>,
     IIntegrationMessageHandler<ReturnCompletedV1>,
     IIntegrationMessageHandler<ReturnCompletedV2>,
-    IIntegrationMessageHandler<PaymentRefundedV2>
+    IIntegrationMessageHandler<PaymentRefundedV2>,
+    IIntegrationMessageHandler<OrderPartialReturnsSnapshotV1>
 {
     public Task HandleAsync(OrderPlacedV2 message, CancellationToken cancellationToken) =>
         ChangeAsync(message.OrderId, order => order.ApplyPlaced(message.OccurredAtUtc, message.TotalPrice,
@@ -54,12 +55,23 @@ public sealed class SalesProjectionHandler(
 
     /// <summary>
     /// E-shop krok 22: vratka po částech – objednávka zůstává doručená, z tržby a „top produktů“ se odečte jen vrácené.
-    /// Snímek z přestavění (OrderSnapshotV1) vratky po částech nezná – doplní je Ordering v kroku 22C.
+    /// Při přestavění přijdou vratky ve snímku <see cref="OrderPartialReturnsSnapshotV1"/>.
     /// </summary>
     public Task HandleAsync(ReturnCompletedV2 message, CancellationToken cancellationToken) =>
         ChangeAsync(message.OrderId, order => order.ApplyReturn(message.ReturnNumber, message.Amount,
             message.Items.Select(i => new SalesOrderReturnLine(message.ReturnNumber, i.ProductId, i.Quantity, i.LineTotal)), UtcNow),
             cancellationToken);
+
+    /// <summary>E-shop krok 22: přestavění – vyřízené vratky po částech (každá jednou, i když snímek předběhne OrderSnapshotV1).</summary>
+    public Task HandleAsync(OrderPartialReturnsSnapshotV1 message, CancellationToken cancellationToken) =>
+        ChangeAsync(message.OrderId, order =>
+        {
+            foreach (var orderReturn in message.Returns)
+            {
+                order.ApplyReturn(orderReturn.ReturnNumber, orderReturn.Amount,
+                    orderReturn.Items.Select(i => new SalesOrderReturnLine(orderReturn.ReturnNumber, i.ProductId, i.Quantity, i.LineTotal)), UtcNow);
+            }
+        }, cancellationToken);
 
     /// <summary>E-shop krok 22: peníze vrácené kartou za vratku po částech (Payments) – jako ostatní vrácené peníze.</summary>
     public Task HandleAsync(PaymentRefundedV2 message, CancellationToken cancellationToken) =>

@@ -35,7 +35,14 @@ public static class OrderMapping
             order.StatusHistory
                 .OrderBy(c => c.Id)
                 .Select(c => new OrderStatusChangeDto(c.Status.ToString(), c.ChangedAtUtc, c.Note))
-                .ToList());
+                .ToList(),
+            Returns: order.Returns.Count == 0 ? null : order.Returns.OrderBy(r => r.Number).Select(r => r.ToDto()).ToList());
+
+    /// <summary>E-shop krok 22: vratka po částech.</summary>
+    public static OrderReturnDto ToDto(this OrderReturn orderReturn) =>
+        new(orderReturn.Number, orderReturn.Status.ToString(), orderReturn.Reason, orderReturn.RequestedAtUtc,
+            orderReturn.ResolvedAtUtc, orderReturn.RejectionReason, orderReturn.Amount,
+            orderReturn.Lines.Select(l => new OrderReturnLineDto(l.ProductId, l.ProductName, l.Quantity, l.LineTotal)).ToList());
 
     /// <summary>E-shop krok 2: produkt z kopie katalogu pro výlohu i formulář objednávky.</summary>
     public static CatalogItemDto ToCatalogItemDto(this CatalogProduct product) =>

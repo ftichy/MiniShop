@@ -38,13 +38,34 @@ public sealed record OrderDto(
 public sealed record OrderStatusChangeDto(string Status, DateTime? ChangedAtUtc, string? Note);
 
 /// <summary>E-shop krok 5: detail objednávky (stránka /Orders/{id}) – objednávka a časová osa jejích stavů.</summary>
-/// <param name="ReturnableUntilUtc">E-shop krok 12: do kdy jde objednávku vrátit; null = vrátit nejde (nedoručená, po termínu, už jednou).</param>
+/// <param name="ReturnableUntilUtc">E-shop krok 12: do kdy jde objednávku vrátit; null = vrátit nejde (nedoručená, po termínu, vratka běží, nic nezbývá).</param>
+/// <param name="Returns">E-shop krok 22: vratky po částech (null = žádné).</param>
+/// <param name="ReturnableItems">E-shop krok 22: kolik kusů čeho jde ještě vrátit (formulář vratky); null = vrátit nejde.</param>
 public sealed record OrderDetailDto(
     OrderDto Order,
     IReadOnlyList<OrderStatusChangeDto> History,
     DateTime? ReturnableUntilUtc = null,
     string? ReturnReason = null,
-    string? ReturnRejectionReason = null);
+    string? ReturnRejectionReason = null,
+    IReadOnlyList<OrderReturnDto>? Returns = null,
+    IReadOnlyList<ReturnableItemDto>? ReturnableItems = null);
+
+/// <summary>E-shop krok 22: vratka po částech na detailu objednávky a na stránce Vratky.</summary>
+/// <param name="Status"><c>Requested</c>, <c>Completed</c>, <c>Rejected</c>.</param>
+public sealed record OrderReturnDto(
+    int Number,
+    string Status,
+    string Reason,
+    DateTime RequestedAtUtc,
+    DateTime? ResolvedAtUtc,
+    string? RejectionReason,
+    decimal Amount,
+    IReadOnlyList<OrderReturnLineDto> Lines);
+
+public sealed record OrderReturnLineDto(int ProductId, string ProductName, int Quantity, decimal LineTotal);
+
+/// <summary>E-shop krok 22: položka, ze které jde ještě vracet – nejvýš <paramref name="MaxQuantity"/> kusů.</summary>
+public sealed record ReturnableItemDto(int ProductId, string ProductName, int MaxQuantity);
 
 /// <summary>
 /// Produkt v nabídce – z kopie katalogu (krok 10), bez přesné zásoby (ta patří skladu).

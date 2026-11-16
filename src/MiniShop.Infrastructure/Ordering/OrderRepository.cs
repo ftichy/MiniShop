@@ -69,6 +69,15 @@ public sealed class OrderRepository(OrderingDbContext db) : IOrderRepository
             .OrderBy(o => o.Id)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<Order>> GetReturnQueueAsync(CancellationToken cancellationToken = default) =>
+        await db.Orders
+            .Include(o => o.Items)
+            .Include(o => o.StatusHistory)
+            .Where(o => o.Status == OrderStatus.ReturnRequested || o.Returns.Any(r => r.Status == OrderReturnStatus.Requested))
+            .OrderBy(o => o.Id)
+            .AsSplitQuery()
+            .ToListAsync(cancellationToken);
+
     public Task<Order?> GetByCheckoutIdAsync(string customerId, Guid checkoutId, CancellationToken cancellationToken = default) =>
         db.Orders
             .Include(o => o.Items)

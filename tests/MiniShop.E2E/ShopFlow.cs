@@ -48,11 +48,30 @@ public static class ShopFlow
     private static string? _adminTotpKey;
 
     /// <summary>
+    /// Admin scénáře běží paralelně (Expedice, Vratka – e-shop krok 22): první přihlášení 2FA nastavuje, ostatní musí počkat,
+    /// jinak by dva testy zapínaly 2FA témuž účtu naráz.
+    /// </summary>
+    private static readonly SemaphoreSlim AdminLoginLock = new(1, 1);
+
+    /// <summary>
     /// Přihlášení admina s dvoufázovým ověřením. Admin z <c>create-admin</c> ho zatím nemá – po přihlášení heslem
     /// ho přes UI nastaví (klíč přečte ze stránky, první kód spočítá sám); další přihlášení zadá kód.
     /// Žádná zadní vrátka v aplikaci: stejné kroky udělá člověk s telefonem.
     /// </summary>
     public static async Task LoginAdminAsync(IPage page, string email, string password)
+    {
+        await AdminLoginLock.WaitAsync();
+        try
+        {
+            await LoginAdminCoreAsync(page, email, password);
+        }
+        finally
+        {
+            AdminLoginLock.Release();
+        }
+    }
+
+    private static async Task LoginAdminCoreAsync(IPage page, string email, string password)
     {
         await page.GotoAsync("/Account/Login");
         await page.Locator("#Input_Email").FillAsync(email);
@@ -120,6 +139,20 @@ public static class ShopFlow
     {
         var status = page.Locator("[data-track=order-detail-status]").Filter(new() { HasText = statusText });
         await ReloadUntilAsync(page, $"/Orders/{orderId}", status, $"stav „{statusText}“ objednávky {orderId}");
+    }
+
+    /// <summary>E-shop krok 22: admin objednávku zabalí, odešle a doručí (stránka Expedice).</summary>
+    public static async Task ShipAndDeliverAsync(IPage back, int orderId)
+    {
+        await back.GotoAsync("/Admin/Fulfilment");
+        await back.Locator($"input[name=ids][value='{orderId}']").CheckAsync();
+        await back.Locator("[data-track=fulfilment-start-packing]").ClickAsync();
+        await back.Locator($"#carrier-{orderId}").FillAsync("PPL");
+        await back.Locator($"#tracking-{orderId}").FillAsync($"E2E{orderId}");
+        await back.Locator($"form:has(#carrier-{orderId}) [data-track=fulfilment-ship]").ClickAsync();
+        await back.Locator(".list-group-item")
+            .Filter(new() { Has = back.GetByRole(AriaRole.Link, new() { Name = $"č. {orderId}", Exact = true }) })
+            .Locator("[data-track=fulfilment-deliver]").ClickAsync();
     }
 
     /// <summary>Platba kartou na simulované bráně: detail (čeká na ságu) → „Zaplatit“ → /Pay → „Zaplatit“.</summary>

@@ -18,6 +18,7 @@ public class Order : Entity
 {
     private readonly List<OrderItem> _items = new();
     private readonly List<OrderStatusChange> _statusHistory = new();
+    private readonly List<OrderReturn> _returns = new();
 
     // Konstruktor pro EF Core. EF při načítání z DB volá tento (bezparametrický) konstruktor,
     // takže se při načtení objednávky událost OrderPlaced znovu nevyvolá.
@@ -354,7 +355,8 @@ public class Order : Entity
     public bool CanRequestReturn(DateTime nowUtc, TimeSpan window) =>
         Status == OrderStatus.Completed
         && DeliveredAtUtc is { } delivered && nowUtc <= delivered + window
-        && _statusHistory.All(h => h.Status != OrderStatus.ReturnRequested);
+        && _statusHistory.All(h => h.Status != OrderStatus.ReturnRequested)
+        && !_returns.Any(r => r.CountsAsReturned);   // e-shop krok 22: po vratce po částech už jen další vratka po částech
 
     /// <summary>
     /// E-shop krok 12: zákazník chce zboží vrátit. Objednávka čeká na zboží; co dál (naskladnění, peníze), řídí sága vratky.
@@ -395,12 +397,142 @@ public class Order : Entity
         Raise(new OrderReturned(this, returnedAtUtc));
     }
 
+    /// <summary>E-shop krok 22: vratky po částech v pořadí, jak vznikaly (číslo 1, 2, …).</summary>
+    public IReadOnlyCollection<OrderReturn> Returns => _returns.AsReadOnly();
+
+    /// <summary>E-shop krok 22: rozpracovaná vratka po částech (nejvýš jedna najednou), nebo null.</summary>
+    public OrderReturn? OpenReturn => _returns.FirstOrDefault(r => r.IsOpen);
+
+    /// <summary>E-shop krok 22: kolik kusů produktu jde ještě vrátit – koupené bez vrácených a právě vracených.</summary>
+    public int ReturnableQuantity(int productId) =>
+        _items.Where(i => i.ProductId == productId).Sum(i => i.Quantity) - ReturnedQuantity(productId);
+
+    /// <summary>
+    /// E-shop krok 22: jde ještě vrátit část? Jen doručenou objednávku, do <paramref name="window"/> od doručení, když žádná
+    /// vratka zrovna neběží, zbývá aspoň kus a nebyla už vratka celé objednávky. Zamítnutá vratka po částech další nebrání.
+    /// </summary>
+    public bool CanRequestPartialReturn(DateTime nowUtc, TimeSpan window) =>
+        Status == OrderStatus.Completed
+        && DeliveredAtUtc is { } delivered && nowUtc <= delivered + window
+        && OpenReturn is null
+        && _statusHistory.All(h => h.Status != OrderStatus.ReturnRequested)   // po vratce celé objednávky (i zamítnuté) už ne
+        && _items.Any(i => ReturnableQuantity(i.ProductId) > 0);
+
+    /// <summary>
+    /// E-shop krok 22: zákazník vrací vybrané kusy (<paramref name="quantities"/>: produkt → kusy). Když jako první vratku
+    /// vybere všechno, jde o vratku celé objednávky – dnešní cesta (<see cref="RequestReturn(string, DateTime, TimeSpan)"/>,
+    /// vrací se i doprava). Jinak vznikne <see cref="OrderReturn"/> a objednávka zůstává doručená.
+    /// </summary>
+    /// <returns>Číslo vratky; 0 = vratka celé objednávky.</returns>
+    public int RequestReturn(string reason, IReadOnlyDictionary<int, int> quantities, DateTime requestedAtUtc, TimeSpan window)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new DomainException("Napište prosím, proč zboží vracíte.");
+        }
+
+        var selected = quantities.Where(q => q.Value > 0).ToDictionary(q => q.Key, q => q.Value);
+        if (selected.Count == 0)
+        {
+            throw new DomainException("Vyberte prosím aspoň jeden kus, který vracíte.");
+        }
+
+        var products = _items.GroupBy(i => i.ProductId).ToDictionary(g => g.Key, g => g.ToList());
+        var unknown = selected.Keys.FirstOrDefault(id => !products.ContainsKey(id));
+        if (unknown != 0)
+        {
+            throw new DomainException($"Produkt {unknown} v objednávce není.");
+        }
+
+        if (CanRequestReturn(requestedAtUtc, window)
+            && products.All(p => selected.GetValueOrDefault(p.Key) == p.Value.Sum(i => i.Quantity)))
+        {
+            RequestReturn(reason, requestedAtUtc, window);
+            return 0;
+        }
+
+        if (!CanRequestPartialReturn(requestedAtUtc, window))
+        {
+            throw new DomainException(Status != OrderStatus.Completed
+                ? "Vrátit lze jen doručenou objednávku."
+                : OpenReturn is not null
+                    ? "Předchozí vratka se ještě vyřizuje – další můžete poslat, až skončí."
+                    : _statusHistory.Any(h => h.Status == OrderStatus.ReturnRequested)
+                        ? "Objednávku už jste jednou celou vraceli – další vratka nejde."
+                        : _items.All(i => ReturnableQuantity(i.ProductId) == 0)
+                            ? "Všechno zboží z objednávky už je vrácené."
+                            : $"Vrátit lze do {window.TotalDays:0} dní od doručení.");
+        }
+
+        var lines = new List<OrderReturnLine>();
+        foreach (var (productId, quantity) in selected)
+        {
+            var items = products[productId];
+            var remaining = ReturnableQuantity(productId);
+            if (quantity > remaining)
+            {
+                throw new DomainException($"Produktu {items[0].ProductName} můžete vrátit nejvýš {remaining} ks.");
+            }
+
+            // Sleva z kuponu je rozpočítaná do položek – na vrácené kusy připadne poměrný díl, poslední kusy dostanou zbytek
+            // (součet slev všech vratek = sleva položky, nic se neztratí ani nepřidá).
+            var bought = items.Sum(i => i.Quantity);
+            var discount = items.Sum(i => i.Discount);
+            var discountReturned = _returns.Where(r => r.CountsAsReturned).SelectMany(r => r.Lines)
+                .Where(l => l.ProductId == productId).Sum(l => l.Discount);
+            var share = quantity == remaining
+                ? discount - discountReturned
+                : Math.Round(discount * quantity / bought, 2, MidpointRounding.AwayFromZero);
+            lines.Add(new OrderReturnLine(productId, items[0].ProductName, quantity, items[0].UnitPrice, share));
+        }
+
+        var orderReturn = OrderReturn.Request(_returns.Count + 1, reason, lines, requestedAtUtc);
+        _returns.Add(orderReturn);
+        Version++;   // souběh: dva formuláře naráz – druhý zápis selže na verzi objednávky
+        Raise(new OrderPartialReturnRequested(this, orderReturn.Number, requestedAtUtc));
+        return orderReturn.Number;
+    }
+
+    /// <summary>E-shop krok 22: vratka po částech je hotová (kusy na skladu, peníze vrácené) – objednávka zůstává doručená.</summary>
+    public void CompletePartialReturn(int returnNumber, DateTime completedAtUtc)
+    {
+        GetReturn(returnNumber).Complete(completedAtUtc);
+        Version++;
+        Raise(new OrderPartialReturnCompleted(this, returnNumber, completedAtUtc));
+    }
+
+    /// <summary>E-shop krok 22: vratka po částech neprošla (admin zamítl, zboží nedorazilo včas).</summary>
+    public void RejectPartialReturn(int returnNumber, string reason, DateTime rejectedAtUtc)
+    {
+        GetReturn(returnNumber).Reject(reason, rejectedAtUtc);
+        Version++;
+        Raise(new OrderPartialReturnRejected(this, returnNumber, rejectedAtUtc));
+    }
+
+    /// <summary>E-shop krok 22: vratka podle čísla.</summary>
+    public OrderReturn GetReturn(int returnNumber) =>
+        _returns.FirstOrDefault(r => r.Number == returnNumber)
+        ?? throw new DomainException($"Vratka {returnNumber} objednávky {Id} neexistuje.");
+
+    /// <summary>
+    /// E-shop krok 22: produkty, ze kterých si zákazník po dokončených vratkách nenechal ani kus (pro Reviews).
+    /// </summary>
+    public IReadOnlyList<int> FullyReturnedProductIds() =>
+        _items.Select(i => i.ProductId).Distinct()
+            .Where(id => _returns.Where(r => r.Status == OrderReturnStatus.Completed).SelectMany(r => r.Lines)
+                .Where(l => l.ProductId == id).Sum(l => l.Quantity) >= _items.Where(i => i.ProductId == id).Sum(i => i.Quantity))
+            .ToList();
+
+    private int ReturnedQuantity(int productId) =>
+        _returns.Where(r => r.CountsAsReturned).SelectMany(r => r.Lines).Where(l => l.ProductId == productId).Sum(l => l.Quantity);
+
     /// <summary>Jméno smazaného zákazníka na jeho objednávkách (účty krok 9).</summary>
     public const string AnonymizedCustomerName = "Smazaný zákazník";
 
     /// <summary>Je objednávka rozpracovaná (čeká na sklad, balí se, je na cestě nebo se vrací)?</summary>
     public bool IsActive => Status is OrderStatus.Pending or OrderStatus.AwaitingPayment or OrderStatus.Confirmed
-        or OrderStatus.Packing or OrderStatus.Shipped or OrderStatus.ReturnRequested;
+        or OrderStatus.Packing or OrderStatus.Shipped or OrderStatus.ReturnRequested
+        || OpenReturn is not null;   // e-shop krok 22: rozpracovaná vratka po částech
 
     /// <summary>
     /// Účty krok 9: zákazník smazal účet – objednávka zůstane (položky, ceny, stav pro účetnictví a statistiky),

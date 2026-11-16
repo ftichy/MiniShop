@@ -74,6 +74,7 @@ ovládá skutečný prohlížeč nad skutečně spuštěnou aplikací a odhalí 
 | Expedice | admin zabalí → odešle (dopravce + číslo zásilky) → doručeno; zákazník vidí **Doručená** |
 | Mobil | viewport 390×844: menu ☰, filtry v panelu, spodní lišta košíku, pokladna |
 | Hledání | našeptávač: klik na návrh (i dlouhý stisk) a klepnutí na telefonu otevře produkt (e-shop krok 21) |
+| Vratka po částech | 2 kusy na dobírku, expedice, zákazník vrátí 1 kus (formulář s počty kusů), admin převezme na stránce Vratky, vratka vyřízená a objednávka zůstává doručená (e-shop krok 22) |
 
 **Jak job běží** (`e2e` v [ci.yml](code:.github/workflows/ci.yml)):
 

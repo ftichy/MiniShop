@@ -28,19 +28,20 @@ public sealed class IndexModel(IOrderService orderService, ReturnSagaOrchestrato
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
-        var sagas = (await returns.GetOpenAsync(cancellationToken)).ToDictionary(s => s.OrderId);
-        Rows = (await orderService.GetReturnQueueAsync(cancellationToken))
-            .Where(o => sagas.ContainsKey(o.Id))
-            .Select(o => new ReturnRow(o, sagas[o.Id]))
+        // E-shop krok 22: řádek = jedna vratka (objednávka + číslo vratky; 0 = celá objednávka).
+        var orders = (await orderService.GetReturnQueueAsync(cancellationToken)).ToDictionary(o => o.Order.Id);
+        Rows = (await returns.GetOpenAsync(cancellationToken))
+            .Where(saga => orders.ContainsKey(saga.OrderId))
+            .Select(saga => new ReturnRow(orders[saga.OrderId], saga))
             .ToList();
     }
 
-    public Task<IActionResult> OnPostAcceptAsync(int id, CancellationToken cancellationToken) =>
-        ExecuteAsync(id, async () => await returns.AcceptGoodsAsync(id, cancellationToken),
+    public Task<IActionResult> OnPostAcceptAsync(int id, int returnNumber, CancellationToken cancellationToken) =>
+        ExecuteAsync(id, async () => await returns.AcceptGoodsAsync(id, returnNumber, cancellationToken),
             $"Vratka č. {id} převzata – sklad zboží naskladní a zákazník dostane peníze zpět.");
 
-    public Task<IActionResult> OnPostRejectAsync(int id, string? reason, CancellationToken cancellationToken) =>
-        ExecuteAsync(id, async () => await returns.RejectAsync(id, reason ?? string.Empty, cancellationToken),
+    public Task<IActionResult> OnPostRejectAsync(int id, int returnNumber, string? reason, CancellationToken cancellationToken) =>
+        ExecuteAsync(id, async () => await returns.RejectAsync(id, reason ?? string.Empty, returnNumber, cancellationToken),
             $"Vrácení objednávky č. {id} zamítnuto – zákazník dostane e-mail s důvodem.");
 
     private async Task<IActionResult> ExecuteAsync(int id, Func<Task<bool>> action, string success)
@@ -75,5 +76,16 @@ public sealed class IndexModel(IOrderService orderService, ReturnSagaOrchestrato
     };
 }
 
-/// <summary>Řádek stránky Vratky – objednávka a stav její ságy vratky.</summary>
-public sealed record ReturnRow(OrderDto Order, ReturnSaga Saga);
+/// <summary>
+/// Řádek stránky Vratky – objednávka a sága jedné vratky. E-shop krok 22: <see cref="Return"/> = vratka po částech
+/// (vracené kusy a částka), null = vratka celé objednávky.
+/// </summary>
+public sealed record ReturnRow(OrderDetailDto Detail, ReturnSaga Saga)
+{
+    public OrderDto Order => Detail.Order;
+
+    public OrderReturnDto? Return => Saga.IsPartial ? Detail.Returns?.FirstOrDefault(r => r.Number == Saga.ReturnNumber) : null;
+
+    /// <summary>Kolik se vrací – vratka po částech jen vrácené kusy, celá objednávka včetně dopravy.</summary>
+    public decimal Amount => Return?.Amount ?? Order.TotalPrice;
+}

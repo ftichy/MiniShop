@@ -29,7 +29,10 @@ public sealed class PublishOrderIntegrationEventsHandler(
     IDomainEventHandler<OrderCancelled>,
     IDomainEventHandler<OrderReturnRequested>,
     IDomainEventHandler<OrderReturnRejected>,
-    IDomainEventHandler<OrderReturned>
+    IDomainEventHandler<OrderReturned>,
+    IDomainEventHandler<OrderPartialReturnRequested>,
+    IDomainEventHandler<OrderPartialReturnRejected>,
+    IDomainEventHandler<OrderPartialReturnCompleted>
 {
     /// <summary>
     /// Vznik objednávky ve dvou verzích (e-shop krok 7, expand → contract): V1 pro stávající odběratele,
@@ -117,6 +120,51 @@ public sealed class PublishOrderIntegrationEventsHandler(
             domainEvent.Order.TotalPrice,
             RefundedByCard: domainEvent.Order.PaymentMethod == PaymentMethod.Card));
 
+    /// <summary>E-shop krok 22: vratka po částech – které kusy poslat a do kdy (Notifications).</summary>
+    public Task HandleAsync(OrderPartialReturnRequested domainEvent, CancellationToken cancellationToken)
+    {
+        var orderReturn = domainEvent.Order.GetReturn(domainEvent.ReturnNumber);
+        return PublishAsync(cancellationToken, new ReturnRequestedV2(
+            Guid.NewGuid(),
+            domainEvent.OccurredAtUtc,
+            domainEvent.Order.Id,
+            domainEvent.ReturnNumber,
+            domainEvent.Order.CustomerEmail,
+            orderReturn.Reason,
+            orderReturn.RequestedAtUtc + returnSettings.SendWindow,   // stejný termín jako v ReturnSaga
+            ToReturnItems(orderReturn)));
+    }
+
+    public Task HandleAsync(OrderPartialReturnRejected domainEvent, CancellationToken cancellationToken) =>
+        PublishAsync(cancellationToken, new ReturnRejectedV2(
+            Guid.NewGuid(),
+            domainEvent.OccurredAtUtc,
+            domainEvent.Order.Id,
+            domainEvent.ReturnNumber,
+            domainEvent.Order.CustomerEmail,
+            domainEvent.Order.GetReturn(domainEvent.ReturnNumber).RejectionReason ?? string.Empty));
+
+    /// <summary>
+    /// E-shop krok 22: vratka po částech hotová – dobropis jen za vrácené (Invoicing), e-mail, tržba bez vrácených (Reporting),
+    /// hodnocení produktů vrácených celých už ne (Reviews). Doprava se u vratky po částech nevrací.
+    /// </summary>
+    public Task HandleAsync(OrderPartialReturnCompleted domainEvent, CancellationToken cancellationToken)
+    {
+        var order = domainEvent.Order;
+        var orderReturn = order.GetReturn(domainEvent.ReturnNumber);
+        return PublishAsync(cancellationToken, new ReturnCompletedV2(
+            Guid.NewGuid(),
+            domainEvent.OccurredAtUtc,
+            order.Id,
+            domainEvent.ReturnNumber,
+            order.CustomerEmail,
+            ToReturnItems(orderReturn),
+            ShippingRefund: 0m,
+            orderReturn.Amount,
+            RefundedByCard: order.PaymentMethod == PaymentMethod.Card,
+            order.FullyReturnedProductIds()));
+    }
+
     private async Task PublishAsync(CancellationToken cancellationToken, params IIntegrationEvent[] integrationEvents)
     {
         foreach (var integrationEvent in integrationEvents)
@@ -126,6 +174,9 @@ public sealed class PublishOrderIntegrationEventsHandler(
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }
+
+    private static IReadOnlyList<ReturnItemV1> ToReturnItems(OrderReturn orderReturn) =>
+        orderReturn.Lines.Select(l => new ReturnItemV1(l.ProductId, l.ProductName, l.Quantity, l.UnitPrice, l.Discount, l.LineTotal)).ToList();
 
     private static IReadOnlyList<OrderLineV1> ToLines(Order order) =>
         order.Items.Select(i => new OrderLineV1(i.ProductId, i.Quantity)).ToList();

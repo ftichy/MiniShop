@@ -3,7 +3,7 @@
 #   docker build -f src/MiniShop.Inventory.Api/Dockerfile -t minishop-inventory-api .
 # Popis jednotlivých částí je v src/MiniShop.Web/Dockerfile – tento je stejný, jen pro jiný projekt.
 
-FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:11.0 AS build
 ARG TARGETARCH
 WORKDIR /src
 
@@ -20,7 +20,7 @@ COPY src/ src/
 RUN dotnet publish src/MiniShop.Inventory.Api/MiniShop.Inventory.Api.csproj -c Release -a $TARGETARCH --no-restore \
     -p:UseAppHost=false -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:11.0 AS final
 WORKDIR /app
 
 RUN mkdir -p /data && chown $APP_UID /data

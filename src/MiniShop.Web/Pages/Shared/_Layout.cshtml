@@ -1,5 +1,6 @@
 @using Microsoft.AspNetCore.Authorization
 @using MiniShop.Web.Accounts
+@using MiniShop.Web.Extensions
 @inject IAuthorizationService AuthorizationService
 @{
     var isAdmin = (await AuthorizationService.AuthorizeAsync(User, AuthorizationPolicies.RequireAdmin)).Succeeded;
@@ -23,6 +24,8 @@
         || allowed.Contains(AuthorizationPolicies.RequireMarketing);
     var canOperationsMenu = allowed.Contains(AuthorizationPolicies.RequireUserAdmin) || allowed.Contains(AuthorizationPolicies.RequireOperations);
     var isSignedIn = User.Identity?.IsAuthenticated == true;
+    // Účty krok 12C: zaměstnanec bez dvoufázového ověření – správa je zamčená, ukážeme cestu k nastavení.
+    var needsTwoFactor = isSignedIn && User.NeedsTwoFactorSetup();
 }
 <!DOCTYPE html>
 <html lang="cs">
@@ -56,6 +59,10 @@
                         }
                         @* Účty krok 2: menu podle role – zamčené je to stejně na serveru, tady jde jen o to neukazovat slepé odkazy.
                            Redesign A: administrace v jedné rozbalovací nabídce (11 odkazů by se do lišty nevešlo). *@
+                        @if (needsTwoFactor)
+                        {
+                            <li class="nav-item"><a class="nav-link" href="@AccountsServiceCollectionExtensions.TwoFactorSetupPath" data-track="nav-admin-2fa">Správa</a></li>
+                        }
                         @if (isAdmin)
                         {
                             <li class="nav-item dropdown">
@@ -150,6 +157,14 @@
 
     <main class="container pt-4">
         <partial name="_EmailConfirmationBanner" />
+        @if (needsTwoFactor)
+        {
+            @* Účty krok 12C: bez 2FA by zaměstnanec správu vůbec neviděl a nevěděl proč. *@
+            <div class="alert alert-warning d-flex flex-wrap align-items-center gap-2" data-track="two-factor-required">
+                <span>Máte zaměstnaneckou roli – pro přístup do správy si nastavte <strong>dvoufázové ověření</strong>.</span>
+                <a class="btn btn-sm btn-outline-dark" href="@AccountsServiceCollectionExtensions.TwoFactorSetupPath">Nastavit</a>
+            </div>
+        }
         @RenderBody()
     </main>
 

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using MiniShop.Application.Abstractions;
 using MiniShop.Application.Exceptions;
 using MiniShop.Application.Reviews;
+using MiniShop.Domain.Exceptions;
 using MiniShop.Web.Accounts;
 using MiniShop.Web.Ui;
 
@@ -36,12 +37,16 @@ public sealed class IndexModel(ReviewService reviews) : PageModel
     {
         try
         {
-            await reviews.SetHiddenAsync(id, hide, cancellationToken);
+            await reviews.SetHiddenAsync(id, hide, User.ToActingUserId(), cancellationToken);
             StatusMessage = hide ? "Hodnocení skryto – průměr ve výloze se za chvilku přepočítá." : "Hodnocení je zase vidět.";
         }
         catch (NotFoundException)
         {
             StatusMessage = "Hodnocení neexistuje.";
+        }
+        catch (DomainException ex)   // účty krok 12C: vlastní hodnocení – střet zájmů
+        {
+            StatusMessage = ex.Message;
         }
 
         return RedirectToPage(new { p = PageNumber, size = PageSize });   // zpět na stejnou stránku seznamu

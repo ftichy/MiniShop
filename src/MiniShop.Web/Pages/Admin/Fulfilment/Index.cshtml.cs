@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -19,6 +20,14 @@ namespace MiniShop.Web.Pages.Admin.Fulfilment;
 [Authorize(Policy = AuthorizationPolicies.RequireFulfilment)]   // účty krok 12B
 public sealed class IndexModel(IOrderService orderService) : PageModel
 {
+    /// <summary>
+    /// Účty krok 12C: vlastní objednávka skladníka (podle e-mailu účtu – jen pro obrazovku; server pravidlo hlídá podle ID
+    /// účtu v OrderService) – místo akcí štítek „vyřídí kolega“.
+    /// </summary>
+    public bool IsOwn(OrderDto order) =>
+        !string.IsNullOrEmpty(order.CustomerEmail)
+        && string.Equals(order.CustomerEmail, User.FindFirstValue(ClaimTypes.Email), StringComparison.OrdinalIgnoreCase);
+
     /// <summary>Nabídka dopravců ve formuláři odeslání (jde napsat i jiného).</summary>
     public static readonly IReadOnlyList<string> Carriers = ["PPL", "Zásilkovna", "Česká pošta", "DPD", "GLS"];
 
@@ -53,7 +62,7 @@ public sealed class IndexModel(IOrderService orderService) : PageModel
         var errors = new List<string>();
         foreach (var id in ids.Distinct())
         {
-            if (await TryAsync(id, () => orderService.StartPackingAsync(id, cancellationToken), errors))
+            if (await TryAsync(id, () => orderService.StartPackingAsync(id, User.ToActingUserId(), cancellationToken), errors))
             {
                 packed.Add(id);
             }
@@ -67,7 +76,7 @@ public sealed class IndexModel(IOrderService orderService) : PageModel
     public async Task<IActionResult> OnPostShipAsync(int id, string? carrier, string? trackingNumber, CancellationToken cancellationToken)
     {
         var errors = new List<string>();
-        if (await TryAsync(id, () => orderService.ShipAsync(id, carrier, trackingNumber, cancellationToken), errors))
+        if (await TryAsync(id, () => orderService.ShipAsync(id, carrier, trackingNumber, User.ToActingUserId(), cancellationToken), errors))
         {
             StatusMessage = $"Objednávka č. {id} odeslána.";
         }
@@ -80,7 +89,7 @@ public sealed class IndexModel(IOrderService orderService) : PageModel
     public async Task<IActionResult> OnPostDeliverAsync(int id, CancellationToken cancellationToken)
     {
         var errors = new List<string>();
-        if (await TryAsync(id, () => orderService.CompleteAsync(id, cancellationToken), errors))
+        if (await TryAsync(id, () => orderService.CompleteAsync(id, User.ToActingUserId(), cancellationToken), errors))
         {
             StatusMessage = $"Objednávka č. {id} doručena.";
         }

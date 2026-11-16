@@ -146,23 +146,26 @@ public sealed class OrderService(
         return inProgress.Select(o => o.ToDto()).ToList();
     }
 
-    public Task<OrderDto> StartPackingAsync(int id, CancellationToken cancellationToken = default) =>
-        ChangeAsync(id, order => order.StartPacking(UtcNow), cancellationToken);                         // → OrderPackingStarted
+    public Task<OrderDto> StartPackingAsync(int id, string? actingUserId = null, CancellationToken cancellationToken = default) =>
+        ChangeAsync(id, actingUserId, order => order.StartPacking(UtcNow), cancellationToken);                         // → OrderPackingStarted
 
-    public Task<OrderDto> ShipAsync(int id, string? carrier, string? trackingNumber, CancellationToken cancellationToken = default) =>
-        ChangeAsync(id, order => order.Ship(carrier, trackingNumber, UtcNow), cancellationToken);        // → OrderShipped → OrderShippedV1
+    public Task<OrderDto> ShipAsync(int id, string? carrier, string? trackingNumber, string? actingUserId = null,
+        CancellationToken cancellationToken = default) =>
+        ChangeAsync(id, actingUserId, order => order.Ship(carrier, trackingNumber, UtcNow), cancellationToken);        // → OrderShipped → OrderShippedV1
 
     /// <remarks>E-shop krok 6: „vyřídit“ = doručeno – jde až po odeslání (dřív rovnou z Confirmed).</remarks>
-    public Task<OrderDto> CompleteAsync(int id, CancellationToken cancellationToken = default) =>
-        ChangeAsync(id, order => order.MarkDelivered(UtcNow), cancellationToken);                        // → OrderCompleted
+    public Task<OrderDto> CompleteAsync(int id, string? actingUserId = null, CancellationToken cancellationToken = default) =>
+        ChangeAsync(id, actingUserId, order => order.MarkDelivered(UtcNow), cancellationToken);                        // → OrderCompleted
 
     /// <summary>
     /// Expedice (jen správce – hlídá Web): načíst, změnit stav, uložit. Souběžná změna téže objednávky (zákazník zrušil)
     /// skončí při uložení <see cref="ConcurrencyConflictException"/> – nic se nepřepíše.
+    /// Účty krok 12C: <paramref name="actingUserId"/> = kdo to dělá; vlastní objednávku zaměstnanec nevyřizuje (střet zájmů).
     /// </summary>
-    private async Task<OrderDto> ChangeAsync(int id, Action<Order> change, CancellationToken cancellationToken)
+    private async Task<OrderDto> ChangeAsync(int id, string? actingUserId, Action<Order> change, CancellationToken cancellationToken)
     {
         var order = await GetOrderAsync(id, OrderAccess.AllOrders, cancellationToken);
+        ConflictOfInterest.EnsureNotOwn(order.CustomerId, actingUserId);
         change(order);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);   // → outbox → později handlery

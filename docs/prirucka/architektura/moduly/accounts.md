@@ -63,6 +63,26 @@ oblasti, na které má uživatel roli; stránky s víc akcemi (Produkty, Vratky,
 Tabulku ověřuje [StaffAreaTests](code:tests/MiniShop.Tests/Web/StaffAreaTests.cs) – každá řádka × všech 7 rolí.
 **Nová stránka správy = politika oblasti + řádek tam.**
 
+### Střet zájmů (účty krok 12C)
+
+Pravidlo čtyř očí: zaměstnanec, který je i zákazník, **nevyřizuje sám sebe** – vyřídí to kolega.
+
+| Akce | Kdo | U vlastní objednávky / hodnocení |
+| --- | --- | --- |
+| Expedice – zabalit, odeslat, doručeno (stránka i API `complete`) | sklad | odmítnuto „Vlastní objednávku musí vyřídit kolega“ |
+| Vratka – Přijato / Zamítnout | sklad / podpora | odmítnuto |
+| Hodnocení – skrýt / zobrazit | podpora | odmítnuto |
+| Zrušit vlastní objednávku | kdokoli | jako zákazník – povoleno |
+
+Pravidlo je v aplikační vrstvě ([ConflictOfInterest](code:src/MiniShop.Application/Abstractions/ConflictOfInterest.cs)) –
+metody expedice, vratky a moderace dostávají ID zaměstnance (`actingUserId`), takže platí pro stránky i API. Systém
+(timeout worker, sága) žádné ID nemá a pravidlo se ho netýká. Stránky Expedice a Vratky u vlastní objednávky ukážou štítek
+„vaše objednávka – vyřídí kolega“ místo akcí.
+
+**Zaměstnanec bez 2FA** vidí nahoře upozornění a v menu položku Správa, která vede na nastavení dvoufázového ověření
+(dřív správu prostě neviděl a nevěděl proč).
+
+
 ## Role a oprávnění
 
 | Kde | Nepřihlášený | User (zákazník) | Zaměstnanec (podle oblasti – viz výše) |

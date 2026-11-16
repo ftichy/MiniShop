@@ -29,13 +29,15 @@ public interface IOrderService
     Task<IReadOnlyList<OrderDto>> GetFulfilmentQueueAsync(CancellationToken cancellationToken = default);
 
     /// <summary>E-shop krok 6: začít balit (Confirmed → Packing). Jen admin.</summary>
-    Task<OrderDto> StartPackingAsync(int id, CancellationToken cancellationToken = default);
+    /// <remarks>Účty krok 12C: actingUserId = zaměstnanec, který to dělá – vlastní objednávku nevyřizuje (střet zájmů).</remarks>
+    Task<OrderDto> StartPackingAsync(int id, string? actingUserId = null, CancellationToken cancellationToken = default);
 
     /// <summary>E-shop krok 6: odeslat (Packing → Shipped); kurýr potřebuje dopravce a číslo zásilky. Jen admin.</summary>
-    Task<OrderDto> ShipAsync(int id, string? carrier, string? trackingNumber, CancellationToken cancellationToken = default);
+    Task<OrderDto> ShipAsync(int id, string? carrier, string? trackingNumber, string? actingUserId = null,
+        CancellationToken cancellationToken = default);
 
     /// <summary>Doručeno (Shipped → Completed). E-shop krok 6: dřív „vyřídit“ rovnou z Confirmed. Jen admin.</summary>
-    Task<OrderDto> CompleteAsync(int id, CancellationToken cancellationToken = default);
+    Task<OrderDto> CompleteAsync(int id, string? actingUserId = null, CancellationToken cancellationToken = default);
     Task<OrderDto> CancelAsync(int id, OrderAccess access, CancellationToken cancellationToken = default);
 
     /// <summary>E-shop krok 12: zákazník chce doručenou objednávku vrátit (do 14 dní, jednou). Cizí = 404.</summary>

@@ -36,6 +36,34 @@ public sealed class AccountEmails(UserManager<ApplicationUser> userManager, IEma
             url, "Pokud jste o nové heslo nežádali, e-mail ignorujte – vaše heslo zůstává beze změny.", cancellationToken);
     }
 
+    /// <summary>
+    /// Účty krok 12A: správce uživatelů změnil zaměstnanecké role – dát vědět (bezpečnost: nečekaná nová práva = signál,
+    /// že někdo zneužil účet správce). Bez odkazu a tokenu – jen informace.
+    /// </summary>
+    public Task SendRolesChangedAsync(AccountRoleChange change, CancellationToken cancellationToken)
+    {
+        var lines = new List<string>();
+        if (change.Added.Count > 0)
+        {
+            lines.Add("Přidáno: " + string.Join(", ", change.Added.Select(AccountRoles.Label)));
+        }
+
+        if (change.Removed.Count > 0)
+        {
+            lines.Add("Odebráno: " + string.Join(", ", change.Removed.Select(AccountRoles.Label)));
+        }
+
+        const string intro = "správce uživatelů změnil vaše oprávnění v MiniShopu.";
+        const string footer = "Pokud o změně nevíte, ozvěte se prosím správci – může jít o zneužití účtu.";
+        var name = change.DisplayName;
+        var text = $"Dobrý den, {name},\n\n{intro}\n{string.Join("\n", lines)}\n\n{footer}\n\nMiniShop";
+        var html = $"<p>Dobrý den, {WebUtility.HtmlEncode(name)},</p><p>{WebUtility.HtmlEncode(intro)}</p><ul>" +
+                   string.Concat(lines.Select(line => $"<li>{WebUtility.HtmlEncode(line)}</li>")) +
+                   $"</ul><p>{WebUtility.HtmlEncode(footer)}</p><p>MiniShop</p>";
+
+        return emailSender.SendAsync(new EmailMessage(change.Email, "MiniShop: změna oprávnění", text, html), cancellationToken);
+    }
+
     /// <summary>Token obsahuje znaky jako + a / – do adresy se kóduje bezpečně (Base64Url).</summary>
     public static string EncodeToken(string token) => WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
 

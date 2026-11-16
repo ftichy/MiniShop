@@ -194,7 +194,7 @@ public sealed partial class TwoFactorTests(MiniShopWebFactory web)
             var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var user = (await users.FindByEmailAsync(email))!;
             await users.RemoveFromRoleAsync(user, AccountRoles.User);
-            await users.AddToRoleAsync(user, AccountRoles.Admin);
+            await users.AddToRolesAsync(user, AccountRoles.Staff);   // účty krok 12A: dřív role Admin
         }
 
         var client = await web.LoginAsync(email, Password);

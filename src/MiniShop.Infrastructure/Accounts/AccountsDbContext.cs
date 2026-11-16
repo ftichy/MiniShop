@@ -47,6 +47,7 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
             audit.Property(entry => entry.TargetUserId).IsRequired().HasMaxLength(AccountAuditEntry.UserIdMaxLength);
             audit.Property(entry => entry.TargetEmail).IsRequired().HasMaxLength(AccountAuditEntry.EmailMaxLength);
             audit.Property(entry => entry.Action).HasConversion<string>().HasMaxLength(30);
+            audit.Property(entry => entry.Detail).HasMaxLength(AccountAuditEntry.DetailMaxLength);   // účty krok 12A
             // Detail uživatele čte jeho historii.
             audit.HasIndex(entry => entry.TargetUserId);
         });

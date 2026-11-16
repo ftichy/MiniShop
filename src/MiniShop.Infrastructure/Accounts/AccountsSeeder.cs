@@ -86,7 +86,8 @@ public sealed class AccountsSeeder(
             return result;
         }
 
-        result = await userManager.AddToRoleAsync(user, AccountRoles.Admin);
+        // Účty krok 12A: první správce dostane všechny zaměstnanecké role (ostatní pak rozdělí v aplikaci).
+        result = await userManager.AddToRolesAsync(user, AccountRoles.Staff);
         if (result.Succeeded && mustChangePassword)
         {
             result = await userManager.AddClaimAsync(user, new Claim(AccountClaimTypes.MustChangePassword, "true"));
@@ -125,8 +126,9 @@ public sealed class AccountsSeeder(
         }
     }
 
+    /// <summary>Účty krok 12A: „admin“ = správce uživatelů (ten může přidělit všechno ostatní).</summary>
     private async Task<bool> AnyAdminAsync() =>
-        (await userManager.GetUsersInRoleAsync(AccountRoles.Admin)).Count > 0;
+        (await userManager.GetUsersInRoleAsync(AccountRoles.UserAdmin)).Count > 0;
 
     private static IdentityResult Failed(string description) =>
         IdentityResult.Failed(new IdentityError { Code = "FirstAdmin", Description = description });

@@ -18,10 +18,13 @@ public sealed class AccountDeletion(
     UserManager<ApplicationUser> userManager,
     ILogger<AccountDeletion> logger)
 {
-    /// <summary>Smí si uživatel účet smazat? Null = ano, jinak důvod. Admin ne – nejdřív ho jiný admin vrátí na usera.</summary>
+    /// <summary>
+    /// Smí si uživatel účet smazat? Null = ano, jinak důvod. Účty krok 12A: zaměstnanec (i původní Admin) ne – nejdřív mu
+    /// správce uživatelů zaměstnanecké role odebere.
+    /// </summary>
     public async Task<string?> CanDeleteAsync(ApplicationUser user) =>
-        await userManager.IsInRoleAsync(user, AccountRoles.Admin)
-            ? "Admin si účet smazat nemůže – nejdřív vás musí jiný admin vrátit na usera."
+        (await userManager.GetRolesAsync(user)).Any(role => AccountRoles.IsStaff(role) || role == AccountRoles.LegacyAdmin)
+            ? "Zaměstnanec si účet smazat nemůže – nejdřív vám správce uživatelů musí odebrat zaměstnanecké role."
             : null;
 
     public async Task<IdentityResult> DeleteAsync(ApplicationUser user, CancellationToken cancellationToken = default)

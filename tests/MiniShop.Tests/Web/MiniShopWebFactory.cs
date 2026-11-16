@@ -115,12 +115,24 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var user = new ApplicationUser { UserName = email, Email = email, DisplayName = "Test admin", EmailConfirmed = true };
         Assert.True((await users.CreateAsync(user, password)).Succeeded);
-        await users.AddToRoleAsync(user, AccountRoles.Admin);
+        await users.AddToRolesAsync(user, AccountRoles.Staff);   // účty krok 12A: dřív role Admin
         if (twoFactor)
         {
             await users.ResetAuthenticatorKeyAsync(user);
             await users.SetTwoFactorEnabledAsync(user, true);
         }
+    }
+
+    /// <summary>Účty krok 12A: účet s vybranými rolemi (třeba Sklad + Zákazník), potvrzený e-mail a zapnuté 2FA.</summary>
+    public async Task CreateWithRolesAsync(string email, string password, params string[] roles)
+    {
+        await using var scope = Services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = new ApplicationUser { UserName = email, Email = email, DisplayName = "Test zaměstnanec", EmailConfirmed = true };
+        Assert.True((await users.CreateAsync(user, password)).Succeeded);
+        Assert.True((await users.AddToRolesAsync(user, roles)).Succeeded);
+        await users.ResetAuthenticatorKeyAsync(user);
+        await users.SetTwoFactorEnabledAsync(user, true);
     }
 
     /// <summary>Aktuální tajný klíč účtu (jako ho vidí aplikace v telefonu).</summary>

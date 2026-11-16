@@ -38,7 +38,7 @@ public sealed class TwoFactorAdminTests(MiniShopWebFactory web)
 
     [Theory]
     [InlineData("/Admin/Fulfilment?handler=StartPacking")]
-    [InlineData("/Admin/Users/Detail/neexistuje?handler=Promote")]
+    [InlineData("/Admin/Users/Detail/neexistuje?handler=Roles")]
     [InlineData("/Products?handler=Delete&id=1")]
     [InlineData("/Orders?handler=SyncCatalog")]
     public async Task AdminBez2fa_AkceAdministrace_PosleNaNastaveni(string url)
@@ -137,7 +137,7 @@ public sealed class TwoFactorAdminTests(MiniShopWebFactory web)
             var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var user = (await users.FindByEmailAsync(email))!;
             await users.RemoveFromRoleAsync(user, AccountRoles.User);
-            await users.AddToRoleAsync(user, AccountRoles.Admin);
+            await users.AddToRolesAsync(user, AccountRoles.Staff);   // účty krok 12A: dřív role Admin
             await users.UpdateSecurityStampAsync(user);
         }
 

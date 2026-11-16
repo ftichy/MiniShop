@@ -103,7 +103,7 @@ public sealed class AccountsTests : IDisposable
         await Seed(Bootstrap);
         await Seed(Bootstrap with { Email = "druhy-admin@example.com" });
 
-        var admins = await Users(m => m.GetUsersInRoleAsync(AccountRoles.Admin));
+        var admins = await Users(m => m.GetUsersInRoleAsync(AccountRoles.UserAdmin));
         var admin = Assert.Single(admins);
         Assert.Equal("admin@example.com", admin.Email);
         Assert.True(await Users(m => m.CheckPasswordAsync(admin, "admin-heslo-123")));
@@ -119,7 +119,7 @@ public sealed class AccountsTests : IDisposable
 
         await Seed(Bootstrap);
 
-        Assert.Empty(await Users(m => m.GetUsersInRoleAsync(AccountRoles.Admin)));
+        Assert.Empty(await Users(m => m.GetUsersInRoleAsync(AccountRoles.UserAdmin)));
     }
 
     [Fact]
@@ -127,7 +127,7 @@ public sealed class AccountsTests : IDisposable
     {
         await Seed(null);
 
-        Assert.Empty(await Users(m => m.GetUsersInRoleAsync(AccountRoles.Admin)));
+        Assert.Empty(await Users(m => m.GetUsersInRoleAsync(AccountRoles.UserAdmin)));
     }
 
     [Fact]
@@ -140,7 +140,8 @@ public sealed class AccountsTests : IDisposable
         var user = (await Users(m => m.FindByEmailAsync("stary@example.com")))!;
         Assert.Equal([AccountRoles.User], await Users(m => m.GetRolesAsync(user)));
         var admin = (await Users(m => m.FindByEmailAsync("admin@example.com")))!;
-        Assert.Equal([AccountRoles.Admin], await Users(m => m.GetRolesAsync(admin)));   // admin není zákazník
+        // Účty krok 12A: první správce dostane všechny zaměstnanecké role, zákazníkem ho udělá až správa uživatelů.
+        Assert.Equal(AccountRoles.Staff.Order(), (await Users(m => m.GetRolesAsync(admin))).Order());
     }
 
     [Fact]
@@ -161,7 +162,7 @@ public sealed class AccountsTests : IDisposable
 
         Assert.True(result.Succeeded);
         var admin = (await Users(m => m.FindByEmailAsync("admin@example.com")))!;
-        Assert.True(await Users(m => m.IsInRoleAsync(admin, AccountRoles.Admin)));
+        Assert.True(await Users(m => m.IsInRoleAsync(admin, AccountRoles.UserAdmin)));
         Assert.Empty(await Users(m => m.GetClaimsAsync(admin)));
     }
 
@@ -176,7 +177,7 @@ public sealed class AccountsTests : IDisposable
 
         var principal = await factory.CreateAsync((await userManager.FindByEmailAsync("admin@example.com"))!);
 
-        Assert.True(principal.IsInRole(AccountRoles.Admin));
+        Assert.True(principal.IsInRole(AccountRoles.Warehouse));
         Assert.True(principal.HasClaim(AccountClaimTypes.MustChangePassword, "true"));
     }
 

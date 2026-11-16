@@ -19,13 +19,17 @@ public static partial class TwoFactorHelper
     public const int RecoveryCodeCount = 10;
 
     /// <summary>
-    /// Smí si zařízení pamatovat? Zákazník ano, admin ne – admin zadává kód při každém přihlášení.
+    /// Smí si zařízení pamatovat? Zákazník ano, zaměstnanec ne – zadává kód při každém přihlášení (účty krok 12A: každá
+    /// zaměstnanecká role, dřív Admin).
     /// Jediné místo pravidla (zapamatování zařízení je v A1 jen u zákazníků).
     /// </summary>
-    public static bool MayRememberDevice(IEnumerable<string> roles) => !roles.Contains(AccountRoles.Admin);
+    public static bool MayRememberDevice(IEnumerable<string> roles) => !IsStaff(roles);
 
-    /// <summary>Smí si 2FA vypnout? Zákazník ano, admin ne (účet admina musí zůstat chráněný).</summary>
-    public static bool MayDisable(IEnumerable<string> roles) => !roles.Contains(AccountRoles.Admin);
+    /// <summary>Smí si 2FA vypnout? Zákazník ano, zaměstnanec ne (účet se správou musí zůstat chráněný).</summary>
+    public static bool MayDisable(IEnumerable<string> roles) => !IsStaff(roles);
+
+    private static bool IsStaff(IEnumerable<string> roles) =>
+        roles.Any(role => AccountRoles.IsStaff(role) || role == AccountRoles.LegacyAdmin);
 
     /// <summary>Kód z aplikace bez mezer a pomlček (aplikace ho zobrazují jako „123 456“).</summary>
     public static string NormalizeCode(string? code) =>

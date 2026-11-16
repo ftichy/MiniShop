@@ -33,6 +33,19 @@ public sealed class IndexModel(
     /// <summary>Účty krok 2: vyřízení, obnova katalogu a průběh objednávek jen pro admina.</summary>
     public bool CanManageOrders { get; private set; }
 
+    /// <summary>
+    /// Účty krok 12A: zaměstnanec, který je i zákazník, přepíná „Moje objednávky“ (výchozí) a „Všechny objednávky“
+    /// (<c>?all=1</c>). Zaměstnanec bez role zákazníka vidí rovnou všechny.
+    /// </summary>
+    [BindProperty(SupportsGet = true, Name = "all")]
+    public bool ShowAll { get; set; }
+
+    /// <summary>Pohled správy – všechny objednávky (jinak jen vlastní).</summary>
+    public bool IsManagementView => CanManageOrders && (ShowAll || !CanPlaceOrders);
+
+    /// <summary>Ukázat přepínač Moje / Všechny.</summary>
+    public bool CanSwitchView => CanManageOrders && CanPlaceOrders;
+
     /// <summary>Stránkování: aktuální stránka objednávek (nejnovější první).</summary>
     public PagedList<OrderDto> OrderPage { get; private set; } = new([], 1, PageRequest.DefaultSize, 0);
 
@@ -100,7 +113,7 @@ public sealed class IndexModel(
         CanPlaceOrders = await IsAuthorizedAsync(AuthorizationPolicies.RequireCustomer);
         NeedsEmailConfirmation = !CanPlaceOrders && User.IsInRole(AccountRoles.User);
         CanManageOrders = await IsAuthorizedAsync(AuthorizationPolicies.RequireAdmin);
-        OrderPage = await orderService.GetPageAsync(User.ToOrderAccess(), PageRequest.Of(PageNumber, PageSize), SearchId, cancellationToken);
+        OrderPage = await orderService.GetPageAsync(IsManagementView ? User.ToOrderAccess() : User.ToCustomerOrderAccess(), PageRequest.Of(PageNumber, PageSize), SearchId, cancellationToken);
     }
 
     /// <summary>

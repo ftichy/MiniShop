@@ -72,6 +72,9 @@ Plán (role User a Admin, best practice): [docs/Ucty-roadmap.md](code:docs/Ucty-
 | 11B | Povinné 2FA pro admina – bez něj je administrace zamčená (i přes Google), výměna aplikace záchranným kódem, nouzový příkaz `reset-2fa` | [ucty-11b](code:docs/kroky-ucty/krok-11b-povinne-2fa-admin.md) |
 | 11C | Audit přihlášení – každý pokus (heslo, kód, Google) s výsledkem a IP, bez e-mailu, retence 90 dní | [ucty-11c](code:docs/kroky-ucty/krok-11c-audit-prihlaseni.md) |
 | 11D | OWASP ZAP v CI – pasivní bezpečnostní sken aplikace v Compose, pravidla s odůvodněním, report jako artefakt | [ucty-11d](code:docs/kroky-ucty/krok-11d-zap-sken.md) |
+| 12A | Víc rolí najednou – místo jedné role Admin 7 zaměstnaneckých rolí (správce uživatelů, sortiment, sklad, podpora, marketing, účetní, provoz) + zákazník, přiděluje je jen správce uživatelů zaškrtávátky (i sobě), e-mail o změně oprávnění, převod původních adminů migrací; zaměstnanec může i nakupovat (Moje / Všechny objednávky) | [ucty-12a](code:docs/kroky-ucty/krok-12a-vice-roli.md) |
+| 12B | Správa po oblastech – každá zaměstnanecká role vidí a smí jen svou oblast (politika pro každou oblast, menu Správa podle rolí, akce na stránce podle oblasti), test všech rolí × stránek; vlastní role platí hned; původní role Admin smazána | [ucty-12b](code:docs/kroky-ucty/krok-12b-sprava-po-oblastech.md) |
+| 12C | Střet zájmů – zaměstnanec, který je i zákazník, nevyřizuje sám sebe (vlastní objednávku nebalí ani nedoručí, vlastní vratku nepřevezme ani nezamítne, vlastní hodnocení nemoderuje), štítek „vyřídí kolega“; zaměstnanec bez 2FA vidí upozornění a cestu k nastavení | [ucty-12c](code:docs/kroky-ucty/krok-12c-stret-zajmu.md) |
 
 ## Dokončení e-shopu
 

@@ -1,3 +1,4 @@
+using MiniShop.Application.Abstractions;
 using MiniShop.Application.Exceptions;
 using MiniShop.Contracts.Reviews;
 using MiniShop.Domain.Exceptions;
@@ -61,11 +62,15 @@ public sealed class ReviewService(
         (await reviews.GetPageAsync(page, cancellationToken))
             .Map(r => new ReviewAdminDto(r.Id, r.ProductId, r.AuthorName, r.Rating, r.Text, r.UpdatedAtUtc, r.IsHidden));
 
-    /// <summary>Moderace – skryté hodnocení zmizí ze stránky i z průměru (nový souhrn jde do výlohy).</summary>
-    public async Task SetHiddenAsync(int reviewId, bool hidden, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Moderace – skryté hodnocení zmizí ze stránky i z průměru (nový souhrn jde do výlohy). Účty krok 12C: vlastní hodnocení
+    /// moderátor (<paramref name="actingUserId"/>) neskryje ani nezobrazí – střet zájmů.
+    /// </summary>
+    public async Task SetHiddenAsync(int reviewId, bool hidden, string? actingUserId = null, CancellationToken cancellationToken = default)
     {
         var review = await reviews.GetByIdAsync(reviewId, cancellationToken)
             ?? throw new NotFoundException($"Hodnocení {reviewId} neexistuje.");
+        ConflictOfInterest.EnsureNotOwn(review.CustomerId, actingUserId, "Vlastní hodnocení musí moderovat kolega (střet zájmů).");
         review.SetHidden(hidden);
         await SaveWithSummaryAsync(review.ProductId, await reviews.GetForProductAsync(review.ProductId, cancellationToken),
             cancellationToken);

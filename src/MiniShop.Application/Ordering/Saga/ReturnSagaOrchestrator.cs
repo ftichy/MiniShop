@@ -41,15 +41,19 @@ public sealed class ReturnSagaOrchestrator(
         StartAsync(domainEvent.Order, domainEvent.ReturnNumber, domainEvent.OccurredAtUtc, cancellationToken);
 
     /// <summary>Admin převzal vrácené zboží v pořádku. Vrací false, když vratka na zboží nečeká (už vyřízená).</summary>
-    public async Task<bool> AcceptGoodsAsync(int orderId, int returnNumber = ReturnSaga.WholeOrder,
+    /// <remarks>Účty krok 12C: <paramref name="actingUserId"/> = zaměstnanec – vlastní vratku nepřevezme (střet zájmů).</remarks>
+    public async Task<bool> AcceptGoodsAsync(int orderId, int returnNumber = ReturnSaga.WholeOrder, string? actingUserId = null,
         CancellationToken cancellationToken = default) =>
         await sagas.GetAsync(orderId, returnNumber, cancellationToken) is not null
+        && await EnsureNotOwnAsync(orderId, actingUserId, cancellationToken)
         && await StepAsync(orderId, returnNumber, saga => saga.GoodsReceived(UtcNow), cancellationToken) != ReturnSagaAction.None;
 
     /// <summary>Admin vrácení zamítl (s důvodem pro zákazníka). Neexistující vratka = false (formulář ze staré stránky).</summary>
-    public async Task<bool> RejectAsync(int orderId, string reason, int returnNumber = ReturnSaga.WholeOrder,
+    /// <remarks>Účty krok 12C: vlastní vratku zaměstnanec nezamítne (střet zájmů).</remarks>
+    public async Task<bool> RejectAsync(int orderId, string reason, int returnNumber = ReturnSaga.WholeOrder, string? actingUserId = null,
         CancellationToken cancellationToken = default) =>
         await sagas.GetAsync(orderId, returnNumber, cancellationToken) is not null
+        && await EnsureNotOwnAsync(orderId, actingUserId, cancellationToken)
         && await StepAsync(orderId, returnNumber, saga => saga.Reject(reason, UtcNow), cancellationToken) != ReturnSagaAction.None;
 
     /// <summary>Volá OrderSagaTimeoutWorker pro vratky, kde zboží nedorazilo včas. True = vrácení vypršelo.</summary>
@@ -94,6 +98,18 @@ public sealed class ReturnSagaOrchestrator(
     /// <summary>Rozpracované vratky pro stránku Vratky.</summary>
     public Task<IReadOnlyList<ReturnSaga>> GetOpenAsync(CancellationToken cancellationToken = default) =>
         sagas.GetOpenAsync(cancellationToken);
+
+    /// <summary>Účty krok 12C: krok člověka u vlastní objednávky = výjimka (střet zájmů). Vrací true (pro řetězení podmínek).</summary>
+    private async Task<bool> EnsureNotOwnAsync(int orderId, string? actingUserId, CancellationToken cancellationToken)
+    {
+        if (actingUserId is not null)
+        {
+            ConflictOfInterest.EnsureNotOwn((await GetOrderAsync(orderId, cancellationToken)).CustomerId, actingUserId,
+                "Vlastní vratku musí vyřídit kolega (střet zájmů).");
+        }
+
+        return true;
+    }
 
     private async Task StartAsync(Order order, int returnNumber, DateTime occurredAtUtc, CancellationToken cancellationToken)
     {

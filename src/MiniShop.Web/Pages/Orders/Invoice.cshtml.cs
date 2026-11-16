@@ -21,11 +21,11 @@ public sealed class InvoiceModel(InvoiceService invoices, IAuthorizationService 
     }
 }
 
-/// <summary>E-shop krok 15: komu patří faktury – admin vidí všechny (null), zákazník jen své (jeho ID).</summary>
+/// <summary>E-shop krok 15: komu patří faktury – účetní a podpora vidí všechny (null), zákazník jen své (jeho ID).</summary>
 public static class InvoiceAccess
 {
     public static async Task<string?> CustomerIdOrAdminAsync(ClaimsPrincipal user, IAuthorizationService authorization) =>
-        (await authorization.AuthorizeAsync(user, AuthorizationPolicies.RequireAdmin)).Succeeded
+        (await authorization.AuthorizeAsync(user, AuthorizationPolicies.RequireInvoices)).Succeeded   // účty krok 12B: účetní a podpora
             ? null
             : user.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
 }

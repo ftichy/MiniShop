@@ -1,0 +1,186 @@
+using System.Net;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection;
+using MiniShop.Infrastructure.Accounts;
+
+namespace MiniShop.Tests.Web;
+
+/// <summary>
+/// Účty krok 12A: víc rolí najednou – zaměstnanec, který je i zákazník; přidělení rolí formulářem (jen správce uživatelů)
+/// s e-mailem dotyčnému. Dělení správy po oblastech je krok 12B – zatím každá zaměstnanecká role smí celou správu.
+/// </summary>
+[Collection(WebCollection.Name)]
+public sealed class StaffRolesTests(MiniShopWebFactory web)
+{
+    private const string Password = "heslo-zamestnance-123";
+
+    [Fact]
+    public async Task Skladnik_SmiDoSpravy_ObjednavatNe()
+    {
+        var email = NewEmail();
+        await web.CreateWithRolesAsync(email, Password, AccountRoles.Warehouse);
+        var client = await web.LoginAsync(email, Password);
+
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/Admin/Fulfilment")).StatusCode);
+        var checkout = await client.GetAsync("/Checkout");
+        Assert.Equal(HttpStatusCode.Redirect, checkout.StatusCode);
+        Assert.Contains("/Account/AccessDenied", checkout.Headers.Location!.OriginalString);
+        var orders = WebUtility.HtmlDecode(await client.GetStringAsync("/Orders"));
+        Assert.Contains("Všechny objednávky", orders);
+        Assert.DoesNotContain("data-track=\"orders-scope\"", orders);   // přepínač jen pro zaměstnance-zákazníka
+    }
+
+    [Fact]
+    public async Task ZamestnanecZakaznik_Objednava_PrepinaMojeAVsechny_CiziObjednavkuNevraci()
+    {
+        var email = NewEmail();
+        await web.CreateWithRolesAsync(email, Password, AccountRoles.CustomerSupport, AccountRoles.User);
+        var own = await web.CreateOrderForAsync(email);
+        var foreign = await web.CreateOrderForAsync(MiniShopWebFactory.UserEmail);
+        var client = await web.LoginAsync(email, Password);
+
+        // Pokladna s prázdným košíkem přesměruje do košíku – podstatné je, že ne na „Přístup odepřen“.
+        var checkout = await client.GetAsync("/Checkout");
+        Assert.DoesNotContain("AccessDenied", checkout.Headers.Location?.OriginalString ?? string.Empty);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/Cart")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/Admin/Reviews")).StatusCode);   // oblast podpory (12B)
+
+        var mine = WebUtility.HtmlDecode(await client.GetStringAsync("/Orders"));
+        Assert.Contains("data-track=\"orders-scope\"", mine);
+        Assert.Contains($"Objednávka č. {own}", mine);
+        Assert.DoesNotContain($"Objednávka č. {foreign}", mine);
+        var all = WebUtility.HtmlDecode(await client.GetStringAsync($"/Orders?all=true&order={foreign}"));
+        Assert.Contains($"Objednávka č. {foreign}", all);
+
+        // Cizí objednávku vidí jako podpora, ale vrátit ji za zákazníka nemůže (akce zákazníka = jen vlastní, 404).
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/Orders/{foreign}")).StatusCode);
+        var returnForeign = await client.PostAsync($"/Orders/{foreign}?handler=Return", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = await MiniShopWebFactory.GetAntiforgeryTokenAsync(client, "/"),
+            ["reason"] = "cizí"
+        }));
+        Assert.Equal(HttpStatusCode.NotFound, returnForeign.StatusCode);
+    }
+
+    [Fact]
+    public async Task SpravceUzivatelu_PrideliRoleFormularem_UzivatelDostaneEmail()
+    {
+        var email = NewEmail();
+        await web.CreateUserAsync(email, Password);
+        var userId = await UserIdAsync(email);
+        var admin = await web.LoginAsync(MiniShopWebFactory.AdminEmail, MiniShopWebFactory.AdminPassword);
+
+        var page = WebUtility.HtmlDecode(await admin.GetStringAsync($"/Admin/Users/Detail/{userId}"));
+        Assert.Contains("data-track=\"user-roles-form\"", page);
+
+        var response = await admin.PostAsync($"/Admin/Users/Detail/{userId}?handler=Roles", new FormUrlEncodedContent(
+        [
+            new("__RequestVerificationToken", await MiniShopWebFactory.GetAntiforgeryTokenAsync(admin, $"/Admin/Users/Detail/{userId}")),
+            new("roles", AccountRoles.User),
+            new("roles", AccountRoles.Accounting)
+        ]));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal([AccountRoles.User, AccountRoles.Accounting], await RolesAsync(email));
+        var mail = Assert.Single(web.Emails.Sent, m => m.To == email && m.Subject.Contains("změna oprávnění"));
+        Assert.Contains("Přidáno: Účetní", mail.TextBody);
+    }
+
+    [Fact]
+    public async Task ZamestnanecBezSpravyUzivatelu_DetailUzivateleNesmi_ZmenaNeprojde()
+    {
+        var email = NewEmail();
+        await web.CreateWithRolesAsync(email, Password, AccountRoles.Marketing);
+        var target = NewEmail();
+        await web.CreateUserAsync(target, Password);
+        var targetId = await UserIdAsync(target);
+        var client = await web.LoginAsync(email, Password);
+
+        // Účty krok 12B: uživatele spravuje jen správce uživatelů – marketing na detail vůbec nesmí.
+        var page = await client.GetAsync($"/Admin/Users/Detail/{targetId}");
+        Assert.Contains("/Account/AccessDenied", page.Headers.Location!.OriginalString);
+
+        await client.PostAsync($"/Admin/Users/Detail/{targetId}?handler=Roles", new FormUrlEncodedContent(
+        [
+            new("__RequestVerificationToken", await MiniShopWebFactory.GetAntiforgeryTokenAsync(client, "/")),
+            new("roles", AccountRoles.UserAdmin)
+        ]));
+
+        Assert.Equal([AccountRoles.User], await RolesAsync(target));
+    }
+
+    /// <summary>Účty krok 12B: vlastní role platí hned po uložení – bez odhlášení (dřív až po novém přihlášení).</summary>
+    [Fact]
+    public async Task VlastniRole_PlatiHnedBezOdhlaseni()
+    {
+        var email = NewEmail();
+        await web.CreateWithRolesAsync(email, Password, AccountRoles.UserAdmin, AccountRoles.Marketing);
+        var userId = await UserIdAsync(email);
+        var client = await web.LoginAsync(email, Password);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/Admin/Coupons")).StatusCode);
+
+        await client.PostAsync($"/Admin/Users/Detail/{userId}?handler=Roles", new FormUrlEncodedContent(
+        [
+            new("__RequestVerificationToken", await MiniShopWebFactory.GetAntiforgeryTokenAsync(client, $"/Admin/Users/Detail/{userId}")),
+            new("roles", AccountRoles.UserAdmin),
+            new("roles", AccountRoles.User)
+        ]));
+
+        Assert.Contains("/Account/AccessDenied", (await client.GetAsync("/Admin/Coupons")).Headers.Location!.OriginalString);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/Cart")).StatusCode);   // Zákazník hned
+    }
+
+    /// <summary>Účty krok 12C: zaměstnanec bez 2FA vidí upozornění a v menu cestu k nastavení (dřív správu prostě neviděl).</summary>
+    [Fact]
+    public async Task ZamestnanecBez2fa_VidiUpozorneniACestuKNastaveni()
+    {
+        var email = NewEmail();
+        await web.CreateAdminAsync(email, Password, twoFactor: false);
+        var client = await web.LoginAsync(email, Password);
+
+        var home = WebUtility.HtmlDecode(await client.GetStringAsync("/"));
+        var customer = WebUtility.HtmlDecode(await (await web.LoginAsync(MiniShopWebFactory.UserEmail, MiniShopWebFactory.UserPassword))
+            .GetStringAsync("/"));
+
+        Assert.Contains("data-track=\"two-factor-required\"", home);
+        Assert.Contains("data-track=\"nav-admin-2fa\"", home);
+        Assert.DoesNotContain("data-track=\"two-factor-required\"", customer);
+    }
+
+    /// <summary>Účty krok 12C: skladník, který je i zákazník, má u vlastní objednávky v Expedici štítek místo akcí.</summary>
+    [Fact]
+    public async Task Expedice_VlastniObjednavka_StitekAOdmitnuti()
+    {
+        var email = NewEmail();
+        await web.CreateWithRolesAsync(email, Password, AccountRoles.Warehouse, AccountRoles.User);
+        var own = await web.CreateConfirmedOrderForAsync(email, MiniShop.Domain.Orders.ShippingMethod.Courier);
+        var client = await web.LoginAsync(email, Password);
+
+        var page = WebUtility.HtmlDecode(await client.GetStringAsync("/Admin/Fulfilment"));
+        Assert.Contains("data-track=\"own-order\"", page);
+
+        var response = await client.PostAsync("/Admin/Fulfilment?handler=StartPacking", new FormUrlEncodedContent(
+        [
+            new("__RequestVerificationToken", await MiniShopWebFactory.GetAntiforgeryTokenAsync(client, "/Admin/Fulfilment")),
+            new("ids", own.ToString())
+        ]));
+        var after = WebUtility.HtmlDecode(await client.GetStringAsync(response.Headers.Location?.OriginalString ?? "/Admin/Fulfilment"));
+        Assert.Contains("vyřídit kolega", after);
+    }
+
+    private static string NewEmail() => $"role-{Guid.NewGuid():N}@test.local";
+
+    private async Task<string> UserIdAsync(string email)
+    {
+        await using var scope = web.Services.CreateAsyncScope();
+        return (await scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().FindByEmailAsync(email))!.Id;
+    }
+
+    private async Task<IReadOnlyList<string>> RolesAsync(string email)
+    {
+        await using var scope = web.Services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var roles = await users.GetRolesAsync((await users.FindByEmailAsync(email))!);
+        return AccountRoles.All.Where(roles.Contains).ToList();
+    }
+}

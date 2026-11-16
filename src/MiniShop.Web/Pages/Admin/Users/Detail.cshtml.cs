@@ -12,15 +12,19 @@ using MiniShop.Web.Ui;
 namespace MiniShop.Web.Pages.Admin.Users;
 
 /// <summary>
-/// Účty krok 6: detail uživatele – jeho objednávky, historie změn a akce admina (povýšit, vrátit na usera,
-/// zablokovat, odblokovat). Pravidla (poslední admin, sám sebe) hlídá <see cref="AccountAdministration"/>.
+/// Účty krok 6: detail uživatele – jeho objednávky, historie změn a akce správce (zablokovat, odblokovat).
+/// Účty krok 12A: role zaškrtávátky (víc najednou, i sám sobě) – jen správce uživatelů; pravidla (poslední správce,
+/// sám sobě neodebere správu uživatelů) hlídá <see cref="AccountAdministration"/>, změna zaměstnanecké role = e-mail.
 /// </summary>
-[Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+[Authorize(Policy = AuthorizationPolicies.RequireUserAdmin)]   // účty krok 12B
 public sealed class DetailModel(
     AccountAdministration accounts,
     LoginAttemptRecorder loginAttempts,
     IOrderService orderService,
-    UserManager<ApplicationUser> userManager) : PageModel
+    UserManager<ApplicationUser> userManager,
+    AccountEmails emails,
+    SignInManager<ApplicationUser> signInManager,
+    ILogger<DetailModel> logger) : PageModel
 {
     private const int AuditCount = 50;
 
@@ -39,6 +43,9 @@ public sealed class DetailModel(
     public int? PageSize { get; set; }
 
     public bool IsCurrentUser { get; private set; }
+
+    /// <summary>Účty krok 12A: role mění jen správce uživatelů (ostatní zaměstnanci je vidí).</summary>
+    public bool CanManageRoles => User.IsInRole(AccountRoles.UserAdmin);
 
     /// <summary>Účty krok 10: jak se uživatel přihlašuje – „heslo“, „Google“ (jen pro informaci).</summary>
     public IReadOnlyList<string> SignInMethods { get; private set; } = [];
@@ -85,11 +92,32 @@ public sealed class DetailModel(
         return methods;
     }
 
-    public Task<IActionResult> OnPostPromoteAsync(string id, CancellationToken cancellationToken) =>
-        ExecuteAsync(id, accounts.PromoteToAdminAsync(CurrentUserId, id, cancellationToken));
+    /// <summary>Účty krok 12A: uložit zaškrtnuté role (pole <c>roles</c>, víc hodnot).</summary>
+    public async Task<IActionResult> OnPostRolesAsync(string id, string[]? roles, CancellationToken cancellationToken)
+    {
+        var result = await accounts.SetRolesAsync(CurrentUserId, id, roles ?? [], cancellationToken);
+        if (result.Succeeded && id == CurrentUserId && await userManager.FindByIdAsync(id) is { } self)
+        {
+            // Účty krok 12B: vlastní role platí hned – nová cookie s novými rolemi (jinak až po odhlášení a přihlášení;
+            // změna security stampu by staré přihlášení za minutu jen zahodila).
+            await signInManager.RefreshSignInAsync(self);
+        }
 
-    public Task<IActionResult> OnPostDemoteAsync(string id, CancellationToken cancellationToken) =>
-        ExecuteAsync(id, accounts.DemoteToUserAsync(CurrentUserId, id, cancellationToken));
+        if (result.RoleChange is { ChangesStaffAccess: true } change)
+        {
+            try
+            {
+                await emails.SendRolesChangedAsync(change, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Role už jsou uložené – nedoručený e-mail změnu nevrací, jen se zaloguje (bez e-mailové adresy).
+                logger.LogWarning(ex, "E-mail o změně rolí účtu {UserId} se nepodařilo odeslat", id);
+            }
+        }
+
+        return await ExecuteAsync(id, Task.FromResult(result));
+    }
 
     public Task<IActionResult> OnPostLockAsync(string id, CancellationToken cancellationToken) =>
         ExecuteAsync(id, accounts.LockAsync(CurrentUserId, id, cancellationToken));

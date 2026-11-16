@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -15,9 +16,19 @@ namespace MiniShop.Web.Pages.Admin.Returns;
 /// ságy vratky (<see cref="ReturnSagaOrchestrator"/>); naskladnění a vrácení peněz pak běží samo přes zprávy.
 /// </summary>
 /// <remarks>Souběh (vrácení mezitím vypršelo) skončí hláškou místo přepsání (ReturnSaga.Version).</remarks>
-[Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
-public sealed class IndexModel(IOrderService orderService, ReturnSagaOrchestrator returns) : PageModel
+[Authorize(Policy = AuthorizationPolicies.RequireReturns)]   // účty krok 12B
+public sealed class IndexModel(IOrderService orderService, ReturnSagaOrchestrator returns, IAuthorizationService authorization)
+    : PageModel
 {
+    /// <summary>Účty krok 12C: vlastní vratku zaměstnanec nevyřizuje – tlačítka skrytá (server to hlídá i tak).</summary>
+    public string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+    /// <summary>Účty krok 12B: převzetí zásilky (Přijato) – sklad.</summary>
+    public bool CanAccept { get; private set; }
+
+    /// <summary>Účty krok 12B: zamítnutí vratky (spor se zákazníkem) – podpora.</summary>
+    public bool CanReject { get; private set; }
+
     public IReadOnlyList<ReturnRow> Rows { get; private set; } = [];
 
     [TempData]
@@ -28,6 +39,8 @@ public sealed class IndexModel(IOrderService orderService, ReturnSagaOrchestrato
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
+        CanAccept = await IsAllowedAsync(AuthorizationPolicies.RequireFulfilment);
+        CanReject = await IsAllowedAsync(AuthorizationPolicies.RequireSupport);
         // E-shop krok 22: řádek = jedna vratka (objednávka + číslo vratky; 0 = celá objednávka).
         var orders = (await orderService.GetReturnQueueAsync(cancellationToken)).ToDictionary(o => o.Order.Id);
         Rows = (await returns.GetOpenAsync(cancellationToken))
@@ -36,13 +49,15 @@ public sealed class IndexModel(IOrderService orderService, ReturnSagaOrchestrato
             .ToList();
     }
 
-    public Task<IActionResult> OnPostAcceptAsync(int id, int returnNumber, CancellationToken cancellationToken) =>
-        ExecuteAsync(id, async () => await returns.AcceptGoodsAsync(id, returnNumber, cancellationToken),
+    public async Task<IActionResult> OnPostAcceptAsync(int id, int returnNumber, CancellationToken cancellationToken) =>
+        !await IsAllowedAsync(AuthorizationPolicies.RequireFulfilment) ? Forbid() : await ExecuteAsync(id, async () => await returns.AcceptGoodsAsync(id, returnNumber, User.ToActingUserId(), cancellationToken),
             $"Vratka č. {id} převzata – sklad zboží naskladní a zákazník dostane peníze zpět.");
 
-    public Task<IActionResult> OnPostRejectAsync(int id, int returnNumber, string? reason, CancellationToken cancellationToken) =>
-        ExecuteAsync(id, async () => await returns.RejectAsync(id, reason ?? string.Empty, returnNumber, cancellationToken),
+    public async Task<IActionResult> OnPostRejectAsync(int id, int returnNumber, string? reason, CancellationToken cancellationToken) =>
+        !await IsAllowedAsync(AuthorizationPolicies.RequireSupport) ? Forbid() : await ExecuteAsync(id, async () => await returns.RejectAsync(id, reason ?? string.Empty, returnNumber, User.ToActingUserId(), cancellationToken),
             $"Vrácení objednávky č. {id} zamítnuto – zákazník dostane e-mail s důvodem.");
+
+    private async Task<bool> IsAllowedAsync(string policy) => (await authorization.AuthorizeAsync(User, policy)).Succeeded;
 
     private async Task<IActionResult> ExecuteAsync(int id, Func<Task<bool>> action, string success)
     {

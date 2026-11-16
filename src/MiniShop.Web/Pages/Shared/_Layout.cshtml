@@ -1,9 +1,31 @@
 @using Microsoft.AspNetCore.Authorization
 @using MiniShop.Web.Accounts
+@using MiniShop.Web.Extensions
 @inject IAuthorizationService AuthorizationService
 @{
     var isAdmin = (await AuthorizationService.AuthorizeAsync(User, AuthorizationPolicies.RequireAdmin)).Succeeded;
+    // Účty krok 12B: v nabídce Správa jen oblasti, na které má uživatel roli (server to hlídá stejnými politikami).
+    var allowed = new HashSet<string>();
+    if (isAdmin)
+    {
+        foreach (var policy in StaffPolicies.Roles.Keys)
+        {
+            if ((await AuthorizationService.AuthorizeAsync(User, policy)).Succeeded)
+            {
+                allowed.Add(policy);
+            }
+        }
+    }
+
+    var canCatalogMenu = allowed.Contains(AuthorizationPolicies.RequireStock) || allowed.Contains(AuthorizationPolicies.RequireFulfilment)
+        || allowed.Contains(AuthorizationPolicies.RequireReturns) || allowed.Contains(AuthorizationPolicies.RequireMarketing)
+        || allowed.Contains(AuthorizationPolicies.RequireSupport);
+    var canReportsMenu = allowed.Contains(AuthorizationPolicies.RequireAccounting) || allowed.Contains(AuthorizationPolicies.RequireInvoices)
+        || allowed.Contains(AuthorizationPolicies.RequireMarketing);
+    var canOperationsMenu = allowed.Contains(AuthorizationPolicies.RequireUserAdmin) || allowed.Contains(AuthorizationPolicies.RequireOperations);
     var isSignedIn = User.Identity?.IsAuthenticated == true;
+    // Účty krok 12C: zaměstnanec bez dvoufázového ověření – správa je zamčená, ukážeme cestu k nastavení.
+    var needsTwoFactor = isSignedIn && User.NeedsTwoFactorSetup();
 }
 <!DOCTYPE html>
 <html lang="cs">
@@ -37,26 +59,75 @@
                         }
                         @* Účty krok 2: menu podle role – zamčené je to stejně na serveru, tady jde jen o to neukazovat slepé odkazy.
                            Redesign A: administrace v jedné rozbalovací nabídce (11 odkazů by se do lišty nevešlo). *@
+                        @if (needsTwoFactor)
+                        {
+                            <li class="nav-item"><a class="nav-link" href="@AccountsServiceCollectionExtensions.TwoFactorSetupPath" data-track="nav-admin-2fa">Správa</a></li>
+                        }
                         @if (isAdmin)
                         {
                             <li class="nav-item dropdown">
                                 <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false" data-track="nav-admin">Správa</a>
                                 <ul class="dropdown-menu">
-                                    <li><h6 class="dropdown-header">Katalog a objednávky</h6></li>
-                                    <li><a class="dropdown-item" asp-page="/Products/Index" data-track="nav-products">Produkty</a></li>
-                                    <li><a class="dropdown-item" asp-page="/Admin/Fulfilment/Index" data-track="nav-fulfilment">Expedice</a></li>
-                                    <li><a class="dropdown-item" asp-page="/Admin/Returns/Index" data-track="nav-returns">Vratky</a></li>   @* e-shop krok 12 *@
-                                    <li><a class="dropdown-item" asp-page="/Admin/Coupons/Index" data-track="nav-coupons">Kupony</a></li>   @* e-shop krok 13 *@
-                                    <li><a class="dropdown-item" asp-page="/Admin/Reviews/Index" data-track="nav-reviews">Hodnocení</a></li>   @* e-shop krok 14 *@
-                                    <li><hr class="dropdown-divider" /></li>
-                                    <li><h6 class="dropdown-header">Přehledy</h6></li>
-                                    <li><a class="dropdown-item" asp-page="/Admin/Sales/Index" data-track="nav-sales">Tržby</a></li>   @* e-shop krok 11 *@
-                                    <li><a class="dropdown-item" asp-page="/Admin/Invoices/Index" data-track="nav-invoices">Faktury</a></li>   @* e-shop krok 15 *@
-                                    <li><a class="dropdown-item" asp-page="/Admin/CartInsights/Index" data-track="nav-cart-insights">Košíky</a></li>   @* e-shop krok 17 *@
-                                    <li><hr class="dropdown-divider" /></li>
-                                    <li><h6 class="dropdown-header">Provoz</h6></li>
-                                    <li><a class="dropdown-item" asp-page="/Admin/Users/Index" data-track="nav-users">Uživatelé</a></li>
-                                    <li><a class="dropdown-item" asp-page="/Admin/Messages/Index" data-track="nav-messages">Zprávy</a></li>   @* EDA krok 13 *@
+                                    @if (canCatalogMenu)
+                                    {
+                                        <li><h6 class="dropdown-header">Katalog a objednávky</h6></li>
+                                        @if (allowed.Contains(AuthorizationPolicies.RequireStock))
+                                        {
+                                            <li><a class="dropdown-item" asp-page="/Products/Index" data-track="nav-products">Produkty</a></li>
+                                        }
+                                        @if (allowed.Contains(AuthorizationPolicies.RequireFulfilment))
+                                        {
+                                            <li><a class="dropdown-item" asp-page="/Admin/Fulfilment/Index" data-track="nav-fulfilment">Expedice</a></li>
+                                        }
+                                        @if (allowed.Contains(AuthorizationPolicies.RequireReturns))
+                                        {
+                                            <li><a class="dropdown-item" asp-page="/Admin/Returns/Index" data-track="nav-returns">Vratky</a></li>   @* e-shop krok 12 *@
+                                        }
+                                        @if (allowed.Contains(AuthorizationPolicies.RequireMarketing))
+                                        {
+                                            <li><a class="dropdown-item" asp-page="/Admin/Coupons/Index" data-track="nav-coupons">Kupony</a></li>   @* e-shop krok 13 *@
+                                        }
+                                        @if (allowed.Contains(AuthorizationPolicies.RequireSupport))
+                                        {
+                                            <li><a class="dropdown-item" asp-page="/Admin/Reviews/Index" data-track="nav-reviews">Hodnocení</a></li>   @* e-shop krok 14 *@
+                                        }
+                                    }
+                                    @if (canReportsMenu)
+                                    {
+                                        @if (canCatalogMenu)
+                                        {
+                                            <li><hr class="dropdown-divider" /></li>
+                                        }
+                                        <li><h6 class="dropdown-header">Přehledy</h6></li>
+                                        @if (allowed.Contains(AuthorizationPolicies.RequireAccounting))
+                                        {
+                                            <li><a class="dropdown-item" asp-page="/Admin/Sales/Index" data-track="nav-sales">Tržby</a></li>   @* e-shop krok 11 *@
+                                        }
+                                        @if (allowed.Contains(AuthorizationPolicies.RequireInvoices))
+                                        {
+                                            <li><a class="dropdown-item" asp-page="/Admin/Invoices/Index" data-track="nav-invoices">Faktury</a></li>   @* e-shop krok 15 *@
+                                        }
+                                        @if (allowed.Contains(AuthorizationPolicies.RequireMarketing))
+                                        {
+                                            <li><a class="dropdown-item" asp-page="/Admin/CartInsights/Index" data-track="nav-cart-insights">Košíky</a></li>   @* e-shop krok 17 *@
+                                        }
+                                    }
+                                    @if (canOperationsMenu)
+                                    {
+                                        @if (canCatalogMenu || canReportsMenu)
+                                        {
+                                            <li><hr class="dropdown-divider" /></li>
+                                        }
+                                        <li><h6 class="dropdown-header">Provoz</h6></li>
+                                        @if (allowed.Contains(AuthorizationPolicies.RequireUserAdmin))
+                                        {
+                                            <li><a class="dropdown-item" asp-page="/Admin/Users/Index" data-track="nav-users">Uživatelé</a></li>
+                                        }
+                                        @if (allowed.Contains(AuthorizationPolicies.RequireOperations))
+                                        {
+                                            <li><a class="dropdown-item" asp-page="/Admin/Messages/Index" data-track="nav-messages">Zprávy</a></li>   @* EDA krok 13 *@
+                                        }
+                                    }
                                 </ul>
                             </li>
                         }
@@ -86,6 +157,14 @@
 
     <main class="container pt-4">
         <partial name="_EmailConfirmationBanner" />
+        @if (needsTwoFactor)
+        {
+            @* Účty krok 12C: bez 2FA by zaměstnanec správu vůbec neviděl a nevěděl proč. *@
+            <div class="alert alert-warning d-flex flex-wrap align-items-center gap-2" data-track="two-factor-required">
+                <span>Máte zaměstnaneckou roli – pro přístup do správy si nastavte <strong>dvoufázové ověření</strong>.</span>
+                <a class="btn btn-sm btn-outline-dark" href="@AccountsServiceCollectionExtensions.TwoFactorSetupPath">Nastavit</a>
+            </div>
+        }
         @RenderBody()
     </main>
 

@@ -268,6 +268,18 @@ Heslo k Googlu MiniShop nikdy nevidí.
 smazání účtu bez hesla po novém přihlášení u Googlu. Client ID je v `production.env` (není tajné), secret jen
 `GOOGLE_CLIENT_SECRET`. Souhrn: [krok-10-google](kroky-ucty/krok-10-google.md).*
 
+## Krok 12: Dílčí role místo jednoho admina
+
+Místo role Admin sedm zaměstnaneckých rolí (správce uživatelů, sortiment, sklad a expedice, zákaznická podpora,
+marketing, účetní, provoz) + Zákazník; uživatel jich má víc najednou (i zaměstnanec nakupuje), přiděluje je jen správce
+uživatelů, změna oprávnění = e-mail. Rozhodnuto 16. 11. 2026.
+
+- **12A** – víc rolí na účet, převod adminů (migrace), zaškrtávání rolí, pojistky, e-mail. *Hotovo (nasazeno 16. 11. 2026) – souhrn [krok-12a-vice-roli](kroky-ucty/krok-12a-vice-roli.md).*
+- **12B** – správa po oblastech: policy pro každou oblast, menu Správa podle rolí, test všech rolí × stránek, úklid role
+  Admin. *Hotovo (nasazeno 16. 11. 2026) – souhrn [krok-12b-sprava-po-oblastech](kroky-ucty/krok-12b-sprava-po-oblastech.md).*
+- **12C** – střet zájmů: zaměstnanec nevyřizuje vlastní objednávku, vratku ani nemoderuje hodnocení svého nákupu. *Hotovo (nasazeno 16. 11. 2026) –
+  souhrn [krok-12c-stret-zajmu](kroky-ucty/krok-12c-stret-zajmu.md).*
+
 ## Volitelně: kam dál
 
 - **Dvoufázové ověření (TOTP)** pro adminy – Identity ho umí (`AuthenticatorTokenProvider`).

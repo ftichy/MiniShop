@@ -12,7 +12,7 @@ namespace MiniShop.Web.Pages.Orders;
 /// Krok 12B: přehrání průběhu zakládání objednávky. Vstupem je číslo objednávky, scénář (snímky) připraví
 /// <see cref="JourneyReplayProjection"/> a v prohlížeči ho odehraje journey-player.js.
 /// </summary>
-[Authorize(Policy = AuthorizationPolicies.RequireAdmin)]   // účty krok 2: obsahuje i napsané osobní údaje
+[Authorize(Policy = AuthorizationPolicies.RequireSupport)]   // účty krok 12B: jen podpora – obsahuje i napsané osobní údaje
 public sealed class ReplayModel(IJourneyService journeyService) : PageModel
 {
     /// <summary>Číslo objednávky – z adresy (/Orders/Replay/3) nebo z formuláře (?orderId=3).</summary>

@@ -23,18 +23,29 @@ else if (Model.NeedsEmailConfirmation)
     </div>
 }
 
-@if (Model.CanManageOrders)
+@* Účty krok 12B: odkazy podle oblasti – Expedice sklad, obnova katalogu sortiment a provoz. *@
+@if (Model.CanFulfil)
 {
     @* E-shop krok 6: balení, odeslání a doručení – vlastní stránka s frontami. *@
     <p><a asp-page="/Admin/Fulfilment/Index" class="btn btn-outline-primary btn-sm" data-track="orders-to-fulfilment">Expedice</a></p>
+}
+@if (Model.CanSyncCatalog)
+{
     <form method="post" asp-page-handler="SyncCatalog" class="mb-4">
         <button type="submit" class="btn btn-link btn-sm p-0">Obnovit katalog ze skladu</button>
         <span class="text-muted small">– když v nabídce chybí produkt, který sklad má</span>
     </form>
 }
 
-@* Účty krok 3: zákazník vidí jen své objednávky, admin všechny. *@
-<h2 class="h4">@(Model.CanManageOrders ? "Všechny objednávky" : "Moje objednávky")</h2>
+@* Účty krok 3: zákazník vidí jen své objednávky, správa všechny. Účty krok 12A: zaměstnanec, který je i zákazník, přepíná. *@
+@if (Model.CanSwitchView)
+{
+    <ul class="nav nav-pills mb-3" data-track="orders-scope">
+        <li class="nav-item"><a class="nav-link @(Model.IsManagementView ? "" : "active")" asp-page="/Orders/Index" data-track="orders-scope-mine">Moje objednávky</a></li>
+        <li class="nav-item"><a class="nav-link @(Model.IsManagementView ? "active" : "")" asp-page="/Orders/Index" asp-route-all="true" data-track="orders-scope-all">Všechny objednávky</a></li>
+    </ul>
+}
+<h2 class="h4">@(Model.IsManagementView ? "Všechny objednávky" : "Moje objednávky")</h2>
 
 @* Stránkování: hledání podle čísla (GET – jde poslat odkazem, zachová velikost stránky). *@
 <form method="get" class="row g-2 align-items-end mb-3" role="search" data-track="orders-search">
@@ -45,6 +56,10 @@ else if (Model.NeedsEmailConfirmation)
     @if (Model.PageSize is { } size)
     {
         <input type="hidden" name="size" value="@size" />
+    }
+    @if (Model.ShowAll)
+    {
+        <input type="hidden" name="all" value="true" />
     }
     <div class="col-auto">
         <button type="submit" class="btn btn-sm btn-outline-secondary">Hledat</button>
@@ -66,8 +81,8 @@ else if (Model.NeedsEmailConfirmation)
     <p class="text-muted small" data-reload-when-idle>Některé objednávky čekají na ověření skladu, stránka se sama obnoví…</p>
 }
 
-@* Krok 12A: vstupem je číslo objednávky – zobrazí, jak uživatel formulář vyplňoval. Účty krok 2: jen admin. *@
-@if (Model.CanManageOrders)
+@* Krok 12A: vstupem je číslo objednávky – zobrazí, jak uživatel formulář vyplňoval. Účty krok 12B: jen podpora. *@
+@if (Model.CanSupport)
 {
     <form method="get" asp-page="/Orders/Journey" class="row g-2 align-items-end mb-4">
         <div class="col-auto">
@@ -95,7 +110,7 @@ else if (Model.NeedsEmailConfirmation)
                     <a asp-page="/Orders/Detail" asp-route-id="@order.Id" class="fw-bold fs-5 text-decoration-none" data-track="order-detail-link">Objednávka č. @order.Id</a>
                     <div class="small text-muted">
                         @order.CreatedAtUtc.ToCzechString()
-                        @if (Model.CanManageOrders)
+                        @if (Model.IsManagementView)
                         {
                             <text>· @order.CustomerName (@order.CustomerEmail)</text>
                         }
@@ -138,14 +153,15 @@ else if (Model.NeedsEmailConfirmation)
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <div><span class="text-muted small">Celkem</span> <strong class="ms-1">@order.TotalPrice.ToString("N2") Kč</strong></div>
                 <div class="d-flex flex-wrap gap-1">
-                    @if (Model.CanManageOrders)
+                    @if (Model.IsManagementView && Model.CanSupport)
                     {
                         <a asp-page="/Orders/Journey" asp-route-orderId="@order.Id" class="btn btn-sm btn-link">Průběh zadání</a>
                         <a asp-page="/Orders/Replay" asp-route-orderId="@order.Id" asp-route-autoplay="1" class="btn btn-sm btn-link">▶ Přehrát</a>
                     }
                     <a asp-page="/Orders/Detail" asp-route-id="@order.Id" class="btn btn-sm btn-outline-primary">Detail</a>
                     @* E-shop krok 6: „Vyřídit“ nahradila stránka Expedice; zrušit jde i během balení. *@
-                    @if (OrderStatusLabels.CanCancel(order.Status))
+                    @* Účty krok 12B: v pohledu správy ruší cizí objednávky jen podpora. *@
+                    @if (OrderStatusLabels.CanCancel(order.Status) && (!Model.IsManagementView || Model.CanSupport))
                     {
                         <form method="post" asp-page-handler="Cancel" asp-route-id="@order.Id" class="d-inline">
                             <button type="submit" class="btn btn-sm btn-outline-danger">Zrušit</button>

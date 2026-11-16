@@ -30,24 +30,87 @@ public sealed class AccountAdministrationTests : IDisposable
         _adminId = UserId("admin@example.com");
     }
 
+    /// <summary>Účty krok 12A: víc rolí najednou (i zákazník + zaměstnanec), audit s detailem, nový security stamp.</summary>
     [Fact]
-    public async Task Povyseni_ZmeniRoli_ZapiseAudit_VymeniSecurityStamp()
+    public async Task Role_VicNajednou_ZapiseAuditSDetailem_VymeniSecurityStamp()
     {
         var janId = await CreateUserAsync("jan@example.com");
         var stampBefore = await StampAsync(janId);
 
-        var result = await Admin(a => a.PromoteToAdminAsync(_adminId, janId));
+        var result = await Admin(a => a.SetRolesAsync(_adminId, janId, [AccountRoles.Warehouse, AccountRoles.User, AccountRoles.Marketing]));
 
         Assert.True(result.Succeeded, result.Message);
         var jan = (await Admin(a => a.GetAccountAsync(janId)))!;
-        Assert.True(jan.IsAdmin);
-        Assert.Equal([AccountRoles.Admin], await Users(async m => await m.GetRolesAsync((await m.FindByIdAsync(janId))!)));
+        Assert.Equal([AccountRoles.User, AccountRoles.Warehouse, AccountRoles.Marketing], jan.Roles);   // pořadí AccountRoles.All
+        Assert.True(jan.IsStaff && jan.IsCustomer);
         Assert.NotEqual(stampBefore, await StampAsync(janId));
+        Assert.Equal([AccountRoles.Warehouse, AccountRoles.Marketing], result.RoleChange!.Added);
+        Assert.Empty(result.RoleChange.Removed);
+        Assert.True(result.RoleChange.ChangesStaffAccess);
 
         var entry = Assert.Single(await Admin(a => a.GetAuditAsync(janId, 10)));
-        Assert.Equal(AccountAuditAction.PromotedToAdmin, entry.Action);
+        Assert.Equal((AccountAuditAction.RolesChanged, "+Sklad a expedice, +Marketing"), (entry.Action, entry.Detail));
         Assert.Equal("admin@example.com", entry.ActorEmail);
         Assert.Equal("jan@example.com", entry.TargetEmail);
+
+        // Odebrat zaměstnaneckou roli = zase změna oprávnění (e-mail); jen zákaznická role e-mail nespouští.
+        var back = await Admin(a => a.SetRolesAsync(_adminId, janId, [AccountRoles.User, AccountRoles.Marketing]));
+        Assert.Equal("−Sklad a expedice", back.RoleChange!.Describe());
+        Assert.False((await Admin(a => a.SetRolesAsync(_adminId, janId, [AccountRoles.Marketing]))).RoleChange!.ChangesStaffAccess);
+    }
+
+    /// <summary>Účty krok 12A: správce si sám přidá roli Zákazník – smí; správu uživatelů si ale neodebere.</summary>
+    [Fact]
+    public async Task Spravce_SiPridaZakaznika_SpravuSiNeodebere()
+    {
+        var result = await Admin(a => a.SetRolesAsync(_adminId, _adminId, [.. AccountRoles.Staff, AccountRoles.User]));
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.False(result.RoleChange!.ChangesStaffAccess);
+        Assert.True((await Admin(a => a.GetAccountAsync(_adminId)))!.IsCustomer);
+        Assert.False((await Admin(a => a.SetRolesAsync(_adminId, _adminId, [AccountRoles.User]))).Succeeded);
+        Assert.False((await Admin(a => a.SetRolesAsync(_adminId, _adminId, ["Hacker"]))).Succeeded);   // neznámá role
+        Assert.Equal("Role se nezměnily.",
+            (await Admin(a => a.SetRolesAsync(_adminId, _adminId, [.. AccountRoles.Staff, AccountRoles.User]))).Message);
+    }
+
+    /// <summary>Účty krok 12A: zaměstnanec bez role správce uživatelů role nepřiděluje (ani sobě).</summary>
+    [Fact]
+    public async Task JinyZamestnanec_RoleNepridelujeAniSobe()
+    {
+        var petraId = await CreateUserAsync("petra@example.com");
+        await Admin(a => a.SetRolesAsync(_adminId, petraId, [AccountRoles.Warehouse]));
+
+        var result = await Admin(a => a.SetRolesAsync(petraId, petraId, [AccountRoles.Warehouse, AccountRoles.UserAdmin]));
+
+        Assert.Equal("Uživatele smí spravovat jen aktivní správce uživatelů.", result.Message);
+    }
+
+    /// <summary>
+    /// Účty krok 12A + 12B: migrace StaffRoles převede původní roli Admin na všechny zaměstnanecké role a RemoveLegacyAdminRole
+    /// (contract) roli Admin smaže – nikdo nepřijde o práva.
+    /// </summary>
+    [Fact]
+    public async Task Migrace_PuvodniAdminDostaneVsechnyZamestnaneckeRole_RoleAdminZmizi()
+    {
+        const string LegacyAdmin = "Admin";   // role z účtů kroku 2–11
+        var oldAdminId = await CreateUserAsync("stary-admin@example.com");
+        await using (var scope = _services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
+            await Microsoft.EntityFrameworkCore.Infrastructure.AccessorExtensions.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>(db).MigrateAsync("20261113081925_LoginAttempts");
+            var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+            await roles.CreateAsync(new IdentityRole(LegacyAdmin));
+            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var oldAdmin = (await users.FindByIdAsync(oldAdminId))!;
+            await users.RemoveFromRoleAsync(oldAdmin, AccountRoles.User);
+            await users.AddToRoleAsync(oldAdmin, LegacyAdmin);
+            await db.Database.MigrateAsync();   // znovu StaffRoles a RemoveLegacyAdminRole
+        }
+
+        var rolesAfter = await Users(async m => await m.GetRolesAsync((await m.FindByIdAsync(oldAdminId))!));
+        Assert.Equal(AccountRoles.Staff.Order(), rolesAfter.Order());
+        Assert.False(await _services.CreateScope().ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>().RoleExistsAsync(LegacyAdmin));
     }
 
     [Fact]
@@ -70,12 +133,12 @@ public sealed class AccountAdministrationTests : IDisposable
     [Fact]
     public async Task PosledniAdmin_NejdeVratitNaUseraAniZablokovat()
     {
-        var demote = await Admin(a => a.DemoteToUserAsync(_adminId, _adminId));
+        var demote = await Admin(a => a.SetRolesAsync(_adminId, _adminId, [AccountRoles.User]));
         var lockOut = await Admin(a => a.LockAsync(_adminId, _adminId));
 
-        Assert.Equal("Posledního admina nejde vrátit na usera.", demote.Message);
-        Assert.Equal("Posledního admina nejde zablokovat.", lockOut.Message);
-        Assert.True((await Admin(a => a.GetAccountAsync(_adminId)))!.IsAdmin);
+        Assert.Contains("sám", demote.Message);   // sám sobě správu uživatelů neodebere
+        Assert.Equal("Posledního správce uživatelů nejde zablokovat.", lockOut.Message);
+        Assert.True((await Admin(a => a.GetAccountAsync(_adminId)))!.Roles.Contains(AccountRoles.UserAdmin));
         Assert.Empty(await Admin(a => a.GetAuditAsync(null, 10)));
     }
 
@@ -83,9 +146,9 @@ public sealed class AccountAdministrationTests : IDisposable
     public async Task SamSebe_NejdeAniKdyzJsouDvaAdmini()
     {
         var petraId = await CreateUserAsync("petra@example.com");
-        await Admin(a => a.PromoteToAdminAsync(_adminId, petraId));
+        await Admin(a => a.SetRolesAsync(_adminId, petraId, [AccountRoles.UserAdmin]));
 
-        var demote = await Admin(a => a.DemoteToUserAsync(_adminId, _adminId));
+        var demote = await Admin(a => a.SetRolesAsync(_adminId, _adminId, [AccountRoles.User]));
         var lockOut = await Admin(a => a.LockAsync(_adminId, _adminId));
 
         Assert.False(demote.Succeeded);
@@ -98,14 +161,14 @@ public sealed class AccountAdministrationTests : IDisposable
     public async Task DruhyAdmin_VratiPrvniho_PakUzPrvniNicNesmi()
     {
         var petraId = await CreateUserAsync("petra@example.com");
-        await Admin(a => a.PromoteToAdminAsync(_adminId, petraId));
+        await Admin(a => a.SetRolesAsync(_adminId, petraId, [AccountRoles.UserAdmin]));
 
-        Assert.True((await Admin(a => a.DemoteToUserAsync(petraId, _adminId))).Succeeded);
+        Assert.True((await Admin(a => a.SetRolesAsync(petraId, _adminId, [AccountRoles.User]))).Succeeded);
 
         // Původní admin má možná ještě starou cookie s rolí Admin – rozhoduje ale databáze.
-        var result = await Admin(a => a.DemoteToUserAsync(_adminId, petraId));
-        Assert.Equal("Uživatele smí spravovat jen aktivní admin.", result.Message);
-        Assert.True((await Admin(a => a.GetAccountAsync(petraId)))!.IsAdmin);
+        var result = await Admin(a => a.SetRolesAsync(_adminId, petraId, [AccountRoles.User]));
+        Assert.Equal("Uživatele smí spravovat jen aktivní správce uživatelů.", result.Message);
+        Assert.True((await Admin(a => a.GetAccountAsync(petraId)))!.Roles.Contains(AccountRoles.UserAdmin));
     }
 
     /// <summary>
@@ -118,15 +181,15 @@ public sealed class AccountAdministrationTests : IDisposable
         for (var round = 0; round < 10; round++)
         {
             var petraId = await CreateUserAsync($"petra{round}@example.com");
-            await Admin(a => a.PromoteToAdminAsync(_adminId, petraId));
+            await Admin(a => a.SetRolesAsync(_adminId, petraId, [AccountRoles.UserAdmin]));
 
             var results = await Task.WhenAll(
-                Admin(a => a.DemoteToUserAsync(_adminId, petraId)),
-                Admin(a => a.DemoteToUserAsync(petraId, _adminId)));
+                Admin(a => a.SetRolesAsync(_adminId, petraId, [AccountRoles.User])),
+                Admin(a => a.SetRolesAsync(petraId, _adminId, [AccountRoles.User])));
 
             Assert.Single(results, r => r.Succeeded);
             var accounts = await Admin(a => a.GetAccountsAsync());
-            var remaining = Assert.Single(accounts, a => a.IsAdmin);
+            var remaining = Assert.Single(accounts, a => a.Roles.Contains(AccountRoles.UserAdmin));
 
             // Další kolo s tím, kdo zůstal adminem.
             _adminId = remaining.Id;
@@ -138,7 +201,7 @@ public sealed class AccountAdministrationTests : IDisposable
     {
         var petraId = await CreateUserAsync("petra@example.com");
         var janId = await CreateUserAsync("jan@example.com");
-        await Admin(a => a.PromoteToAdminAsync(_adminId, petraId));
+        await Admin(a => a.SetRolesAsync(_adminId, petraId, [AccountRoles.UserAdmin]));
         await Admin(a => a.LockAsync(_adminId, petraId));
 
         var result = await Admin(a => a.LockAsync(petraId, janId));
@@ -156,9 +219,9 @@ public sealed class AccountAdministrationTests : IDisposable
         var accounts = await Admin(a => a.GetAccountsAsync());
 
         Assert.Equal(["admin@example.com", "jan@example.com"], accounts.Select(a => a.Email));
-        Assert.True(accounts[0].IsAdmin);
+        Assert.True(accounts[0].Roles.Contains(AccountRoles.UserAdmin));
         Assert.False(accounts[0].IsBlocked);
-        Assert.False(accounts[1].IsAdmin);
+        Assert.False(accounts[1].Roles.Contains(AccountRoles.UserAdmin));
         Assert.True(accounts[1].IsBlocked);
         Assert.Null(accounts[1].LockedOutUntil);
     }
@@ -194,10 +257,10 @@ public sealed class AccountAdministrationTests : IDisposable
     {
         // Útočník zkoušením hesel nesmí „odstavit“ admina – zámek jen brání přihlášení, práva nebere.
         var petraId = await CreateUserAsync("petra@example.com");
-        await Admin(a => a.PromoteToAdminAsync(_adminId, petraId));
+        await Admin(a => a.SetRolesAsync(_adminId, petraId, [AccountRoles.UserAdmin]));
         await FailPasswordAsync(_adminId, AccountsInfrastructure.MaxFailedAccessAttempts);
 
-        var result = await Admin(a => a.DemoteToUserAsync(_adminId, petraId));
+        var result = await Admin(a => a.SetRolesAsync(_adminId, petraId, [AccountRoles.User]));
 
         Assert.True(result.Succeeded, result.Message);
     }

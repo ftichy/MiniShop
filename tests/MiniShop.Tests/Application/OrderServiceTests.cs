@@ -515,6 +515,54 @@ public sealed class OrderServiceTests : IDisposable
         Assert.Equal(["Pending", "Confirmed", "Packing", "Shipped", "Completed"], detail.History.Select(h => h.Status));
     }
 
+
+    // ---------- Účty krok 12C: střet zájmů – zaměstnanec nevyřizuje sám sebe ----------
+
+    [Fact]
+    public async Task StretZajmu_ExpediceVlastniObjednavky_Odmitnuto_KolegaAno()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await PlaceConfirmedOrderAsync(product.Id, quantity: 1);   // objednal Jan
+
+        var own = await Assert.ThrowsAsync<DomainException>(() => Orders(s => s.StartPackingAsync(order.Id, Jan.CustomerId)));
+        Assert.Equal(ConflictOfInterest.Message, own.Message);
+        Assert.Equal("Confirmed", await StatusAsync(order.Id));
+
+        await Orders(s => s.StartPackingAsync(order.Id, Petra.CustomerId));   // kolegyně ano
+        await Assert.ThrowsAsync<DomainException>(() => Orders(s => s.ShipAsync(order.Id, "PPL", "1", Jan.CustomerId)));
+        await Orders(s => s.ShipAsync(order.Id, "PPL", "1", Petra.CustomerId));
+        await Assert.ThrowsAsync<DomainException>(() => Orders(s => s.CompleteAsync(order.Id, Jan.CustomerId)));
+        await Orders(s => s.CompleteAsync(order.Id));   // bez zaměstnance (systém) ano
+        Assert.Equal("Completed", await StatusAsync(order.Id));
+    }
+
+    [Fact]
+    public async Task StretZajmu_VlastniVratku_NeprevezmeAniNezamitne()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+        var order = await DeliveredOrderAsync(product.Id, quantity: 1, PaymentMethod.CashOnDelivery);
+        await Orders(s => s.RequestReturnAsync(order.Id, OrderAccess.Customer(Jan.CustomerId), "Nesedí"));
+        await ProcessOutboxAsync();
+
+        await Assert.ThrowsAsync<DomainException>(() => Returns(r => r.AcceptGoodsAsync(order.Id, actingUserId: Jan.CustomerId)));
+        await Assert.ThrowsAsync<DomainException>(() => Returns(r => r.RejectAsync(order.Id, "x", actingUserId: Jan.CustomerId)));
+        Assert.Equal(ReturnSagaState.AwaitingGoods, (await ReturnSagaAsync(order.Id)).State);
+
+        Assert.True(await Returns(r => r.AcceptGoodsAsync(order.Id, actingUserId: Petra.CustomerId)));
+    }
+
+    [Fact]
+    public async Task StretZajmu_VlastniHodnoceniNeskryje()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 10);
+        await DeliverApiOrderAsync(Jan, product.Id);
+        await Reviews(s => s.SubmitAsync(product.Id, Jan.CustomerId, 5, "Super"));
+        var review = Assert.Single((await Reviews(s => s.GetPageAsync(PageRequest.First))).Items);
+
+        await Assert.ThrowsAsync<DomainException>(() => Reviews(s => s.SetHiddenAsync(review.Id, true, Jan.CustomerId)));
+        await Reviews(s => s.SetHiddenAsync(review.Id, true, Petra.CustomerId));
+        Assert.True(Assert.Single((await Reviews(s => s.GetPageAsync(PageRequest.First))).Items).IsHidden);
+    }
     [Fact]
     public async Task Expedice_ZruseniBehemBaleni_ZboziSeVratiNaSklad()
     {

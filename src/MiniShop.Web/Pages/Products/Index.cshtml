@@ -38,10 +38,13 @@
                     </form>
                 </td>
                 <td class="text-nowrap">
+                    @if (Model.CanEditCatalog)
+                    {
                     <a asp-page="/Products/Edit" asp-route-id="@p.Id" class="btn btn-sm btn-outline-secondary">Upravit</a>
                     <form method="post" asp-page-handler="Delete" asp-route-id="@p.Id" asp-route-p="@Model.PageNumber" asp-route-size="@Model.PageSize" class="d-inline">
                         <button type="submit" class="btn btn-sm btn-outline-danger">Smazat</button>
                     </form>
+                    }
                 </td>
             </tr>
         }
@@ -49,6 +52,9 @@
 </table></div>
 <partial name="_Pager" model="Model.Pager" />
 
+@* Účty krok 12B: zakládat, mazat a kategorie jen správce sortimentu – sklad tu jen naskladňuje. *@
+@if (Model.CanEditCatalog)
+{
 <h2 class="h4 mt-4">Nový produkt</h2>
 <form method="post" asp-page-handler="Create" class="row g-2 card card-body flex-row mx-0 admin-form">
     <div class="col-md-3">
@@ -123,3 +129,4 @@
     <input name="category.Name" maxlength="50" placeholder="Nová kategorie" class="form-control" aria-label="Nová kategorie" />
     <button type="submit" class="btn btn-primary">Přidat kategorii</button>
 </form>
+}

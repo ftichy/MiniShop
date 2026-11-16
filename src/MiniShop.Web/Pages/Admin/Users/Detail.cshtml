@@ -17,7 +17,7 @@
     <dt class="col-sm-3">E-mail</dt>
     <dd class="col-sm-9">@account.Email @(account.EmailConfirmed ? "(potvrzený)" : "(nepotvrzený)")</dd>
     <dt class="col-sm-3">Role</dt>
-    <dd class="col-sm-9"><partial name="_RoleBadge" model="account.IsAdmin" /></dd>
+    <dd class="col-sm-9"><partial name="_RoleBadge" model="account.Roles" /></dd>
     <dt class="col-sm-3">Stav</dt>
     <dd class="col-sm-9"><partial name="_LockBadge" model="account" /></dd>
     @* Účty krok 10: heslo, Google – změnit to může jen uživatel sám. *@
@@ -25,25 +25,43 @@
     <dd class="col-sm-9">@(Model.SignInMethods.Count > 0 ? string.Join(", ", Model.SignInMethods) : "žádné (jen přes zapomenuté heslo)")</dd>
 </dl>
 
+@if (Model.CanManageRoles)
+{
+    @* Účty krok 12A: role zaškrtávátky – víc najednou, i sám sobě (třeba Zákazník). Zaměstnanecké role vyžadují 2FA. *@
+    <form method="post" asp-page-handler="Roles" asp-route-id="@account.Id" class="card card-body mb-4" data-track="user-roles-form">
+        <h2 class="h6">Role</h2>
+        <div class="row row-cols-1 row-cols-md-2 g-1 mb-2">
+            @foreach (var role in MiniShop.Infrastructure.Accounts.AccountRoles.All)
+            {
+                var disabled = Model.IsCurrentUser && role == MiniShop.Infrastructure.Accounts.AccountRoles.UserAdmin;
+                <div class="col">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="roles" value="@role" id="role-@role"
+                               checked="@account.Roles.Contains(role)" disabled="@disabled" data-track="user-role-@role" />
+                        <label class="form-check-label" for="role-@role">@MiniShop.Infrastructure.Accounts.AccountRoles.Label(role)</label>
+                    </div>
+                    @if (disabled)
+                    {
+                        @* Zakázané pole se neposílá – role správce uživatelů musí zůstat (sám si ji odebrat nesmí). *@
+                        <input type="hidden" name="roles" value="@role" />
+                    }
+                </div>
+            }
+        </div>
+        <div class="form-text mb-2">
+            Zaměstnanecké role (všechny kromě Zákazníka) vyžadují dvoufázové ověření. O změně dostane uživatel e-mail.
+        </div>
+        <div><button type="submit" class="btn btn-primary btn-sm" data-track="user-roles-save">Uložit role</button></div>
+    </form>
+}
+
 @if (Model.IsCurrentUser)
 {
-    <p class="text-muted">To jste vy – roli ani blokaci si sami měnit nemůžete.</p>
+    <p class="text-muted">To jste vy – zablokovat se sami nemůžete.</p>
 }
 else
 {
     <div class="d-flex gap-2 mb-4">
-        @if (account.IsAdmin)
-        {
-            <form method="post" asp-page-handler="Demote" asp-route-id="@account.Id">
-                <button type="submit" class="btn btn-outline-secondary">Vrátit na usera</button>
-            </form>
-        }
-        else
-        {
-            <form method="post" asp-page-handler="Promote" asp-route-id="@account.Id">
-                <button type="submit" class="btn btn-outline-dark">Povýšit na admina</button>
-            </form>
-        }
         @if (account.IsBlocked || account.LockedOutUntil is not null)
         {
             <form method="post" asp-page-handler="Unlock" asp-route-id="@account.Id">
@@ -106,7 +124,7 @@ else
             {
                 <tr>
                     <td class="text-nowrap">@entry.OccurredAtUtc.ToCzechString()</td>
-                    <td>@IndexModel.ActionText(entry.Action)</td>
+                    <td>@IndexModel.ActionText(entry.Action)@(entry.Detail is null ? "" : $": {entry.Detail}")</td>
                     <td class="text-muted">provedl @entry.ActorEmail</td>
                 </tr>
             }

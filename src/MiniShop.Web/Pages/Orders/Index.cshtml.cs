@@ -30,8 +30,30 @@ public sealed class IndexModel(
     /// <summary>Účty krok 9: zákazník, který ještě nepotvrdil e-mail – výzva k potvrzení.</summary>
     public bool NeedsEmailConfirmation { get; private set; }
 
-    /// <summary>Účty krok 2: vyřízení, obnova katalogu a průběh objednávek jen pro admina.</summary>
+    /// <summary>Účty krok 2: všechny objednávky (účty krok 12B: sklad, podpora, účetní).</summary>
     public bool CanManageOrders { get; private set; }
+
+    /// <summary>Účty krok 12B: zrušit cizí objednávku a průběh zadání – podpora.</summary>
+    public bool CanSupport { get; private set; }
+
+    /// <summary>Účty krok 12B: odkaz na Expedici – sklad.</summary>
+    public bool CanFulfil { get; private set; }
+
+    /// <summary>Účty krok 12B: obnova katalogu – sortiment a provoz.</summary>
+    public bool CanSyncCatalog { get; private set; }
+
+    /// <summary>
+    /// Účty krok 12A: zaměstnanec, který je i zákazník, přepíná „Moje objednávky“ (výchozí) a „Všechny objednávky“
+    /// (<c>?all=1</c>). Zaměstnanec bez role zákazníka vidí rovnou všechny.
+    /// </summary>
+    [BindProperty(SupportsGet = true, Name = "all")]
+    public bool ShowAll { get; set; }
+
+    /// <summary>Pohled správy – všechny objednávky (jinak jen vlastní).</summary>
+    public bool IsManagementView => CanManageOrders && (ShowAll || !CanPlaceOrders);
+
+    /// <summary>Ukázat přepínač Moje / Všechny.</summary>
+    public bool CanSwitchView => CanManageOrders && CanPlaceOrders;
 
     /// <summary>Stránkování: aktuální stránka objednávek (nejnovější první).</summary>
     public PagedList<OrderDto> OrderPage { get; private set; } = new([], 1, PageRequest.DefaultSize, 0);
@@ -58,7 +80,7 @@ public sealed class IndexModel(
     /// <summary>Ruční obnova kopie katalogu – požádá sklad o všechny produkty (SyncCatalogV1).</summary>
     public async Task<IActionResult> OnPostSyncCatalogAsync(CancellationToken cancellationToken)
     {
-        if (!await IsAuthorizedAsync(AuthorizationPolicies.RequireAdmin))
+        if (!await IsAuthorizedAsync(AuthorizationPolicies.RequireCatalogSync))   // účty krok 12B: sortiment a provoz
         {
             return Forbid();
         }
@@ -75,7 +97,7 @@ public sealed class IndexModel(
     public Task<IActionResult> OnPostCancelAsync(int id, CancellationToken cancellationToken) =>
         ExecuteAsync(async () =>
         {
-            await orderService.CancelAsync(id, User.ToOrderAccess(), cancellationToken);
+            await orderService.CancelAsync(id, User.ToCancelAccess(), cancellationToken);   // účty krok 12B: cizí jen podpora
             // E-shop krok 9: co už je zarezervované nebo zaplacené, vrátí sága (asynchronně, i když sklad/brána odpoví později).
             StatusMessage = $"Objednávka č. {id} byla zrušena. Rezervované zboží i případnou platbu vrátíme během pár sekund.";
         }, cancellationToken);
@@ -99,8 +121,11 @@ public sealed class IndexModel(
     {
         CanPlaceOrders = await IsAuthorizedAsync(AuthorizationPolicies.RequireCustomer);
         NeedsEmailConfirmation = !CanPlaceOrders && User.IsInRole(AccountRoles.User);
-        CanManageOrders = await IsAuthorizedAsync(AuthorizationPolicies.RequireAdmin);
-        OrderPage = await orderService.GetPageAsync(User.ToOrderAccess(), PageRequest.Of(PageNumber, PageSize), SearchId, cancellationToken);
+        CanManageOrders = await IsAuthorizedAsync(AuthorizationPolicies.RequireOrderOverview);   // účty krok 12B
+        CanSupport = await IsAuthorizedAsync(AuthorizationPolicies.RequireSupport);
+        CanFulfil = await IsAuthorizedAsync(AuthorizationPolicies.RequireFulfilment);
+        CanSyncCatalog = await IsAuthorizedAsync(AuthorizationPolicies.RequireCatalogSync);
+        OrderPage = await orderService.GetPageAsync(IsManagementView ? User.ToOrderAccess() : User.ToCustomerOrderAccess(), PageRequest.Of(PageNumber, PageSize), SearchId, cancellationToken);
     }
 
     /// <summary>

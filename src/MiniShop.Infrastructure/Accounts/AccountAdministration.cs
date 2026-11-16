@@ -6,17 +6,24 @@ using Microsoft.Extensions.Logging;
 
 namespace MiniShop.Infrastructure.Accounts;
 
-/// <summary>Účet v přehledu pro admina (účty krok 6).</summary>
-/// <param name="IsBlocked">Zablokovaný adminem (do odblokování).</param>
+/// <summary>Účet v přehledu pro správce uživatelů (účty krok 6).</summary>
+/// <param name="Roles">Účty krok 12A: přidělené role v pořadí <see cref="AccountRoles.All"/> (bez původní role Admin).</param>
+/// <param name="IsBlocked">Zablokovaný správcem (do odblokování).</param>
 /// <param name="LockedOutUntil">Účty krok 8: dočasně zamčený po špatných heslech – do kdy (jinak null).</param>
 public sealed record AccountSummary(
     string Id,
     string DisplayName,
     string Email,
-    bool IsAdmin,
+    IReadOnlyList<string> Roles,
     bool EmailConfirmed,
     bool IsBlocked,
-    DateTimeOffset? LockedOutUntil);
+    DateTimeOffset? LockedOutUntil)
+{
+    /// <summary>Má aspoň jednu zaměstnaneckou roli (vyžaduje 2FA, nesmí si smazat účet).</summary>
+    public bool IsStaff => Roles.Any(AccountRoles.IsStaff);
+
+    public bool IsCustomer => Roles.Contains(AccountRoles.User);
+}
 
 /// <summary>Řádek auditu pro zobrazení.</summary>
 public sealed record AccountAuditItem(
@@ -24,29 +31,47 @@ public sealed record AccountAuditItem(
     string ActorEmail,
     string TargetUserId,
     string TargetEmail,
-    AccountAuditAction Action);
+    AccountAuditAction Action,
+    string? Detail = null);
 
-/// <summary>Výsledek akce admina – text se ukáže na stránce.</summary>
-public sealed record AccountAdminResult(bool Succeeded, string Message)
+/// <summary>Účty krok 12A: co se na rolích změnilo – podklad pro e-mail dotyčnému.</summary>
+public sealed record AccountRoleChange(
+    string Email,
+    string DisplayName,
+    IReadOnlyList<string> Added,
+    IReadOnlyList<string> Removed)
 {
-    public static AccountAdminResult Ok(string message) => new(true, message);
+    /// <summary>Změnila se zaměstnanecká role (oprávnění ve správě) – o tom dostane uživatel e-mail.</summary>
+    public bool ChangesStaffAccess => Added.Concat(Removed).Any(AccountRoles.IsStaff);
+
+    /// <summary>„+Sklad a expedice, −Marketing“ – do auditu a e-mailu.</summary>
+    public string Describe() => string.Join(", ",
+        Added.Select(role => "+" + AccountRoles.Label(role)).Concat(Removed.Select(role => "−" + AccountRoles.Label(role))));
+}
+
+/// <summary>Výsledek akce správce – text se ukáže na stránce.</summary>
+/// <param name="RoleChange">Účty krok 12A: co se změnilo na rolích (pro e-mail dotyčnému), jinak null.</param>
+public sealed record AccountAdminResult(bool Succeeded, string Message, AccountRoleChange? RoleChange = null)
+{
+    public static AccountAdminResult Ok(string message, AccountRoleChange? roleChange = null) => new(true, message, roleChange);
     public static AccountAdminResult Failed(string message) => new(false, message);
 }
 
 /// <summary>
-/// Účty krok 6: správa uživatelů adminem – povýšení na admina, vrácení na usera, zablokování a odblokování.
+/// Účty krok 6: správa uživatelů – role, zablokování a odblokování. Účty krok 12A: uživatel má libovolnou sadu rolí
+/// (<see cref="AccountRoles.All"/>), mění ji jen správce uživatelů (<see cref="AccountRoles.UserAdmin"/>).
 /// </summary>
 /// <remarks>
 /// Pravidla:
 /// <list type="bullet">
-/// <item>Akci smí provést jen aktivní (nezablokovaný) admin – ověřuje se v databázi, ne jen v cookie.</item>
-/// <item>Vždy musí zůstat aspoň jeden aktivní admin – jinak by obchod neměl kdo spravovat.</item>
-/// <item>Admin nemůže odebrat roli ani zablokovat sám sebe (aby se omylem nezamkl).</item>
-/// <item>Role jsou výhradní: User ↔ Admin (admin neobjednává).</item>
+/// <item>Akci smí provést jen aktivní (nezablokovaný) správce uživatelů – ověřuje se v databázi, ne jen v cookie.</item>
+/// <item>Vždy musí zůstat aspoň jeden aktivní správce uživatelů – jinak by nikdo nemohl přidělovat role.</item>
+/// <item>Správce si nemůže odebrat roli správce uživatelů ani zablokovat sám sebe (aby se omylem nezamkl).
+/// Jiné role si měnit smí – třeba si přidat roli Zákazník.</item>
 /// </list>
-/// Kontrola i změna běží v jedné transakci pod zámkem (pg_advisory_xact_lock) – dvě souběžné změny (dva admini
-/// odebírají jeden druhého) proběhnou postupně a druhá už vidí výsledek první. Každá změna vymění security stamp: staré přihlášení (cookie)
-/// dotyčného do minuty přestane platit (SecurityStampValidator ve Webu) a zapíše se auditní záznam.
+/// Kontrola i změna běží v jedné transakci pod zámkem (pg_advisory_xact_lock) – dvě souběžné změny (dva správci
+/// odebírají jeden druhého) proběhnou postupně a druhá už vidí výsledek první. Každá změna vymění security stamp: staré
+/// přihlášení (cookie) dotyčného do minuty přestane platit (SecurityStampValidator ve Webu) a zapíše se auditní záznam.
 /// </remarks>
 public sealed class AccountAdministration(
     AccountsDbContext dbContext,
@@ -56,9 +81,9 @@ public sealed class AccountAdministration(
 {
     public async Task<IReadOnlyList<AccountSummary>> GetAccountsAsync(CancellationToken cancellationToken = default)
     {
-        var adminIds = await AdminIdsQuery().ToListAsync(cancellationToken);
         var users = await dbContext.Users.AsNoTracking().OrderBy(user => user.Email).ToListAsync(cancellationToken);
-        return users.Select(user => ToSummary(user, adminIds.Contains(user.Id))).ToList();
+        var roles = await RolesByUserAsync(users.Select(user => user.Id).ToList(), cancellationToken);
+        return users.Select(user => ToSummary(user, roles)).ToList();
     }
 
     /// <summary>
@@ -73,17 +98,17 @@ public sealed class AccountAdministration(
             .Where(user => search == null || user.NormalizedEmail!.Contains(search))
             .OrderBy(user => user.Email)
             .ToPagedListAsync(page, cancellationToken);
-        var adminIds = await AdminIdsQuery().ToListAsync(cancellationToken);
-        return users.Map(user => ToSummary(user, adminIds.Contains(user.Id)));
+        var roles = await RolesByUserAsync(users.Items.Select(user => user.Id).ToList(), cancellationToken);
+        return users.Map(user => ToSummary(user, roles));
     }
 
     public async Task<AccountSummary?> GetAccountAsync(string id, CancellationToken cancellationToken = default)
     {
         var user = await dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
-        return user is null ? null : ToSummary(user, await AdminIdsQuery().ContainsAsync(id, cancellationToken));
+        return user is null ? null : ToSummary(user, await RolesByUserAsync([id], cancellationToken));
     }
 
-    /// <summary>Historie účtu (co s ním admini dělali), nebo celý audit (<paramref name="targetUserId"/> = null).</summary>
+    /// <summary>Historie účtu (co s ním správci dělali), nebo celý audit (<paramref name="targetUserId"/> = null).</summary>
     public async Task<IReadOnlyList<AccountAuditItem>> GetAuditAsync(string? targetUserId, int take,
         CancellationToken cancellationToken = default) =>
         await dbContext.AuditEntries.AsNoTracking()
@@ -91,36 +116,120 @@ public sealed class AccountAdministration(
             .OrderByDescending(entry => entry.Id)
             .Take(take)
             .Select(entry => new AccountAuditItem(
-                entry.OccurredAtUtc, entry.ActorEmail, entry.TargetUserId, entry.TargetEmail, entry.Action))
+                entry.OccurredAtUtc, entry.ActorEmail, entry.TargetUserId, entry.TargetEmail, entry.Action, entry.Detail))
             .ToListAsync(cancellationToken);
 
-    public Task<AccountAdminResult> PromoteToAdminAsync(string actorId, string targetId, CancellationToken cancellationToken = default) =>
-        ChangeAsync(actorId, targetId, AccountAuditAction.PromotedToAdmin, cancellationToken);
+    /// <summary>
+    /// Účty krok 12A: nastaví uživateli přesně tuto sadu rolí (zaškrtnuté na stránce).
+    /// </summary>
+    public async Task<AccountAdminResult> SetRolesAsync(string actorId, string targetId, IReadOnlyCollection<string> roles,
+        CancellationToken cancellationToken = default)
+    {
+        var unknown = roles.FirstOrDefault(role => !AccountRoles.All.Contains(role));
+        if (unknown is not null)
+        {
+            return AccountAdminResult.Failed($"Neznámá role {unknown}.");
+        }
 
-    public Task<AccountAdminResult> DemoteToUserAsync(string actorId, string targetId, CancellationToken cancellationToken = default) =>
-        ChangeAsync(actorId, targetId, AccountAuditAction.DemotedToUser, cancellationToken);
+        var wanted = AccountRoles.All.Where(roles.Contains).ToList();
+        return await RunAsync(actorId, targetId, async (actor, target) =>
+        {
+            var current = await userManager.GetRolesAsync(target);
+            var added = wanted.Where(role => !current.Contains(role)).ToList();
+            var removed = AccountRoles.All.Where(role => current.Contains(role) && !wanted.Contains(role)).ToList();
+            if (added.Count == 0 && removed.Count == 0)
+            {
+                return (AccountAdminResult.Failed("Role se nezměnily."), null);
+            }
+
+            if (removed.Contains(AccountRoles.UserAdmin))
+            {
+                if (actor.Id == target.Id)
+                {
+                    return (AccountAdminResult.Failed("Roli správce uživatelů si nemůžete odebrat sám – požádejte jiného správce."), null);
+                }
+
+                if (!await AnotherActiveUserAdminExistsAsync(target))
+                {
+                    return (AccountAdminResult.Failed("Posledního správce uživatelů nejde odebrat."), null);
+                }
+            }
+
+            var result = IdentityResult.Success;
+            if (removed.Count > 0)
+            {
+                result = await userManager.RemoveFromRolesAsync(target, removed);
+            }
+
+            if (result.Succeeded && added.Count > 0)
+            {
+                result = await userManager.AddToRolesAsync(target, added);
+            }
+
+            var change = new AccountRoleChange(target.Email ?? string.Empty, target.DisplayName, added, removed);
+            return result.Succeeded
+                ? (AccountAdminResult.Ok($"Role účtu {target.Email} uložené.", change), change.Describe())
+                : (AccountAdminResult.Failed(string.Join(" ", result.Errors.Select(e => e.Description))), null);
+        }, AccountAuditAction.RolesChanged, cancellationToken);
+    }
 
     public Task<AccountAdminResult> LockAsync(string actorId, string targetId, CancellationToken cancellationToken = default) =>
-        ChangeAsync(actorId, targetId, AccountAuditAction.Locked, cancellationToken);
+        RunAsync(actorId, targetId, async (actor, target) =>
+        {
+            if (IsBlocked(target)) return (AccountAdminResult.Failed("Účet už je zablokovaný."), null);
+            if (await IsActiveUserAdminAsync(target) && !await AnotherActiveUserAdminExistsAsync(target))
+            {
+                return (AccountAdminResult.Failed("Posledního správce uživatelů nejde zablokovat."), null);
+            }
+
+            if (actor.Id == target.Id) return (AccountAdminResult.Failed("Sám sebe zablokovat nemůžete."), null);
+
+            var result = await userManager.SetLockoutEnabledAsync(target, true);
+            if (result.Succeeded)
+            {
+                result = await userManager.SetLockoutEndDateAsync(target, DateTimeOffset.MaxValue);
+            }
+
+            return (ToResult(result, $"Účet {target.Email} je zablokovaný."), null);
+        }, AccountAuditAction.Locked, cancellationToken);
 
     public Task<AccountAdminResult> UnlockAsync(string actorId, string targetId, CancellationToken cancellationToken = default) =>
-        ChangeAsync(actorId, targetId, AccountAuditAction.Unlocked, cancellationToken);
+        RunAsync(actorId, targetId, async (_, target) =>
+        {
+            // Odblokovat jde i dočasný zámek po špatných heslech (účty krok 8).
+            if (!await userManager.IsLockedOutAsync(target))
+            {
+                return (AccountAdminResult.Failed("Účet není zablokovaný ani zamčený."), null);
+            }
 
-    private async Task<AccountAdminResult> ChangeAsync(string actorId, string targetId, AccountAuditAction action,
-        CancellationToken cancellationToken)
+            var result = await userManager.SetLockoutEndDateAsync(target, null);
+            if (result.Succeeded)
+            {
+                result = await userManager.ResetAccessFailedCountAsync(target);
+            }
+
+            return (ToResult(result, $"Účet {target.Email} je odblokovaný."), null);
+        }, AccountAuditAction.Unlocked, cancellationToken);
+
+    /// <summary>
+    /// Společný rámec akce: transakce + zámek, kontrola správce, změna, nový security stamp, audit. Neúspěch = rollback.
+    /// </summary>
+    private async Task<AccountAdminResult> RunAsync(string actorId, string targetId,
+        Func<ApplicationUser, ApplicationUser, Task<(AccountAdminResult Result, string? AuditDetail)>> change,
+        AccountAuditAction action, CancellationToken cancellationToken)
     {
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
-        // Škálování krok 3C: změny správy uživatelů jedna po druhé. PostgreSQL pouští transakce souběžně – dva admini,
-        // kteří se naráz navzájem vracejí na usera, by oba prošli kontrolou „zůstane jiný admin“. Zámek drží transakce
+        // Škálování krok 3C: změny správy uživatelů jedna po druhé. PostgreSQL pouští transakce souběžně – dva správci,
+        // kteří si naráz navzájem odebírají roli, by oba prošli kontrolou „zůstane jiný správce“. Zámek drží transakce
         // (uvolní se při commitu/rollbacku); druhá počká a pak už vidí změnu té první.
         await dbContext.Database.ExecuteSqlRawAsync(
             "SELECT pg_advisory_xact_lock(hashtext('minishop.account-administration'))", cancellationToken);
 
         var actor = await userManager.FindByIdAsync(actorId);
-        if (actor is null || !await IsActiveAdminAsync(actor))
+        if (actor is null || !await IsActiveUserAdminAsync(actor))
         {
-            return AccountAdminResult.Failed("Uživatele smí spravovat jen aktivní admin.");
+            return AccountAdminResult.Failed("Uživatele smí spravovat jen aktivní správce uživatelů.");
         }
 
         var target = await userManager.FindByIdAsync(targetId);
@@ -129,83 +238,44 @@ public sealed class AccountAdministration(
             return AccountAdminResult.Failed("Uživatel neexistuje.");
         }
 
-        var error = await ValidateAsync(actor, target, action);
-        if (error is not null)
-        {
-            return AccountAdminResult.Failed(error);
-        }
-
-        var result = action switch
-        {
-            AccountAuditAction.PromotedToAdmin => await ReplaceRoleAsync(target, AccountRoles.User, AccountRoles.Admin),
-            AccountAuditAction.DemotedToUser => await ReplaceRoleAsync(target, AccountRoles.Admin, AccountRoles.User),
-            AccountAuditAction.Locked => await LockOutAsync(target),
-            AccountAuditAction.Unlocked => await UnlockOutAsync(target),
-            _ => throw new ArgumentOutOfRangeException(nameof(action), action, null)
-        };
-
-        if (result.Succeeded)
-        {
-            // Nový security stamp = dosavadní přihlášení dotyčného přestanou platit (nová role až po novém přihlášení).
-            result = await userManager.UpdateSecurityStampAsync(target);
-        }
-
+        var (result, detail) = await change(actor, target);
         if (!result.Succeeded)
         {
-            // Bez Commit se transakce při Dispose vrátí – nic se nezmění napůl.
-            return AccountAdminResult.Failed(string.Join(" ", result.Errors.Select(e => e.Description)));
+            return result;   // bez Commit se transakce při Dispose vrátí – nic se nezmění napůl
         }
 
-        dbContext.AuditEntries.Add(new AccountAuditEntry(actor, target, action, timeProvider.GetUtcNow().UtcDateTime));
+        // Nový security stamp = dosavadní přihlášení dotyčného přestanou platit (nové role až po novém ověření cookie).
+        var stamp = await userManager.UpdateSecurityStampAsync(target);
+        if (!stamp.Succeeded)
+        {
+            return ToResult(stamp, string.Empty);
+        }
+
+        dbContext.AuditEntries.Add(new AccountAuditEntry(actor, target, action, timeProvider.GetUtcNow().UtcDateTime, detail));
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
-        logger.LogInformation("Admin {ActorId} provedl {Action} u účtu {TargetId}", actor.Id, action, target.Id);
-        return AccountAdminResult.Ok(SuccessMessage(action, target));
+        logger.LogInformation("Správce {ActorId} provedl {Action} u účtu {TargetId} {Detail}", actor.Id, action, target.Id, detail);
+        return result;
     }
 
-    private async Task<string?> ValidateAsync(ApplicationUser actor, ApplicationUser target, AccountAuditAction action)
-    {
-        var targetIsAdmin = await userManager.IsInRoleAsync(target, AccountRoles.Admin);
-        var isSelf = actor.Id == target.Id;
-
-        switch (action)
-        {
-            case AccountAuditAction.PromotedToAdmin:
-                return targetIsAdmin ? "Uživatel už je admin." : null;
-
-            case AccountAuditAction.DemotedToUser:
-                if (!targetIsAdmin) return "Uživatel není admin.";
-                if (!await AnotherActiveAdminExistsAsync(target)) return "Posledního admina nejde vrátit na usera.";
-                return isSelf ? "Roli admina si nemůžete odebrat sám – požádejte jiného admina." : null;
-
-            case AccountAuditAction.Locked:
-                if (IsBlocked(target)) return "Účet už je zablokovaný.";
-                if (targetIsAdmin && !await AnotherActiveAdminExistsAsync(target)) return "Posledního admina nejde zablokovat.";
-                return isSelf ? "Sám sebe zablokovat nemůžete." : null;
-
-            case AccountAuditAction.Unlocked:
-                // Odblokovat jde i dočasný zámek po špatných heslech (účty krok 8).
-                return await userManager.IsLockedOutAsync(target) ? null : "Účet není zablokovaný ani zamčený.";
-
-            default:
-                throw new ArgumentOutOfRangeException(nameof(action), action, null);
-        }
-    }
+    private static AccountAdminResult ToResult(IdentityResult result, string message) => result.Succeeded
+        ? AccountAdminResult.Ok(message)
+        : AccountAdminResult.Failed(string.Join(" ", result.Errors.Select(e => e.Description)));
 
     /// <summary>
-    /// Zablokovaný adminem = zámek do <see cref="DateTimeOffset.MaxValue"/>. Účty krok 8: dočasný zámek po špatných
-    /// heslech (15 minut) používá stejné pole LockoutEnd, ale admina o práva nepřipraví – jinak by útočník mohl
-    /// zkoušením hesel „odstavit“ všechny adminy.
+    /// Zablokovaný správcem = zámek do <see cref="DateTimeOffset.MaxValue"/>. Účty krok 8: dočasný zámek po špatných
+    /// heslech (15 minut) používá stejné pole LockoutEnd, ale správce o práva nepřipraví – jinak by útočník mohl
+    /// zkoušením hesel „odstavit“ všechny správce.
     /// </summary>
     private static bool IsBlocked(ApplicationUser user) => user.LockoutEnd?.Year == DateTimeOffset.MaxValue.Year;
 
-    private async Task<bool> IsActiveAdminAsync(ApplicationUser user) =>
-        await userManager.IsInRoleAsync(user, AccountRoles.Admin) && !IsBlocked(user);
+    private async Task<bool> IsActiveUserAdminAsync(ApplicationUser user) =>
+        await userManager.IsInRoleAsync(user, AccountRoles.UserAdmin) && !IsBlocked(user);
 
-    private async Task<bool> AnotherActiveAdminExistsAsync(ApplicationUser except)
+    private async Task<bool> AnotherActiveUserAdminExistsAsync(ApplicationUser except)
     {
-        foreach (var admin in await userManager.GetUsersInRoleAsync(AccountRoles.Admin))
+        foreach (var admin in await userManager.GetUsersInRoleAsync(AccountRoles.UserAdmin))
         {
             if (admin.Id != except.Id && !IsBlocked(admin))
             {
@@ -216,55 +286,24 @@ public sealed class AccountAdministration(
         return false;
     }
 
-    private async Task<IdentityResult> ReplaceRoleAsync(ApplicationUser user, string from, string to)
-    {
-        if (await userManager.IsInRoleAsync(user, from))
-        {
-            var removed = await userManager.RemoveFromRoleAsync(user, from);
-            if (!removed.Succeeded)
-            {
-                return removed;
-            }
-        }
-
-        return await userManager.AddToRoleAsync(user, to);
-    }
-
-    /// <summary>Zablokování = zámek účtu „navždy“ (do odblokování). Přihlášení pak skončí jako neúspěšné.</summary>
-    private async Task<IdentityResult> LockOutAsync(ApplicationUser user)
-    {
-        var result = await userManager.SetLockoutEnabledAsync(user, true);
-        return result.Succeeded ? await userManager.SetLockoutEndDateAsync(user, DateTimeOffset.MaxValue) : result;
-    }
-
-    private async Task<IdentityResult> UnlockOutAsync(ApplicationUser user)
-    {
-        var result = await userManager.SetLockoutEndDateAsync(user, null);
-        return result.Succeeded ? await userManager.ResetAccessFailedCountAsync(user) : result;
-    }
-
-    private IQueryable<string> AdminIdsQuery() =>
-        from userRole in dbContext.UserRoles
-        join role in dbContext.Roles on userRole.RoleId equals role.Id
-        where role.Name == AccountRoles.Admin
-        select userRole.UserId;
+    /// <summary>Role vybraných účtů jedním dotazem (stránka přehledu).</summary>
+    private async Task<ILookup<string, string>> RolesByUserAsync(IReadOnlyCollection<string> userIds,
+        CancellationToken cancellationToken) =>
+        (await (from userRole in dbContext.UserRoles
+                join role in dbContext.Roles on userRole.RoleId equals role.Id
+                where userIds.Contains(userRole.UserId)
+                select new { userRole.UserId, role.Name })
+            .ToListAsync(cancellationToken))
+        .ToLookup(row => row.UserId, row => row.Name!);
 
     /// <summary>Zámek se počítá v paměti (z doby SQLite, které neumělo v dotazu porovnávat DateTimeOffset; uživatelů je málo).</summary>
-    private AccountSummary ToSummary(ApplicationUser user, bool isAdmin)
+    private AccountSummary ToSummary(ApplicationUser user, ILookup<string, string> roles)
     {
         var blocked = IsBlocked(user);
         var lockedOutUntil = !blocked && user.LockoutEnabled && user.LockoutEnd > timeProvider.GetUtcNow()
             ? user.LockoutEnd
             : null;
-        return new(user.Id, user.DisplayName, user.Email ?? string.Empty, isAdmin, user.EmailConfirmed, blocked, lockedOutUntil);
+        var userRoles = AccountRoles.All.Where(role => roles[user.Id].Contains(role)).ToList();
+        return new(user.Id, user.DisplayName, user.Email ?? string.Empty, userRoles, user.EmailConfirmed, blocked, lockedOutUntil);
     }
-
-    private static string SuccessMessage(AccountAuditAction action, ApplicationUser target) => action switch
-    {
-        AccountAuditAction.PromotedToAdmin => $"{target.Email} je teď admin.",
-        AccountAuditAction.DemotedToUser => $"{target.Email} je teď user.",
-        AccountAuditAction.Locked => $"Účet {target.Email} je zablokovaný.",
-        AccountAuditAction.Unlocked => $"Účet {target.Email} je odblokovaný.",
-        _ => throw new ArgumentOutOfRangeException(nameof(action), action, null)
-    };
 }

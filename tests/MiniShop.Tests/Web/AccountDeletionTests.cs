@@ -100,7 +100,7 @@ public sealed class AccountDeletionTests(MiniShopWebFactory web)
         var page = WebUtility.HtmlDecode(await admin.GetStringAsync("/Account/Delete"));
         var response = await DeleteAsync(admin, MiniShopWebFactory.AdminPassword);
 
-        Assert.Contains("Admin si účet smazat nemůže", page);
+        Assert.Contains("Zaměstnanec si účet smazat nemůže", page);   // účty krok 12A
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.NotNull(await FindUserAsync(MiniShopWebFactory.AdminEmail));
     }

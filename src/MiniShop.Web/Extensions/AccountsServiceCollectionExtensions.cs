@@ -34,14 +34,21 @@ public static class AccountsServiceCollectionExtensions
             .AddIdentityCookies();
         services.AddAuthentication().AddGoogleLogin(configuration);
 
-        services.AddAuthorizationBuilder()
-            // 2FA krok A2: admin musí mít zapnuté dvoufázové ověření – s uniklým heslem by jinak šlo převzít e-shop.
-            // Jediné místo pravidla: platí pro heslo, Google i účet z create-admin/AdminBootstrap a pro povýšené uživatele.
-            .AddPolicy(AuthorizationPolicies.RequireAdmin, policy => policy
-                .RequireRole(AccountRoles.Admin)
-                .RequireClaim(AccountClaimTypes.TwoFactorEnabled, "true"))
-            // Účty krok 9: objednávat jde až s potvrzeným e-mailem – robot s vymyšlenou adresou nic neobjedná
-            // a e-maily o objednávkách nechodí cizím lidem. Claim dává AccountClaimsPrincipalFactory.
+        var authorization = services.AddAuthorizationBuilder();
+
+        // 2FA krok A2: správa vyžaduje zapnuté dvoufázové ověření – s uniklým heslem by jinak šlo převzít e-shop.
+        // Jediné místo pravidla: platí pro heslo, Google i účet z create-admin/AdminBootstrap a pro nově přidělené role.
+        // Účty krok 12B: politika pro každou oblast správy – role v StaffPolicies (RequireAdmin = kterákoli zaměstnanecká).
+        foreach (var (name, roles) in StaffPolicies.Roles)
+        {
+            authorization.AddPolicy(name, policy => policy
+                .RequireRole(roles)
+                .RequireClaim(AccountClaimTypes.TwoFactorEnabled, "true"));
+        }
+
+        // Účty krok 9: objednávat jde až s potvrzeným e-mailem – robot s vymyšlenou adresou nic neobjedná
+        // a e-maily o objednávkách nechodí cizím lidem. Claim dává AccountClaimsPrincipalFactory.
+        authorization
             .AddPolicy(AuthorizationPolicies.RequireCustomer, policy => policy
                 .RequireRole(AccountRoles.User)
                 .RequireClaim(AccountClaimTypes.EmailConfirmed, "true"))

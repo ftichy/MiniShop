@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -32,6 +33,21 @@ public sealed class DetailModel(
     /// <summary>Admin: vyřízení a odkazy na průběh zadání (Journeys).</summary>
     public bool CanManageOrders { get; private set; }
 
+    /// <summary>Účty krok 12B: zrušit cizí objednávku, průběh a přehrání – podpora.</summary>
+    public bool CanSupport { get; private set; }
+
+    /// <summary>Účty krok 12B: odkaz na Expedici – sklad.</summary>
+    public bool CanFulfil { get; private set; }
+
+    /// <summary>
+    /// Účty krok 12A: vlastní objednávka přihlášeného zákazníka – vratku a platbu nabízí jen tady (zaměstnanec, který je
+    /// i zákazník, je u cizích objednávek jen správa).
+    /// </summary>
+    public bool IsOwnCustomerOrder { get; private set; }
+
+    /// <summary>Účty krok 12B: objednávka přihlášeného (bez ohledu na role) – vlastní objednávku smí zrušit každý.</summary>
+    public bool IsOwnOrder { get; private set; }
+
     /// <summary>E-shop krok 8: kolik minut má zákazník na platbu kartou (termín ságy).</summary>
     public int PaymentMinutes => (int)sagaSettings.PaymentTimeout.TotalMinutes;
 
@@ -64,12 +80,12 @@ public sealed class DetailModel(
             var returnNumber = 0;
             if (quantities is { Count: > 0 })
             {
-                returnNumber = await orderService.RequestReturnAsync(id, User.ToOrderAccess(), reason ?? string.Empty, quantities,
+                returnNumber = await orderService.RequestReturnAsync(id, User.ToCustomerOrderAccess(), reason ?? string.Empty, quantities,
                     cancellationToken);
             }
             else
             {
-                await orderService.RequestReturnAsync(id, User.ToOrderAccess(), reason ?? string.Empty, cancellationToken);
+                await orderService.RequestReturnAsync(id, User.ToCustomerOrderAccess(), reason ?? string.Empty, cancellationToken);
             }
 
             StatusMessage = (returnNumber > 0 ? $"Vratku {returnNumber} jsme přijali." : "Žádost o vrácení jsme přijali.")
@@ -100,7 +116,12 @@ public sealed class DetailModel(
             return false;
         }
 
-        CanManageOrders = (await authorization.AuthorizeAsync(User, AuthorizationPolicies.RequireAdmin)).Succeeded;
+        CanManageOrders = (await authorization.AuthorizeAsync(User, AuthorizationPolicies.RequireOrderOverview)).Succeeded;   // účty krok 12B
+        CanSupport = (await authorization.AuthorizeAsync(User, AuthorizationPolicies.RequireSupport)).Succeeded;
+        CanFulfil = (await authorization.AuthorizeAsync(User, AuthorizationPolicies.RequireFulfilment)).Succeeded;
+        IsOwnOrder = Detail.CustomerId == User.FindFirstValue(ClaimTypes.NameIdentifier);
+        IsOwnCustomerOrder = IsOwnOrder
+            && (await authorization.AuthorizeAsync(User, AuthorizationPolicies.RequireCustomer)).Succeeded;
         Documents = await invoices.GetDocumentsAsync(id, await InvoiceAccess.CustomerIdOrAdminAsync(User, authorization), cancellationToken);
         return true;
     }

@@ -14,7 +14,7 @@ namespace MiniShop.Web.Pages.Admin.Messages;
 /// <remarks>
 /// Ukazuje moduly služby Web. Sklad (Inventory.Api) má vlastní databázi i frontu – jeho stav hlásí /health/inventory.
 /// </remarks>
-[Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+[Authorize(Policy = AuthorizationPolicies.RequireOperations)]   // účty krok 12B
 public sealed class IndexModel(
     IEnumerable<IMessageStore> stores,
     RabbitMqDeadLetterService deadLetters,

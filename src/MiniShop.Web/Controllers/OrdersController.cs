@@ -35,11 +35,11 @@ public sealed class OrdersController(IOrderService orderService) : ControllerBas
     }
 
     [HttpPost("{id:int}/complete")]
-    [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+    [Authorize(Policy = AuthorizationPolicies.RequireFulfilment)]
     public async Task<ActionResult<OrderDto>> Complete(int id, CancellationToken cancellationToken) =>
-        Ok(await orderService.CompleteAsync(id, cancellationToken));
+        Ok(await orderService.CompleteAsync(id, User.ToActingUserId(), cancellationToken));
 
     [HttpPost("{id:int}/cancel")]
     public async Task<ActionResult<OrderDto>> Cancel(int id, CancellationToken cancellationToken) =>
-        Ok(await orderService.CancelAsync(id, User.ToOrderAccess(), cancellationToken));
+        Ok(await orderService.CancelAsync(id, User.ToCancelAccess(), cancellationToken));   // účty krok 12B: cizí jen podpora
 }

@@ -36,7 +36,8 @@ public static class OrderMapping
                 .OrderBy(c => c.Id)
                 .Select(c => new OrderStatusChangeDto(c.Status.ToString(), c.ChangedAtUtc, c.Note))
                 .ToList(),
-            Returns: order.Returns.Count == 0 ? null : order.Returns.OrderBy(r => r.Number).Select(r => r.ToDto()).ToList());
+            Returns: order.Returns.Count == 0 ? null : order.Returns.OrderBy(r => r.Number).Select(r => r.ToDto()).ToList(),
+            CustomerId: order.CustomerId);
 
     /// <summary>E-shop krok 22: vratka po částech.</summary>
     public static OrderReturnDto ToDto(this OrderReturn orderReturn) =>

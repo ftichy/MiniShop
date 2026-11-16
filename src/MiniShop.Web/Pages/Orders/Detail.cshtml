@@ -25,12 +25,12 @@ else if (order.Status == "AwaitingPayment")
        Stránka se obnovuje – po zaplacení (třeba v jiné záložce) se ukáže potvrzení. *@
     <div class="alert alert-warning d-flex justify-content-between align-items-center" data-reload-when-idle>
         <span>Zboží máme rezervované. Zaplaťte prosím kartou do @Model.PaymentMinutes minut od rezervace, jinak objednávku zrušíme.</span>
-        @if (!Model.CanManageOrders)
+        @if (Model.IsOwnCustomerOrder)
         {
             <a asp-page="/Pay/Index" asp-route-orderId="@order.Id" class="btn btn-primary" data-track="order-pay">Zaplatit @order.TotalPrice.ToString("N2") Kč</a>
         }
     </div>
-    @if (!Model.CanManageOrders && PaymentGateway.IsStripe)
+    @if (Model.IsOwnCustomerOrder && PaymentGateway.IsStripe)
     {
         @* E-shop krok 16: Stripe v testovacím režimu – skutečná karta neprojde, testovací ano. *@
         <p class="small text-muted" data-track="order-pay-test-card">
@@ -226,14 +226,15 @@ else if (order.Status == "Completed" && Model.Detail.ReturnRejectionReason is no
 
         @* E-shop krok 6 a 9: zrušit jde kdykoli před odesláním (i během čekání na sklad nebo platbu). Handler i kontrola práv jsou na stránce
            Objednávky (zákazník ruší jen svou); balení a odeslání má admin na stránce Expedice. *@
-        @if (OrderStatusLabels.CanCancel(order.Status))
+        @* Účty krok 12B: cizí objednávku ruší jen podpora. *@
+        @if (OrderStatusLabels.CanCancel(order.Status) && (Model.IsOwnOrder || Model.CanSupport))
         {
             <form method="post" asp-page="/Orders/Index" asp-page-handler="Cancel" asp-route-id="@order.Id">
                 <button type="submit" class="btn btn-outline-danger w-100">Zrušit objednávku</button>
             </form>
         }
 
-        @if (Model.Detail.ReturnableUntilUtc is { } returnableUntil && !Model.CanManageOrders)
+        @if (Model.Detail.ReturnableUntilUtc is { } returnableUntil && Model.IsOwnCustomerOrder)
         {
             @* E-shop krok 12: vrátit jde doručenou objednávku do 14 dní a jen jednou (pravidlo hlídá Order.RequestReturn). *@
             <details class="card card-body" data-track="order-return">
@@ -266,12 +267,19 @@ else if (order.Status == "Completed" && Model.Detail.ReturnRejectionReason is no
             </details>
         }
 
-        @if (Model.CanManageOrders)
+        @* Účty krok 12B: odkazy podle oblasti – Expedice sklad, průběh a přehrání podpora. *@
+        @if (Model.CanFulfil || Model.CanSupport)
         {
             <p class="small mb-0">
-                <a asp-page="/Admin/Fulfilment/Index">Expedice</a> ·
-                <a asp-page="/Orders/Journey" asp-route-orderId="@order.Id">Průběh zadání</a> ·
-                <a asp-page="/Orders/Replay" asp-route-orderId="@order.Id" asp-route-autoplay="1">▶ Přehrát</a>
+                @if (Model.CanFulfil)
+                {
+                    <a asp-page="/Admin/Fulfilment/Index">Expedice</a>
+                }
+                @if (Model.CanSupport)
+                {
+                    <a asp-page="/Orders/Journey" asp-route-orderId="@order.Id">Průběh zadání</a> <text>·</text>
+                    <a asp-page="/Orders/Replay" asp-route-orderId="@order.Id" asp-route-autoplay="1">▶ Přehrát</a>
+                }
             </p>
         }
     </div>

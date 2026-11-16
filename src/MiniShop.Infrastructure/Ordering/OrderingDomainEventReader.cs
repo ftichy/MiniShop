@@ -43,8 +43,19 @@ public sealed class OrderingDomainEventReader(IOrderRepository orders) : IDomain
                 { EventId = message.Id },
             nameof(OrderReturned) => new OrderReturned(await LoadOrderAsync(message, cancellationToken), message.OccurredAtUtc)
                 { EventId = message.Id },
+            nameof(OrderPartialReturnRequested) => new OrderPartialReturnRequested(await LoadOrderAsync(message, cancellationToken),
+                ReturnNumber(message), message.OccurredAtUtc) { EventId = message.Id },   // e-shop krok 22
+            nameof(OrderPartialReturnRejected) => new OrderPartialReturnRejected(await LoadOrderAsync(message, cancellationToken),
+                ReturnNumber(message), message.OccurredAtUtc) { EventId = message.Id },
+            nameof(OrderPartialReturnCompleted) => new OrderPartialReturnCompleted(await LoadOrderAsync(message, cancellationToken),
+                ReturnNumber(message), message.OccurredAtUtc) { EventId = message.Id },
             _ => throw new InvalidOperationException($"Neznámý typ zprávy v outboxu: {message.Type}.")
         };
+
+    /// <summary>E-shop krok 22: číslo vratky z payloadu (události vratky po částech ho nesou vždy).</summary>
+    private static int ReturnNumber(OutboxMessage message) =>
+        JsonSerializer.Deserialize<OrderPayload>(message.Payload)?.ReturnNumber
+        ?? throw new InvalidOperationException($"Zpráva {message.Id} ({message.Type}) nemá číslo vratky.");
 
     private async Task<Order> LoadOrderAsync(OutboxMessage message, CancellationToken cancellationToken)
     {

@@ -16,6 +16,7 @@ namespace MiniShop.Domain.Orders.Saga;
 /// </code>
 /// Uprostřed je krok člověka (admin převezme zásilku) – sága na něj čeká stejně jako na zprávu, jen s delším termínem.
 /// Zpráva, která do stavu nepatří (duplicita, zpoždění), vrátí <see cref="ReturnSagaAction.None"/>.
+/// E-shop krok 22: stejný automat i pro vratku po částech (<see cref="ReturnNumber"/> &gt; 0) – orchestrátor jen posílá V2 zprávy.
 /// </remarks>
 public sealed class ReturnSaga
 {
@@ -26,8 +27,19 @@ public sealed class ReturnSaga
     {
     }
 
-    /// <summary>ID objednávky = ID ságy (každou objednávku jde vrátit nejvýš jednou).</summary>
+    /// <summary>ID objednávky – s <see cref="ReturnNumber"/> tvoří klíč ságy.</summary>
     public int OrderId { get; private set; }
+
+    /// <summary>
+    /// E-shop krok 22: číslo vratky po částech (1, 2, …); <see cref="WholeOrder"/> (0) = vratka celé objednávky (V1 zprávy,
+    /// stav objednávky ReturnRequested → Returned) – i všechny ságy z doby před krokem 22.
+    /// </summary>
+    public int ReturnNumber { get; private set; }
+
+    /// <summary>Vratka po částech (zprávy V2, objednávka zůstává doručená).</summary>
+    public bool IsPartial => ReturnNumber != WholeOrder;
+
+    public const int WholeOrder = 0;
 
     public ReturnSagaState State { get; private set; }
     public DateTime StartedAtUtc { get; private set; }
@@ -45,8 +57,14 @@ public sealed class ReturnSaga
     /// <summary>Pojistka proti souběhu: admin převezme zboží ve chvíli, kdy vyprší termín – jen jeden zápis projde.</summary>
     public int Version { get; private set; }
 
-    public static ReturnSaga Start(int orderId, DateTime startedAtUtc, TimeSpan sendWindow, bool requiresRefund)
+    public static ReturnSaga Start(int orderId, DateTime startedAtUtc, TimeSpan sendWindow, bool requiresRefund,
+        int returnNumber = WholeOrder)
     {
+        if (returnNumber < WholeOrder)
+        {
+            throw new DomainException("Číslo vratky nemůže být záporné.");
+        }
+
         if (orderId <= 0)
         {
             throw new DomainException("Sága vratky potřebuje uloženou objednávku (s ID).");
@@ -55,6 +73,7 @@ public sealed class ReturnSaga
         return new ReturnSaga
         {
             OrderId = orderId,
+            ReturnNumber = returnNumber,
             State = ReturnSagaState.AwaitingGoods,
             StartedAtUtc = startedAtUtc,
             UpdatedAtUtc = startedAtUtc,

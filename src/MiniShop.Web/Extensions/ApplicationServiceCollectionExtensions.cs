@@ -114,6 +114,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddIntegrationMessageHandler<ReturnCompletedV1, SalesProjectionHandler>(IntegrationModules.Reporting);   // e-shop krok 12
         services.AddIntegrationMessageHandler<ReturnCompletedV2, SalesProjectionHandler>(IntegrationModules.Reporting);   // e-shop krok 22: vratka po částech
         services.AddIntegrationMessageHandler<PaymentRefundedV2, SalesProjectionHandler>(IntegrationModules.Reporting);
+        services.AddIntegrationMessageHandler<OrderPartialReturnsSnapshotV1, SalesProjectionHandler>(IntegrationModules.Reporting);   // přestavění
         return services;
     }
 
@@ -225,6 +226,13 @@ public static class ApplicationServiceCollectionExtensions
         services.AddDomainEventHandler<OrderReturnRequested, ReturnSagaOrchestrator>();
         services.AddIntegrationMessageHandler<ReturnedGoodsRestockedV1, ReturnSagaOrchestrator>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<PaymentRefundedV1, ReturnSagaOrchestrator>(IntegrationModules.Ordering);
+        // E-shop krok 22: vratka po částech – sága s číslem vratky, V2 zprávy
+        services.AddDomainEventHandler<OrderPartialReturnRequested, PublishOrderIntegrationEventsHandler>();
+        services.AddDomainEventHandler<OrderPartialReturnRejected, PublishOrderIntegrationEventsHandler>();
+        services.AddDomainEventHandler<OrderPartialReturnCompleted, PublishOrderIntegrationEventsHandler>();
+        services.AddDomainEventHandler<OrderPartialReturnRequested, ReturnSagaOrchestrator>();
+        services.AddIntegrationMessageHandler<ReturnedGoodsRestockedV2, ReturnSagaOrchestrator>(IntegrationModules.Ordering);
+        services.AddIntegrationMessageHandler<PaymentRefundedV2, ReturnSagaOrchestrator>(IntegrationModules.Ordering);
 
         // Kopie katalogu (krok 10): produkty ze skladu, bez přístupu do jeho databáze. E-shop krok 2: V2 (popis, kategorie,
         // dostupnost) a změny dostupnosti; V1 zatím zůstává (expand → contract).

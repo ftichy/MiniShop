@@ -444,3 +444,6 @@ a:focus-visible, .btn:focus-visible, summary:focus-visible {
 /* Dvoufázové ověření: QR kód (SVG z serveru) – bílé pozadí a klidová zóna z generátoru, na úzkém displeji se zmenší. */
 .two-factor-qr { max-width: 260px; }
 .two-factor-qr svg { width: 100%; height: auto; display: block; }
+
+/* E-shop krok 22: počet kusů ve formuláři vratky. */
+.return-qty { max-width: 5.5rem; }

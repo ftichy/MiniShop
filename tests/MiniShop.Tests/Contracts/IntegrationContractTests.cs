@@ -145,6 +145,18 @@ public sealed class IntegrationContractTests
             OutboxMessageFactory.Create(new ReturnCompletedV2(EventId, OccurredAtUtc, 42, 2, "jan@example.com", items, 0m, 90m, true, [7])).Payload);
     }
 
+    /// <summary>E-shop krok 22C: vyřízené vratky po částech při přestavění přehledu tržeb.</summary>
+    [Fact]
+    public void OrderPartialReturnsSnapshotV1_TvarJsonuSeNezmenil()
+    {
+        var snapshot = new OrderPartialReturnsSnapshotV1(EventId, OccurredAtUtc, 42,
+            [new PartialReturnSnapshotV1(1, 90m, [new ReturnItemV1(7, "Mouse", 1, 100m, 10m, 90m)])]);
+
+        Assert.Equal(
+            """{"EventId":"11111111-2222-3333-4444-555555555555","OccurredAtUtc":"2026-01-15T10:00:00Z","OrderId":42,"Returns":[{"ReturnNumber":1,"Amount":90,"Items":[{"ProductId":7,"ProductName":"Mouse","Quantity":1,"UnitPrice":100,"Discount":10,"LineTotal":90}]}]}""",
+            OutboxMessageFactory.Create(snapshot).Payload);
+    }
+
     /// <summary>Krok 9: příkaz pro sklad je také kontrakt – jeho tvar hlídá stejný test.</summary>
     [Fact]
     public void ReserveStockV1_TvarJsonuSeNezmenil()

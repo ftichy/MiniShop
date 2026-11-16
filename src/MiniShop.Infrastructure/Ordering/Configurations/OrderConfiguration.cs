@@ -64,6 +64,44 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
             .HasForeignKey(c => c.OrderId)
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(o => o.StatusHistory).UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        // E-shop krok 22: vratky po částech – vlastní tabulka, načítají se vždy (pravidla vrácení, IsActive; je jich málo).
+        builder.HasMany(o => o.Returns)
+            .WithOne()
+            .HasForeignKey(r => r.OrderId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(o => o.Returns).UsePropertyAccessMode(PropertyAccessMode.Field).AutoInclude();
+        builder.Ignore(o => o.OpenReturn);
+    }
+}
+
+/// <summary>E-shop krok 22: vratka po částech – unikátní objednávka + číslo, řádky ve vlastní tabulce.</summary>
+internal sealed class OrderReturnConfiguration : IEntityTypeConfiguration<OrderReturn>
+{
+    public void Configure(EntityTypeBuilder<OrderReturn> builder)
+    {
+        builder.ToTable("OrderReturns");
+        builder.HasKey(r => r.Id);
+        builder.HasIndex(r => new { r.OrderId, r.Number }).IsUnique();
+        builder.Property(r => r.Status).HasConversion<string>().HasMaxLength(20);
+        builder.Property(r => r.Reason).HasMaxLength(OrderReturn.ReasonMaxLength);
+        builder.Property(r => r.RejectionReason).HasMaxLength(500);
+        builder.Ignore(r => r.Amount);
+        builder.Ignore(r => r.IsOpen);
+        builder.Ignore(r => r.CountsAsReturned);
+
+        builder.OwnsMany(r => r.Lines, line =>
+        {
+            line.ToTable("OrderReturnLines");
+            line.WithOwner().HasForeignKey("OrderReturnId");
+            line.Property<int>("Id");
+            line.HasKey("Id");
+            line.Property(l => l.ProductName).IsRequired().HasMaxLength(100);
+            line.Property(l => l.UnitPrice).HasPrecision(18, 2);
+            line.Property(l => l.Discount).HasPrecision(18, 2);
+            line.Ignore(l => l.LineTotal);
+        });
+        builder.Navigation(r => r.Lines).UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }
 

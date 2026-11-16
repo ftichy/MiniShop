@@ -48,8 +48,11 @@ public sealed class DetailModel(
     /// <summary>
     /// E-shop krok 12: zákazník žádá o vrácení doručené objednávky. Jen zákazník a jen svou (cizí = 404);
     /// pravidla (do 14 dní, jednou) hlídá Order.RequestReturn.
+    /// E-shop krok 22: <paramref name="quantities"/> = kolik kusů čeho (pole <c>quantities[ID produktu]</c>); bez nich
+    /// (starší formulář) = celá objednávka.
     /// </summary>
-    public async Task<IActionResult> OnPostReturnAsync(int id, string? reason, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostReturnAsync(int id, string? reason, Dictionary<int, int>? quantities,
+        CancellationToken cancellationToken)
     {
         if (!(await authorization.AuthorizeAsync(User, AuthorizationPolicies.RequireCustomer)).Succeeded)
         {
@@ -58,8 +61,19 @@ public sealed class DetailModel(
 
         try
         {
-            await orderService.RequestReturnAsync(id, User.ToOrderAccess(), reason ?? string.Empty, cancellationToken);
-            StatusMessage = "Žádost o vrácení jsme přijali. Pokyny, kam zboží poslat, jsme vám poslali e-mailem.";
+            var returnNumber = 0;
+            if (quantities is { Count: > 0 })
+            {
+                returnNumber = await orderService.RequestReturnAsync(id, User.ToOrderAccess(), reason ?? string.Empty, quantities,
+                    cancellationToken);
+            }
+            else
+            {
+                await orderService.RequestReturnAsync(id, User.ToOrderAccess(), reason ?? string.Empty, cancellationToken);
+            }
+
+            StatusMessage = (returnNumber > 0 ? $"Vratku {returnNumber} jsme přijali." : "Žádost o vrácení jsme přijali.")
+                + " Pokyny, kam zboží poslat, jsme vám poslali e-mailem.";
             return RedirectToPage(new { id });
         }
         catch (NotFoundException)

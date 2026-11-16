@@ -122,6 +122,20 @@ public static class ShopFlow
         await ReloadUntilAsync(page, $"/Orders/{orderId}", status, $"stav „{statusText}“ objednávky {orderId}");
     }
 
+    /// <summary>E-shop krok 22: admin objednávku zabalí, odešle a doručí (stránka Expedice).</summary>
+    public static async Task ShipAndDeliverAsync(IPage back, int orderId)
+    {
+        await back.GotoAsync("/Admin/Fulfilment");
+        await back.Locator($"input[name=ids][value='{orderId}']").CheckAsync();
+        await back.Locator("[data-track=fulfilment-start-packing]").ClickAsync();
+        await back.Locator($"#carrier-{orderId}").FillAsync("PPL");
+        await back.Locator($"#tracking-{orderId}").FillAsync($"E2E{orderId}");
+        await back.Locator($"form:has(#carrier-{orderId}) [data-track=fulfilment-ship]").ClickAsync();
+        await back.Locator(".list-group-item")
+            .Filter(new() { Has = back.GetByRole(AriaRole.Link, new() { Name = $"č. {orderId}", Exact = true }) })
+            .Locator("[data-track=fulfilment-deliver]").ClickAsync();
+    }
+
     /// <summary>Platba kartou na simulované bráně: detail (čeká na ságu) → „Zaplatit“ → /Pay → „Zaplatit“.</summary>
     public static async Task PayByCardAsync(IPage page, int orderId)
     {

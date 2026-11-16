@@ -28,18 +28,25 @@ public static class OrderingDomainEvents
         OrderReturnRequested e => OutboxMessageFactory.Create(e, ToPayload(e.Order)),   // e-shop krok 12
         OrderReturnRejected e => OutboxMessageFactory.Create(e, ToPayload(e.Order)),
         OrderReturned e => OutboxMessageFactory.Create(e, ToPayload(e.Order)),
+        OrderPartialReturnRequested e => OutboxMessageFactory.Create(e, ToPayload(e.Order, e.ReturnNumber)),   // e-shop krok 22
+        OrderPartialReturnRejected e => OutboxMessageFactory.Create(e, ToPayload(e.Order, e.ReturnNumber)),
+        OrderPartialReturnCompleted e => OutboxMessageFactory.Create(e, ToPayload(e.Order, e.ReturnNumber)),
         _ => throw new InvalidOperationException(
             $"Událost {domainEvent.GetType().Name} nemá převod do outboxu. Doplňte ji do {nameof(OrderingDomainEvents)}.")
     };
 
-    private static OrderPayload ToPayload(Order order) => new(
+    private static OrderPayload ToPayload(Order order, int? returnNumber = null) => new(
         order.Id,
         order.CustomerEmail,
         order.TotalPrice,
-        order.Items.Select(i => new OrderLinePayload(i.ProductId, i.Quantity)).ToList());
+        order.Items.Select(i => new OrderLinePayload(i.ProductId, i.Quantity)).ToList(),
+        returnNumber);
 }
 
 /// <summary>Data objednávky v outboxu (společná pro všechny události objednávky).</summary>
-public sealed record OrderPayload(int OrderId, string CustomerEmail, decimal TotalPrice, IReadOnlyList<OrderLinePayload> Lines);
+/// <param name="ReturnNumber">E-shop krok 22: číslo vratky po částech (jen u jejích událostí, jinak null – starší řádky ho nemají).</param>
+public sealed record OrderPayload(int OrderId, string CustomerEmail, decimal TotalPrice, IReadOnlyList<OrderLinePayload> Lines,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    int? ReturnNumber = null);
 
 public sealed record OrderLinePayload(int ProductId, int Quantity);

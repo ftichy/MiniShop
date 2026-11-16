@@ -1,12 +1,13 @@
 using MiniShop.Application.Abstractions;
 using MiniShop.Contracts.Orders;
 using MiniShop.Contracts.Reporting;
+using MiniShop.Domain.Orders;
 
 namespace MiniShop.Application.Ordering.IntegrationEvents;
 
 /// <summary>
 /// E-shop krok 11: vyřídí příkaz <see cref="RebuildSalesReportV1"/> – pošle aktuální stav každé objednávky jako
-/// <see cref="OrderSnapshotV1"/>. Kdo si z událostí staví vlastní přehled (Reporting), postaví ho z nich znovu.
+/// <see cref="OrderSnapshotV1"/> (e-shop krok 22: a vyřízené vratky po částech jako <see cref="OrderPartialReturnsSnapshotV1"/>). Kdo si z událostí staví vlastní přehled (Reporting), postaví ho z nich znovu.
 /// </summary>
 /// <remarks>
 /// Stejný vzor jako obnova katalogu ve skladu (SyncCatalogHandler). Ordering neví, kdo snímky čte – jen je oznámí.
@@ -34,6 +35,17 @@ public sealed class RebuildSalesReportHandler(
                     .ToList(),
                 order.ShippingPrice,
                 order.TotalPrice));
+
+            // E-shop krok 22: vyřízené vratky po částech zvlášť – OrderSnapshotV1 se nemění.
+            var completed = order.Returns.Where(r => r.Status == OrderReturnStatus.Completed).OrderBy(r => r.Number).ToList();
+            if (completed.Count > 0)
+            {
+                publisher.Publish(new OrderPartialReturnsSnapshotV1(Guid.NewGuid(), now, order.Id, completed
+                    .Select(r => new PartialReturnSnapshotV1(r.Number, r.Amount, r.Lines
+                        .Select(l => new ReturnItemV1(l.ProductId, l.ProductName, l.Quantity, l.UnitPrice, l.Discount, l.LineTotal))
+                        .ToList()))
+                    .ToList()));
+            }
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

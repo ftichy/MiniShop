@@ -34,6 +34,15 @@ Před zveřejněním se prošla celá historie nástrojem **gitleaks** – nena�
 
 Každý jeho PR projde stejným CI jako jakákoli jiná změna; sloučení je ruční.
 
+**Hlavní verze .NET Dependabot nenabízí** (`ignore` … `semver-major` pro `Microsoft.AspNetCore.*`,
+`Microsoft.EntityFrameworkCore*`, `Microsoft.Extensions.*`, `System.*`, `Npgsql*` a image `dotnet/*`). Přechod z .NET 10
+na 11 je samostatný krok – SDK v `global.json`, image a všechny balíčky naráz. Runtime 11 aplikaci pro .NET 10 nespustí:
+16. 11. 2026 se sloučil image `dotnet/aspnet:11.0` pro sklad (PR #123), nová kopie byla nezdravá a `deploy.sh` vrátil
+předchozí verzi (Dockerfile vráceny na `10.0` v PR #136). **Pozor:** Dependabot PR prochází povinným „Build a testy“, ale
+spuštění kontejneru hlídají jen nepovinné „E2E testy“ a „ZAP sken“ – červené E2E/ZAP u Dependabota = nesloučit.
+Opravy `10.0.x` a nové verze ostatních knihoven (MailKit, Stripe…) chodí dál. Několik `Microsoft.Extensions.*` je už
+ve verzi 11.0.0 (PR #135) – na .NET 10 fungují, sladí se při přechodu na .NET 11.
+
 ## Pravidla práce
 
 1. Nová větev → commity → `git push` → pull request.

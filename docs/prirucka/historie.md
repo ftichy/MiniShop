@@ -112,13 +112,14 @@ Plán (výloha, košík, pokladna, expedice, platba, notifikace): [docs/Eshop-ro
 
 ## Vzhled
 
-Moderní vzhled a mobil – po krocích A (kostra a výloha), B (nákupní cesta), C (administrace). Popis: [Vzhled a mobil](architektura/vzhled.md).
+Moderní vzhled a mobil – po krocích A (kostra a výloha), B (nákupní cesta), C (administrace), D (instalovatelná aplikace). Popis: [Vzhled a mobil](architektura/vzhled.md).
 
 | Krok | Co přinesl | Souhrn |
 | --- | --- | --- |
 | A | Design systém nad Bootstrapem (CSS proměnné, indigo), hlavička s menu pro mobil a nabídkou Správa, Bootstrap JS lokálně, úvod pro zákazníka, karta produktu jako partial, filtry výlohy ve vysouvacím panelu, detail produktu s nákupním boxem, ikony jako inline SVG | [vzhled-a](code:docs/kroky-vzhled/krok-a-kostra-a-vyloha.md) |
 | B | Nákupní cesta pro mobil – košík s kartami a spodní lištou, pokladna se souhrnem a volbami jako karty (sledování a přehrání beze změny), objednávky jako karty, detail s časovou osou, stránky účtu v kartě uprostřed (`_AccountLayout`) | [vzhled-b](code:docs/kroky-vzhled/krok-b-nakupni-cesta.md) |
 | C | Administrace pro mobil – jednotná hlavička s drobečkovou navigací (`_AdminHeader`), všechny tabulky responzivní v kartě, fronty Expedice jako seznam, formuláře v kartě, jemné barvy štítků | [vzhled-c](code:docs/kroky-vzhled/krok-c-administrace.md) |
+| D | Instalovatelná aplikace (PWA) – manifest a ikony, service worker (statické soubory z telefonu, stránky nikdy, bez sítě offline stránka), tlačítko instalace a návod pro iPhone, spodní lišta jako v mobilní aplikaci | [vzhled-d](code:docs/kroky-vzhled/krok-d-pwa.md) |
 
 ## Spolupráce s agentem
 

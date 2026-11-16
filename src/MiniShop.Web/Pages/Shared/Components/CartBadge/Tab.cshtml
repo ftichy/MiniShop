@@ -1,0 +1,16 @@
+@model int
+@* Vzhled krok D: košík ve spodní liště na mobilu (_TabBar). *@
+@{
+    var active = ViewContext.HttpContext.Request.Path.StartsWithSegments("/Cart") || ViewContext.HttpContext.Request.Path.StartsWithSegments("/Checkout");
+}
+<a class="tab-bar-item@(active ? " active" : "")" asp-page="/Cart/Index" data-track="tab-cart" aria-current="@(active ? "page" : null)"
+   aria-label="Košík@(Model > 0 ? $", {Model} ks" : "")">
+    <span class="tab-bar-icon">
+        @Icons.Cart
+        @if (Model > 0)
+        {
+            <span class="badge">@Model</span>
+        }
+    </span>
+    <span>Košík</span>
+</a>

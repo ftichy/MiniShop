@@ -23,6 +23,8 @@
                 {
                     <li><a class="dropdown-item" asp-page="/Account/EmailPreferences">Nastavení e-mailů</a></li>
                 }
+                @* Vzhled krok D: instalace aplikace – ukáže pwa.js, jen když ji prohlížeč nabízí. *@
+                <li><button type="button" class="dropdown-item" data-pwa-install data-track="nav-pwa-install" hidden>Nainstalovat aplikaci</button></li>
                 <li><hr class="dropdown-divider" /></li>
                 <li>
                     <form method="post" asp-page="/Account/Logout">

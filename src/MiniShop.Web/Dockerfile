@@ -28,7 +28,7 @@ COPY docs/prirucka/ docs/prirucka/
 RUN dotnet publish src/MiniShop.Web/MiniShop.Web.csproj -c Release -a $TARGETARCH --no-restore \
     -p:UseAppHost=false -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:11.0 AS final
 WORKDIR /app
 
 # /data = místo pro trvalá data (klíče, logy; databáze je od škálování kroku 3C v PostgreSQL); v kroku 2 se na něj připojí volume.

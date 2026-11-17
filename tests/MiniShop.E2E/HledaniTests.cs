@@ -25,7 +25,7 @@ public sealed class HledaniTests : E2ETestBase
 
             // Dlouhý stisk (300 ms mezi stiskem a uvolněním) – dřív nabídka zmizela po 150 ms.
             await suggestion.ClickAsync(new() { Delay = 300 });
-            await page.WaitForURLAsync(new Regex(@"/Shop/\d+$"));
+            await ExpectProductDetailAsync(page);
         }, () => desktop);
 
         if (desktop is not null)
@@ -54,12 +54,24 @@ public sealed class HledaniTests : E2ETestBase
             await Expect(suggestion).ToBeVisibleAsync();
 
             await suggestion.TapAsync();
-            await page.WaitForURLAsync(new Regex(@"/Shop/\d+$"));
+            await ExpectProductDetailAsync(page);
         }, () => phone);
 
         if (phone is not null)
         {
             await phone.DisposeAsync();
         }
+    }
+
+    /// <summary>
+    /// Otevřel se detail produktu. Kontroluje výsledek (adresa a tlačítko na stránce), ne průběh navigace:
+    /// klik/klepnutí samo počká na začátek navigace a ta je často hotová dřív, než by WaitForURLAsync začal čekat –
+    /// ten pak čekal na další událost „load“, která už nepřišla (nestabilní test, CI 16. a 17. 11. 2026).
+    /// Expect opakuje kontrolu, dokud neplatí.
+    /// </summary>
+    private static async Task ExpectProductDetailAsync(Microsoft.Playwright.IPage page)
+    {
+        await Expect(page).ToHaveURLAsync(new Regex(@"/Shop/\d+$"));
+        await Expect(page.Locator("[data-track=product-rating]")).ToBeVisibleAsync();
     }
 }

@@ -29,7 +29,7 @@ public sealed class LocalServiceMessages(MessagesOverview overview) : IServiceMe
 {
     public string ServiceName => "web";
 
-    public string DisplayName => "Web (objednávky, platby, faktury, e-maily…)";
+    public string DisplayName => "Web (objednávky, platby, faktury, hodnocení)";
 
     public Task<ServiceMessagesStatus> GetAsync(CancellationToken cancellationToken = default) => overview.GetAsync(cancellationToken);
 
@@ -91,6 +91,8 @@ public static class ServiceMessagesRegistration
             ServiceApiKey.Read(key => configuration[key], ServiceApiKey.ConfigurationKey));
         AddRemote(services, "reporting-api", "Přehled tržeb (reporting-api)",
             ServiceApiKey.Read(key => configuration[key], ServiceApiKey.ReportingConfigurationKey));
+        AddRemote(services, "notifications-api", "Notifications – e-maily a oznámení (notifications-api)",
+            ServiceApiKey.Read(key => configuration[key], ServiceApiKey.NotificationsConfigurationKey));   // mikroservisy M2C
         return services;
     }
 

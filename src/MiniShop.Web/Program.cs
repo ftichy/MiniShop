@@ -60,7 +60,7 @@ try
         writeToProviders: true);
 
     // Každý modul má vlastní databázi: Ordering (krok 10B – sklad má vlastní službu), Journeys (krok 12), Accounts
-    // (účty krok 1), Notifications, Payments, Reviews, Invoicing (e-shop kroky 7, 8, 14, 15).
+    // (účty krok 1), Payments, Reviews, Invoicing (e-shop kroky 8, 14, 15).
     // Škálování krok 1 a 3C: jedna PostgreSQL databáze (ConnectionStrings:minishop), každý modul ve vlastním schématu.
     var database = ModuleDatabase.FromConfiguration(builder.Configuration);
 
@@ -69,7 +69,7 @@ try
     builder.Services.AddInfrastructureCore();
     builder.Services.AddOrderingInfrastructure(database);
     builder.Services.AddJourneysInfrastructure(database);
-    builder.Services.AddNotificationsInfrastructure(database);
+    // Mikroservisy M2C: Notifications (e-maily, oznámení push) běží jako samostatná služba MiniShop.Notifications.Api.
     // Bez tajemství webhooku (Payments:WebhookSecret, min. 32 znaků) se Web nespustí – jako se servisním klíčem skladu.
     // E-shop krok 16: Payments:Gateway = Stripe → skutečná brána (testovací režim; bez klíčů se Web nespustí), jinak simulace.
     builder.Services.AddPaymentsInfrastructure(database, builder.Configuration["Payments:WebhookSecret"],
@@ -153,7 +153,6 @@ try
 
     await OrderingDatabaseInitializer.InitializeAsync(app.Services);
     await JourneysDatabaseInitializer.InitializeAsync(app.Services);
-    await NotificationsDatabaseInitializer.InitializeAsync(app.Services);
     await PaymentsDatabaseInitializer.InitializeAsync(app.Services);
     await ReviewsDatabaseInitializer.InitializeAsync(app.Services);
     await InvoicingDatabaseInitializer.InitializeAsync(app.Services);

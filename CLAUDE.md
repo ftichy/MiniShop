@@ -36,6 +36,7 @@ src/MiniShop.Web             služba Ordering (7180): API objednávek, Razor Pag
                              wwwroot/js/order-form-tracker.js + journey-player.js
 src/MiniShop.Inventory.Api   služba skladu (7181): ProductsController, CategoriesController, jen modul Inventory, schéma inventory, fronta minishop.inventory
 src/MiniShop.Reporting.Api   mikroservisy M1: služba přehledu tržeb (7182): SalesController (/api/sales), jen modul Reporting, schéma reporting, fronta minishop.reporting
+src/MiniShop.Notifications.Api mikroservisy M2C: služba Notifications (7183): e-maily a push (handlery modulu, `NotificationsModule`), API pro Web (/api/push, /api/staff-alerts, /api/back-in-stock, /api/messages), data jiných modulů z interního API Webu
 src/MiniShop.ServiceDefaults AddServiceDefaults (service discovery, HTTP resilience, health checky /health, /alive, OpenTelemetry → OTLP)
 src/MiniShop.AppHost         .NET Aspire: RabbitMQ (persistentní kontejner) + inventory-api + web, dashboard
 tests/MiniShop.Tests         testy domény, OrderService + ságy + katalogu (PostgreSQL přes Testcontainers, oba moduly v procesu), dispatcheru,
@@ -52,7 +53,7 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
 - Bez Aspire: `docker start minishop-rabbit` (poprvé
   `docker run -d --name minishop-rabbit -p 5672:5672 -p 15672:15672 rabbitmq:4-management`; UI http://localhost:15672, guest/guest),
   `docker start minishop-postgres` (poprvé `docker run -d --name minishop-postgres -e POSTGRES_DB=minishop -e POSTGRES_USER=minishop
-  -e POSTGRES_PASSWORD=minishop-vyvoj -p 5432:5432 postgres:18-alpine`), pak `dotnet run --project src/MiniShop.Inventory.Api`, `dotnet run --project src/MiniShop.Reporting.Api` (přehled tržeb; bez ní jen `/Admin/Sales` hlásí nedostupnost) a `dotnet run --project src/MiniShop.Web`.
+  -e POSTGRES_PASSWORD=minishop-vyvoj -p 5432:5432 postgres:18-alpine`), pak `dotnet run --project src/MiniShop.Inventory.Api`, `dotnet run --project src/MiniShop.Reporting.Api` (přehled tržeb; bez ní jen `/Admin/Sales` hlásí nedostupnost), `dotnet run --project src/MiniShop.Notifications.Api` (e-maily a oznámení) a `dotnet run --project src/MiniShop.Web`.
   Transport `InProcess` od 10B pro spuštění nejde (dva procesy) – jen v testech.
 - Při ověřování naživo pozor: zastavení AppHostu nechá běžet kontejnery `messaging-…` a `postgres-…` (persistentní); procesy služeb ukončit.
 - Po každé změně kódu spusť build a testy a oprav chyby, než ohlásíš hotovo.
@@ -191,7 +192,7 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   `Order.Version` = concurrency token → `ConcurrencyConflictException` (stránky: `Orders.IndexModel.ConcurrencyMessage`, API 409).
   `OrderShippedV1` = **událost** (choreografie): sklad `FulfilReservationHandler` → `StockReservation.Fulfil()`; sága jen
   `Reserved → Shipped → Completed`, nic neposílá. Aktivní rezervace = ani uvolněná, ani vydaná.
-- **Notifikace (e-shop krok 7):** modul Notifications (`…Notifications` ve všech vrstvách, hostuje Web, schéma `notifications`
+- **Notifikace (e-shop krok 7):** modul Notifications (`…Notifications` ve všech vrstvách, od mikroservis M2C hostuje **služba `MiniShop.Notifications.Api`** – registrace `NotificationsModule`, Web jen `AddNotificationsBridge` (implementace pro interní API) + `INotificationsApi`/`NotificationsApiClient` pro stránky, výpadek = `NotificationsUnavailableException` → upozornění; schéma `notifications`
   s inboxem, fronta `minishop.notifications`) – **Ordering zákazníkovi nepíše** (hlídá `ModuleBoundariesTests.Ordering_NeposilaEmaily`),
   jen překladač publikuje fakta: `OrderPlacedV1` + `OrderPlacedV2` (snímek: jméno, položky, doprava, adresa), `OrderConfirmedV1`,
   `OrderRejectedV1`, `OrderShippedV1`, `OrderCompletedV1`, `OrderCancelledV1`; smazání účtu `CustomerAnonymizedV1` (z `AnonymizeCustomerAsync`).
@@ -279,7 +280,7 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   zákazník z `OrderRecipient.CustomerId`, odeslání `PushNotifier` → `IPushSender` (`WebPushSender`, bez klíčů VAPID `DisabledPushSender`).
   Texty `PushTemplates` **bez osobních údajů**. **Endpoint = osobní údaj: nikdy do logu ani trasy** (`PushServiceHosts` zkracuje `url.full`).
   **Nová událost s oznámením = šablona v `PushTemplates` + `HandleAsync` v `OrderPushHandler` + řádek v `AddOrderPushHandlers`.** Klíče:
-  `PUSH_VAPID_PUBLIC_KEY` (`production.env`) + secret `PUSH_VAPID_PRIVATE_KEY`. Testy: `RecordingPushSender` (`_push`, `web.Push`).
+  `PUSH_VAPID_PUBLIC_KEY` (`production.env`) + secret `PUSH_VAPID_PRIVATE_KEY`. Testy: `RecordingPushSender` (`_push`, `web.Push` = push ze služby `web.Notifications` – `NotificationsApiFactory` v paměti, Web ji volá přes HTTP; `web.NotificationsAvailable = false` = výpadek).
   **Oznámení k práci (e-shop krok 24):** nový typ = konec `StaffAlertKind` + `PushTemplates` + `StaffPushHandler` + řádek `StaffAlertRoles` (role, popisek) + `AddStaffPushHandlers`; role rozhoduje Web při odeslání (`IStaffDirectory`). Testy: `InMemoryStaffDirectory` (`_staff`).
 - **Hodnocení produktů (e-shop krok 14):** modul Reviews (`…Reviews` ve všech vrstvách, hostuje Web, schéma `reviews` s inboxem + outboxem,
   fronta `minishop.reviews`; **musí do zálohy** – nejde přestavět). Kopie nákupů `PurchasedOrder` z `OrderPlacedV2`, `OrderCompletedV1`
@@ -635,8 +636,8 @@ přes stejnou frontu + inbox, UI ve Webu (služby REST API se servisním klíče
 | M0. Příprava a Grafana (alarm `MiniShopMetricsNearLimit` ve zvláštním souboru – zdroj `grafanacloud-usage`; Alloy 384 MiB; metrika `minishop.queue.consumers` + alarmy `MiniShopQueueNoConsumer` a `MiniShopQueueSilent`, panel Posluchači front) | hotovo (nasazeno 17. 11. 2026; v Grafaně ověřeno: posluchači front – sklad 1, fronty Webu 2; 12 alarmů Normal, limit řad ze zdroje `grafanacloud-usage`) | `docs/kroky-mikroservisy/krok-m0-priprava.md` |
 | M1. Reporting jako služba (`MiniShop.Reporting.Api` – handlery, `SalesReportOnStartupWorker`, API `/api/sales` se servisním klíčem `REPORTING_API_KEY`; Web `ReportingApiClient` + upozornění při výpadku; `ApiKeyAuthenticationHandler`/`ServiceApiKeyHandler` v ServiceDefaults; Compose, CI, `deploy.sh` – služba před Webem) | hotovo (nasazeno 17. 11. 2026 jako `sha-454ffdc` bez odstávky; v produkci ověřeno: `reporting-api` healthy, frontu `minishop.reporting` poslouchá jen služba, Přehled tržeb a Přestavět fungují) | `docs/kroky-mikroservisy/krok-m1-reporting.md` |
 | M2A. Interní API Webu pro Notifications – expand (`InternalController` `/internal/…` jen se servisním klíčem `WEB_INTERNAL_API_KEY` – schéma `ApiKey` vedle cookie, politika `InternalApi.PolicyName`; Caddy `/internal/*` → 404; klient `WebInternalApiClient` v Infrastructure + test kontraktu `InternalApiTests`; `deploy.sh` připravený i na M2C) | hotovo (nasazeno 17. 11. 2026 jako `sha-83a9c0b`; v produkci ověřeno: z internetu `/internal/…` 404, zevnitř VM s klíčem 200) | `docs/kroky-mikroservisy/krok-m2a-interni-api.md` |
-| M2B. Zprávy ze všech služeb (`MessagesOverview` ve sdíleném jádru, `MessagesController` `/api/messages` v každé službě, `/Admin/Messages` přes `IServiceMessages` – Web v procesu, ostatní HTTP, nedostupná služba jen upozornění) | hotovo lokálně (necommitováno) | `docs/kroky-mikroservisy/krok-m2b-zpravy-vsech-sluzeb.md` |
-| M2C. Notifications jako služba (`MiniShop.Notifications.Api`, `NotificationsApiClient`; `deploy.sh` na VM už připravený) | plán | — |
+| M2B. Zprávy ze všech služeb (`MessagesOverview` ve sdíleném jádru, `MessagesController` `/api/messages` v každé službě, `/Admin/Messages` přes `IServiceMessages` – Web v procesu, ostatní HTTP, nedostupná služba jen upozornění) | hotovo (nasazeno 17. 11. 2026 jako `sha-667a4ee`; v produkci ověřeno: stránka Zprávy ukazuje Web, sklad i přehled tržeb) | `docs/kroky-mikroservisy/krok-m2b-zpravy-vsech-sluzeb.md` |
+| M2C. Notifications jako služba (`MiniShop.Notifications.Api` – handlery, SMTP, VAPID, API pro stránky Webu, `/api/messages`; data z interního API Webu přes `WebInternalApiClient`; Web `NotificationsApiClient` + upozornění při výpadku, jen veřejný klíč VAPID; secret `NOTIFICATIONS_API_KEY`; testy Webu proti službě v paměti přes HTTP) | hotovo lokálně (necommitováno) | `docs/kroky-mikroservisy/krok-m2c-notifications.md` |
 | M3. Vyhodnocení – pokračovat, nebo zastavit | plán | — |
 
 ## Stav observability (viz `docs/Observabilita-roadmap.md`)

@@ -47,7 +47,7 @@ public static class ApplicationServiceCollectionExtensions
 
         services.AddOrderingModule(configuration);
         services.AddJourneysModule();
-        services.AddNotificationsModule(configuration);
+        services.AddNotificationsBridge(configuration);   // mikroservisy M2C: modul běží jako služba
         services.AddPaymentsModule();
         services.AddReviewsModule();
         services.AddInvoicingModule(configuration);
@@ -114,93 +114,18 @@ public static class ApplicationServiceCollectionExtensions
     }
 
     /// <summary>
-    /// E-shop krok 7: modul Notifications – e-maily zákazníkovi podle integračních událostí objednávky (pub/sub).
-    /// Vlastní fronta minishop.notifications; Ordering o něm neví. Příjemce si pamatuje z OrderPlacedV2.
+    /// Mikroservisy M2C: modul Notifications běží jako služba MiniShop.Notifications.Api. Ve Webu zůstávají jen
+    /// implementace rozhraní, která služba volá přes interní API (/internal/…, M2A) – kontakt zákazníka, role
+    /// zaměstnanců, název produktu, PDF faktur – a klient služby pro stránky (zařízení push, oznámení k práci,
+    /// „Dejte mi vědět“).
     /// </summary>
-    public static IServiceCollection AddNotificationsModule(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddNotificationsBridge(this IServiceCollection services, IConfiguration configuration)
     {
-        // Odkazy v e-mailech (/Orders/{id}) potřebují veřejnou adresu webu – handler běží bez HTTP požadavku.
-        services.AddSingleton(new NotificationSettings(configuration["Notifications:PublicBaseUrl"]));
-        services.AddSingleton<OrderEmailTemplates>();
-
-        services.AddIntegrationMessageHandler<OrderPlacedV2, OrderNotificationsHandler>(IntegrationModules.Notifications);
-        services.AddIntegrationMessageHandler<OrderConfirmedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
-        services.AddIntegrationMessageHandler<OrderRejectedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
-        services.AddIntegrationMessageHandler<OrderShippedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
-        services.AddIntegrationMessageHandler<OrderCompletedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
-        services.AddIntegrationMessageHandler<OrderCancelledV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
-        services.AddIntegrationMessageHandler<CustomerAnonymizedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
-        services.AddIntegrationMessageHandler<PaymentRefundedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);   // e-shop krok 8
-        services.AddIntegrationMessageHandler<ReturnRequestedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);   // e-shop krok 12
-        services.AddIntegrationMessageHandler<ReturnRejectedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
-        services.AddIntegrationMessageHandler<ReturnCompletedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
-        services.AddIntegrationMessageHandler<ReturnRequestedV2, OrderNotificationsHandler>(IntegrationModules.Notifications);   // e-shop krok 22: vratka po částech
-        services.AddIntegrationMessageHandler<ReturnRejectedV2, OrderNotificationsHandler>(IntegrationModules.Notifications);
-        services.AddIntegrationMessageHandler<ReturnCompletedV2, OrderNotificationsHandler>(IntegrationModules.Notifications);
-
-        // E-shop krok 10: připomínka opuštěného košíku – kontakt a souhlas až při odeslání (z účtů, přes Web).
-        services.AddSingleton<CartEmailTemplates>();
         services.AddScoped<ICustomerContacts, IdentityCustomerContacts>();
-        services.AddIntegrationMessageHandler<CartAbandonedV1, CartReminderHandler>(IntegrationModules.Notifications);
-
-        // E-shop krok 18: „Dejte mi vědět“ – lísteček u vyprodaného zboží, jeden e-mail po naskladnění.
-        services.AddSingleton<BackInStockEmailTemplates>();
-        services.AddScoped<BackInStockService>();
-        services.AddIntegrationMessageHandler<StockAvailabilityChangedV1, BackInStockHandler>(IntegrationModules.Notifications);
-
-        // E-shop krok 23: oznámení push – druhý kanál vedle e-mailu (vlastní handler = vlastní inbox, chyba push služby
-        // nezopakuje e-mail). Bez klíčů VAPID se nenabízejí ani neposílají.
-        var push = PushSettings.FromValues(configuration["PushNotifications:VapidPublicKey"],
-            configuration["PushNotifications:VapidPrivateKey"], configuration["Notifications:PublicBaseUrl"]);
-        if (push.IsConfigured)
-        {
-            services.AddSingleton(push);
-            services.AddHttpClient<IPushSender, WebPushSender>();
-        }
-        else
-        {
-            services.AddSingleton<IPushSender, DisabledPushSender>();
-        }
-
-        services.AddScoped<PushNotifier>();
-        services.AddScoped<PushSubscriptionService>();
-        services.AddOrderPushHandlers();
-
-        // E-shop krok 24: oznámení k práci pro zaměstnance – role a název produktu přes Web (Notifications je nezná).
-        services.AddScoped<StaffAlertService>();
         services.AddScoped<IStaffDirectory, IdentityStaffDirectory>();
         services.AddScoped<IProductNames, CatalogProductNames>();
-        services.AddStaffPushHandlers();
-
-        // E-shop krok 15: e-mail s fakturou v příloze – PDF z modulu Invoicing přes most ve Webu.
         services.AddScoped<IInvoiceDocuments, InvoiceDocuments>();
-        services.AddIntegrationMessageHandler<InvoiceIssuedV1, InvoiceEmailHandler>(IntegrationModules.Notifications);
-        services.AddIntegrationMessageHandler<CreditNoteIssuedV1, InvoiceEmailHandler>(IntegrationModules.Notifications);   // e-shop krok 15B
-        return services;
-    }
-
-    /// <summary>E-shop krok 23: události objednávky, o kterých jde oznámení push (sdílí i testy).</summary>
-    public static IServiceCollection AddOrderPushHandlers(this IServiceCollection services)
-    {
-        services.AddIntegrationMessageHandler<OrderConfirmedV1, OrderPushHandler>(IntegrationModules.Notifications);
-        services.AddIntegrationMessageHandler<OrderRejectedV1, OrderPushHandler>(IntegrationModules.Notifications);
-        services.AddIntegrationMessageHandler<OrderShippedV1, OrderPushHandler>(IntegrationModules.Notifications);
-        services.AddIntegrationMessageHandler<OrderCompletedV1, OrderPushHandler>(IntegrationModules.Notifications);
-        services.AddIntegrationMessageHandler<OrderCancelledV1, OrderPushHandler>(IntegrationModules.Notifications);
-        services.AddIntegrationMessageHandler<ReturnRejectedV1, OrderPushHandler>(IntegrationModules.Notifications);
-        services.AddIntegrationMessageHandler<ReturnCompletedV1, OrderPushHandler>(IntegrationModules.Notifications);
-        services.AddIntegrationMessageHandler<ReturnRejectedV2, OrderPushHandler>(IntegrationModules.Notifications);
-        services.AddIntegrationMessageHandler<ReturnCompletedV2, OrderPushHandler>(IntegrationModules.Notifications);
-        return services;
-    }
-
-    /// <summary>E-shop krok 24: události, o kterých dostávají oznámení zaměstnanci (sdílí i testy).</summary>
-    public static IServiceCollection AddStaffPushHandlers(this IServiceCollection services)
-    {
-        services.AddIntegrationMessageHandler<OrderConfirmedV1, StaffPushHandler>(IntegrationModules.Notifications);
-        services.AddIntegrationMessageHandler<ReturnRequestedV1, StaffPushHandler>(IntegrationModules.Notifications);
-        services.AddIntegrationMessageHandler<ReturnRequestedV2, StaffPushHandler>(IntegrationModules.Notifications);
-        services.AddIntegrationMessageHandler<StockAvailabilityChangedV1, StaffPushHandler>(IntegrationModules.Notifications);
+        services.AddNotificationsApiClient(configuration);
         return services;
     }
 

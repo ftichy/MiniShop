@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- Mikroservisy M2C: samostatná služba Notifications – e-maily a oznámení push podle událostí (fronta
+       minishop.notifications, schéma notifications). Data jiných modulů bere z interního API Webu (/internal/…). -->
+  <ItemGroup>
+    <ProjectReference Include="..\MiniShop.Application\MiniShop.Application.csproj" />
+    <ProjectReference Include="..\MiniShop.Infrastructure\MiniShop.Infrastructure.csproj" />
+    <ProjectReference Include="..\MiniShop.ServiceDefaults\MiniShop.ServiceDefaults.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+  </ItemGroup>
+</Project>

@@ -6,7 +6,8 @@ order: 5
 
 > **V jedné větě:** Notifications poslouchá události objednávky (`OrderPlacedV2`, `OrderConfirmedV1`,
 > `OrderRejectedV1`, `OrderShippedV1`, `OrderCompletedV1`, `OrderCancelledV1`) a podle nich píše zákazníkovi.
-> Ordering jen oznamuje fakta a o e-mailech neví nic. Běží ve službě **Web**, data má ve schématu `notifications`.
+> Ordering jen oznamuje fakta a o e-mailech neví nic. Od mikroservis M2C běží jako **samostatná služba
+> `MiniShop.Notifications.Api`** (kontejner `notifications-api`), data má ve schématu `notifications`.
 
 ## Komponentní diagram
 
@@ -135,11 +136,35 @@ sequenceDiagram
 - **Nový typ** = hodnota na konec `StaffAlertKind` + šablona v `PushTemplates` + `HandleAsync` ve `StaffPushHandler` +
   řádek v `StaffAlertRoles` (role, popisek) + registrace v `AddStaffPushHandlers`.
 
+## Samostatná služba (mikroservisy M2C)
+
+```mermaid
+flowchart LR
+    mq[("RabbitMQ<br/>minishop.notifications")] -- "OrderPlacedV2, …" --> svc["notifications-api<br/>handlery, SMTP, push"]
+    svc -- "GET /internal/… (X-Api-Key Webu)" --> web["Web<br/>účty, katalog, faktury"]
+    web -- "/api/push, /api/staff-alerts,<br/>/api/back-in-stock (X-Api-Key služby)" --> svc
+    svc --> db[("PostgreSQL<br/>schéma notifications")]
+```
+
+- **Zprávy** přijímá jen služba (fronta `minishop.notifications`); e-maily posílá přes SMTP, oznámení push podepisuje
+  soukromým klíčem VAPID (Web zná jen veřejný klíč pro `push.js`).
+- **Stránky Webu** (*E-maily a oznámení*, „Dejte mi vědět“ na `/Shop/{id}`) volají API služby přes
+  [NotificationsApiClient](code:src/MiniShop.Web/Notifications/NotificationsApiClient.cs) se servisním klíčem `NOTIFICATIONS_API_KEY`;
+  kdo je přihlášený a jakou má roli, ověřuje Web a službě pošle jen ID účtu (a u oznámení k práci povolené typy).
+- **Výpadek služby** nezastaví nákup: e-maily počkají ve frontě, stránky ukážou „služba oznámení neodpovídá“
+  (připomínka košíku – nastavení účtu ve Webu – jde dál). Zprávy služby ukáže `/Admin/Messages` (M2B).
+- **Výpadek Webu** zdrží e-maily, které potřebují kontakt nebo PDF: consumer zkusí zprávu 5×, pak ji odloží do
+  `minishop.notifications.dead` → *Správa → Zprávy → Vrátit do fronty*.
+- **Přechod bez odstávky** jako u přehledu tržeb: `deploy.sh` spustí službu před Webem, stejná fronta a společný inbox.
+- Kód: [Program.cs](code:src/MiniShop.Notifications.Api/Program.cs), [NotificationsModule.cs](code:src/MiniShop.Notifications.Api/NotificationsModule.cs),
+  [PushController](code:src/MiniShop.Notifications.Api/Controllers/PushController.cs), [StaffAlertsController](code:src/MiniShop.Notifications.Api/Controllers/StaffAlertsController.cs),
+  [BackInStockController](code:src/MiniShop.Notifications.Api/Controllers/BackInStockController.cs).
+
 ## Závislosti na Webu a interní API (mikroservisy M2A)
 
 Notifications za běhu potřebuje data modulů, které běží ve Webu – přes čtyři rozhraní, která implementuje Web:
 
-| Rozhraní | K čemu | V procesu (dnes) | Přes HTTP (od M2C) |
+| Rozhraní | K čemu | Implementace ve Webu | Služba volá (od M2C) |
 | --- | --- | --- | --- |
 | `ICustomerContacts` | potvrzený e-mail a souhlas při odeslání (připomínka košíku, „Dejte mi vědět“) | `IdentityCustomerContacts` | `GET /internal/customers/{id}/contact` |
 | `IStaffDirectory` | kdo z přihlášených k oznámení k práci má roli a není zablokovaný | `IdentityStaffDirectory` | `POST /internal/staff/allowed` |
@@ -150,11 +175,11 @@ Notifications za běhu potřebuje data modulů, které běží ve Webu – přes
   nová logika. Pustí **jen servisní klíč** `WEB_INTERNAL_API_KEY` ([InternalApi](code:src/MiniShop.Web/Internal/InternalApi.cs) –
   druhé schéma ověření vedle cookie; cookie ani admina tu neplatí a klíč neotevře stránky). Z internetu ho Caddy
   zavře (404) – [HTTPS a přístup](../../nasazeni/https-a-pristup.md).
-- **Klient budoucí služby** [WebInternalApiClient](code:src/MiniShop.Infrastructure/Notifications/WebInternalApiClient.cs) implementuje
+- **Klient služby** [WebInternalApiClient](code:src/MiniShop.Infrastructure/Notifications/WebInternalApiClient.cs) implementuje
   všechna čtyři rozhraní: 404 = `null` (jako v procesu), jiná chyba = výjimka → zpráva se zopakuje a nakonec skončí
   v dead-letter frontě (e-mail se neztratí). Shodu s implementacemi v procesu hlídá test kontraktu `InternalApiTests`.
 - **Proč dotaz a ne kopie ze zpráv:** osobní údaje (e-mail, souhlas) zůstanou jen v Accounts a platí v okamžiku
-  odeslání. Cena: když Web dlouho neběží, e-mail počká (po vyjmutí – [Mikroservisy-roadmap](code:docs/Mikroservisy-roadmap.md)).
+  odeslání. Cena: když Web dlouho neběží, e-mail počká ([Mikroservisy-roadmap](code:docs/Mikroservisy-roadmap.md)).
 
 ## Proč samostatný modul
 

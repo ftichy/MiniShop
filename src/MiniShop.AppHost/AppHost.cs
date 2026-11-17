@@ -54,14 +54,32 @@ var mailpit = builder.AddContainer("mailpit", "axllent/mailpit", "v1.31.4")
     .WithEndpoint(targetPort: 1025, name: "smtp");
 var mailpitSmtp = mailpit.GetEndpoint("smtp");
 
+// Mikroservisy M2C: Notifications (e-maily, oznámení push) jako samostatná služba – e-maily do Mailpitu, data jiných modulů
+// z interního API Webu (reference na Web níže – Web a Notifications se znají navzájem, proto bez WaitFor).
+var notificationsApiKey = builder.AddParameter("notifications-api-key",
+    new GenerateParameterDefault { MinLength = 64, Special = false }, secret: true, persist: true);
+var notificationsApi = builder.AddProject<Projects.MiniShop_Notifications_Api>("notifications-api")
+    .WithReference(messaging)
+    .WithEnvironment("NotificationsApi__ApiKey", notificationsApiKey)
+    .WithEnvironment("WebInternalApi__ApiKey", webInternalApiKey)
+    .WithEnvironment("Email__Host", mailpitSmtp.Property(EndpointProperty.Host))
+    .WithEnvironment("Email__Port", mailpitSmtp.Property(EndpointProperty.Port))
+    .WithEnvironment("Email__UseTls", "false")
+    .WaitFor(messaging)
+    .WaitFor(mailpit)
+    .WithHttpHealthCheck("/health")
+    .WithModuleDatabase(database);
+
 // Web = služba Ordering + UI. WithReference(inventoryApi) → Web najde sklad pod jménem "inventory-api".
-builder.AddProject<Projects.MiniShop_Web>("web")
+var web = builder.AddProject<Projects.MiniShop_Web>("web")
     .WithReference(messaging)
     .WithReference(inventoryApi)
     .WithReference(reportingApi)
+    .WithReference(notificationsApi)
     .WithEnvironment("InventoryApi__ApiKey", inventoryApiKey)
     .WithEnvironment("ReportingApi__ApiKey", reportingApiKey)
     .WithEnvironment("WebInternalApi__ApiKey", webInternalApiKey)
+    .WithEnvironment("NotificationsApi__ApiKey", notificationsApiKey)
     .WithEnvironment("Payments__WebhookSecret", paymentsWebhookSecret)
     .WithEnvironment("Email__Host", mailpitSmtp.Property(EndpointProperty.Host))
     .WithEnvironment("Email__Port", mailpitSmtp.Property(EndpointProperty.Port))
@@ -71,6 +89,8 @@ builder.AddProject<Projects.MiniShop_Web>("web")
     .WithHttpHealthCheck("/health")
     .WithExternalHttpEndpoints()
     .WithModuleDatabase(database);
+
+notificationsApi.WithReference(web);   // interní API Webu (/internal/…)
 
 builder.Build().Run();
 

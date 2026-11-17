@@ -122,7 +122,7 @@ public sealed class PushNotificationsTests(MiniShopWebFactory web)
         {
             var services = scope.ServiceProvider;
             Assert.Equal([MiniShop.Domain.Notifications.StaffAlertKind.NewOrder],
-                (await services.GetRequiredService<StaffAlertService>().GetAsync(userId)).ToList());
+                (await web.Notifications.Services.CreateScope().ServiceProvider.GetRequiredService<StaffAlertService>().GetAsync(userId)).ToList());
 
             var directory = services.GetRequiredService<IStaffDirectory>();
             Assert.Equal([userId], await directory.FilterAllowedAsync(MiniShop.Domain.Notifications.StaffAlertKind.NewOrder, [userId]));
@@ -231,7 +231,7 @@ public sealed class PushNotificationsTests(MiniShopWebFactory web)
 
     private async Task<IReadOnlyList<PushDeviceDto>> DevicesAsync(string userId)
     {
-        await using var scope = web.Services.CreateAsyncScope();
+        await using var scope = web.Notifications.Services.CreateAsyncScope();
         return await scope.ServiceProvider.GetRequiredService<PushSubscriptionService>().ListAsync(userId);
     }
 

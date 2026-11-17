@@ -2,7 +2,11 @@
 // securityLevel 'loose' = funguje proklik z uzlu diagramu na detailní stránku (click … "/Docs/…").
 // Je to bezpečné, protože diagramy píšeme jen my v docs/prirucka (žádný vstup od uživatele).
 (async () => {
-    mermaid.initialize({ startOnLoad: false, securityLevel: 'loose', theme: 'default' });
+    // Vzhled krok E: v tmavém režimu tmavé diagramy. Přepnutí vzhledu = diagram se překreslí novým načtením stránky
+    // (Mermaid zdrojový text po vykreslení nahradí obrázkem).
+    const dark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+    document.addEventListener('minishop:theme-changed', () => window.location.reload());
+    mermaid.initialize({ startOnLoad: false, securityLevel: 'loose', theme: dark ? 'dark' : 'default' });
     await mermaid.run({ querySelector: '.doc-content .mermaid' });
 
     for (const diagram of document.querySelectorAll('.doc-content .mermaid')) {

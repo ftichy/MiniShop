@@ -3,7 +3,8 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#4f46e5" />
+    <meta name="theme-color" content="#4f46e5" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#161b26" media="(prefers-color-scheme: dark)" />
     <title>Jste offline – MiniShop</title>
     <!-- Vzhled krok D: stránku ukáže service worker (sw.js), když se stránka nedá načíst ze sítě.
          Samostatná (styl přímo tady, žádný skript) – musí fungovat bez jediného dalšího požadavku na server.
@@ -18,6 +19,12 @@
         p { color: #6b7280; margin: 0 0 1.5rem; line-height: 1.5; }
         a { display: inline-block; min-height: 2.75rem; line-height: 2.75rem; padding: 0 1.5rem; border-radius: 0.5rem;
             background: #4f46e5; color: #fff; text-decoration: none; font-weight: 500; }
+        /* Vzhled krok E: tmavý systém = tmavá offline stránka (volbu z patičky bez sítě a skriptu nezjistíme). */
+        @media (prefers-color-scheme: dark) {
+            body { background: #0d1117; color: #e5e7eb; }
+            .card { background: #161b26; border-color: #2a3142; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45); }
+            p { color: #9ca3af; }
+        }
     </style>
 </head>
 <body>

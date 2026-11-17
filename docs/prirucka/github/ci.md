@@ -89,6 +89,8 @@ ovládá skutečný prohlížeč nad skutečně spuštěnou aplikací a odhalí 
 | Mobil | viewport 390×844: menu ☰, filtry v panelu, spodní lišta košíku, pokladna |
 | Hledání | našeptávač: klik na návrh (i dlouhý stisk) a klepnutí na telefonu otevře produkt (e-shop krok 21) |
 | Vratka po částech | 2 kusy na dobírku, expedice, zákazník vrátí 1 kus (formulář s počty kusů), admin převezme na stránce Vratky, vratka vyřízená a objednávka zůstává doručená (e-shop krok 22) |
+| Mobil – aplikace | spodní lišta, service worker se zaregistruje, bez sítě offline stránka, „Zkusit znovu“ (vzhled krok D) |
+| Vzhled | tmavý režim: „Automaticky“ podle systému (`EmulateMediaAsync`), ruční volba Světlý přežije obnovení a jinou stránku, přepnutí systému se projeví hned (vzhled krok E) |
 
 **Jak job běží** (`e2e` v [ci.yml](code:.github/workflows/ci.yml)):
 

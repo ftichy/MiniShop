@@ -36,3 +36,7 @@
 .doc-diagram.expanded { overflow-x: auto; }
 .doc-diagram-toggle { position: absolute; top: 0.4rem; right: 0.4rem; z-index: 1; }
 .mermaid:not([data-processed]) { color: transparent; min-height: 4rem; }
+
+/* Vzhled krok E: tmavý režim – kód a diagramy (Mermaid kreslí v tmavém tématu, docs.js). */
+[data-bs-theme=dark] .doc-content code { color: #f9a8d4; }
+[data-bs-theme=dark] .doc-diagram { background: var(--bs-body-bg); }

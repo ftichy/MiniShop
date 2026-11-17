@@ -19,14 +19,23 @@
     --ms-tap: 2.75rem;              /* 44 px – minimální dotyková plocha na mobilu */
     --ms-tab-bar-height: 3.75rem;   /* vzhled krok D: spodní lišta na mobilu (bez „brady“ iPhonu – ta je env(safe-area-inset-bottom)) */
     --ms-chip-height: 2.25rem;      /* štítky kategorií (36 px); na dotyku --ms-tap */
+    /* Vzhled krok E: barvy, které se v tmavém režimu mění (hodnoty pro tmavý vzhled níže v [data-bs-theme=dark]). */
+    --ms-brand-text: var(--ms-brand);   /* barva značky jako TEXT (odkazy, aktivní položka) – ve tmě světlejší */
+    --ms-text: #111827;
+    --ms-text-subtle: #374151;          /* položky menu, štítky */
+    --ms-header-bg: rgba(255, 255, 255, 0.92);
+    --ms-bar-bg: rgba(255, 255, 255, 0.96);   /* spodní lišta, lišta „K pokladně“ */
+    --ms-input-bg: #ffffff;
+    --ms-table-head-bg: #fafbfd;
+    --ms-image-bg: #ffffff;             /* pozadí fotek produktů – fotky mívají bílé pozadí, zůstává i ve tmě */
 
     --bs-primary: var(--ms-brand);
     --bs-primary-rgb: var(--ms-brand-rgb);
-    --bs-link-color: var(--ms-brand);
+    --bs-link-color: var(--ms-brand-text);
     --bs-link-color-rgb: var(--ms-brand-rgb);
     --bs-link-hover-color: var(--ms-brand-hover);
     --bs-body-bg: var(--ms-canvas);
-    --bs-body-color: #111827;
+    --bs-body-color: var(--ms-text);
     --bs-secondary-color: var(--ms-text-muted);
     --bs-border-color: var(--ms-border);
     --bs-border-radius: var(--ms-radius-sm);
@@ -34,6 +43,70 @@
     --bs-focus-ring-color: rgba(var(--ms-brand-rgb), 0.25);
     --bs-body-font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
 }
+
+/* ==========================================================================
+   Vzhled krok E: tmavý režim. Bootstrap 5.3 přepne své komponenty sám atributem data-bs-theme="dark" na <html>
+   (nastavuje ho wwwroot/js/theme.js podle volby v patičce nebo podle systému). Tady jen naše proměnné – tytéž jako
+   v :root, aby přebily světlé hodnoty (site.css se načítá po Bootstrapu). Kontrast textu aspoň WCAG AA (4,5 : 1).
+   ========================================================================== */
+
+[data-bs-theme=dark] {
+    color-scheme: dark;                 /* posuvníky, kalendář ve formulářích v tmavém provedení */
+    --ms-brand-hover: #6366f1;
+    --ms-brand-text: #a5b4fc;           /* indigo 300 – čitelné na tmavém pozadí */
+    --ms-brand-soft: rgba(99, 102, 241, 0.18);
+    --ms-surface: #161b26;
+    --ms-canvas: #0d1117;
+    --ms-border: #2a3142;
+    --ms-text: #e5e7eb;
+    --ms-text-subtle: #d1d5db;
+    --ms-text-muted: #9ca3af;
+    --ms-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --ms-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+    --ms-header-bg: rgba(22, 27, 38, 0.92);
+    --ms-bar-bg: rgba(22, 27, 38, 0.96);
+    --ms-input-bg: #0f141d;
+    --ms-table-head-bg: #1b2130;
+
+    --bs-body-bg: var(--ms-canvas);
+    --bs-body-color: var(--ms-text);
+    --bs-emphasis-color: #f9fafb;
+    --bs-secondary-color: var(--ms-text-muted);
+    --bs-secondary-bg: #1b2130;
+    --bs-tertiary-bg: #141923;
+    --bs-border-color: var(--ms-border);
+    --bs-link-color: var(--ms-brand-text);
+    --bs-link-color-rgb: 165, 180, 252;
+    --bs-link-hover-color: #c7d2fe;
+    --bs-link-hover-color-rgb: 199, 210, 254;
+}
+
+/* Jemné štítky: tlumené pozadí, světlý text. */
+[data-bs-theme=dark] .badge-soft-success { background-color: rgba(34, 197, 94, 0.16); color: #86efac; }
+[data-bs-theme=dark] .badge-soft-warning { background-color: rgba(245, 158, 11, 0.16); color: #fcd34d; }
+[data-bs-theme=dark] .badge-soft-danger { background-color: rgba(239, 68, 68, 0.16); color: #fca5a5; }
+[data-bs-theme=dark] .badge-soft-secondary { background-color: rgba(148, 163, 184, 0.16); color: #cbd5e1; }
+[data-bs-theme=dark] .badge-soft-primary { background-color: rgba(99, 102, 241, 0.22); color: #c7d2fe; }
+[data-bs-theme=dark] .badge-soft-info { background-color: rgba(14, 165, 233, 0.16); color: #7dd3fc; }
+[data-bs-theme=dark] .badge-soft-dark { background-color: rgba(148, 163, 184, 0.24); color: #f3f4f6; }
+
+/* Bootstrap má u „outline-secondary“ pevnou šedou #6c757d – na tmavém pozadí málo čitelná (Google, Zpět, přepínač vzhledu…). */
+[data-bs-theme=dark] .btn-outline-secondary {
+    --bs-btn-color: #cbd5e1;
+    --bs-btn-border-color: #4b5563;
+    --bs-btn-hover-color: #ffffff;
+    --bs-btn-hover-bg: #374151;
+    --bs-btn-hover-border-color: #4b5563;
+    --bs-btn-active-color: #ffffff;
+    --bs-btn-active-bg: #4b5563;
+    --bs-btn-active-border-color: #4b5563;
+}
+
+/* Výjimky, které zůstávají světlé: QR kód 2FA (telefon tmavý QR nepřečte) a fotky produktů (--ms-image-bg). */
+[data-bs-theme=dark] .two-factor-qr { background-color: #ffffff; padding: 0.5rem; border-radius: var(--ms-radius-sm); }
+
+/* Přepínač vzhledu v patičce. */
+.theme-switch .btn { --bs-btn-padding-y: 0.15rem; --bs-btn-padding-x: 0.6rem; --bs-btn-font-size: 0.8rem; }
 
 body {
     display: flex;
@@ -61,7 +134,7 @@ h2, .h2, h3, .h3 { font-weight: 650; letter-spacing: -0.01em; }
     --bs-btn-disabled-border-color: var(--ms-brand);
 }
 .btn-outline-primary {
-    --bs-btn-color: var(--ms-brand);
+    --bs-btn-color: var(--ms-brand-text);
     --bs-btn-border-color: var(--ms-brand);
     --bs-btn-hover-bg: var(--ms-brand);
     --bs-btn-hover-border-color: var(--ms-brand);
@@ -76,7 +149,7 @@ h2, .h2, h3, .h3 { font-weight: 650; letter-spacing: -0.01em; }
 .pagination {
     --bs-pagination-active-bg: var(--ms-brand);
     --bs-pagination-active-border-color: var(--ms-brand);
-    --bs-pagination-color: var(--ms-brand);
+    --bs-pagination-color: var(--ms-brand-text);
 }
 .nav-pills { --bs-nav-pills-link-active-bg: var(--ms-brand); }
 
@@ -101,7 +174,7 @@ a:focus-visible, .btn:focus-visible, summary:focus-visible {
 /* ---------- Hlavička ---------- */
 
 .site-header {
-    background-color: rgba(255, 255, 255, 0.92);
+    background-color: var(--ms-header-bg);
     backdrop-filter: saturate(180%) blur(8px);
     border-bottom: 1px solid var(--ms-border);
 }
@@ -116,8 +189,8 @@ a:focus-visible, .btn:focus-visible, summary:focus-visible {
     color: #fff;
     background: linear-gradient(135deg, var(--ms-brand), #7c3aed);
 }
-.site-header .nav-link { font-weight: 500; color: #374151; border-radius: var(--ms-radius-sm); }
-.site-header .nav-link:hover, .site-header .nav-link.active { color: var(--ms-brand); }
+.site-header .nav-link { font-weight: 500; color: var(--ms-text-subtle); border-radius: var(--ms-radius-sm); }
+.site-header .nav-link:hover, .site-header .nav-link.active { color: var(--ms-brand-text); }
 .site-header .icon { width: 1.25rem; height: 1.25rem; }
 .header-icon-btn {
     position: relative;
@@ -127,9 +200,9 @@ a:focus-visible, .btn:focus-visible, summary:focus-visible {
     min-width: var(--ms-tap);
     height: var(--ms-tap);
     border-radius: var(--ms-radius-sm);
-    color: #374151;
+    color: var(--ms-text-subtle);
 }
-.header-icon-btn:hover { background-color: var(--ms-brand-soft); color: var(--ms-brand); }
+.header-icon-btn:hover { background-color: var(--ms-brand-soft); color: var(--ms-brand-text); }
 .header-icon-btn .badge {
     position: absolute;
     top: 0.2rem;
@@ -141,6 +214,7 @@ a:focus-visible, .btn:focus-visible, summary:focus-visible {
 .navbar-toggler { border: 0; min-width: var(--ms-tap); height: var(--ms-tap); }
 .navbar-toggler:focus { box-shadow: 0 0 0 0.2rem var(--bs-focus-ring-color); }
 .header-search { max-width: 22rem; }
+.header-search .input-group-text { background-color: var(--ms-input-bg); }   /* lupa ve stejné barvě jako pole (i ve tmě) */
 
 /* E-shop krok 21: našeptávač hledání (search-suggest.js) – nabídka pod polem, přes obsah stránky. */
 .search-suggest { position: relative; }
@@ -186,7 +260,7 @@ a:focus-visible, .btn:focus-visible, summary:focus-visible {
 .search-suggest-thumb img { width: 100%; height: 100%; object-fit: contain; }
 .search-suggest-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .search-suggest-price { flex: 0 0 auto; font-weight: 600; }
-.search-suggest-all { justify-content: center; font-weight: 600; color: var(--ms-brand) !important; }
+.search-suggest-all { justify-content: center; font-weight: 600; color: var(--ms-brand-text) !important; }
 
 .dropdown-menu {
     --bs-dropdown-border-color: var(--ms-border);
@@ -206,7 +280,7 @@ a:focus-visible, .btn:focus-visible, summary:focus-visible {
 
 .site-footer { background-color: var(--ms-surface); border-top: 1px solid var(--ms-border); color: var(--ms-text-muted); }
 .site-footer a { color: inherit; text-decoration: none; }
-.site-footer a:hover { color: var(--ms-brand); }
+.site-footer a:hover { color: var(--ms-brand-text); }
 
 /* ---------- Úvod ---------- */
 
@@ -223,7 +297,7 @@ a:focus-visible, .btn:focus-visible, summary:focus-visible {
 .hero .lead { color: rgba(255, 255, 255, 0.88); max-width: 36rem; }
 .hero .btn-light { color: var(--ms-brand); font-weight: 600; }
 .usp { display: flex; gap: 0.75rem; align-items: flex-start; }
-.usp .icon { flex: none; width: 1.5rem; height: 1.5rem; color: var(--ms-brand); margin-top: 0.15rem; }
+.usp .icon { flex: none; width: 1.5rem; height: 1.5rem; color: var(--ms-brand-text); margin-top: 0.15rem; }
 /* Štítky kategorií: vždy na jeden řádek (dlouhý název nesmí štítek zvýšit – řada by se roztáhla do „bublin“). */
 .category-chip {
     flex: none;
@@ -235,7 +309,7 @@ a:focus-visible, .btn:focus-visible, summary:focus-visible {
     border: 1px solid var(--ms-border);
     border-radius: 999px;
     background-color: var(--ms-surface);
-    color: #374151;
+    color: var(--ms-text-subtle);
     text-decoration: none;
     font-size: 0.9rem;
     font-weight: 500;
@@ -244,7 +318,7 @@ a:focus-visible, .btn:focus-visible, summary:focus-visible {
     box-shadow: var(--ms-shadow-sm);
     transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
 }
-.category-chip:hover { border-color: rgba(var(--ms-brand-rgb), 0.45); color: var(--ms-brand); }
+.category-chip:hover { border-color: rgba(var(--ms-brand-rgb), 0.45); color: var(--ms-brand-text); }
 .category-chip.active { border-color: var(--ms-brand); color: #fff; background-color: var(--ms-brand); }
 /* Počet produktů jako malý odznak uvnitř štítku. */
 .category-chip .count {
@@ -292,7 +366,7 @@ a:focus-visible, .btn:focus-visible, summary:focus-visible {
 .badge-soft-success { background-color: #dcfce7; color: #166534; }
 .badge-soft-warning { background-color: #fef3c7; color: #92400e; }
 .badge-soft-danger { background-color: #fee2e2; color: #991b1b; }
-.badge-soft-secondary { background-color: #f3f4f6; color: #374151; }
+.badge-soft-secondary { background-color: #f3f4f6; color: var(--ms-text-subtle); }
 .badge-soft-primary { background-color: var(--ms-brand-soft); color: #3730a3; }
 .badge-soft-info { background-color: #e0f2fe; color: #075985; }
 .badge-soft-dark { background-color: #e5e7eb; color: #111827; }
@@ -330,7 +404,7 @@ a:focus-visible, .btn:focus-visible, summary:focus-visible {
     width: 100%;
     aspect-ratio: 4 / 3;
     object-fit: contain;
-    background-color: #fff;
+    background-color: var(--ms-image-bg);
 }
 .product-img-placeholder {
     display: flex;
@@ -390,7 +464,7 @@ a:focus-visible, .btn:focus-visible, summary:focus-visible {
     gap: 1rem;
     margin: 1.5rem calc(var(--bs-gutter-x) * -0.5) 0;
     padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
-    background-color: rgba(255, 255, 255, 0.96);
+    background-color: var(--ms-bar-bg);
     backdrop-filter: blur(8px);
     border-top: 1px solid var(--ms-border);
     box-shadow: 0 -4px 16px rgba(17, 24, 39, 0.06);
@@ -440,7 +514,7 @@ a:focus-visible, .btn:focus-visible, summary:focus-visible {
 .auth-card .brand-mark .icon { width: 1.4rem; height: 1.4rem; }
 
 /* Pole formulářů bílá (jinak by převzala šedé pozadí stránky). */
-.form-control, .form-select { background-color: #fff; }
+.form-control, .form-select { background-color: var(--ms-input-bg); }
 .form-control:disabled, .form-control[readonly] { background-color: var(--bs-tertiary-bg); }
 .cart-item a.flex-shrink-0 { text-decoration: none; }
 
@@ -465,7 +539,7 @@ a:focus-visible, .btn:focus-visible, summary:focus-visible {
     text-transform: uppercase;
     letter-spacing: 0.03em;
     color: var(--ms-text-muted);
-    background-color: #fafbfd;
+    background-color: var(--ms-table-head-bg);
     white-space: nowrap;
 }
 .admin-table > .table > tbody > tr:last-child > * { border-bottom: 0; }
@@ -493,7 +567,7 @@ a:focus-visible, .btn:focus-visible, summary:focus-visible {
     z-index: 1030;
     display: flex;
     padding-bottom: env(safe-area-inset-bottom);
-    background-color: rgba(255, 255, 255, 0.96);
+    background-color: var(--ms-bar-bg);
     backdrop-filter: saturate(180%) blur(8px);
     border-top: 1px solid var(--ms-border);
     box-shadow: 0 -4px 16px rgba(17, 24, 39, 0.06);
@@ -511,7 +585,7 @@ a:focus-visible, .btn:focus-visible, summary:focus-visible {
     color: var(--ms-text-muted);
     text-decoration: none;
 }
-.tab-bar-item.active, .tab-bar-item:hover { color: var(--ms-brand); }
+.tab-bar-item.active, .tab-bar-item:hover { color: var(--ms-brand-text); }
 .tab-bar-icon { position: relative; display: inline-flex; }
 .tab-bar-icon .icon { width: 1.4rem; height: 1.4rem; }
 .tab-bar-icon .badge {

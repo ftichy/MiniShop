@@ -18,6 +18,7 @@
     --ms-shadow: 0 4px 16px rgba(17, 24, 39, 0.08);
     --ms-tap: 2.75rem;              /* 44 px – minimální dotyková plocha na mobilu */
     --ms-tab-bar-height: 3.75rem;   /* vzhled krok D: spodní lišta na mobilu (bez „brady“ iPhonu – ta je env(safe-area-inset-bottom)) */
+    --ms-chip-height: 2.25rem;      /* štítky kategorií (36 px); na dotyku --ms-tap */
 
     --bs-primary: var(--ms-brand);
     --bs-primary-rgb: var(--ms-brand-rgb);
@@ -223,22 +224,55 @@ a:focus-visible, .btn:focus-visible, summary:focus-visible {
 .hero .btn-light { color: var(--ms-brand); font-weight: 600; }
 .usp { display: flex; gap: 0.75rem; align-items: flex-start; }
 .usp .icon { flex: none; width: 1.5rem; height: 1.5rem; color: var(--ms-brand); margin-top: 0.15rem; }
+/* Štítky kategorií: vždy na jeden řádek (dlouhý název nesmí štítek zvýšit – řada by se roztáhla do „bublin“). */
 .category-chip {
+    flex: none;
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
-    min-height: var(--ms-tap);
-    padding: 0.4rem 1rem;
+    gap: 0.45rem;
+    min-height: var(--ms-chip-height);
+    padding: 0.25rem 0.5rem 0.25rem 0.9rem;
     border: 1px solid var(--ms-border);
     border-radius: 999px;
     background-color: var(--ms-surface);
-    color: inherit;
+    color: #374151;
     text-decoration: none;
+    font-size: 0.9rem;
     font-weight: 500;
+    line-height: 1.2;
+    white-space: nowrap;
+    box-shadow: var(--ms-shadow-sm);
+    transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
 }
-.category-chip:hover, .category-chip.active { border-color: var(--ms-brand); color: var(--ms-brand); background-color: var(--ms-brand-soft); }
-.category-chip .count { color: var(--ms-text-muted); font-size: 0.85em; }
-.chip-row { display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.25rem; scrollbar-width: thin; }
+.category-chip:hover { border-color: rgba(var(--ms-brand-rgb), 0.45); color: var(--ms-brand); }
+.category-chip.active { border-color: var(--ms-brand); color: #fff; background-color: var(--ms-brand); }
+/* Počet produktů jako malý odznak uvnitř štítku. */
+.category-chip .count {
+    min-width: 1.5rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 999px;
+    background-color: var(--ms-canvas);
+    color: var(--ms-text-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: center;
+}
+.category-chip.active .count { background-color: rgba(255, 255, 255, 0.2); color: #fff; }
+.category-chip:not(:has(.count)) { padding-inline: 1.1rem; }   /* „Vše“ bez počtu – ne kolečko */
+/* Řada štítků: na počítači se zalomí do více řádků, na telefonu (dotyk) se posouvá prstem bez posuvníku. */
+.chip-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+@media (pointer: coarse), (max-width: 767.98px) {
+    .chip-row {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+        padding: 0.25rem 0;
+        scroll-snap-type: x proximity;
+    }
+    .chip-row::-webkit-scrollbar { display: none; }
+    .chip-row .category-chip { scroll-snap-align: start; }
+    .category-chip { min-height: var(--ms-tap); }   /* prst potřebuje 44 px */
+}
 
 /* ---------- Výloha: karta produktu ---------- */
 

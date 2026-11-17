@@ -76,7 +76,7 @@ končící `-prom` → *Import*. Změna = upravit JSON v PR a importovat znovu (
 | Řádek | Co ukazuje |
 | --- | --- |
 | Je vše v pořádku? | velká čísla: poison, dead-letter, čekající v outboxu a frontách, p95 potvrzení objednávky, chyby 5xx – zelená = v pořádku |
-| Zprávy | doručené a zpracované za minutu, chyby, zpoždění outboxu, co kde čeká |
+| Zprávy | doručené a zpracované za minutu, chyby, zpoždění outboxu, co kde čeká, posluchači front (od mikroservis M0) |
 | Ságy a objednávky | rozpracované ságy podle stavu, doba potvrzení (podle platby), potvrzené objednávky za hodinu |
 | HTTP | požadavky, doba odpovědi p95, chyby 5xx podle stránky (Web i sklad) |
 
@@ -94,13 +94,21 @@ zdroj `-prom`, složka **MiniShop** (jen pro tyto alarmy – import pravidla ve 
 | `MiniShopOutboxPoison` | poison zpráva v outboxu 5 min | `/Admin/Messages` → chyba u zprávy → opravit → *Zkusit znovu* |
 | `MiniShopOutboxStuck` | zprávy v outboxu čekají 10 min | `/health` (outbox, dead-letters), vedoucí kopie `docker compose logs web \| grep Vedoucí`, RabbitMQ běží? |
 | `MiniShopQueueBacklog` | ve frontě čeká > 50 zpráv 10 min | běží služba, která frontu poslouchá? (`docker compose ps`), její logy |
+| `MiniShopQueueNoConsumer` | služba běží, ale frontu 5 min nikdo neposlouchá (`minishop_queue_consumers` = 0) | logy služby (`docker compose logs <služba> \| grep RabbitMQ`), pak `docker compose restart <služba>` |
+| `MiniShopQueueSilent` | o frontě, která za poslední den hlásila stav, 5 min nic nepřišlo – služba neběží nebo RabbitMQ | `docker compose ps` (služba, `rabbitmq`), `/health`, `/health/inventory`, logy služby; po zrušení fronty zmizí sám do dne |
 | `MiniShopSagaStuck` | sága čeká na sklad 10 min (timeout je 30 s) | `/health/inventory`, fronta `minishop.inventory`, trasa objednávky v Grafaně (`minishop.order.id`) |
 | `MiniShopSlowConfirmation` | p95 potvrzení (bez karty) > 30 s 15 min | dashboard řádek Zprávy (zpoždění outboxu, fronty), trasa pomalé objednávky |
 | `MiniShopConfirmationSlo` | za 7 dní < 99 % objednávek do 30 s | jako u pomalého potvrzování; rozpočet chyb je vyčerpaný |
 | `MiniShopHttp5xx` | > 3 odpovědi 5xx za 10 min | dashboard Chyby 5xx podle stránky, Explore → `-logs` (úroveň Error) → odkaz na trasu |
 | `MiniShopTelemetryMissing` | 10 min nepřišly metriky stavu | `/health`, UptimeRobot, na VM `docker compose ps` (web, alloy), `docker compose logs alloy` |
+| `MiniShopMetricsNearLimit` | víc než 8 000 aktivních metrických řad 30 min (limit free tieru 10 000; běžně ~3 400, při nasazení dočasně ~6 300) | Explore → `-prom`: `count by (job) ({__name__=~".+"})` – která služba roste; zahodit nepotřebné metriky v [config.alloy](code:deploy/config.alloy), méně přihrádek histogramů v ServiceDefaults |
 
 Prahy jsou pro malý provoz MiniShopu – úprava v YAML (PR) a nový import.
+
+**Alarm limitu řad (mikroservisy M0)** je ve zvláštním souboru [minishop-alarmy-limity.yaml](code:deploy/grafana/minishop-alarmy-limity.yaml):
+počet řad vede Grafana ve zdroji **`grafanacloud-usage`** (metrika `grafanacloud_instance_active_series`), ne v `-prom`, a import
+napojí celý soubor na jeden zdroj. Import stejně jako výše, ale zdroj `grafanacloud-usage` a složka **MiniShop limity**
+(vlastní – import do složky MiniShop by smazal ostatní alarmy).
 
 **Kde co najít v Grafaně** (https://patientjaguar2071.grafana.net) – podrobně a krok za krokem na skutečných situacích
 ([zákazník hlásí problém s objednávkou](grafana-tutorial.md), alarm, pomalý web, po nasazení) v [Grafana krok za krokem](grafana-tutorial.md):

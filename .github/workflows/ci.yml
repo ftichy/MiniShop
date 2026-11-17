@@ -76,7 +76,7 @@ jobs:
       - name: Kontrola alarmů Grafany (promtool)
         run: >
           docker run --rm -v "$PWD/deploy/grafana:/rules:ro" --entrypoint promtool prom/prometheus:v3.5.0
-          check rules /rules/minishop-alarmy.yaml
+          check rules /rules/minishop-alarmy.yaml /rules/minishop-alarmy-limity.yaml
 
       # Výsledky testů ke stažení u běhu (i když testy selžou – právě pak jsou nejzajímavější).
       - name: Výsledky testů jako artefakt

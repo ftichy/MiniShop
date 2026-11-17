@@ -35,19 +35,21 @@ public sealed class RabbitMqDeadLetterService(
     }
 
     /// <summary>
-    /// Observabilita G2: kolik zpráv čeká v hlavní frontě každého modulu (připravené, ještě nepřevzaté consumerem).
+    /// Observabilita G2: kolik zpráv čeká v hlavní frontě každého modulu (připravené, ještě nepřevzaté consumerem);
+    /// mikroservisy M0: i kolik consumerů frontu poslouchá (0 = služba běží, ale zprávy nikdo nezpracuje).
     /// Jen pasivní dotaz – fronta se nezakládá ani nemění (existujícím frontám se argumenty nemění). Fronta, která ještě
     /// neexistuje (consumer se nespustil), ve výsledku chybí – RabbitMQ při tom zavře kanál, proto kanál na každou frontu.
     /// </summary>
-    public async Task<IReadOnlyDictionary<string, uint>> GetBacklogCountsAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyDictionary<string, QueueStatus>> GetQueueStatusesAsync(CancellationToken cancellationToken = default)
     {
-        var counts = new Dictionary<string, uint>();
+        var counts = new Dictionary<string, QueueStatus>();
         foreach (var queue in Queues)
         {
             try
             {
                 await using var channel = await connection.CreateChannelAsync(publisherConfirms: false, cancellationToken);
-                counts[queue] = (await channel.QueueDeclarePassiveAsync(queue, cancellationToken)).MessageCount;
+                var declared = await channel.QueueDeclarePassiveAsync(queue, cancellationToken);
+                counts[queue] = new QueueStatus(declared.MessageCount, declared.ConsumerCount);
             }
             catch (RabbitMQ.Client.Exceptions.OperationInterruptedException)
             {
@@ -86,6 +88,9 @@ public sealed class RabbitMqDeadLetterService(
         return moved;
     }
 }
+
+/// <summary>Stav hlavní fronty modulu: čekající zprávy a consumery (všechny kopie služby dohromady).</summary>
+public sealed record QueueStatus(uint Messages, uint Consumers);
 
 /// <summary>
 /// EDA krok 13: zpráva v dead-letter frontě = něco selhalo a čeká na člověka → <c>Degraded</c> (UptimeRobot upozorní).

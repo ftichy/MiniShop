@@ -26,6 +26,7 @@ public sealed class OperationalMetrics : IDisposable
     public const string OutboxPoison = "minishop.outbox.poison";
     public const string QueueBacklog = "minishop.queue.backlog";
     public const string QueueDeadLetters = "minishop.queue.dead_letters";
+    public const string QueueConsumers = "minishop.queue.consumers";   // mikroservisy M0
     public const string SagaActive = "minishop.saga.active";
 
     private readonly Meter _meter = new(MessagingTelemetry.SourceName);
@@ -41,6 +42,7 @@ public sealed class OperationalMetrics : IDisposable
         Gauge(OutboxPoison, "{message}", "Zprávy outboxu, které vyčerpaly pokusy a čekají na člověka");
         Gauge(QueueBacklog, "{message}", "Zprávy čekající ve frontě modulu v RabbitMQ (consumer nestíhá nebo neběží)");
         Gauge(QueueDeadLetters, "{message}", "Zprávy v dead-letter frontě modulu (minishop.{modul}.dead)");
+        Gauge(QueueConsumers, "{consumer}", "Consumery, které poslouchají frontu modulu (všechny kopie služby; 0 = zprávy nikdo nezpracuje)");
         Gauge(SagaActive, "{saga}", "Rozpracované ságy podle stavu (objednávky a vratky)");
     }
 

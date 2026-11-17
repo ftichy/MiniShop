@@ -1,0 +1,23 @@
+# Mikroservisy M0: hlídání limitu Grafana Cloud Free (10 000 aktivních metrických řad). Import ručně jako
+# minishop-alarmy.yaml, ale se zdrojem dat grafanacloud-usage (počet řad vede Grafana jinde než metriky aplikace)
+# a do VLASTNÍ složky „MiniShop limity“ – import přepíše pravidla ve složce, alarmy MiniShopu by zmizely:
+#   Alerting → Alert rules → (Data source-managed) Import to Grafana-managed rules → Import from file → tento soubor,
+#   zdroj dat grafanacloud-usage, složka „MiniShop limity“.
+# Co dělat při alarmu: příručka Nasazení → Monitoring a logy (tabulka alarmů).
+
+groups:
+  - name: minishop-limity
+    interval: 5m
+    rules:
+      # Běžně ~3 400 řad; při nasazení (staré + nové kopie Webu, každá vlastní řady ~20 min) dočasně až ~6 300 –
+      # proto 30 minut: krátký skok při nasazení se neozve, trvalý růst ano.
+      - alert: MiniShopMetricsNearLimit
+        expr: max(grafanacloud_instance_active_series) > 8000
+        for: 30m
+        labels:
+          severity: warning
+          area: provoz
+        annotations:
+          summary: "Grafana Cloud: {{ $value }} aktivních metrických řad (limit free tieru 10 000)"
+          description: "Nad limitem Grafana nové řady odmítne – díry v grafech a alarmy bez dat. Explore → -prom: count by (job) ({__name__=~\".+\"}) ukáže službu, která roste. Náprava zdarma: zahodit nepotřebné metriky v deploy/config.alloy, méně přihrádek histogramů v ServiceDefaults."
+          runbook_url: "https://minishop-tichy.cz/Docs/nasazeni/monitoring"

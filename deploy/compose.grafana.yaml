@@ -26,7 +26,8 @@ services:
     depends_on:
       - aspire-dashboard
     # Pojistka pro malou VM (jako u dashboardu); fronta neodeslaných dat při výpadku cloudu je v paměti.
-    mem_limit: 256m
+    # Mikroservisy M0: 256 → 384 MiB – v produkci bral 184 MiB (72 %) a každá nová služba mu přidá telemetrii.
+    mem_limit: 384m
 
   # Služby posílají telemetrii do Alloye (přepisuje OTEL_EXPORTER_OTLP_ENDPOINT z kotvy x-otel-env v compose.yaml).
   web:

@@ -18,7 +18,8 @@ ne hledání v šablonách. Proměnné `--ms-*` jsou naše, `--bs-*` přepisují
 | `--ms-brand` | `#4f46e5` (indigo) | tlačítka, odkazy, aktivní stránka, odznak košíku |
 | `--ms-canvas` / `--ms-surface` | světle šedá / bílá | pozadí stránky / karty, hlavička |
 | `--ms-radius` | `0.875rem` | zaoblení karet |
-| `--ms-tap` | `2.75rem` (44 px) | minimální dotyková plocha (ikony v hlavičce, štítky kategorií) |
+| `--ms-tap` | `2.75rem` (44 px) | minimální dotyková plocha (ikony v hlavičce, štítky kategorií na dotykovém displeji) |
+| `--ms-chip-height` | `2.25rem` (36 px) | štítky kategorií na počítači – vždy na jeden řádek, řada se zalomí; na telefonu se posouvá prstem bez posuvníku |
 
 Písmo je systémové (`system-ui`) – nic se nestahuje a na každém zařízení vypadá „domácky“.
 

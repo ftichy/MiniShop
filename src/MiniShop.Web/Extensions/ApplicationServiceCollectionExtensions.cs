@@ -29,6 +29,7 @@ using MiniShop.ServiceDefaults;
 using MiniShop.Web.Accounts;
 using MiniShop.Web.Inventory;
 using MiniShop.Web.Invoicing;
+using MiniShop.Web.Messages;
 using MiniShop.Web.Notifications;
 using MiniShop.Web.Reporting;
 
@@ -52,6 +53,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddInvoicingModule(configuration);
         services.AddInventoryApiClient(configuration);
         services.AddReportingApiClient(configuration);
+        services.AddServiceMessages(configuration);   // mikroservisy M2B: /Admin/Messages pro všechny služby
 
         return services;
     }

@@ -52,7 +52,9 @@ podruhé. Opakování trvá minuty, lhůta dny – rezerva je velká.
 
 ## Stránka Zprávy (`/Admin/Messages`)
 
-Pro každý modul služby Web: kolik zpráv čeká v outboxu a které vyčerpaly pokusy (s chybou) – tlačítko **Zkusit znovu**
+Od mikroservis M2B **pro všechny služby** – Web v procesu, sklad a přehled tržeb přes jejich `/api/messages`
+(se servisním klíčem té služby, logika jednou v `MessagesOverview`). Každá služba má vlastní oddíl; když neodpovídá,
+ukáže se u ní „neodpovídá“ a ostatní služby normálně. Pro každý modul: kolik zpráv čeká v outboxu a které vyčerpaly pokusy (s chybou) – tlačítko **Zkusit znovu**
 vynuluje pokusy. Pro každou frontu: počet odložených zpráv v dead-letter frontě – **Vrátit do fronty** je přesune zpět
 (publikuje s potvrzením, pak teprve smaže z dead-letter). Obsah odložených zpráv ukáže RabbitMQ Management.
 
@@ -64,6 +66,8 @@ vynuluje pokusy. Pro každou frontu: počet odložených zpráv v dead-letter fr
 [RabbitMqQueueConsumer](code:src/MiniShop.Infrastructure/Integration/RabbitMq/RabbitMqQueueConsumer.cs) ·
 [RabbitMqDeadLetters](code:src/MiniShop.Infrastructure/Integration/RabbitMq/RabbitMqDeadLetters.cs) ·
 [RabbitMqDeadLetterService](code:src/MiniShop.Infrastructure/Integration/RabbitMq/RabbitMqDeadLetterService.cs) ·
+[MessagesOverview](code:src/MiniShop.Infrastructure/Hosting/MessagesOverview.cs) ·
+[ServiceMessages](code:src/MiniShop.Web/Messages/ServiceMessages.cs) ·
 [Stránka Zprávy](code:src/MiniShop.Web/Pages/Admin/Messages/Index.cshtml.cs)
 
 ## Na internetu

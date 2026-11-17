@@ -71,6 +71,7 @@ public static class DependencyInjection
 
         // EDA krok 13: dead-letter fronty – přehled, vrácení zpět, health check (zpráva v dead-letter = Degraded).
         services.AddSingleton<RabbitMqDeadLetterService>();
+        services.AddSingleton<Hosting.MessagesOverview>();   // mikroservisy M2B: provoz zpráv služby (/api/messages, /Admin/Messages)
         services.AddHealthChecks().AddCheck<DeadLetterHealthCheck>("dead-letters");
 
         return services;

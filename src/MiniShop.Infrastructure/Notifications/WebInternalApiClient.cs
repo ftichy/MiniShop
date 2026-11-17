@@ -9,7 +9,7 @@ namespace MiniShop.Infrastructure.Notifications;
 /// <summary>
 /// Mikroservisy M2A: Notifications se ptá Webu na data jiných modulů přes jeho interní API (<c>/internal/…</c>, servisní
 /// klíč přidá <c>ServiceApiKeyHandler</c>). Stejná rozhraní jako implementace v procesu – handlery Notifications nepoznají,
-/// jestli Web běží vedle nich, nebo ve vedlejším kontejneru. Používá ho až samostatná služba (M2B); Web sám sebe nevolá.
+/// jestli Web běží vedle nich, nebo ve vedlejším kontejneru. Používá ho až samostatná služba (M2C); Web sám sebe nevolá.
 /// </summary>
 /// <remarks>
 /// Neexistuje (404) = <c>null</c>, jako v procesu. Jiná chyba (Web neběží, 5xx, 401) = výjimka → consumer zprávu zopakuje

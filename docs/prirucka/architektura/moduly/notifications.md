@@ -139,7 +139,7 @@ sequenceDiagram
 
 Notifications za běhu potřebuje data modulů, které běží ve Webu – přes čtyři rozhraní, která implementuje Web:
 
-| Rozhraní | K čemu | V procesu (dnes) | Přes HTTP (od M2B) |
+| Rozhraní | K čemu | V procesu (dnes) | Přes HTTP (od M2C) |
 | --- | --- | --- | --- |
 | `ICustomerContacts` | potvrzený e-mail a souhlas při odeslání (připomínka košíku, „Dejte mi vědět“) | `IdentityCustomerContacts` | `GET /internal/customers/{id}/contact` |
 | `IStaffDirectory` | kdo z přihlášených k oznámení k práci má roli a není zablokovaný | `IdentityStaffDirectory` | `POST /internal/staff/allowed` |

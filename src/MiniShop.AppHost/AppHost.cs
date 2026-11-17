@@ -43,7 +43,7 @@ var reportingApi = builder.AddProject<Projects.MiniShop_Reporting_Api>("reportin
     .WithHttpHealthCheck("/health")
     .WithModuleDatabase(database);
 
-// Mikroservisy M2A: klíč interního API Webu (/internal/…) – služby (od M2B Notifications) se jím ptají Webu.
+// Mikroservisy M2A: klíč interního API Webu (/internal/…) – služby (od M2C Notifications) se jím ptají Webu.
 var webInternalApiKey = builder.AddParameter("web-internal-api-key",
     new GenerateParameterDefault { MinLength = 64, Special = false }, secret: true, persist: true);
 

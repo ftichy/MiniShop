@@ -164,6 +164,7 @@ Plán: [docs/Mikroservisy-roadmap.md](code:docs/Mikroservisy-roadmap.md) – vyj
 | M0 | Hlídání před vyjmutím: počet posluchačů front a alarmy „fronta bez posluchače“ / „fronta mlčí“, alarm na limit metrických řad Grafany, víc paměti pro Alloy | [krok-m0](code:docs/kroky-mikroservisy/krok-m0-priprava.md) |
 | M1 | Přehled tržeb jako samostatná služba `MiniShop.Reporting.Api` – vlastní image a kontejner, API se servisním klíčem, přechod bez odstávky přes stejnou frontu a inbox, stránka ustojí výpadek služby | [krok-m1](code:docs/kroky-mikroservisy/krok-m1-reporting.md) |
 | M2A | Interní API Webu `/internal/…` jen se servisním klíčem (druhé schéma ověření vedle cookie, z internetu zavřené v Caddy) a klient budoucí služby Notifications s testem kontraktu – expand bez změny chování | [krok-m2a](code:docs/kroky-mikroservisy/krok-m2a-interni-api.md) |
+| M2B | Stránka Zprávy pro všechny služby – každá služba nabízí `/api/messages` (stejná logika ze sdíleného jádra), Web je ukáže pohromadě a nedostupnou službu označí jen upozorněním | [krok-m2b](code:docs/kroky-mikroservisy/krok-m2b-zpravy-vsech-sluzeb.md) |
 
 ## Proč po krocích
 

@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using MiniShop.Infrastructure.Integration.RabbitMq;
-using MiniShop.Infrastructure.Outbox;
+using MiniShop.Infrastructure.Hosting;
 using MiniShop.Web.Accounts;
+using MiniShop.Web.Messages;
 
 namespace MiniShop.Web.Pages.Admin.Messages;
 
@@ -12,69 +12,73 @@ namespace MiniShop.Web.Pages.Admin.Messages;
 /// v dead-letter frontách RabbitMQ. Obojí jde po opravě příčiny vrátit ke zpracování.
 /// </summary>
 /// <remarks>
-/// Ukazuje moduly služby Web. Sklad (Inventory.Api) má vlastní databázi i frontu – jeho stav hlásí /health/inventory.
+/// Mikroservisy M2B: všechny služby – Web v procesu, sklad a přehled tržeb přes jejich <c>/api/messages</c>
+/// (<see cref="IServiceMessages"/>). Nedostupná služba se ukáže jako „nedostupná“, ostatní normálně.
 /// </remarks>
 [Authorize(Policy = AuthorizationPolicies.RequireOperations)]   // účty krok 12B
-public sealed class IndexModel(
-    IEnumerable<IMessageStore> stores,
-    RabbitMqDeadLetterService deadLetters,
-    ILogger<IndexModel> logger) : PageModel
+public sealed class IndexModel(IEnumerable<IServiceMessages> services, ILogger<IndexModel> logger) : PageModel
 {
-    private static readonly TimeSpan BrokerTimeout = TimeSpan.FromSeconds(3);
-
-    public IReadOnlyList<MessageStoreStatus> Modules { get; private set; } = [];
-
-    /// <summary>Počty v dead-letter frontách; null = RabbitMQ teď nejde zkontrolovat.</summary>
-    public IReadOnlyDictionary<string, uint>? DeadLetters { get; private set; }
+    public IReadOnlyList<ServiceSection> Services { get; private set; } = [];
 
     [TempData]
     public string? StatusMessage { get; set; }
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
-        var statuses = new List<MessageStoreStatus>();
-        foreach (var store in stores.OrderBy(s => s.ModuleName, StringComparer.Ordinal))
-        {
-            statuses.Add(await store.GetStatusAsync(cancellationToken));
-        }
-
-        Modules = statuses;
-
-        try
-        {
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(BrokerTimeout);
-            DeadLetters = await deadLetters.GetCountsAsync(timeout.Token);
-        }
-        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
-        {
-            logger.LogWarning("[Zprávy] Dead-letter fronty nejde zkontrolovat: {Error}", ex.Message);
-        }
+        // Služby se ptají souběžně – pomalá (nedostupná) nezdrží ostatní víc, než je nutné.
+        Services = await Task.WhenAll(services.Select(service => LoadAsync(service, cancellationToken)));
     }
 
     /// <summary>Poison zpráva z outboxu dostane nové pokusy (po opravě příčiny – např. chybějící data, výpadek SMTP).</summary>
-    public async Task<IActionResult> OnPostRetryAsync(string module, Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostRetryAsync(string service, string module, Guid id, CancellationToken cancellationToken)
     {
-        var store = stores.FirstOrDefault(s => s.ModuleName == module);
-        StatusMessage = store is not null && await store.RetryAsync(id, cancellationToken)
-            ? $"Zpráva se v modulu {module} zkusí znovu (za pár sekund)."
-            : "Zpráva už nečeká – mezitím se zpracovala nebo neexistuje.";
+        try
+        {
+            StatusMessage = Find(service) is { } target && await target.RetryAsync(module, id, cancellationToken)
+                ? $"Zpráva se v modulu {module} zkusí znovu (za pár sekund)."
+                : "Zpráva už nečeká – mezitím se zpracovala nebo neexistuje.";
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning("[Zprávy] Opakování ve službě {Service} se nepodařilo: {Error}", service, ex.Message);
+            StatusMessage = $"Chyba: služba {service} teď neodpovídá – zkuste to za chvíli.";
+        }
+
         return RedirectToPage();
     }
 
     /// <summary>Zprávy z dead-letter fronty zpět do fronty modulu (s vynulovaným počtem pokusů).</summary>
-    public async Task<IActionResult> OnPostRequeueAsync(string queue, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostRequeueAsync(string service, string queue, CancellationToken cancellationToken)
     {
         try
         {
-            var moved = await deadLetters.RequeueAsync(queue, cancellationToken);
+            var target = Find(service) ?? throw new ArgumentException($"Služba {service} neexistuje.", nameof(service));
+            var moved = await target.RequeueAsync(queue, cancellationToken);
             StatusMessage = $"Do fronty {queue} vráceno {moved} zpráv.";
         }
         catch (Exception ex) when (ex is ArgumentException || !cancellationToken.IsCancellationRequested)
         {
-            StatusMessage = $"Vrácení se nepodařilo: {ex.Message}";
+            StatusMessage = $"Chyba: vrácení se nepodařilo – {ex.Message}";
         }
 
         return RedirectToPage();
     }
+
+    private IServiceMessages? Find(string service) => services.FirstOrDefault(s => s.ServiceName == service);
+
+    private async Task<ServiceSection> LoadAsync(IServiceMessages service, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return new ServiceSection(service.ServiceName, service.DisplayName, await service.GetAsync(cancellationToken));
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning("[Zprávy] Služba {Service} neodpovídá: {Error}", service.ServiceName, ex.Message);
+            return new ServiceSection(service.ServiceName, service.DisplayName, null);
+        }
+    }
 }
+
+/// <param name="Status">Null = služba teď neodpovídá.</param>
+public sealed record ServiceSection(string ServiceName, string DisplayName, ServiceMessagesStatus? Status);

@@ -78,7 +78,7 @@ try
     builder.Services.AddReviewsInfrastructure(database);
     builder.Services.AddInvoicingInfrastructure(database);   // e-shop krok 15: faktury
     builder.Services.AddAccounts(database, builder.Configuration);
-    // Mikroservisy M2A: interní API /internal/… jen se servisním klíčem (WebInternalApi:ApiKey) – pro Notifications od M2B.
+    // Mikroservisy M2A: interní API /internal/… jen se servisním klíčem (WebInternalApi:ApiKey) – pro Notifications od M2C.
     builder.Services.AddWebInternalApi(builder.Configuration);
 
     // Účty krok 8: zpevnění – limit odeslání formulářů účtu z jedné IP a HSTS (prohlížeč pak chodí jen přes HTTPS).

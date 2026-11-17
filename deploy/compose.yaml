@@ -169,6 +169,10 @@ services:
       Payments__Gateway: ${PAYMENTS_GATEWAY:-Fake}
       Payments__Stripe__SecretKey: ${STRIPE_SECRET_KEY:-}
       Payments__Stripe__WebhookSecret: ${STRIPE_WEBHOOK_SECRET:-}
+      # E-shop krok 23: oznámení push – klíče VAPID (dotnet MiniShop.Web.dll generate-vapid-keys). Bez obou = vypnuto.
+      # Produkce: veřejný klíč v production.env (není tajný), soukromý je secret PUSH_VAPID_PRIVATE_KEY.
+      PushNotifications__VapidPublicKey: ${PUSH_VAPID_PUBLIC_KEY:-}
+      PushNotifications__VapidPrivateKey: ${PUSH_VAPID_PRIVATE_KEY:-}
     # Škálování krok 5: víc kopií Webu (produkce 2 – production.env). Všechny sdílí volume web-data: klíče Data Protection
     # musí být společné (cookie přihlášení a formuláře z jedné kopie platí i v druhé), logy má každá vlastní soubor.
     # Workery s časovačem běží jen na vedoucí kopii (zámek v PostgreSQL), požadavky rozděluje Caddy (compose.cloud.yaml).

@@ -24,6 +24,7 @@ using MiniShop.Contracts.Invoicing;
 using MiniShop.Contracts.Reviews;
 using MiniShop.Domain.Orders.Events;
 using MiniShop.Infrastructure;
+using MiniShop.Infrastructure.Notifications;
 using MiniShop.Infrastructure.Ordering;
 using MiniShop.ServiceDefaults;
 using MiniShop.Web.Accounts;
@@ -165,10 +166,43 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<BackInStockService>();
         services.AddIntegrationMessageHandler<StockAvailabilityChangedV1, BackInStockHandler>(IntegrationModules.Notifications);
 
+        // E-shop krok 23: oznámení push – druhý kanál vedle e-mailu (vlastní handler = vlastní inbox, chyba push služby
+        // nezopakuje e-mail). Bez klíčů VAPID se nenabízejí ani neposílají.
+        var push = PushSettings.FromValues(configuration["PushNotifications:VapidPublicKey"],
+            configuration["PushNotifications:VapidPrivateKey"], configuration["Notifications:PublicBaseUrl"]);
+        if (push.IsConfigured)
+        {
+            services.AddSingleton(push);
+            services.AddHttpClient<IPushSender, WebPushSender>();
+        }
+        else
+        {
+            services.AddSingleton<IPushSender, DisabledPushSender>();
+        }
+
+        services.AddScoped<PushNotifier>();
+        services.AddScoped<PushSubscriptionService>();
+        services.AddOrderPushHandlers();
+
         // E-shop krok 15: e-mail s fakturou v příloze – PDF z modulu Invoicing přes most ve Webu.
         services.AddScoped<IInvoiceDocuments, InvoiceDocuments>();
         services.AddIntegrationMessageHandler<InvoiceIssuedV1, InvoiceEmailHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<CreditNoteIssuedV1, InvoiceEmailHandler>(IntegrationModules.Notifications);   // e-shop krok 15B
+        return services;
+    }
+
+    /// <summary>E-shop krok 23: události objednávky, o kterých jde oznámení push (sdílí i testy).</summary>
+    public static IServiceCollection AddOrderPushHandlers(this IServiceCollection services)
+    {
+        services.AddIntegrationMessageHandler<OrderConfirmedV1, OrderPushHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<OrderRejectedV1, OrderPushHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<OrderShippedV1, OrderPushHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<OrderCompletedV1, OrderPushHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<OrderCancelledV1, OrderPushHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<ReturnRejectedV1, OrderPushHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<ReturnCompletedV1, OrderPushHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<ReturnRejectedV2, OrderPushHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<ReturnCompletedV2, OrderPushHandler>(IntegrationModules.Notifications);
         return services;
     }
 

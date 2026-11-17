@@ -159,6 +159,18 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
 
     public static TheoryData<Who, string, Expect> PageActions() => new()
     {
+        // E-shop krok 23: oznámení push – jen zákazník (bez těla: projde autorizací, 400)
+        { Who.Anonymous, "/Account/EmailPreferences?handler=PushSubscribe", Expect.Login },
+        { Who.User, "/Account/EmailPreferences?handler=PushSubscribe", Expect.Allowed },
+        { Who.Admin, "/Account/EmailPreferences?handler=PushSubscribe", Expect.Denied },
+        { Who.User, "/Account/EmailPreferences?handler=PushUnsubscribe", Expect.Allowed },
+        { Who.Admin, "/Account/EmailPreferences?handler=PushUnsubscribe", Expect.Denied },
+        { Who.User, "/Account/EmailPreferences?handler=RemoveDevice", Expect.Allowed },
+        { Who.Admin, "/Account/EmailPreferences?handler=RemoveDevice", Expect.Denied },
+        { Who.Anonymous, "/Account/EmailPreferences?handler=PushTest", Expect.Login },
+        { Who.User, "/Account/EmailPreferences?handler=PushTest", Expect.Allowed },
+        { Who.Admin, "/Account/EmailPreferences?handler=PushTest", Expect.Denied },
+
         // E-shop krok 3: košík – jen zákazník (bez produktu: projde autorizací, hláška na stránce)
         { Who.Anonymous, "/Cart?handler=Add", Expect.Login },
         { Who.User, "/Cart?handler=Add", Expect.Allowed },

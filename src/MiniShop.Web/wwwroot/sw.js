@@ -73,6 +73,44 @@ async function fromCacheOrNetwork(request) {
     return response;
 }
 
+// E-shop krok 23: oznámení push. Push služba (Google, Apple, Mozilla) doručí zašifrovanou zprávu od MiniShopu,
+// prohlížeč ji rozšifruje a předá sem: { title, body, url, tag }. Stejný tag nahradí starší oznámení (opakované
+// doručení se neukáže dvakrát). Bez showNotification by prohlížeč ukázal vlastní obecné oznámení.
+self.addEventListener('push', event => {
+    let data = {};
+    try {
+        data = event.data ? event.data.json() : {};
+    } catch {
+        data = {};
+    }
+
+    event.waitUntil(self.registration.showNotification(data.title || 'MiniShop', {
+        body: data.body || '',
+        icon: '/icons/icon-192.png',
+        badge: '/icons/badge-96.png',
+        tag: data.tag || undefined,
+        lang: 'cs',
+        data: { url: data.url || '/' }
+    }));
+});
+
+// Klepnutí na oznámení: otevřít stránku (jen na MiniShopu – cizí adresu ze zprávy neotevřeme). Když už je aplikace
+// otevřená, přepne se do ní místo nového okna.
+self.addEventListener('notificationclick', event => {
+    event.notification.close();
+    const target = new URL((event.notification.data && event.notification.data.url) || '/', self.location.origin);
+    const url = target.origin === self.location.origin ? target.href : self.location.origin + '/';
+
+    event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windows => {
+        const existing = windows.find(client => new URL(client.url).origin === self.location.origin);
+        if (existing) {
+            return existing.focus().then(client => client.navigate(url)).catch(() => self.clients.openWindow(url));
+        }
+
+        return self.clients.openWindow(url);
+    }));
+});
+
 // Mezipaměť nesmí růst donekonečna (staré ?v= verze CSS/JS, prohlížené obrázky) – nejstarší záznamy pryč.
 async function trim(cache) {
     const keys = await cache.keys();

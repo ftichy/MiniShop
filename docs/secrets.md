@@ -23,6 +23,7 @@ Pravidla:
 | `STRIPE_SECRET_KEY` | **testovací** API klíč Stripu (e-shop krok 16) – Web jím zakládá platby a vrací peníze. Kdo ho zná, může v testovacím účtu MiniShopu zakládat a rušit platby (žádné skutečné peníze). Tvar `sk_test_…`, živý klíč `sk_live_` Web i `deploy.sh` odmítnou. Volitelný: platí jen s `PAYMENTS_GATEWAY=Stripe` | `.env` na VM → `Payments__Stripe__SecretKey` ve `web` | [R13](#r13-klíče-stripu) | při podezření |
 | `STRIPE_WEBHOOK_SECRET` | tajemství webhooku Stripu (e-shop krok 16) – podpis `Stripe-Signature` na `/api/payments/stripe-webhook`. Kdo ho zná, může „zaplatit“ objednávku, k níž zná ID session. Tvar `whsec_…`, jedno na endpoint ve Stripe Dashboardu | `.env` na VM → `Payments__Stripe__WebhookSecret` ve `web` | [R13](#r13-klíče-stripu) | při podezření |
 | `GRAFANA_CLOUD_OTLP_TOKEN` | token Grafana Cloud (observabilita G1, *Cloud Access Policy* jen se **zápisem** metrik, logů a tras) – Alloy jím posílá telemetrii do stacku `patientjaguar2071`. Kdo ho zná, může do Grafany posílat vymyšlená data a vyčerpat limity free tieru; číst data jím **nejde**. Tvar `glc_…`. Povinný, dokud je `compose.grafana.yaml` v `COMPOSE_FILE` (`deploy/production.env`) | `.env` na VM → proměnná kontejneru `alloy`; lokálně `deploy/.env` (jen pro generálku) | [R15](#r15-token-grafana-cloud) | při podezření, jinak 1× ročně |
+| `PUSH_VAPID_PRIVATE_KEY` | soukromý klíč VAPID (e-shop krok 23, oznámení push) – Web jím podepisuje každou zprávu push službám prohlížečů (Google FCM, Apple, Mozilla). Kdo ho zná (a má endpoint zařízení), může zákazníkům posílat oznámení „jako MiniShop“. Tvar 43 znaků base64url, k němu patří veřejný `PUSH_VAPID_PUBLIC_KEY` v `deploy/production.env`. Volitelný – prázdný = push vypnutý | `.env` na VM → proměnná kontejneru `web`; lokálně `deploy/.env` / user secrets | [R16](#r16-klíče-vapid-oznámení-push) | při podezření (výměna vypne oznámení na všech zařízeních) |
 
 ## Secrets nasazení (GitHub → Environments → `production`)
 
@@ -198,6 +199,18 @@ Nový klíč (`ssh-keygen`), veřejnou část přidat na VM do `/home/ubuntu/.ss
 4. Starý token v *Access Policies* smazat (*Delete*) – až po úspěšném nasazení, jinak by Alloy mezitím nic neposlal.
 5. Vypnutí exportu bez výměny: odebrat `compose.grafana.yaml` z `COMPOSE_FILE` v `deploy/production.env` (PR) – služby
    pak posílají telemetrii rovnou do Aspire dashboardu jako před G1.
+
+### R16. Klíče VAPID (oznámení push)
+
+1. Na PC: `dotnet run --project src/MiniShop.Web -- generate-vapid-keys` – vypíše nový pár. Soukromý klíč nikam neukládat
+   ani nekopírovat jinam než do GitHubu (chat, e-mail, soubor v repozitáři).
+2. GitHub → *Environments* → `production` → `PUSH_VAPID_PRIVATE_KEY` → *Update* → vložit soukromý klíč.
+3. Veřejný klíč do `PUSH_VAPID_PUBLIC_KEY` v `deploy/production.env` (PR) – sloučení nasadí oba najednou.
+   **Klíče musí patřit k sobě** – Web s klíči z různých párů nastartuje, ale push služby zprávy odmítnou.
+4. **Všechna zařízení přestanou dostávat oznámení** – přihlášení k oznámení je vázané na veřejný klíč. Zákazník si oznámení
+   zapne znovu na stránce *E-maily a oznámení* (prohlížeč staré přihlášení zruší sám). Proto jen při podezření.
+5. Ověření: *E-maily a oznámení* → *Zapnout na tomto zařízení* → *Poslat zkušební oznámení*.
+6. Vypnutí push bez výměny: `PUSH_VAPID_PUBLIC_KEY=` prázdné v `production.env` a secret smazat – sekce na stránce zmizí.
 
 ### Které SHA nasadit
 

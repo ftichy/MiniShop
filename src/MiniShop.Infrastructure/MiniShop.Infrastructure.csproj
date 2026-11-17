@@ -5,6 +5,7 @@
   </ItemGroup>
   <ItemGroup>
     <!-- Škálování krok 1 a 3C: databáze PostgreSQL (jedna databáze, schéma pro každý modul). SQLite odebráno v kroku 3C. -->
+    <PackageReference Include="Lib.Net.Http.WebPush" Version="3.3.1" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <!-- Účty krok 5: odesílání e-mailů přes SMTP (Gmail v produkci, Mailpit lokálně). -->
     <PackageReference Include="MailKit" Version="5.0.0" />

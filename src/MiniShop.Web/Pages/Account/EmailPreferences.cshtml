@@ -12,6 +12,8 @@
 
 <div class="row">
     <div class="col-md-7 col-lg-6">
+        @if (Model.IsCustomer)
+        {
         <p class="text-muted">
             E-maily o objednávkách (přijetí, potvrzení, odeslání…) posíláme vždy – patří k nákupu.
             Ostatní upozornění si můžete zapnout nebo vypnout.
@@ -32,6 +34,13 @@
             <button type="submit" class="btn btn-primary">Uložit</button>
             <a asp-page="/Account/ChangePassword" class="btn btn-link">Zpět na účet</a>
         </form>
+        }
+        else
+        {
+            <p><a asp-page="/Account/ChangePassword">Zpět na účet</a></p>
+        }
+        @* E-shop krok 23/24: token pro push.js (JSON požadavky) – formulář košíku zaměstnanec bez role Zákazník nevidí. *@
+        @Html.AntiForgeryToken()
 
         @if (Model.PushEnabled)
         {
@@ -83,6 +92,29 @@
                     </form>
                 }
             </section>
+
+            @if (Model.StaffAlerts.Count > 0)
+            {
+                @* E-shop krok 24: oznámení k práci – jen typy, ke kterým má zaměstnanec roli; výchozí vypnuto. *@
+                <section class="mt-5" data-track="staff-alerts">
+                    <h2 class="h4">Oznámení k práci</h2>
+                    <p class="text-muted">
+                        Pro vaši roli ve správě. Přijdou na zařízení, kde máte oznámení zapnutá (výše) – bez jmen a adres zákazníků,
+                        jen číslo objednávky nebo název produktu.
+                    </p>
+                    <form method="post" asp-page-handler="StaffAlerts">
+                        @foreach (var alert in Model.StaffAlerts)
+                        {
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="kinds" value="@alert.Kind" id="staff-alert-@alert.Kind"
+                                       checked="@alert.Enabled" data-track="staff-alert-@alert.Kind" />
+                                <label class="form-check-label" for="staff-alert-@alert.Kind">@alert.Label</label>
+                            </div>
+                        }
+                        <button type="submit" class="btn btn-primary mt-2" data-track="staff-alerts-save">Uložit</button>
+                    </form>
+                </section>
+            }
         }
     </div>
 </div>

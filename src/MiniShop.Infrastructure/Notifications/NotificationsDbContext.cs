@@ -25,6 +25,9 @@ public sealed class NotificationsDbContext(DbContextOptions<NotificationsDbConte
     /// <summary>E-shop krok 23: zařízení pro oznámení push.</summary>
     public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
 
+    /// <summary>E-shop krok 24: volby oznámení k práci (zaměstnanci).</summary>
+    public DbSet<StaffAlertSubscription> StaffAlertSubscriptions => Set<StaffAlertSubscription>();
+
     // Notifications nemá doménové události – kdyby nějaká vznikla, chyba se ukáže hned.
     protected override IEnumerable<OutboxMessage> ToOutboxMessages(IDomainEvent domainEvent) =>
         throw new InvalidOperationException($"Modul Notifications neposílá zprávy ({domainEvent.GetType().Name}).");

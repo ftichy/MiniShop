@@ -68,7 +68,7 @@ požadavků se nezaznamenávají vůbec – konkrétní data jsou v MiniShopu (d
 | vratka po částech (e-shop krok 22) | `minishop.return.number` (pořadí vratky v objednávce, 0 = celá objednávka – sága vratky v Orderingu, sklad, Payments i dobropis v Invoicingu) |
 | košík | `minishop.cart.action` (add / update / remove), `minishop.product.id`, `minishop.cart.quantity` |
 | e-maily | `minishop.email.sent` (který e-mail = jméno spanu, např. `process OrderConfirmedV1`) |
-| oznámení push (e-shop krok 23) | `minishop.push.devices`, `minishop.push.sent`, `minishop.push.gone` (počty zařízení), `minishop.push.failed` (push vedle e-mailu selhal); **nikdy endpoint** – HTTP span na push službu má `url.full` jen se jménem serveru |
+| oznámení push (e-shop krok 23) | `minishop.push.devices`, `minishop.push.sent`, `minishop.push.gone` (počty zařízení), `minishop.push.failed` (push vedle e-mailu selhal), `minishop.push.staff_recipients` (e-shop krok 24 – počet zaměstnanců, kterým jde oznámení k práci); **nikdy endpoint ani ID účtu** – HTTP span na push službu má `url.full` jen se jménem serveru |
 | faktury | `minishop.invoice.number`, `minishop.credit_note.number` |
 | hledání ve výloze a našeptávač | `minishop.search.results` (počet nalezených), `minishop.search.similar` (true = výsledky z podobných slov) – **text dotazu ne** (volný text zákazníka; `url.query` maže i Alloy) |
 | HTTP požadavek | `enduser.id` (ID účtu) |

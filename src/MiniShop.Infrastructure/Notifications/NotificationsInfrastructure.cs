@@ -20,6 +20,7 @@ public static class NotificationsInfrastructure
         services.AddScoped<IOrderRecipientRepository, OrderRecipientRepository>();
         services.AddScoped<IBackInStockRepository, BackInStockRepository>();
         services.AddScoped<IPushSubscriptionRepository, PushSubscriptionRepository>();
+        services.AddScoped<IStaffAlertSubscriptionRepository, StaffAlertSubscriptionRepository>();   // e-shop krok 24
 
         services.AddIntegrationModule<NotificationsDbContext>(IntegrationModules.Notifications);
 

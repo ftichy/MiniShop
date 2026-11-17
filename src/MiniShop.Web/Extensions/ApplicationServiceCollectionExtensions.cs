@@ -30,6 +30,7 @@ using MiniShop.ServiceDefaults;
 using MiniShop.Web.Accounts;
 using MiniShop.Web.Inventory;
 using MiniShop.Web.Invoicing;
+using MiniShop.Web.Notifications;
 
 namespace MiniShop.Web.Extensions;
 
@@ -184,6 +185,12 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<PushSubscriptionService>();
         services.AddOrderPushHandlers();
 
+        // E-shop krok 24: oznámení k práci pro zaměstnance – role a název produktu přes Web (Notifications je nezná).
+        services.AddScoped<StaffAlertService>();
+        services.AddScoped<IStaffDirectory, IdentityStaffDirectory>();
+        services.AddScoped<IProductNames, CatalogProductNames>();
+        services.AddStaffPushHandlers();
+
         // E-shop krok 15: e-mail s fakturou v příloze – PDF z modulu Invoicing přes most ve Webu.
         services.AddScoped<IInvoiceDocuments, InvoiceDocuments>();
         services.AddIntegrationMessageHandler<InvoiceIssuedV1, InvoiceEmailHandler>(IntegrationModules.Notifications);
@@ -203,6 +210,16 @@ public static class ApplicationServiceCollectionExtensions
         services.AddIntegrationMessageHandler<ReturnCompletedV1, OrderPushHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<ReturnRejectedV2, OrderPushHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<ReturnCompletedV2, OrderPushHandler>(IntegrationModules.Notifications);
+        return services;
+    }
+
+    /// <summary>E-shop krok 24: události, o kterých dostávají oznámení zaměstnanci (sdílí i testy).</summary>
+    public static IServiceCollection AddStaffPushHandlers(this IServiceCollection services)
+    {
+        services.AddIntegrationMessageHandler<OrderConfirmedV1, StaffPushHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<ReturnRequestedV1, StaffPushHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<ReturnRequestedV2, StaffPushHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<StockAvailabilityChangedV1, StaffPushHandler>(IntegrationModules.Notifications);
         return services;
     }
 

@@ -55,6 +55,7 @@ using MiniShop.Infrastructure.Observability;
 using MiniShop.Tests.TestDoubles;
 using MiniShop.Web.Extensions;
 using MiniShop.Web.Invoicing;
+using MiniShop.Web.Notifications;
 
 namespace MiniShop.Tests.Application;
 
@@ -81,6 +82,7 @@ public sealed partial class OrderServiceTests : IDisposable
     private readonly FixedTimeProvider _time = new(Now);
     private readonly RecordingEmailSender _emails = new();
     private readonly RecordingPushSender _push = new();   // e-shop krok 23: oznámení push
+    private readonly InMemoryStaffDirectory _staff = new();   // e-shop krok 24: role zaměstnanců
     private readonly InMemoryCustomerContacts _contacts = new();   // e-shop krok 10: účty se souhlasem
     private readonly InMemoryProductImageStore _images = new();   // e-shop krok 2B
     private readonly List<IDomainEvent> _dispatched = new();
@@ -192,6 +194,12 @@ public sealed partial class OrderServiceTests : IDisposable
         services.AddScoped<PushNotifier>();
         services.AddScoped<PushSubscriptionService>();
         services.AddOrderPushHandlers();
+
+        // E-shop krok 24: oznámení k práci – role zaměstnanců v paměti, název produktu z kopie katalogu (jako ve Webu).
+        services.AddScoped<StaffAlertService>();
+        services.AddSingleton<IStaffDirectory>(_staff);
+        services.AddScoped<IProductNames, CatalogProductNames>();
+        services.AddStaffPushHandlers();
 
         // E-shop krok 8: modul Payments (účastník ságy) – jako AddPaymentsModule + AddPaymentsInfrastructure ve Webu.
         services.AddPaymentsInfrastructure(_databases.Payments, WebhookSecret);

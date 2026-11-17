@@ -76,6 +76,28 @@ public sealed class HardeningTests(MiniShopWebFactory web)
         Assert.Equal("nosniff", Assert.Single(response.Headers.GetValues("X-Content-Type-Options")));
         Assert.Equal("DENY", Assert.Single(response.Headers.GetValues("X-Frame-Options")));
         Assert.Equal("strict-origin-when-cross-origin", Assert.Single(response.Headers.GetValues("Referrer-Policy")));
+        // Izolace proti Spectre (COOP + CORP + COEP) – hlídá i ZAP (pravidlo 90004 FAIL).
+        Assert.Equal("same-origin", Assert.Single(response.Headers.GetValues("Cross-Origin-Opener-Policy")));
+        Assert.Equal("same-origin", Assert.Single(response.Headers.GetValues("Cross-Origin-Resource-Policy")));
+        Assert.Equal("require-corp", Assert.Single(response.Headers.GetValues("Cross-Origin-Embedder-Policy")));
+    }
+
+    /// <summary>
+    /// CORP musí mít i soubory, nejen stránky – jinak by je COEP stránky MiniShopu sám zablokoval (statické soubory,
+    /// obrázky produktů, manifest, service worker).
+    /// </summary>
+    [Theory]
+    [InlineData("/css/site.css")]
+    [InlineData("/js/theme.js")]
+    [InlineData("/icons/icon-192.png")]
+    [InlineData("/manifest.webmanifest")]
+    [InlineData("/sw.js")]
+    public async Task IzolaceProtiSpectre_IStatickeSoubory(string path)
+    {
+        var response = await web.CreateBrowser().GetAsync(path);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("same-origin", Assert.Single(response.Headers.GetValues("Cross-Origin-Resource-Policy")));
     }
 
     [Fact]

@@ -42,7 +42,14 @@ public static class SecurityHeaders
                 headers.XFrameOptions = "DENY";                           // nevkládat do cizí stránky (clickjacking), starší prohlížeče
                 headers["Referrer-Policy"] = "strict-origin-when-cross-origin";   // odkaz s tokenem neodejde jinému webu
                 headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=()";
+                // Izolace proti Spectre (bezpečnost: COOP + CORP + COEP = „cross-origin isolated“, ZAP 90004):
+                // okno nesdílet s cizími weby, soubory MiniShopu nesmí vložit cizí stránka, a stránka nenačte nic cizího
+                // bez výslovného souhlasu (CORP). MiniShop vše načítá ze sebe (Bootstrap, Mermaid, obrázky); Stripe a
+                // Google jsou přesměrování celé stránky, ne vložený obsah. Cizí vložený obsah v budoucnu (video, CDN) =
+                // COEP „credentialless“ nebo CORP na cizí straně – jinak se nenačte.
                 headers["Cross-Origin-Opener-Policy"] = "same-origin";
+                headers["Cross-Origin-Resource-Policy"] = "same-origin";
+                headers["Cross-Origin-Embedder-Policy"] = "require-corp";
                 return Task.CompletedTask;
             });
             return next(context);

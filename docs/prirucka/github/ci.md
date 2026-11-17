@@ -144,7 +144,7 @@ stránky s detaily ze serveru.
 
    | Úroveň | Význam | Příklady |
    | --- | --- | --- |
-   | **FAIL** | MiniShop to splňuje a nesmí se to rozbít → job zčervená | cookies `Secure`/`HttpOnly`/`SameSite`, CSP, `X-Content-Type-Options`, `X-Frame-Options`, hlavička `Server`, skripty z cizí domény, zranitelná JS knihovna, chybová stránka s detaily |
+   | **FAIL** | MiniShop to splňuje a nesmí se to rozbít → job zčervená | cookies `Secure`/`HttpOnly`/`SameSite`, CSP, `X-Content-Type-Options`, `X-Frame-Options`, izolace COOP/CORP/COEP (90004), hlavička `Server`, skripty z cizí domény, zranitelná JS knihovna, chybová stránka s detaily |
    | **WARN** | ostatní pravidla – ukáže se v reportu, job projde (`-I`) | nové nálezy, které ještě nikdo neposoudil |
    | **IGNORE** | vědomě neplatí, odůvodnění je v komentáři v souboru | `style-src 'unsafe-inline'` (Mermaid), testovací karta Stripe a rozsah `10.0.0.0/16` v příručce, HSTS (sken jde přes HTTP) |
 

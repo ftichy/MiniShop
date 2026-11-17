@@ -17,6 +17,7 @@ dotnet run --project src/MiniShop.AppHost
 | --- | --- |
 | Web (objednávky, UI, tato dokumentace) | https://localhost:7180 |
 | Inventory.Api (sklad) | https://localhost:7181 |
+| Reporting.Api (přehled tržeb, mikroservisy M1) | https://localhost:7182 |
 | Aspire dashboard | https://localhost:17180 (přihlašovací odkaz vypíše konzole) |
 | RabbitMQ management | odkaz v dashboardu (zdroj `messaging`) |
 | PostgreSQL | zdroj `postgres` / databáze `minishop` v dashboardu (connection string v detailu) |
@@ -32,10 +33,12 @@ Přes AppHost běží obě služby na **PostgreSQL** (persistentní kontejner, d
 flowchart LR
     host["AppHost.cs"] -->|"AddRabbitMQ, persistentní kontejner"| mq[["RabbitMQ<br/>v Dockeru"]]
     host -->|"AddProject, WaitFor"| inv["Inventory.Api"]
+    host -->|"AddProject, WaitFor"| rep["Reporting.Api"]
     host -->|"AddProject, WithReference"| web["Web"]
     host --> dash["Aspire dashboard"]
     web -.-|"ConnectionStrings:messaging"| mq
     web -.-|"service discovery inventory-api"| inv
+    web -.-|"service discovery reporting-api"| rep
     inv -.-> dash
     web -.-> dash
 ```
@@ -53,10 +56,11 @@ flowchart LR
 docker start minishop-rabbit        # poprvé: docker run -d --name minishop-rabbit -p 5672:5672 -p 15672:15672 rabbitmq:4-management
 docker start minishop-postgres      # poprvé: docker run -d --name minishop-postgres -e POSTGRES_DB=minishop -e POSTGRES_USER=minishop -e POSTGRES_PASSWORD=minishop-vyvoj -p 5432:5432 postgres:18-alpine
 dotnet run --project src/MiniShop.Inventory.Api
+dotnet run --project src/MiniShop.Reporting.Api      # mikroservisy M1: přehled tržeb (bez ní e-shop běží, jen /Admin/Sales hlásí nedostupnost)
 dotnet run --project src/MiniShop.Web
 ```
 
-Adresu skladu najde Web v `Services:inventory-api` a databázi v `ConnectionStrings:minishop` v `appsettings.Development.json`
+Adresu skladu a přehledu tržeb najde Web v `Services:inventory-api` a `Services:reporting-api` a databázi v `ConnectionStrings:minishop` v `appsettings.Development.json`
 (vývojové heslo `minishop-vyvoj` jen pro tento lokální kontejner).
 
 ## Přihlášení přes Google lokálně

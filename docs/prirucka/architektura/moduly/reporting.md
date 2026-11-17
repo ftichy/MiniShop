@@ -6,9 +6,35 @@ order: 7
 
 > **V jedné větě:** Reporting si z integračních událostí, které už posílají Ordering a Payments, skládá vlastní
 > tabulku pro dotazy admina (tržby za den, nejprodávanější produkty, počty podle stavu) – na objednávky se nikdy
-> neptá napřímo. Běží ve službě **Web**, data má ve schématu `reporting`. Vzniklo v e-shop kroku 11.
+> neptá napřímo. Od mikroservis M1 běží jako **samostatná služba `MiniShop.Reporting.Api`** (kontejner `reporting-api`),
+> data má ve schématu `reporting`. Vzniklo v e-shop kroku 11 (tehdy ve Webu).
 
-Princip a diagramy: [CQRS – přehled tržeb](../../eda/cqrs.md).
+Princip a diagramy: [CQRS – přehled tržeb](../../eda/cqrs.md). Proč samostatná služba: [Mikroservisy-roadmap](code:docs/Mikroservisy-roadmap.md).
+
+```mermaid
+flowchart LR
+    web["Web<br/>/Admin/Sales"] -- "HTTP GET /api/sales<br/>X-Api-Key" --> api["reporting-api<br/>SalesController"]
+    rabbit[("RabbitMQ<br/>minishop.reporting")] -- "OrderPlacedV2, …" --> api
+    api -- "RebuildSalesReportV1" --> rabbit
+    api --> db[("PostgreSQL<br/>schéma reporting")]
+    click api "/Docs/eda/cqrs"
+```
+
+## Samostatná služba (mikroservisy M1)
+
+- **Jen zprávy a jedno HTTP API.** Data dostává služba jen z fronty `minishop.reporting`; Web se ptá
+  `GET /api/sales` (přehled) a `POST /api/sales/rebuild` (přestavění) přes `ReportingApiClient` se **servisním klíčem**
+  `REPORTING_API_KEY` (hlavička `X-Api-Key`, jiný klíč než sklad – uniklý klíč otevře jen jednu službu). Kdo z lidí smí
+  přehled vidět (role Účetní), rozhoduje Web.
+- **DTO bez domény:** stavy objednávek jdou v `SalesReportDto.StatusCounts` jako text (`"Confirmed"`, …) – Web doménu
+  Reportingu nezná (hlídá `ModuleBoundariesTests.Web_NesahaDoVnitrkuPrehleduTrzeb`).
+- **Výpadek služby** e-shop nezastaví: zprávy počkají ve frontě, stránka *Přehled tržeb* místo chyby ukáže
+  „přehled je nedostupný“ (`SalesReportUnavailableException`). Hlídá to alarm `MiniShopQueueSilent` v Grafaně.
+- **Přechod bez odstávky:** při nasazení chvíli poslouchá frontu stará kopie Webu i nová služba – RabbitMQ dá zprávu
+  jen jednomu a inbox ve schématu `reporting` je společný, takže nic neproběhne dvakrát. `deploy.sh` proto spouští
+  `reporting-api` **před** Webem.
+- **Stránka Zprávy** (`/Admin/Messages`) ukazuje jen moduly Webu – outbox a dead-letter frontu Reportingu hlídají
+  alarmy (`MiniShopDeadLetter`, `MiniShopOutboxPoison`). Ztracenou zprávu napraví tlačítko *Přestavět*.
 
 ## Součásti
 
@@ -18,8 +44,10 @@ Princip a diagramy: [CQRS – přehled tržeb](../../eda/cqrs.md).
 | **SalesProjectionHandler** | projekce – upsert z událostí a ze snímků | [SalesProjectionHandler.cs](code:src/MiniShop.Application/Reporting/SalesProjectionHandler.cs) |
 | **SalesReportService** | čtecí strana (součty po dnech, top 10, počty) a přestavění | [SalesReportService.cs](code:src/MiniShop.Application/Reporting/SalesReportService.cs) |
 | **ReportingDbContext** | schéma `reporting`: `SalesOrders`, `SalesOrderLines`, inbox, outbox | [ReportingDbContext.cs](code:src/MiniShop.Infrastructure/Reporting/ReportingDbContext.cs) |
-| **SalesReportOnStartupWorker** | prázdný přehled po startu → požádat o snímky | [SalesReportOnStartupWorker.cs](code:src/MiniShop.Web/BackgroundServices/SalesReportOnStartupWorker.cs) |
-| **Stránka Přehled** | `/Admin/Sales` (jen admin), tlačítko Přestavět | [Index.cshtml.cs](code:src/MiniShop.Web/Pages/Admin/Sales/Index.cshtml.cs) |
+| **MiniShop.Reporting.Api** | služba: handlery (`ReportingModule`), vedoucí kopie (zámek `minishop.reporting-api`), API se servisním klíčem | [Program.cs](code:src/MiniShop.Reporting.Api/Program.cs), [ReportingModule.cs](code:src/MiniShop.Reporting.Api/ReportingModule.cs), [SalesController.cs](code:src/MiniShop.Reporting.Api/Controllers/SalesController.cs) |
+| **SalesReportOnStartupWorker** | prázdný přehled po startu → požádat o snímky (jen vedoucí kopie služby) | [SalesReportOnStartupWorker.cs](code:src/MiniShop.Reporting.Api/SalesReportOnStartupWorker.cs) |
+| **ReportingApiClient** | klient ve Webu (`ISalesReportApi`, adresa `https+http://reporting-api`, odolnost ze ServiceDefaults) | [ReportingApiClient.cs](code:src/MiniShop.Web/Reporting/ReportingApiClient.cs) |
+| **Stránka Přehled** | `/Admin/Sales` (role Účetní), tlačítko Přestavět | [Index.cshtml.cs](code:src/MiniShop.Web/Pages/Admin/Sales/Index.cshtml.cs) |
 
 ## Zprávy
 

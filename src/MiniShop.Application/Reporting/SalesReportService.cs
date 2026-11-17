@@ -48,7 +48,7 @@ public sealed class SalesReportService(
             .ToList();
 
         var statusCounts = Enum.GetValues<SalesOrderStatus>()
-            .ToDictionary(status => status, status => recent.Count(o => o.Status == status));
+            .ToDictionary(status => status.ToString(), status => recent.Count(o => o.Status == status));
 
         return new SalesReportDto(
             days[0],
@@ -94,14 +94,15 @@ public sealed class SalesReportService(
 
 /// <param name="Today">Dnešek (první z <paramref name="Days"/>).</param>
 /// <param name="Days">Posledních 14 dní, nejnovější první.</param>
-/// <param name="StatusCounts">Počet objednávek podle stavu za 30 dní.</param>
+/// <param name="StatusCounts">Počet objednávek podle stavu za 30 dní. Klíč = jméno <see cref="SalesOrderStatus"/> – mikroservisy M1:
+/// DTO jde přes HTTP do Webu, který doménu Reportingu nezná.</param>
 /// <param name="RefundedAmount">Vrácené peníze za 30 dní (do tržby se nepočítají).</param>
 /// <param name="LastUpdatedAtUtc">Kdy projekce naposledy zpracovala událost (null = přehled je prázdný).</param>
 public sealed record SalesReportDto(
     SalesDayDto Today,
     IReadOnlyList<SalesDayDto> Days,
     IReadOnlyList<TopProductDto> TopProducts,
-    IReadOnlyDictionary<SalesOrderStatus, int> StatusCounts,
+    IReadOnlyDictionary<string, int> StatusCounts,
     decimal RefundedAmount,
     DateTime? LastUpdatedAtUtc);
 

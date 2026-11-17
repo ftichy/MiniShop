@@ -34,6 +34,7 @@ flowchart LR
 | Konfigurace přes `ENV` | Cesty k DB, klíčům a logům jde přepsat proměnnou prostředí ([12-factor](https://12factor.net/config)). |
 
 Kód: [Dockerfile Webu](code:src/MiniShop.Web/Dockerfile), [Dockerfile skladu](code:src/MiniShop.Inventory.Api/Dockerfile),
+[Dockerfile přehledu tržeb](code:src/MiniShop.Reporting.Api/Dockerfile) (mikroservisy M1),
 [.dockerignore](code:.dockerignore) (do image se nesmí dostat lokální databáze, logy ani tajnosti).
 
 Sestavení ručně (z kořene repozitáře): `docker build -f src/MiniShop.Web/Dockerfile -t minishop-web .`
@@ -45,6 +46,7 @@ flowchart TB
     subgraph net["síť Compose 'minishop'"]
         web["web :8080<br/>(WEB_REPLICAS kopií, produkce 2)"]
         inv["inventory-api :8080<br/>(zvenku nedostupný)"]
+        rep["reporting-api :8080<br/>(přehled tržeb, mikroservisy M1)"]
         mq["rabbitmq :5672"]
         dash["aspire-dashboard<br/>OTLP :18889"]
         pg["postgres :5432<br/>(jen z VM 127.0.0.1)"]
@@ -59,6 +61,9 @@ flowchart TB
     pg --- pv
     web --> pg
     inv --> pg
+    rep --> pg
+    rep --> mq
+    web -->|"HTTP, bez depends_on"| rep
     web -->|"depends_on: healthy"| inv
     web --> mq
     inv --> mq
@@ -73,8 +78,10 @@ Co dřív dělal Aspire AppHost, dělá teď [compose.yaml](code:deploy/compose.
 | `AddRabbitMQ(...)` | služba `rabbitmq` (image `rabbitmq:4-management`) |
 | `AddPostgres(...).AddDatabase("minishop")` | služba `postgres` (image `postgres:18-alpine`, škálování krok 3 – běží vždy, služby na ni přepne `DATABASE_PROVIDER`; viz [Databáze](../architektura/databaze.md)) |
 | `AddProject<...>("inventory-api")` | služba `inventory-api` – jméno je zároveň DNS adresa v síti |
+| `AddProject<...>("reporting-api")` | služba `reporting-api` (mikroservisy M1; Web na ni nečeká – bez ní běží, jen přehled tržeb hlásí nedostupnost) |
 | `WithReference(messaging)` | proměnná `ConnectionStrings__messaging` |
 | `WithReference(inventoryApi)` | proměnná `Services__inventory-api__http__0` |
+| `WithReference(reportingApi)` | proměnná `Services__reporting-api__http__0` |
 | `WaitFor(...)` | `depends_on` + `condition: service_healthy` |
 | dashboard | služba `aspire-dashboard` (image `mcr.microsoft.com/dotnet/aspire-dashboard`) |
 

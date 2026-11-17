@@ -4,7 +4,7 @@ summary: Z čeho se MiniShop skládá – od běžících procesů přes moduly 
 order: 10
 ---
 
-> **V jedné větě:** MiniShop jsou **dvě služby** (Web a Inventory.Api), které si posílají zprávy přes RabbitMQ.
+> **V jedné větě:** MiniShop jsou **tři služby** (Web, Inventory.Api a od mikroservis M1 Reporting.Api), které si posílají zprávy přes RabbitMQ.
 > Uvnitř jsou rozdělené na **moduly** (Ordering, Inventory, Journeys) a každý modul na **vrstvy**
 > (Domain, Application, Infrastructure).
 
@@ -45,7 +45,7 @@ flowchart TB
     click web "/Docs/architektura/vrstvy"
 ```
 
-- Služba **Web** hostuje moduly *Ordering* a *Journeys*, služba **Inventory.Api** modul *Inventory*.
+- Služba **Web** hostuje moduly *Ordering* a *Journeys* (a další), služba **Inventory.Api** modul *Inventory*, služba **Reporting.Api** modul *Reporting* (mikroservisy M1).
 - Každý modul má kód ve všech vrstvách (např. `Domain/Orders`, `Application/Ordering`, `Infrastructure/Ordering`).
 - Společné „potrubí“ pro zprávy (outbox, inbox, RabbitMQ) je v [sdíleném jádru](sdilene-jadro.md) a nezná žádný modul.
 

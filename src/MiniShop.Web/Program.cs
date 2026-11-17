@@ -8,7 +8,6 @@ using MiniShop.Infrastructure.Hosting;
 using MiniShop.Infrastructure.Journeys;
 using MiniShop.Infrastructure.Notifications;
 using MiniShop.Infrastructure.Payments;
-using MiniShop.Infrastructure.Reporting;
 using MiniShop.Infrastructure.Invoicing;
 using MiniShop.Infrastructure.Reviews;
 using MiniShop.Infrastructure.Ordering;
@@ -60,7 +59,7 @@ try
         writeToProviders: true);
 
     // Každý modul má vlastní databázi: Ordering (krok 10B – sklad má vlastní službu), Journeys (krok 12), Accounts
-    // (účty krok 1), Notifications, Payments, Reporting, Reviews, Invoicing (e-shop kroky 7, 8, 11, 14, 15).
+    // (účty krok 1), Notifications, Payments, Reviews, Invoicing (e-shop kroky 7, 8, 14, 15).
     // Škálování krok 1 a 3C: jedna PostgreSQL databáze (ConnectionStrings:minishop), každý modul ve vlastním schématu.
     var database = ModuleDatabase.FromConfiguration(builder.Configuration);
 
@@ -74,7 +73,7 @@ try
     // E-shop krok 16: Payments:Gateway = Stripe → skutečná brána (testovací režim; bez klíčů se Web nespustí), jinak simulace.
     builder.Services.AddPaymentsInfrastructure(database, builder.Configuration["Payments:WebhookSecret"],
         MiniShop.Infrastructure.Payments.Stripe.StripeSettings.FromConfiguration(builder.Configuration));
-    builder.Services.AddReportingInfrastructure(database);
+    // Mikroservisy M1: Reporting (přehled tržeb) běží jako samostatná služba MiniShop.Reporting.Api.
     builder.Services.AddReviewsInfrastructure(database);
     builder.Services.AddInvoicingInfrastructure(database);   // e-shop krok 15: faktury
     builder.Services.AddAccounts(database, builder.Configuration);
@@ -101,9 +100,6 @@ try
 
     // Prázdná kopie katalogu po startu (nové schéma ordering) → požádat sklad o celý katalog.
     builder.Services.AddLeaderOnlyHostedService<CatalogSyncOnStartupWorker>();
-
-    // E-shop krok 11: prázdný přehled tržeb po startu (nové schéma reporting) → postavit ho ze snímků objednávek.
-    builder.Services.AddLeaderOnlyHostedService<SalesReportOnStartupWorker>();
 
     // E-shop krok 14: prázdná kopie nákupů po startu (nové schéma reviews) → požádat Ordering o snímky objednávek.
     builder.Services.AddLeaderOnlyHostedService<PurchasesSyncOnStartupWorker>();
@@ -156,7 +152,6 @@ try
     await JourneysDatabaseInitializer.InitializeAsync(app.Services);
     await NotificationsDatabaseInitializer.InitializeAsync(app.Services);
     await PaymentsDatabaseInitializer.InitializeAsync(app.Services);
-    await ReportingDatabaseInitializer.InitializeAsync(app.Services);
     await ReviewsDatabaseInitializer.InitializeAsync(app.Services);
     await InvoicingDatabaseInitializer.InitializeAsync(app.Services);
 

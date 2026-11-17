@@ -17,7 +17,6 @@ using MiniShop.Contracts.Inventory;
 using MiniShop.Contracts.Orders;
 using MiniShop.Contracts.Payments;
 using MiniShop.Contracts.Reporting;
-using MiniShop.Application.Reporting;
 using MiniShop.Application.Invoicing;
 using MiniShop.Application.Reviews;
 using MiniShop.Contracts.Invoicing;
@@ -31,14 +30,15 @@ using MiniShop.Web.Accounts;
 using MiniShop.Web.Inventory;
 using MiniShop.Web.Invoicing;
 using MiniShop.Web.Notifications;
+using MiniShop.Web.Reporting;
 
 namespace MiniShop.Web.Extensions;
 
 public static class ApplicationServiceCollectionExtensions
 {
     /// <summary>
-    /// Registrace služeb aplikační vrstvy. Od kroku 10B hostuje Web jen modul Ordering –
-    /// sklad běží jako samostatná služba MiniShop.Inventory.Api.
+    /// Registrace služeb aplikační vrstvy. Od kroku 10B běží sklad jako samostatná služba MiniShop.Inventory.Api,
+    /// od mikroservis M1 přehled tržeb jako MiniShop.Reporting.Api – Web se na obě ptá přes HTTP.
     /// </summary>
     public static IServiceCollection AddApplication(this IServiceCollection services, IConfiguration configuration)
     {
@@ -48,18 +48,14 @@ public static class ApplicationServiceCollectionExtensions
         services.AddJourneysModule();
         services.AddNotificationsModule(configuration);
         services.AddPaymentsModule();
-        services.AddReportingModule();
         services.AddReviewsModule();
         services.AddInvoicingModule(configuration);
         services.AddInventoryApiClient(configuration);
+        services.AddReportingApiClient(configuration);
 
         return services;
     }
 
-    /// <summary>
-    /// E-shop krok 11 (CQRS): modul Reporting – přehled tržeb pro admina jako projekce z událostí, které už existují.
-    /// Vlastní fronta minishop.reporting; Ordering ani Payments o něm nevědí. Databázi registruje AddReportingInfrastructure.
-    /// </summary>
     public static IServiceCollection AddReviewsModule(this IServiceCollection services)
     {
         // E-shop krok 14 (modul Reviews): hodnocení produktů. Kopie nákupů z existujících událostí objednávek,
@@ -100,23 +96,6 @@ public static class ApplicationServiceCollectionExtensions
         services.AddIntegrationMessageHandler<ReturnCompletedV1, InvoicingHandler>(IntegrationModules.Invoicing);   // e-shop krok 15B: dobropis
         services.AddIntegrationMessageHandler<ReturnCompletedV2, InvoicingHandler>(IntegrationModules.Invoicing);   // e-shop krok 22: dobropis za vratku po částech
         services.AddIntegrationMessageHandler<CustomerAnonymizedV1, InvoicingHandler>(IntegrationModules.Invoicing);
-        return services;
-    }
-
-    public static IServiceCollection AddReportingModule(this IServiceCollection services)
-    {
-        services.AddScoped<SalesReportService>();
-        services.AddIntegrationMessageHandler<OrderPlacedV2, SalesProjectionHandler>(IntegrationModules.Reporting);
-        services.AddIntegrationMessageHandler<OrderConfirmedV1, SalesProjectionHandler>(IntegrationModules.Reporting);
-        services.AddIntegrationMessageHandler<OrderRejectedV1, SalesProjectionHandler>(IntegrationModules.Reporting);
-        services.AddIntegrationMessageHandler<OrderCancelledV1, SalesProjectionHandler>(IntegrationModules.Reporting);
-        services.AddIntegrationMessageHandler<OrderCompletedV1, SalesProjectionHandler>(IntegrationModules.Reporting);
-        services.AddIntegrationMessageHandler<PaymentRefundedV1, SalesProjectionHandler>(IntegrationModules.Reporting);
-        services.AddIntegrationMessageHandler<OrderSnapshotV1, SalesProjectionHandler>(IntegrationModules.Reporting);
-        services.AddIntegrationMessageHandler<ReturnCompletedV1, SalesProjectionHandler>(IntegrationModules.Reporting);   // e-shop krok 12
-        services.AddIntegrationMessageHandler<ReturnCompletedV2, SalesProjectionHandler>(IntegrationModules.Reporting);   // e-shop krok 22: vratka po částech
-        services.AddIntegrationMessageHandler<PaymentRefundedV2, SalesProjectionHandler>(IntegrationModules.Reporting);
-        services.AddIntegrationMessageHandler<OrderPartialReturnsSnapshotV1, SalesProjectionHandler>(IntegrationModules.Reporting);   // přestavění
         return services;
     }
 
@@ -329,7 +308,7 @@ public static class ApplicationServiceCollectionExtensions
     /// <summary>
     /// Krok 10B: stránky Produkty a Objednávky čtou sklad přes jeho HTTP API. "inventory-api" je jméno služby
     /// v AppHostu Aspire; skutečnou adresu doplní service discovery (bez Aspire ze sekce "Services" v appsettings.json).
-    /// Účty krok 7: každý požadavek nese servisní klíč skladu (<see cref="InventoryApiKeyHandler"/>); bez klíče
+    /// Účty krok 7: každý požadavek nese servisní klíč skladu (<see cref="ServiceApiKeyHandler"/>); bez klíče
     /// v konfiguraci se Web nespustí.
     /// </summary>
     public static IServiceCollection AddInventoryApiClient(this IServiceCollection services, IConfiguration configuration)
@@ -338,12 +317,28 @@ public static class ApplicationServiceCollectionExtensions
 
         services.AddHttpClient<InventoryApiClient>(http =>
                 http.BaseAddress = new Uri("https+http://inventory-api"))
-            .AddHttpMessageHandler(() => new InventoryApiKeyHandler(apiKey));
+            .AddHttpMessageHandler(() => new ServiceApiKeyHandler(apiKey));
 
         // Jeden klient pro produkty i kategorie (e-shop krok 2) – stránky dostávají jen rozhraní, které potřebují (ISP).
         services.AddTransient<IProductService>(sp => sp.GetRequiredService<InventoryApiClient>());
         services.AddTransient<ICategoryService>(sp => sp.GetRequiredService<InventoryApiClient>());
         services.AddTransient<IProductImageService>(sp => sp.GetRequiredService<InventoryApiClient>());   // e-shop krok 2B
+
+        return services;
+    }
+
+    /// <summary>
+    /// Mikroservisy M1: přehled tržeb čte stránka /Admin/Sales ze služby MiniShop.Reporting.Api ("reporting-api" –
+    /// adresu dodá Aspire / Compose, bez Aspire sekce "Services" v appsettings.Development.json). Vlastní servisní klíč
+    /// (ReportingApi:ApiKey); bez něj se Web nespustí. Odolnost (opakování, circuit breaker) přidá ServiceDefaults.
+    /// </summary>
+    public static IServiceCollection AddReportingApiClient(this IServiceCollection services, IConfiguration configuration)
+    {
+        var apiKey = ServiceApiKey.Read(key => configuration[key], ServiceApiKey.ReportingConfigurationKey);
+
+        services.AddHttpClient<ISalesReportApi, ReportingApiClient>(http =>
+                http.BaseAddress = new Uri("https+http://reporting-api"))
+            .AddHttpMessageHandler(() => new ServiceApiKeyHandler(apiKey));
 
         return services;
     }

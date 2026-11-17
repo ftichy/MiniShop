@@ -32,6 +32,17 @@ var inventoryApi = builder.AddProject<Projects.MiniShop_Inventory_Api>("inventor
     .WithHttpHealthCheck("/health")
     .WithModuleDatabase(database);
 
+// Mikroservisy M1: přehled tržeb jako samostatná služba (fronta minishop.reporting, schéma reporting) s vlastním
+// servisním klíčem – uniklý klíč skladu ji neotevře.
+var reportingApiKey = builder.AddParameter("reporting-api-key",
+    new GenerateParameterDefault { MinLength = 64, Special = false }, secret: true, persist: true);
+var reportingApi = builder.AddProject<Projects.MiniShop_Reporting_Api>("reporting-api")
+    .WithReference(messaging)
+    .WithEnvironment("ReportingApi__ApiKey", reportingApiKey)
+    .WaitFor(messaging)
+    .WithHttpHealthCheck("/health")
+    .WithModuleDatabase(database);
+
 // Účty krok 5: "cvičná pošta" Mailpit – zachytí každý e-mail z Webu, nikam ven nic neodejde.
 // Pošta je vidět na webovém rozhraní (odkaz u prostředku "mailpit" v dashboardu).
 var mailpit = builder.AddContainer("mailpit", "axllent/mailpit", "v1.31.4")
@@ -43,7 +54,9 @@ var mailpitSmtp = mailpit.GetEndpoint("smtp");
 builder.AddProject<Projects.MiniShop_Web>("web")
     .WithReference(messaging)
     .WithReference(inventoryApi)
+    .WithReference(reportingApi)
     .WithEnvironment("InventoryApi__ApiKey", inventoryApiKey)
+    .WithEnvironment("ReportingApi__ApiKey", reportingApiKey)
     .WithEnvironment("Payments__WebhookSecret", paymentsWebhookSecret)
     .WithEnvironment("Email__Host", mailpitSmtp.Property(EndpointProperty.Host))
     .WithEnvironment("Email__Port", mailpitSmtp.Property(EndpointProperty.Port))

@@ -7,7 +7,6 @@ using MiniShop.Infrastructure.Hosting;
 using MiniShop.Infrastructure.Inventory;
 using MiniShop.Infrastructure.Persistence;
 using MiniShop.Inventory.Api;
-using Microsoft.AspNetCore.Authorization;
 using MiniShop.ServiceDefaults;
 using Serilog;
 
@@ -65,13 +64,8 @@ try
     builder.Services.AddMessaging(builder.Configuration);
 
     // Účty krok 7: zero trust – /api jen se servisním klíčem Webu (401 bez něj). Bez klíče v konfiguraci se sklad nespustí.
-    var apiKey = ServiceApiKey.Read(key => builder.Configuration[key]);
-    builder.Services.AddAuthentication(ApiKeyAuthenticationHandler.SchemeName)
-        .AddScheme<ApiKeyAuthenticationOptions, ApiKeyAuthenticationHandler>(
-            ApiKeyAuthenticationHandler.SchemeName, options => options.ApiKey = apiKey);
-    builder.Services.AddAuthorizationBuilder()
-        // Co není výslovně [AllowAnonymous] (health checky), to vyžaduje klíč – i čtení.
-        .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+    // Co není výslovně [AllowAnonymous] (health checky), to vyžaduje klíč – i čtení (ServiceDefaults, mikroservisy M1).
+    builder.Services.AddServiceApiKeyAuthentication(ServiceApiKey.Read(key => builder.Configuration[key]));
 
     builder.Services.AddControllers();
     builder.Services.AddOpenApi();

@@ -157,6 +157,31 @@ public sealed class ModuleBoundariesTests
         Assert.True(result.IsSuccessful, string.Join(", ", result.FailingTypeNames ?? []));
     }
 
+    /// <summary>
+    /// Mikroservisy M1: přehled tržeb běží ve vlastní službě – Web smí jen přes HTTP API (DTO z Application.Reporting,
+    /// stavy jako text), ne do domény, databáze ani handlerů Reportingu.
+    /// </summary>
+    [Fact]
+    public void Web_NesahaDoVnitrkuPrehleduTrzeb()
+    {
+        var result = Types.InAssembly(typeof(MiniShop.Web.Inventory.InventoryApiClient).Assembly)
+            .ShouldNot().HaveDependencyOnAny("MiniShop.Domain.Reporting", "MiniShop.Infrastructure.Reporting")
+            .GetResult();
+
+        Assert.True(result.IsSuccessful, string.Join(", ", result.FailingTypeNames ?? []));
+    }
+
+    /// <summary>Mikroservisy M1: služba přehledu zná ostatní moduly jen ze zpráv (Contracts).</summary>
+    [Fact]
+    public void ReportingApi_ZnaJenSvujModul()
+    {
+        var result = Types.InAssembly(typeof(MiniShop.Reporting.Api.SalesReportOnStartupWorker).Assembly)
+            .ShouldNot().HaveDependencyOnAny([.. ModuleNamespaces.Where(m => m.Key != Reporting).SelectMany(m => m.Value)])
+            .GetResult();
+
+        Assert.True(result.IsSuccessful, string.Join(", ", result.FailingTypeNames ?? []));
+    }
+
     /// <summary>Krok 10B: služba skladu o objednávkách neví nic – ani v kódu, ani v databázi.</summary>
     [Fact]
     public void InventoryApi_NezavisiNaOrderingu()

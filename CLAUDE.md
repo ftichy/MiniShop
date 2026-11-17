@@ -35,6 +35,7 @@ src/MiniShop.Web             služba Ordering (7180): API objednávek, Razor Pag
                              OrderSagaTimeoutWorker, Program.cs (composition root); krok 12: JourneysController, Pages/Orders/Journey + Replay,
                              wwwroot/js/order-form-tracker.js + journey-player.js
 src/MiniShop.Inventory.Api   služba skladu (7181): ProductsController, CategoriesController, jen modul Inventory, schéma inventory, fronta minishop.inventory
+src/MiniShop.Reporting.Api   mikroservisy M1: služba přehledu tržeb (7182): SalesController (/api/sales), jen modul Reporting, schéma reporting, fronta minishop.reporting
 src/MiniShop.ServiceDefaults AddServiceDefaults (service discovery, HTTP resilience, health checky /health, /alive, OpenTelemetry → OTLP)
 src/MiniShop.AppHost         .NET Aspire: RabbitMQ (persistentní kontejner) + inventory-api + web, dashboard
 tests/MiniShop.Tests         testy domény, OrderService + ságy + katalogu (PostgreSQL přes Testcontainers, oba moduly v procesu), dispatcheru,
@@ -51,7 +52,7 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
 - Bez Aspire: `docker start minishop-rabbit` (poprvé
   `docker run -d --name minishop-rabbit -p 5672:5672 -p 15672:15672 rabbitmq:4-management`; UI http://localhost:15672, guest/guest),
   `docker start minishop-postgres` (poprvé `docker run -d --name minishop-postgres -e POSTGRES_DB=minishop -e POSTGRES_USER=minishop
-  -e POSTGRES_PASSWORD=minishop-vyvoj -p 5432:5432 postgres:18-alpine`), pak `dotnet run --project src/MiniShop.Inventory.Api` a `dotnet run --project src/MiniShop.Web`.
+  -e POSTGRES_PASSWORD=minishop-vyvoj -p 5432:5432 postgres:18-alpine`), pak `dotnet run --project src/MiniShop.Inventory.Api`, `dotnet run --project src/MiniShop.Reporting.Api` (přehled tržeb; bez ní jen `/Admin/Sales` hlásí nedostupnost) a `dotnet run --project src/MiniShop.Web`.
   Transport `InProcess` od 10B pro spuštění nejde (dva procesy) – jen v testech.
 - Při ověřování naživo pozor: zastavení AppHostu nechá běžet kontejnery `messaging-…` a `postgres-…` (persistentní); procesy služeb ukončit.
 - Po každé změně kódu spusť build a testy a oprav chyby, než ohlásíš hotovo.
@@ -73,6 +74,12 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   Výloha, košík i pokladna berou nabídku a dostupnost z kopie katalogu (`ICatalogQueryService`, `ICatalogProductRepository`).
   Web nesmí referencovat `Domain/Infrastructure.Inventory`, Inventory.Api nic z Orderingu (testy architektury).
   Auditní frontu poslouchá jen Web (`AuditQueue` prázdná v Inventory.Api). RabbitMQ adresu dává Aspire v `ConnectionStrings:messaging`.
+  **Mikroservisy M1:** totéž pro `MiniShop.Reporting.Api` (Web nesmí na `Domain/Infrastructure.Reporting`). **Nová služba =**
+  vlastní servisní klíč (`ServiceApiKey.Read(…, klíč)` + `AddServiceApiKeyAuthentication`, Web `ServiceApiKeyHandler`), zámek vedoucí
+  `minishop.<služba>`, Dockerfile, AppHost, `compose.yaml` (+ `compose.grafana.yaml`, bez `depends_on` Webu, když bez ní Web běží),
+  CI (matice `images`, build v E2E a ZAP + klíč v jejich `.env`), `deploy.sh` (secret, mimo `infra`, `rolling-update.sh` před Webem
+  jen když ji compose commitu má – **nový `deploy.sh` na VM před sloučením**), `deploy.yml`, `docs/secrets.md`, GHCR balíček **Public**.
+  Přesun modulu bez odstávky = stejná fronta + stejný inbox (služba nejdřív, pak Web bez handlerů modulu).
 - Ordering zná produkty jen z kopie katalogu `CatalogProduct` (plní `CatalogProjectionHandler` z `ProductUpdatedV1`/`V2`,
   `StockAvailabilityChangedV1`, `ProductRemovedV1`). Obnova kopie: příkaz `SyncCatalogV1` (`CatalogSyncService`) – automaticky
   po startu Webu, když je kopie prázdná nebo neúplná (produkt s dostupností `Unknown`; `CatalogSyncOnStartupWorker`), nebo
@@ -222,7 +229,7 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   **až při odeslání** přes `ICustomerContacts` (implementace `Web/Accounts/IdentityCustomerContacts` nad schématem `accounts`)
   potvrzený e-mail a `ApplicationUser.CartRemindersConsent` (výchozí false, stránka `/Account/EmailPreferences`).
   Šablona `CartEmailTemplates`. Testy: `InMemoryCustomerContacts`, `RunCartReminderWorkerAsync`.
-- **Přehled tržeb (e-shop krok 11, CQRS):** modul Reporting (`…Reporting` ve všech vrstvách, hostuje Web, schéma `reporting` s inboxem
+- **Přehled tržeb (e-shop krok 11, CQRS):** modul Reporting (`…Reporting` ve všech vrstvách, od mikroservis M1 hostuje **služba `MiniShop.Reporting.Api`** – registrace `ReportingModule`, Web se ptá přes `ISalesReportApi`/`ReportingApiClient` se servisním klíčem `ReportingApi:ApiKey` (secret `REPORTING_API_KEY`), `SalesReportDto.StatusCounts` klíč = text, výpadek = `SalesReportUnavailableException` → upozornění na stránce; schéma `reporting` s inboxem
   + outboxem, fronta `minishop.reporting`) = čtecí model `SalesOrder` z existujících událostí (`OrderPlacedV2`, `OrderConfirmedV1`,
   `OrderRejectedV1`, `OrderCancelledV1`, `OrderCompletedV1`, `PaymentRefundedV1`) – Ordering o něm neví. Zprávy mimo pořadí: upsert
   (`SalesOrder.Create`) + **stav jen dopředu** (`ApplyStatus`). Bez osobních údajů. Přestavění (`SalesReportService.RebuildAsync`,
@@ -333,7 +340,7 @@ do inboxu odejdou znovu. Inbox i outbox uklízí `MessageRetentionWorker` (EDA k
 Integrační zprávy jdou do RabbitMQ (`RabbitMqIntegrationBus`), nedostupný broker (`IntegrationBusUnavailableException`)
 se nepočítá jako pokus. Od EDA kroku 13: outbox opakuje s backoffem (5/10/20/40 s), consumer nejvýš 5× (2/4/8/16 s) a pak do `minishop.{modul}.dead`.
 Každý krok ságy čeká na kolo outbox workeru (2 s) → potvrzení objednávky trvá ~4–8 s, nový produkt je v nabídce po ~2–4 s.
-Služby sdílí knihovny Application/Infrastructure (změna jádra = nasadit obě). Bez Dockeru se aplikace nespustí.
+Služby sdílí knihovny Application/Infrastructure (změna jádra = nasadit všechny – CI je nasazuje z jednoho commitu). Bez Dockeru se aplikace nespustí.
 Obnova katalogu (`SyncCatalogV1`) produkty nemaže – zmeškané `ProductRemovedV1` neopraví.
 Při výpadku skladu trvají první načtení stránek ~4 s, pak circuit breaker (ServiceDefaults) odpovídá hned.
 Timeout ságy a obnova katalogu začínají vlastní trasu (nenavazují na původní požadavek). Telemetrie jde jen do Aspire
@@ -622,8 +629,8 @@ přes stejnou frontu + inbox, UI ve Webu (služby REST API se servisním klíče
 
 | Krok | Stav | Souhrn |
 | --- | --- | --- |
-| M0. Příprava a Grafana (alarm `MiniShopMetricsNearLimit` ve zvláštním souboru – zdroj `grafanacloud-usage`; Alloy 384 MiB; metrika `minishop.queue.consumers` + alarmy `MiniShopQueueNoConsumer` a `MiniShopQueueSilent`, panel Posluchači front) | hotovo lokálně (necommitováno) | `docs/kroky-mikroservisy/krok-m0-priprava.md` |
-| M1. Reporting jako služba (`MiniShop.Reporting.Api`, `ReportingApiClient`) | plán | — |
+| M0. Příprava a Grafana (alarm `MiniShopMetricsNearLimit` ve zvláštním souboru – zdroj `grafanacloud-usage`; Alloy 384 MiB; metrika `minishop.queue.consumers` + alarmy `MiniShopQueueNoConsumer` a `MiniShopQueueSilent`, panel Posluchači front) | hotovo (nasazeno 17. 11. 2026; v Grafaně ověřeno: posluchači front – sklad 1, fronty Webu 2; 12 alarmů Normal, limit řad ze zdroje `grafanacloud-usage`) | `docs/kroky-mikroservisy/krok-m0-priprava.md` |
+| M1. Reporting jako služba (`MiniShop.Reporting.Api` – handlery, `SalesReportOnStartupWorker`, API `/api/sales` se servisním klíčem `REPORTING_API_KEY`; Web `ReportingApiClient` + upozornění při výpadku; `ApiKeyAuthenticationHandler`/`ServiceApiKeyHandler` v ServiceDefaults; Compose, CI, `deploy.sh` – služba před Webem) | hotovo lokálně (necommitováno) | `docs/kroky-mikroservisy/krok-m1-reporting.md` |
 | M2A. Interní API Webu pro Notifications (kontakt, role, název produktu, PDF) – expand | plán | — |
 | M2B. Notifications jako služba (`MiniShop.Notifications.Api`, `NotificationsApiClient`) | plán | — |
 | M3. Vyhodnocení – pokračovat, nebo zastavit | plán | — |

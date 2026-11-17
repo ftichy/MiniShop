@@ -17,6 +17,7 @@ Pravidla:
 | `HEALTHCHECKS_BACKUP_URL` | adresa, kam noční záloha hlásí průběh (healthchecks.io, krok 12) – kdo ji zná, může hlídači „nalhat“ zálohu | `.env` na VM | healthchecks.io → kontrola → *Ping URL* → *Regenerate* → secret → Deploy | při podezření |
 | `SMTP_PASSWORD` | heslo aplikace Gmailu účtu `ftichy.gemini@gmail.com` – Web jím posílá e-maily (účty krok 5). Dává přístup k **celé schránce** toho účtu. Volitelný: prázdný = e-maily jen do logu | `.env` na VM | [R8](#r8-heslo-aplikace-gmailu) | při podezření, jinak 1× ročně |
 | `INVENTORY_API_KEY` | servisní klíč mezi Webem a skladem (účty krok 7) – kdo ho zná a dostane se do sítě Dockeru, může měnit produkty a zásoby. 64 hex znaků, povinný | `.env` na VM → proměnná `InventoryApi__ApiKey` v kontejnerech `web` a `inventory-api` | [R9](#r9-servisní-klíč-skladu) | při podezření, jinak 1× ročně |
+| `REPORTING_API_KEY` | servisní klíč mezi Webem a službou přehledu tržeb (mikroservisy M1) – kdo ho zná a dostane se do sítě Dockeru, přečte souhrnné tržby a může přehled smazat (přestaví se ze snímků objednávek). Jiný než klíč skladu. 64 hex znaků, povinný | `.env` na VM → proměnná `ReportingApi__ApiKey` v kontejnerech `web` a `reporting-api` | [R17](#r17-servisní-klíč-přehledu-tržeb) | při podezření, jinak 1× ročně |
 | `PAYMENTS_WEBHOOK_SECRET` | sdílené tajemství s platební bránou (e-shop krok 8) – HMAC podpis webhooku `/api/payments/webhook`. Kdo ho zná, může „zaplatit“ libovolnou objednávku. 64 hex znaků, povinný (bez něj se Web nespustí) | `.env` na VM → proměnná `Payments__WebhookSecret` v kontejneru `web` | [R10](#r10-tajemství-webhooku-plateb) | při podezření, jinak 1× ročně |
 | `POSTGRES_PASSWORD` | heslo účtu `minishop` v PostgreSQL (škálování krok 3) – Web a sklad se jím přihlašují k databázi se všemi daty (objednávky, účty). Databáze je dostupná jen uvnitř sítě Compose a z VM (`127.0.0.1:5432`). 24–128 písmen/číslic, povinný | `.env` na VM → `POSTGRES_PASSWORD` kontejneru `postgres` a connection string `ConnectionStrings__minishop` ve `web` a `inventory-api` | [R11](#r11-heslo-postgresql) | při podezření, jinak 1× ročně |
 | `GOOGLE_CLIENT_SECRET` | tajemství OAuth klienta Googlu (účty krok 10) – s Client ID (`GOOGLE_CLIENT_ID` v `deploy/production.env`, není tajné) Web u Googlu vyměňuje kód za identitu uživatele. Kdo ho zná, může se za MiniShop vydávat vůči Googlu (vlastní stránka s přihlášením „do MiniShopu“), k účtům MiniShopu ani Googlu se jím nedostane. Tvar `GOCSPX-…`, volitelný: prázdný = přihlášení přes Google vypnuté | `.env` na VM → `Authentication__Google__ClientSecret` ve `web` | [R12](#r12-tajemství-oauth-klienta-googlu) | při podezření |
@@ -211,6 +212,15 @@ Nový klíč (`ssh-keygen`), veřejnou část přidat na VM do `/home/ubuntu/.ss
    zapne znovu na stránce *E-maily a oznámení* (prohlížeč staré přihlášení zruší sám). Proto jen při podezření.
 5. Ověření: *E-maily a oznámení* → *Zapnout na tomto zařízení* → *Poslat zkušební oznámení*.
 6. Vypnutí push bez výměny: `PUSH_VAPID_PUBLIC_KEY=` prázdné v `production.env` a secret smazat – sekce na stránce zmizí.
+
+### R17. Servisní klíč přehledu tržeb
+
+1. Nový klíč – 64 malých hex znaků stejně jako u R9 (`openssl rand -hex 32` nebo PowerShell příkaz tam). **Jiný než
+   `INVENTORY_API_KEY`** – každá služba vlastní klíč, uniklý klíč otevře jen jednu.
+2. GitHub → *Environments* → `production` → `REPORTING_API_KEY` → nová hodnota → *Actions → Deploy → Run workflow*.
+   Postupné nasazení vymění nejdřív službu, pak kopie Webu – mezi tím může stránka Přehled tržeb pár sekund hlásit
+   „přehled je nedostupný“ (e-shop běží dál).
+3. Ověření: stránka *Správa → Přehled tržeb* se načte; v logu `reporting-api` není „Požadavek se špatným servisním klíčem“.
 
 ### Které SHA nasadit
 

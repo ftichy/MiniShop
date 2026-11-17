@@ -1529,7 +1529,7 @@ public sealed partial class OrderServiceTests : IDisposable
         Assert.Contains(_emails.Sent, e => e.Subject.Contains("je vrácená"));
 
         var report = await Report(s => s.GetAsync());   // CQRS přehled: vrácená se do tržby nepočítá
-        Assert.Equal((1, 0m), (report.StatusCounts[SalesOrderStatus.Returned], report.Today.Revenue));
+        Assert.Equal((1, 0m), (report.StatusCounts[nameof(SalesOrderStatus.Returned)], report.Today.Revenue));
     }
 
     // ---------- E-shop krok 22A: sklad a Payments umí vratku po částech (zprávy V2 zatím posílá jen test) ----------
@@ -1884,8 +1884,8 @@ public sealed partial class OrderServiceTests : IDisposable
         var report = await Report(s => s.GetAsync());
 
         Assert.Equal((1, 200m), (report.Today.OrderCount, report.Today.Revenue));   // zrušená se nepočítá
-        Assert.Equal(1, report.StatusCounts[SalesOrderStatus.Confirmed]);
-        Assert.Equal(1, report.StatusCounts[SalesOrderStatus.Cancelled]);
+        Assert.Equal(1, report.StatusCounts[nameof(SalesOrderStatus.Confirmed)]);
+        Assert.Equal(1, report.StatusCounts[nameof(SalesOrderStatus.Cancelled)]);
         var top = Assert.Single(report.TopProducts);
         Assert.Equal(("Testovací produkt", 2, 200m), (top.Name, top.Quantity, top.Revenue));
         Assert.Equal(SalesReportService.DaysInChart, report.Days.Count);
@@ -1906,8 +1906,8 @@ public sealed partial class OrderServiceTests : IDisposable
         await RedeliverAsync(new OrderConfirmedV1(Guid.NewGuid(), Now.UtcDateTime, 555), IntegrationModules.Reporting);
 
         var report = await Report(s => s.GetAsync());
-        Assert.Equal(1, report.StatusCounts[SalesOrderStatus.Cancelled]);
-        Assert.Equal(0, report.StatusCounts[SalesOrderStatus.Confirmed]);
+        Assert.Equal(1, report.StatusCounts[nameof(SalesOrderStatus.Cancelled)]);
+        Assert.Equal(0, report.StatusCounts[nameof(SalesOrderStatus.Confirmed)]);
         Assert.Equal(0m, report.Today.Revenue);
     }
 
@@ -1930,7 +1930,7 @@ public sealed partial class OrderServiceTests : IDisposable
         Assert.Equal(2, _bus.Published.OfType<OrderSnapshotV1>().Count());
         Assert.Equal(before.Today, after.Today);
         Assert.Equal(before.TopProducts.Single(), after.TopProducts.Single());
-        Assert.Equal(1, after.StatusCounts[SalesOrderStatus.Cancelled]);
+        Assert.Equal(1, after.StatusCounts[nameof(SalesOrderStatus.Cancelled)]);
         Assert.Equal(emailsBefore, _emails.Sent.Count);   // snímek není „nová objednávka“ – Notifications mlčí
     }
 

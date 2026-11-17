@@ -90,7 +90,7 @@ public sealed class InventoryApiAuthenticationTests : IClassFixture<InventoryApi
 }
 
 /// <summary>Inventory.Api v paměti: databáze PostgreSQL z <see cref="TestDatabases"/>, bez workerů (outbox, RabbitMQ).</summary>
-public sealed class InventoryApiFactory : WebApplicationFactory<ApiKeyAuthenticationHandler>
+public sealed class InventoryApiFactory : WebApplicationFactory<GlobalExceptionHandler>
 {
     public static readonly string ApiKey = new('a', 64);
 

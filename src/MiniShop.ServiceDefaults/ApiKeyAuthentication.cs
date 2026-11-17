@@ -3,10 +3,12 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MiniShop.ServiceDefaults;
 
-namespace MiniShop.Inventory.Api;
+namespace MiniShop.ServiceDefaults;
 
 /// <summary>Nastavení ověření servisním klíčem – očekávaný klíč z konfigurace.</summary>
 public sealed class ApiKeyAuthenticationOptions : AuthenticationSchemeOptions
@@ -15,8 +17,8 @@ public sealed class ApiKeyAuthenticationOptions : AuthenticationSchemeOptions
 }
 
 /// <summary>
-/// Účty krok 7: sklad pustí na /api jen volajícího se správným servisním klíčem v hlavičce X-Api-Key (= Web).
-/// Kdo z uživatelů smí co, rozhoduje Web (role); sklad ověřuje jen, že volá Web.
+/// Účty krok 7: služba (sklad, od mikroservis M1 i přehled tržeb) pustí na /api jen volajícího se správným servisním
+/// klíčem v hlavičce X-Api-Key (= Web). Kdo z uživatelů smí co, rozhoduje Web (role); služba ověřuje jen, že volá Web.
 /// </summary>
 /// <remarks>
 /// Bez hlavičky = „nepřihlášený“ (NoResult), se špatným klíčem = chyba; obojí skončí 401 (fallback policy).
@@ -42,11 +44,27 @@ public sealed class ApiKeyAuthenticationHandler(
         if (!matches)
         {
             // Hodnotu klíče nikdy do logu.
-            Logger.LogWarning("Požadavek na sklad se špatným servisním klíčem");
+            Logger.LogWarning("Požadavek se špatným servisním klíčem");
             return Task.FromResult(AuthenticateResult.Fail("Neplatný servisní klíč."));
         }
 
         var identity = new ClaimsIdentity([new Claim(ClaimTypes.Name, "minishop-web")], SchemeName);
         return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), SchemeName)));
+    }
+}
+
+public static class ApiKeyAuthenticationExtensions
+{
+    /// <summary>
+    /// Zero trust služby: co není výslovně [AllowAnonymous] (health checky), to vyžaduje servisní klíč – i čtení.
+    /// </summary>
+    public static IServiceCollection AddServiceApiKeyAuthentication(this IServiceCollection services, string apiKey)
+    {
+        services.AddAuthentication(ApiKeyAuthenticationHandler.SchemeName)
+            .AddScheme<ApiKeyAuthenticationOptions, ApiKeyAuthenticationHandler>(
+                ApiKeyAuthenticationHandler.SchemeName, options => options.ApiKey = apiKey);
+        services.AddAuthorizationBuilder()
+            .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+        return services;
     }
 }

@@ -1,9 +1,9 @@
 using MiniShop.Application.Reporting;
 
-namespace MiniShop.Web.BackgroundServices;
+namespace MiniShop.Reporting.Api;
 
 /// <summary>
-/// E-shop krok 11: jednorázová kontrola po startu – prázdný přehled tržeb (nová reporting.db, první nasazení)
+/// E-shop krok 11 (od mikroservis M1 ve službě přehledu): jednorázová kontrola po startu – prázdný přehled tržeb (nové schéma, první nasazení)
 /// se postaví ze snímků objednávek (<see cref="SalesReportService.RebuildIfEmptyAsync"/>). Jako obnova katalogu.
 /// </summary>
 public sealed class SalesReportOnStartupWorker(

@@ -30,7 +30,7 @@ sequenceDiagram
     VM->>R: docker compose pull (sha-…)
     VM->>VM: infrastruktura: up --no-deps --wait (postgres, rabbitmq, caddy, dashboard)
     VM->>VM: změnil se Caddyfile? → caddy reload (ještě před výměnou kopií)
-    VM->>VM: rolling-update.sh inventory-api, pak web – nové kopie vedle starých, pak staré pryč
+    VM->>VM: rolling-update.sh inventory-api, reporting-api (je-li v compose.yaml), pak web – nové kopie vedle starých, pak staré pryč
     alt něco selhalo
         Note over VM: nezdravé nové kopie rolling-update.sh odstraní sám – staré běží dál
         VM->>VM: rollback na předchozí .env a soubory

@@ -47,7 +47,7 @@ s časovačem se registruje přes `AddLeaderOnlyHostedService<T>()`, ne `AddHost
 Přirovnání: v kanceláři je víc úředníků, klíč od pokladny ale jen jeden. Kdo ho drží, vydává peníze; když odejde
 domů (nebo omdlí), klíč zůstane na stole a vezme si ho další.
 
-Klíčem je **advisory lock** PostgreSQL – zámek se jménem (`minishop.web`, sklad má `minishop.inventory-api`), který nehlídá
+Klíčem je **advisory lock** PostgreSQL – zámek se jménem (`minishop.web`, sklad má `minishop.inventory-api`, přehled tržeb `minishop.reporting-api`), který nehlídá
 žádnou tabulku, jen „kdo ho má“:
 
 1. [LeaderElection](code:src/MiniShop.Infrastructure/Hosting/LeaderElection.cs) otevře **vlastní spojení** (mimo pool EF Core)
@@ -98,6 +98,7 @@ transakce (`pg_advisory_xact_lock`), hlídá „posledního admina“ ve [správ
   ([CD – postupné nasazení](../github/cd.md)).
 - **Limit formulářů účtu** (rate limiting) počítá každá kopie zvlášť – skutečný limit je 2× vyšší.
 - **Sklad** (`inventory-api`) běží v jedné kopii; volbu vedoucí už má, víc kopií by potřebovalo jen balancování na straně Webu.
+- **Přehled tržeb** (`reporting-api`, mikroservisy M1) také v jedné kopii – zprávy při výpadku počkají ve frontě.
 - Obě kopie jsou na **jedné VM** – pád celého stroje je dál výpadek (druhá VM = škálování krok 6).
 
 ## Vyzkoušet lokálně

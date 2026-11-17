@@ -18,6 +18,7 @@
     <!-- Krok 10B: testy klienta API skladu a hranic mezi službami. -->
     <ProjectReference Include="..\..\src\MiniShop.Web\MiniShop.Web.csproj" />
     <ProjectReference Include="..\..\src\MiniShop.Inventory.Api\MiniShop.Inventory.Api.csproj" />
+    <ProjectReference Include="..\..\src\MiniShop.Reporting.Api\MiniShop.Reporting.Api.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

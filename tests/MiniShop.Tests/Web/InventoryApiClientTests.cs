@@ -92,9 +92,9 @@ public sealed class InventoryApiClientTests
     [Fact]
     public async Task ServisniKlic_JeVKazdemPozadavku()
     {
-        // Účty krok 7: klíč přidá článek řetězu (InventoryApiKeyHandler), klient sám o něm neví.
+        // Účty krok 7: klíč přidá článek řetězu (ServiceApiKeyHandler), klient sám o něm neví.
         HttpRequestMessage? sent = null;
-        var http = new HttpClient(new InventoryApiKeyHandler("tajny-klic-skladu")
+        var http = new HttpClient(new ServiceApiKeyHandler("tajny-klic-skladu")
         {
             InnerHandler = new FakeHandler(request =>
             {

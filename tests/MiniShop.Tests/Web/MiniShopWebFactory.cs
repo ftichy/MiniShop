@@ -16,6 +16,7 @@ using MiniShop.Infrastructure.Ordering;
 using MiniShop.Application.Notifications;
 using MiniShop.Tests.TestDoubles;
 using MiniShop.Web.Accounts;
+using MiniShop.Web.Reporting;
 
 namespace MiniShop.Tests.Web;
 
@@ -49,6 +50,9 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
     /// <summary>E-shop krok 23: oznámení push, která Web „odeslal“ (push služba bez internetu).</summary>
     public RecordingPushSender Push { get; } = new();
 
+    /// <summary>Mikroservisy M1: služba přehledu tržeb (Reporting.Api v testech Webu neběží).</summary>
+    public FakeSalesReportApi SalesReports { get; } = new();
+
     /// <summary>Škálování krok 5: workery, které Web registruje (před odebráním pro testy) – hlídá je <c>WebWorkersTests</c>.</summary>
     public List<Type> RegisteredWorkers { get; private set; } = [];
 
@@ -62,6 +66,7 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
         builder.UseSetting("Payments:WebhookSecret", WebhookSecret);
         // Účty krok 7: servisní klíč skladu (sklad tu nahrazuje StubProductService, ale bez klíče by se Web nespustil).
         builder.UseSetting("InventoryApi:ApiKey", new string('k', 64));
+        builder.UseSetting("ReportingApi:ApiKey", new string('r', 64));   // mikroservisy M1 (služba tu je FakeSalesReportApi)
         // Účty krok 8: limit formulářů účtu vysoko – testy se přihlašují stokrát z jedné „IP“. Limit zkouší vlastní test.
         builder.UseSetting("RateLimiting:AccountForms:PermitLimit", "100000");
         builder.UseSetting("RateLimiting:CatalogSuggest:PermitLimit", "100000");
@@ -83,6 +88,8 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
             services.AddSingleton<ICategoryService, StubCategoryService>();
             services.RemoveAll<IProductImageService>();
             services.AddSingleton<IProductImageService, StubProductImageService>();
+            services.RemoveAll<ISalesReportApi>();
+            services.AddSingleton<ISalesReportApi>(SalesReports);
 
             // Účty krok 5: e-maily do „schránky“ testů – odkazy z nich testy otevírají.
             services.RemoveAll<IEmailSender>();

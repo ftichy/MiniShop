@@ -155,6 +155,15 @@ Plán: [docs/Observabilita-roadmap.md](code:docs/Observabilita-roadmap.md) – h
 | G3 | Alarmy e-mailem (dead-letter, poison, zaseklý outbox/fronta/sága, 5xx, výpadek telemetrie) jako soubor pravidel Prometheus importovaný do Grafany a kontrolovaný v CI; SLO „99 % objednávek potvrzeno do 30 s“ s rozpočtem chyb | [observabilita-g3](code:docs/kroky-observabilita/krok-g3-alarmy-a-slo.md) |
 | G4 | Tutoriál „Grafana krok za krokem“ v příručce – sedm skutečných situací (zákazník hlásí problém s objednávkou, alarm, pomalý web, po nasazení, hledání v logu, graf ukazuje nesmysl, kolik objednávek) s přesnými dotazy | [observabilita-g4](code:docs/kroky-observabilita/krok-g4-tutorial.md) |
 
+## Mikroservisy
+
+Plán: [docs/Mikroservisy-roadmap.md](code:docs/Mikroservisy-roadmap.md) – vyjmout z Webu jen Reporting a Notifications, pak se podle zkušenosti rozhodnout.
+
+| Krok | Co přinesl | Souhrn |
+| --- | --- | --- |
+| M0 | Hlídání před vyjmutím: počet posluchačů front a alarmy „fronta bez posluchače“ / „fronta mlčí“, alarm na limit metrických řad Grafany, víc paměti pro Alloy | [krok-m0](code:docs/kroky-mikroservisy/krok-m0-priprava.md) |
+| M1 | Přehled tržeb jako samostatná služba `MiniShop.Reporting.Api` – vlastní image a kontejner, API se servisním klíčem, přechod bez odstávky přes stejnou frontu a inbox, stránka ustojí výpadek služby | [krok-m1](code:docs/kroky-mikroservisy/krok-m1-reporting.md) |
+
 ## Proč po krocích
 
 Každý krok řeší **jeden** problém, který předchozí krok odhalil, a po každém aplikace funguje. Tak je u každé

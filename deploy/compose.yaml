@@ -8,7 +8,7 @@
 #
 # Co dřív dělal AppHost (src/MiniShop.AppHost/AppHost.cs), dělá teď tento soubor:
 #   AddRabbitMQ(...)                → služba "rabbitmq"
-#   AddProject<...>("inventory-api") → služba "inventory-api" (jméno = adresa v síti Compose)
+#   AddProject<...>("inventory-api") → služba "inventory-api" (jméno = adresa v síti Compose), stejně "reporting-api"
 #   WithReference(messaging)        → proměnná ConnectionStrings__messaging
 #   WithReference(inventoryApi)     → proměnná Services__inventory-api__http__0
 #   WaitFor(...)                    → depends_on + condition: service_healthy
@@ -131,6 +131,30 @@ services:
         condition: service_healthy
     healthcheck: *dotnet-healthcheck
 
+  # Mikroservisy M1: přehled tržeb jako samostatná služba (fronta minishop.reporting, schéma reporting).
+  # Web na ní nezávisí (depends_on ne) – bez ní běží e-shop dál, jen stránka Přehled tržeb ukáže upozornění.
+  reporting-api:
+    image: ${IMAGE_PREFIX:-}minishop-reporting-api:${IMAGE_TAG:-local}
+    build:
+      context: ..
+      dockerfile: src/MiniShop.Reporting.Api/Dockerfile
+    restart: unless-stopped
+    environment:
+      <<: [*otel-env, *database-env]
+      OTEL_SERVICE_NAME: reporting-api
+      ConnectionStrings__messaging: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      # Vlastní servisní klíč (ne klíč skladu) – /api přehledu jen pro Web. Bez něj se Compose ani nespustí (:?).
+      ReportingApi__ApiKey: ${REPORTING_API_KEY:?Chybí REPORTING_API_KEY v .env}
+    volumes:
+      - reporting-data:/data   # jen logy (/data/logs) – data jsou v PostgreSQL
+    # Žádné "ports": jen uvnitř sítě Compose (pro Web).
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck: *dotnet-healthcheck
+
   web:
     image: ${IMAGE_PREFIX:-}minishop-web:${IMAGE_TAG:-local}
     build:
@@ -145,6 +169,9 @@ services:
       Services__inventory-api__http__0: http://inventory-api:8080
       # Účty krok 7: stejný servisní klíč – Web ho posílá v hlavičce X-Api-Key.
       InventoryApi__ApiKey: ${INVENTORY_API_KEY:?Chybí INVENTORY_API_KEY v .env}
+      # Mikroservisy M1: přehled tržeb (stránka /Admin/Sales) ze služby reporting-api s jejím servisním klíčem.
+      Services__reporting-api__http__0: http://reporting-api:8080
+      ReportingApi__ApiKey: ${REPORTING_API_KEY:?Chybí REPORTING_API_KEY v .env}
       # E-shop krok 8: tajemství pro podpis webhooku platební brány – bez něj se Web nespustí.
       Payments__WebhookSecret: ${PAYMENTS_WEBHOOK_SECRET:?Chybí PAYMENTS_WEBHOOK_SECRET v .env}
       # Za reverse proxy (Caddy, krok 5) věřit hlavičkám X-Forwarded-Proto/For. Bez proxy nic nemění.
@@ -198,5 +225,6 @@ services:
 volumes:
   rabbitmq-data:
   inventory-data:
+  reporting-data:   # mikroservisy M1: jen logy služby přehledu
   web-data:
   postgres-data:   # škálování krok 1 a 3: data PostgreSQL – nemazat (zálohuje pg_dump v backup.sh)

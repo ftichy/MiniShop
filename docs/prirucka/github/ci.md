@@ -13,7 +13,7 @@ Kód: [ci.yml](code:.github/workflows/ci.yml)
 
 ```mermaid
 flowchart LR
-    t["build-and-test<br/>'Build a testy'<br/>PostgreSQL (Testcontainers)"] --> i["images (matrix)<br/>web, inventory-api"]
+    t["build-and-test<br/>'Build a testy'<br/>PostgreSQL (Testcontainers)"] --> i["images (matrix)<br/>web, inventory-api, reporting-api"]
     i --> d["deploy<br/>jen main"]
     e["e2e<br/>'E2E testy'<br/>Playwright"] --> d
     z["zap<br/>'ZAP sken'<br/>OWASP ZAP"] --> d
@@ -24,8 +24,8 @@ flowchart LR
 | Job | Co dělá | Detaily |
 | --- | --- | --- |
 | **Build a testy** | `restore` → `build -c Release` → `test` (nad PostgreSQL – Testcontainers spustí `postgres:18-alpine` v Dockeru runneru, [Databáze – testy](../architektura/databaze.md)) | cache NuGet balíčků (klíč = otisk `.csproj`, `.props`, `global.json`), výsledky testů jako artefakt `.trx` (14 dní) |
-| ↳ **Kontrola alarmů Grafany** | krok v jobu *Build a testy*: `promtool check rules` nad `deploy/grafana/minishop-alarmy.yaml` (observabilita G3) | chybný alarm (YAML, PromQL) shodí povinný check – pozná se v PR, ne až při importu do Grafany |
-| **Image web / inventory-api** | Docker Buildx | PR: jen x86, nic se neukládá (rozbitý Dockerfile se pozná před sloučením). `main`: **amd64 + arm64** (QEMU) a push do GHCR |
+| ↳ **Kontrola alarmů Grafany** | krok v jobu *Build a testy*: `promtool check rules` nad `deploy/grafana/minishop-alarmy*.yaml` (observabilita G3, mikroservisy M0) | chybný alarm (YAML, PromQL) shodí povinný check – pozná se v PR, ne až při importu do Grafany |
+| **Image web / inventory-api / reporting-api** | Docker Buildx | PR: jen x86, nic se neukládá (rozbitý Dockerfile se pozná před sloučením). `main`: **amd64 + arm64** (QEMU) a push do GHCR |
 | **Nasazení** | volá `deploy.yml` | jen na `main`, až po úspěšných image **a E2E i ZAP** (od 17. 11. 2026) – viz [CD](cd.md) |
 | **E2E testy** | celý e-shop v Compose + Playwright (Chromium) | PR i `main`, běží vedle ostatních jobů; **povinný check** a nasazení na něj čeká – viz sekce „E2E testy v prohlížeči“ níže |
 | **ZAP sken** | celý e-shop v Compose + pasivní bezpečnostní sken OWASP ZAP | PR i `main`, **povinný check** a nasazení na něj čeká – viz sekce „Bezpečnostní sken (OWASP ZAP)“ níže |
@@ -63,6 +63,7 @@ Ruleset `main-protection` ([Repozitář a ochrana](repozitar.md)) pustí PR do `
 | --- | --- |
 | `ghcr.io/ftichy/minishop-web` | `sha-<7 znaků commitu>`, `latest` |
 | `ghcr.io/ftichy/minishop-inventory-api` | `sha-<7 znaků commitu>`, `latest` |
+| `ghcr.io/ftichy/minishop-reporting-api` | `sha-<7 znaků commitu>`, `latest` (mikroservisy M1 – balíček musí být **Public**, jinak ho VM bez přihlášení nestáhne) |
 
 - Na VM se nasazuje vždy konkrétní **`sha-…`**, nikdy `latest` – je jasné, co běží, a rollback je jen jiný štítek.
 - Balíčky jsou **veřejné** (zdědí viditelnost repozitáře přes label `org.opencontainers.image.source`) – VM je stáhne
@@ -94,7 +95,7 @@ ovládá skutečný prohlížeč nad skutečně spuštěnou aplikací a odhalí 
 
 **Jak job běží** (`e2e` v [ci.yml](code:.github/workflows/ci.yml)):
 
-1. Postaví image Webu a skladu (stejná cache vrstev jako job *Image*) a spustí je přes
+1. Postaví image Webu, skladu a přehledu tržeb (stejná cache vrstev jako job *Image*) a spustí je přes
    [compose.yaml](code:deploy/compose.yaml) + [compose.e2e.yaml](code:deploy/compose.e2e.yaml) – PostgreSQL, RabbitMQ, Inventory.Api, Web
    a **Mailpit** (`axllent/mailpit`, cvičná pošta).
 2. Hesla pro Compose a pro admina vygeneruje za běhu (`openssl rand`) – **nic tajného v gitu ani v GitHub secrets**.

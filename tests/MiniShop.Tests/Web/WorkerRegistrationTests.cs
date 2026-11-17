@@ -1,6 +1,7 @@
 using MiniShop.Infrastructure.Hosting;
 using MiniShop.Infrastructure.Integration.RabbitMq;
 using MiniShop.Tests.InventoryApi;
+using MiniShop.Tests.ReportingApi;
 
 namespace MiniShop.Tests.Web;
 
@@ -20,7 +21,18 @@ public sealed class WorkerRegistrationTests(MiniShopWebFactory web)
         _ = web.Services;   // postaví Web (registrace workerů se zachytí před jejich odebráním)
 
         AssertLeaderOnly(web.RegisteredWorkers, "OrderSagaTimeoutWorker", "CartReminderWorker", "CatalogSyncOnStartupWorker",
-            "SalesReportOnStartupWorker", "PurchasesSyncOnStartupWorker", "OutboxWorker", "MessageRetentionWorker", "LoginAttemptRetentionWorker",
+            "PurchasesSyncOnStartupWorker", "OutboxWorker", "MessageRetentionWorker", "LoginAttemptRetentionWorker",
+            "OperationalMetricsWorker");
+    }
+
+    /// <summary>Mikroservisy M1: přestavění prázdného přehledu po startu se přestěhovalo z Webu do služby přehledu.</summary>
+    [Fact]
+    public void PrehledTrzeb_WorkeryJenNaVedouciKopii()
+    {
+        using var api = new ReportingApiFactory();
+        _ = api.Services;
+
+        AssertLeaderOnly(api.RegisteredWorkers, "SalesReportOnStartupWorker", "OutboxWorker", "MessageRetentionWorker",
             "OperationalMetricsWorker");
     }
 

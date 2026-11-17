@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- Mikroservisy M1: samostatná služba přehledu tržeb (CQRS čtecí model z e-shop kroku 11). Vlastní proces, schéma
+       reporting, fronta minishop.reporting v RabbitMQ. Web se ptá přes HTTP API se servisním klíčem. -->
+  <ItemGroup>
+    <ProjectReference Include="..\MiniShop.Application\MiniShop.Application.csproj" />
+    <ProjectReference Include="..\MiniShop.Infrastructure\MiniShop.Infrastructure.csproj" />
+    <ProjectReference Include="..\MiniShop.ServiceDefaults\MiniShop.ServiceDefaults.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+  </ItemGroup>
+</Project>

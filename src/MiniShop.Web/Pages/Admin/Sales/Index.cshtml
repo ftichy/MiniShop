@@ -3,9 +3,18 @@
 @using MiniShop.Application.Reporting
 @{
     ViewData["Title"] = "Přehled tržeb";
-    var report = Model.Report;
 }
 <partial name="_AdminHeader" model='new MiniShop.Web.Ui.AdminHeaderModel("Přehled tržeb")' />
+@if (Model.Report is not { } report)
+{
+    @* Mikroservisy M1: služba přehledu (reporting-api) neodpovídá – zbytek e-shopu běží dál. *@
+    <partial name="_StatusMessage" model="Model.StatusMessage" />
+    <div class="alert alert-warning" data-track="sales-unavailable">
+        Přehled tržeb je teď nedostupný – služba přehledu neodpovídá. Objednávky se tím nezdrží; přehled se po návratu
+        služby doplní ze zpráv, které na ni počkají ve frontě. Zkuste stránku obnovit za chvíli.
+    </div>
+    return;
+}
 <p class="text-muted">
     Čtecí model (CQRS) z událostí objednávek a plateb – Ordering o něm neví. Tržba = objednávky, které nejsou
     zamítnuté ani zrušené, včetně dopravy. Dny v českém čase.

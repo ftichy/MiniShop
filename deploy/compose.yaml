@@ -155,6 +155,45 @@ services:
         condition: service_healthy
     healthcheck: *dotnet-healthcheck
 
+  # Mikroservisy M2C: Notifications (e-maily a oznámení push) jako samostatná služba (fronta minishop.notifications, schéma
+  # notifications). Data jiných modulů bere z interního API Webu (/internal/…). Web na ní nezávisí (depends_on ne) –
+  # bez ní běží e-shop dál, e-maily počkají ve frontě.
+  notifications-api:
+    image: ${IMAGE_PREFIX:-}minishop-notifications-api:${IMAGE_TAG:-local}
+    build:
+      context: ..
+      dockerfile: src/MiniShop.Notifications.Api/Dockerfile
+    restart: unless-stopped
+    environment:
+      <<: [*otel-env, *database-env]
+      OTEL_SERVICE_NAME: notifications-api
+      ConnectionStrings__messaging: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      # Vlastní servisní klíč – /api služby jen pro Web. Bez něj se Compose ani nespustí (:?).
+      NotificationsApi__ApiKey: ${NOTIFICATIONS_API_KEY:?Chybí NOTIFICATIONS_API_KEY v .env}
+      # Interní API Webu (M2A): kontakt zákazníka, role zaměstnanců, název produktu, PDF faktur. Jméno "web" vrací IP
+      # všech kopií Webu (DNS v síti Compose).
+      Services__web__http__0: http://web:8080
+      WebInternalApi__ApiKey: ${WEB_INTERNAL_API_KEY:?Chybí WEB_INTERNAL_API_KEY v .env}
+      # E-maily o objednávkách (stejné SMTP jako e-maily účtu ve Webu; produkce Gmail – production.env + secret SMTP_PASSWORD).
+      Email__Host: ${EMAIL_HOST:-}
+      Email__Port: ${EMAIL_PORT:-587}
+      Email__UserName: ${EMAIL_USERNAME:-}
+      Email__Password: ${SMTP_PASSWORD:-}
+      Email__FromAddress: ${EMAIL_FROM_ADDRESS:-minishop@localhost}
+      # Odkazy v e-mailech a oznámeních (/Orders/{id}).
+      Notifications__PublicBaseUrl: ${PUBLIC_BASE_URL:-http://localhost:8080}
+      # E-shop krok 23: oznámení push – pár klíčů VAPID (veřejný v production.env, soukromý secret PUSH_VAPID_PRIVATE_KEY).
+      PushNotifications__VapidPublicKey: ${PUSH_VAPID_PUBLIC_KEY:-}
+      PushNotifications__VapidPrivateKey: ${PUSH_VAPID_PRIVATE_KEY:-}
+    volumes:
+      - notifications-data:/data   # jen logy (/data/logs) – data jsou v PostgreSQL
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck: *dotnet-healthcheck
+
   web:
     image: ${IMAGE_PREFIX:-}minishop-web:${IMAGE_TAG:-local}
     build:
@@ -187,7 +226,7 @@ services:
       Email__UserName: ${EMAIL_USERNAME:-}
       Email__Password: ${SMTP_PASSWORD:-}
       Email__FromAddress: ${EMAIL_FROM_ADDRESS:-minishop@localhost}
-      # E-shop krok 7: odkazy v e-mailech o objednávce (modul Notifications). Produkce: PUBLIC_BASE_URL v production.env.
+      # Veřejná adresa webu (odkazy, Stripe návrat). E-maily o objednávkách posílá od M2C služba notifications-api.
       Notifications__PublicBaseUrl: ${PUBLIC_BASE_URL:-http://localhost:8080}
       # Účty krok 10: přihlášení přes Google (OAuth klient z Google Cloud Console). Bez obou hodnot se tlačítko neukáže.
       # Produkce: Client ID v production.env (není tajné), tajemství je secret GOOGLE_CLIENT_SECRET.
@@ -198,10 +237,12 @@ services:
       Payments__Gateway: ${PAYMENTS_GATEWAY:-Fake}
       Payments__Stripe__SecretKey: ${STRIPE_SECRET_KEY:-}
       Payments__Stripe__WebhookSecret: ${STRIPE_WEBHOOK_SECRET:-}
-      # E-shop krok 23: oznámení push – klíče VAPID (dotnet MiniShop.Web.dll generate-vapid-keys). Bez obou = vypnuto.
-      # Produkce: veřejný klíč v production.env (není tajný), soukromý je secret PUSH_VAPID_PRIVATE_KEY.
+      # E-shop krok 23: oznámení push – Web zná od mikroservis M2C jen VEŘEJNÝ klíč VAPID (prohlížeč ho potřebuje v push.js);
+      # soukromým podepisuje zprávy jen služba notifications-api.
       PushNotifications__VapidPublicKey: ${PUSH_VAPID_PUBLIC_KEY:-}
-      PushNotifications__VapidPrivateKey: ${PUSH_VAPID_PRIVATE_KEY:-}
+      # Mikroservisy M2C: zařízení push, oznámení k práci a „Dejte mi vědět“ ze služby notifications-api (její servisní klíč).
+      Services__notifications-api__http__0: http://notifications-api:8080
+      NotificationsApi__ApiKey: ${NOTIFICATIONS_API_KEY:?Chybí NOTIFICATIONS_API_KEY v .env}
     # Škálování krok 5: víc kopií Webu (produkce 2 – production.env). Všechny sdílí volume web-data: klíče Data Protection
     # musí být společné (cookie přihlášení a formuláře z jedné kopie platí i v druhé), logy má každá vlastní soubor.
     # Workery s časovačem běží jen na vedoucí kopii (zámek v PostgreSQL), požadavky rozděluje Caddy (compose.cloud.yaml).
@@ -228,5 +269,6 @@ volumes:
   rabbitmq-data:
   inventory-data:
   reporting-data:   # mikroservisy M1: jen logy služby přehledu
+  notifications-data:   # mikroservisy M2C: jen logy služby Notifications
   web-data:
   postgres-data:   # škálování krok 1 a 3: data PostgreSQL – nemazat (zálohuje pg_dump v backup.sh)

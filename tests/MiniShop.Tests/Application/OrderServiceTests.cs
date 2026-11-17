@@ -46,6 +46,7 @@ using MiniShop.Infrastructure.Integration;
 using MiniShop.Infrastructure.Outbox;
 using MiniShop.Infrastructure.Inventory;
 using MiniShop.Infrastructure.Notifications;
+using MiniShop.Notifications.Api;
 using MiniShop.Infrastructure.Payments;
 using MiniShop.Infrastructure.Reporting;
 using MiniShop.Infrastructure.Invoicing;

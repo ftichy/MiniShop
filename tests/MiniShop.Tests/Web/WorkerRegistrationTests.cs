@@ -25,6 +25,16 @@ public sealed class WorkerRegistrationTests(MiniShopWebFactory web)
             "OperationalMetricsWorker");
     }
 
+    /// <summary>Mikroservisy M2C: Notifications nemá vlastní workery s časovačem – jen zprávy (outbox modulu je prázdný).</summary>
+    [Fact]
+    public void Notifications_WorkeryJenNaVedouciKopii()
+    {
+        using var api = new MiniShop.Tests.NotificationsApi.NotificationsApiFactory();
+        _ = api.Services;
+
+        AssertLeaderOnly(api.RegisteredWorkers, "OutboxWorker", "MessageRetentionWorker", "OperationalMetricsWorker");
+    }
+
     /// <summary>Mikroservisy M1: přestavění prázdného přehledu po startu se přestěhovalo z Webu do služby přehledu.</summary>
     [Fact]
     public void PrehledTrzeb_WorkeryJenNaVedouciKopii()

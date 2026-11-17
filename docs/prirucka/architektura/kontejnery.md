@@ -4,8 +4,8 @@ summary: Jaké procesy MiniShop tvoří, jaké mají databáze a kudy spolu mluv
 order: 1
 ---
 
-> **V jedné větě:** Běží tři .NET služby – **Web** (objednávky + celé UI), **Inventory.Api** (sklad) a od mikroservis M1
-> **Reporting.Api** (přehled tržeb) – a mezi nimi **RabbitMQ**. Moduly mají data v **PostgreSQL** (každý své schéma) a posílají telemetrii do **Aspire dashboardu**.
+> **V jedné větě:** Běží čtyři .NET služby – **Web** (objednávky + celé UI), **Inventory.Api** (sklad), od mikroservis M1
+> **Reporting.Api** (přehled tržeb) a od M2C **Notifications.Api** (e-maily, oznámení push) – a mezi nimi **RabbitMQ**. Moduly mají data v **PostgreSQL** (každý své schéma) a posílají telemetrii do **Aspire dashboardu**.
 
 ## Diagram
 
@@ -72,6 +72,7 @@ flowchart TB
 | **Web** ([MiniShop.Web](code:src/MiniShop.Web/)) | UI pro celý obchod, REST API objednávek, sága objednávky, kopie katalogu, sledování formuláře, účty a přihlášení | Hostuje moduly Ordering, Journeys a Accounts. UI je jedno pro celý e-shop, i když data skladu patří jiné službě. |
 | **Inventory.Api** ([MiniShop.Inventory.Api](code:src/MiniShop.Inventory.Api/)) | Produkty a zásoby, vyřizuje příkazy rezervace a uvolnění | Sklad je samostatná služba: může se nasadit, restartovat či spadnout nezávisle na objednávkách. |
 | **Reporting.Api** ([MiniShop.Reporting.Api](code:src/MiniShop.Reporting.Api/)) | Přehled tržeb – čtecí model (CQRS) ze zpráv objednávek a plateb, API pro stránku Přehled tržeb | Mikroservisy M1: první modul vyjmutý z Webu do samostatné služby – ukázka, že odběratel událostí může běžet kdekoli. Výpadek = jen nedostupný přehled. Viz [Reporting](moduly/reporting.md). |
+| **Notifications.Api** ([MiniShop.Notifications.Api](code:src/MiniShop.Notifications.Api/)) | E-maily a oznámení push podle zpráv objednávek, plateb, faktur a skladu; API pro stránky Webu (zařízení push, oznámení k práci, „Dejte mi vědět“) | Mikroservisy M2C: odběratel, který za běhu potřebuje data jiných modulů – bere je z interního API Webu (`/internal/…`). Výpadek = e-maily počkají ve frontě. Viz [Notifications](moduly/notifications.md). |
 | **RabbitMQ** | Doručuje zprávy mezi službami, drží je, když příjemce neběží | Služby se nevolají přímo – odesílatel nemusí vědět, kdo zprávu čte, ani čekat, až příjemce odpoví. Viz [Broker](../eda/broker.md). |
 | **PostgreSQL, schéma na modul** | Jedna databáze, každý modul vlastní schéma (škálování krok 3C) | Žádné sdílené tabulky = žádné skryté závislosti mezi moduly. Outbox a inbox leží v DB modulu, aby byly v téže transakci jako data. |
 | **Aspire dashboard** | Zobrazuje trasy, metriky a logy obou služeb | Bez něj by se tok přes dvě služby a broker ladil velmi těžko. Viz [Observabilita](../eda/observabilita.md). |
@@ -85,6 +86,8 @@ flowchart TB
   (opakování, circuit breaker) – když sklad neběží, stránka se načte, jen bez údajů skladu.
 - **Web → Reporting.Api přes HTTP** (mikroservisy M1): jen stránka Přehled tržeb ([ReportingApiClient](code:src/MiniShop.Web/Reporting/ReportingApiClient.cs),
   servisní klíč `REPORTING_API_KEY`). Data dostává služba jen ze zpráv.
+- **Web ↔ Notifications.Api přes HTTP** (mikroservisy M2C): Web volá API služby kvůli stránkám (`NOTIFICATIONS_API_KEY`),
+  služba volá interní API Webu kvůli kontaktu zákazníka, rolím, názvu produktu a PDF faktur (`WEB_INTERNAL_API_KEY`).
 - **Business tok jde jen přes RabbitMQ.** Objednávka nikdy nevolá sklad synchronně. Kdyby sklad neběžel, objednávka
   se přijme a počká (nebo ji sága po timeoutu zamítne).
 

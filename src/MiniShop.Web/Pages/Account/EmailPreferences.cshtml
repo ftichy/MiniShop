@@ -7,7 +7,7 @@
 
 @if (Model.StatusMessage is not null)
 {
-    <div class="alert alert-success">@Model.StatusMessage</div>
+    <div class="alert @(Model.StatusMessage.StartsWith("Chyba") ? "alert-warning" : "alert-success")">@Model.StatusMessage</div>
 }
 
 <div class="row">
@@ -41,6 +41,15 @@
         }
         @* E-shop krok 23/24: token pro push.js (JSON požadavky) – formulář košíku zaměstnanec bez role Zákazník nevidí. *@
         @Html.AntiForgeryToken()
+
+        @if (Model.NotificationsUnavailable)
+        {
+            @* Mikroservisy M2C: služba Notifications neodpovídá – připomínka košíku (účet ve Webu) jde nastavit dál. *@
+            <div class="alert alert-warning mt-4" data-track="notifications-unavailable">
+                Oznámení na telefonu a oznámení k práci teď nejde zobrazit ani změnit – služba oznámení neodpovídá.
+                Zkuste to prosím za chvíli. Objednávky i e-maily tím neztratíte, počkají ve frontě.
+            </div>
+        }
 
         @if (Model.PushEnabled)
         {

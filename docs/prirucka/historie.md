@@ -165,6 +165,7 @@ Plán: [docs/Mikroservisy-roadmap.md](code:docs/Mikroservisy-roadmap.md) – vyj
 | M1 | Přehled tržeb jako samostatná služba `MiniShop.Reporting.Api` – vlastní image a kontejner, API se servisním klíčem, přechod bez odstávky přes stejnou frontu a inbox, stránka ustojí výpadek služby | [krok-m1](code:docs/kroky-mikroservisy/krok-m1-reporting.md) |
 | M2A | Interní API Webu `/internal/…` jen se servisním klíčem (druhé schéma ověření vedle cookie, z internetu zavřené v Caddy) a klient budoucí služby Notifications s testem kontraktu – expand bez změny chování | [krok-m2a](code:docs/kroky-mikroservisy/krok-m2a-interni-api.md) |
 | M2B | Stránka Zprávy pro všechny služby – každá služba nabízí `/api/messages` (stejná logika ze sdíleného jádra), Web je ukáže pohromadě a nedostupnou službu označí jen upozorněním | [krok-m2b](code:docs/kroky-mikroservisy/krok-m2b-zpravy-vsech-sluzeb.md) |
+| M2C | Notifications jako samostatná služba `MiniShop.Notifications.Api` – e-maily a oznámení push mimo Web, data jiných modulů z interního API Webu, stránky Webu přes API služby, výpadek služby i Webu bez ztráty e-mailu | [krok-m2c](code:docs/kroky-mikroservisy/krok-m2c-notifications.md) |
 
 ## Proč po krocích
 

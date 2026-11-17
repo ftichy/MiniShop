@@ -34,7 +34,7 @@ flowchart LR
 | Konfigurace přes `ENV` | Cesty k DB, klíčům a logům jde přepsat proměnnou prostředí ([12-factor](https://12factor.net/config)). |
 
 Kód: [Dockerfile Webu](code:src/MiniShop.Web/Dockerfile), [Dockerfile skladu](code:src/MiniShop.Inventory.Api/Dockerfile),
-[Dockerfile přehledu tržeb](code:src/MiniShop.Reporting.Api/Dockerfile) (mikroservisy M1),
+[Dockerfile přehledu tržeb](code:src/MiniShop.Reporting.Api/Dockerfile) (mikroservisy M1), [Dockerfile Notifications](code:src/MiniShop.Notifications.Api/Dockerfile) (M2C),
 [.dockerignore](code:.dockerignore) (do image se nesmí dostat lokální databáze, logy ani tajnosti).
 
 Sestavení ručně (z kořene repozitáře): `docker build -f src/MiniShop.Web/Dockerfile -t minishop-web .`
@@ -47,6 +47,7 @@ flowchart TB
         web["web :8080<br/>(WEB_REPLICAS kopií, produkce 2)"]
         inv["inventory-api :8080<br/>(zvenku nedostupný)"]
         rep["reporting-api :8080<br/>(přehled tržeb, mikroservisy M1)"]
+        ntf["notifications-api :8080<br/>(e-maily, push, mikroservisy M2C)"]
         mq["rabbitmq :5672"]
         dash["aspire-dashboard<br/>OTLP :18889"]
         pg["postgres :5432<br/>(jen z VM 127.0.0.1)"]
@@ -64,6 +65,9 @@ flowchart TB
     rep --> pg
     rep --> mq
     web -->|"HTTP, bez depends_on"| rep
+    ntf --> pg
+    ntf --> mq
+    web <-->|"HTTP (/api, /internal)"| ntf
     web -->|"depends_on: healthy"| inv
     web --> mq
     inv --> mq
@@ -79,6 +83,7 @@ Co dřív dělal Aspire AppHost, dělá teď [compose.yaml](code:deploy/compose.
 | `AddPostgres(...).AddDatabase("minishop")` | služba `postgres` (image `postgres:18-alpine`, škálování krok 3 – běží vždy, služby na ni přepne `DATABASE_PROVIDER`; viz [Databáze](../architektura/databaze.md)) |
 | `AddProject<...>("inventory-api")` | služba `inventory-api` – jméno je zároveň DNS adresa v síti |
 | `AddProject<...>("reporting-api")` | služba `reporting-api` (mikroservisy M1; Web na ni nečeká – bez ní běží, jen přehled tržeb hlásí nedostupnost) |
+| `AddProject<...>("notifications-api")` | služba `notifications-api` (mikroservisy M2C; volá interní API Webu přes `Services__web__http__0`, Web na ni nečeká) |
 | `WithReference(messaging)` | proměnná `ConnectionStrings__messaging` |
 | `WithReference(inventoryApi)` | proměnná `Services__inventory-api__http__0` |
 | `WithReference(reportingApi)` | proměnná `Services__reporting-api__http__0` |

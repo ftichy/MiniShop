@@ -9,6 +9,7 @@ using MiniShop.Application.Reviews;
 using MiniShop.Domain.Exceptions;
 using MiniShop.Domain.Reviews;
 using MiniShop.Web.Accounts;
+using MiniShop.Web.Notifications;
 
 namespace MiniShop.Web.Pages.Shop;
 
@@ -17,7 +18,7 @@ namespace MiniShop.Web.Pages.Shop;
 /// neznají, spojí je až tahle stránka (jako smazání účtu). Veřejná; hodnotit smí jen zákazník, který produkt dostal.
 /// </summary>
 [AllowAnonymous]
-public sealed class DetailModel(ICatalogQueryService catalog, ReviewService reviews, BackInStockService backInStock, IAuthorizationService authorization)
+public sealed class DetailModel(ICatalogQueryService catalog, ReviewService reviews, INotificationsApi notifications, IAuthorizationService authorization)
     : PageModel
 {
     public CatalogItemDto Product { get; private set; } = null!;
@@ -94,14 +95,14 @@ public sealed class DetailModel(ICatalogQueryService catalog, ReviewService revi
         {
             try
             {
-                await backInStock.SubscribeAsync(User.ToCustomerId(), id, product.Name, cancellationToken);
+                // Mikroservisy M2C: lísteček drží služba Notifications (dvojklik ošetří ona – unikátní index).
+                await notifications.WatchAsync(User.ToCustomerId(), id, product.Name, cancellationToken);
+                StatusMessage = "Dáme vám vědět e-mailem, jakmile bude produkt skladem (pošleme jen jeden e-mail).";
             }
-            catch (ConcurrencyConflictException)
+            catch (NotificationsUnavailableException)
             {
-                // Dvojklik: druhý požadavek narazil na unikátní index zákazník + produkt – lísteček už založil první.
+                ErrorMessage = Unavailable;
             }
-
-            StatusMessage = "Dáme vám vědět e-mailem, jakmile bude produkt skladem (pošleme jen jeden e-mail).";
         }
 
         return RedirectToPage(new { id });
@@ -119,8 +120,16 @@ public sealed class DetailModel(ICatalogQueryService catalog, ReviewService revi
             return Forbid();
         }
 
-        await backInStock.CancelAsync(User.ToCustomerId(), id, cancellationToken);
-        StatusMessage = "Upozornění je zrušené.";
+        try
+        {
+            await notifications.CancelWatchAsync(User.ToCustomerId(), id, cancellationToken);
+            StatusMessage = "Upozornění je zrušené.";
+        }
+        catch (NotificationsUnavailableException)
+        {
+            ErrorMessage = Unavailable;
+        }
+
         return RedirectToPage(new { id });
     }
 
@@ -134,8 +143,23 @@ public sealed class DetailModel(ICatalogQueryService catalog, ReviewService revi
         Product = product;
         CanOrder = (await authorization.AuthorizeAsync(User, AuthorizationPolicies.RequireCustomer)).Succeeded;
         Reviews = await reviews.GetForProductAsync(id, CanOrder ? User.ToCustomerId() : null, cancellationToken);
-        IsWatching = CanOrder && await backInStock.IsSubscribedAsync(User.ToCustomerId(), id, cancellationToken);
+        IsWatching = CanOrder && await IsWatchingAsync(id, cancellationToken);
         return true;
+    }
+
+    private const string Unavailable = "Upozornění teď nejde nastavit – služba oznámení neodpovídá. Zkuste to prosím za chvíli.";
+
+    /// <summary>Mikroservisy M2C: lísteček je ve službě Notifications – když neodpovídá, stránka produktu se ukáže dál (bez stavu).</summary>
+    private async Task<bool> IsWatchingAsync(int id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await notifications.IsWatchingAsync(User.ToCustomerId(), id, cancellationToken);
+        }
+        catch (NotificationsUnavailableException)
+        {
+            return false;
+        }
     }
 
     public static int MaxTextLength => Review.TextMaxLength;

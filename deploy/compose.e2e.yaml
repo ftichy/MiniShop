@@ -32,3 +32,14 @@ services:
     depends_on:
       mailpit:
         condition: service_started
+
+  # Mikroservisy M2C: e-maily o objednávkách posílá služba Notifications – také do Mailpitu.
+  notifications-api:
+    environment:
+      Email__Host: mailpit
+      Email__Port: "1025"
+      Email__UseTls: "false"
+      Email__FromAddress: minishop@example.test
+    depends_on:
+      mailpit:
+        condition: service_started

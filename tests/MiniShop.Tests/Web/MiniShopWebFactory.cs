@@ -16,7 +16,9 @@ using MiniShop.Infrastructure.Ordering;
 using MiniShop.Application.Notifications;
 using MiniShop.Tests.TestDoubles;
 using MiniShop.Web.Accounts;
+using MiniShop.Tests.NotificationsApi;
 using MiniShop.Web.Messages;
+using MiniShop.Web.Notifications;
 using MiniShop.Web.Reporting;
 
 namespace MiniShop.Tests.Web;
@@ -52,7 +54,16 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
     public FakeGoogle Google { get; } = new();
 
     /// <summary>E-shop krok 23: oznámení push, která Web „odeslal“ (push služba bez internetu).</summary>
-    public RecordingPushSender Push { get; } = new();
+    public RecordingPushSender Push => Notifications.Push;
+
+    /// <summary>Mikroservisy M2C: služba Notifications v paměti (zařízení push, oznámení k práci, „Dejte mi vědět“).</summary>
+    public NotificationsApiFactory Notifications { get; } = new();
+
+    /// <summary>Mikroservisy M2C: false = služba Notifications „neběží“ (stránky musí výpadek ustát).</summary>
+    public bool NotificationsAvailable { get; set; } = true;
+
+    /// <summary>Mikroservisy M2C: zprávy služby Notifications na stránce /Admin/Messages.</summary>
+    public FakeServiceMessages NotificationsMessages { get; } = new("notifications-api", "Notifications", "minishop.notifications");
 
     /// <summary>Mikroservisy M1: služba přehledu tržeb (Reporting.Api v testech Webu neběží).</summary>
     public FakeSalesReportApi SalesReports { get; } = new();
@@ -78,6 +89,8 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
         builder.UseSetting("InventoryApi:ApiKey", new string('k', 64));
         builder.UseSetting("ReportingApi:ApiKey", new string('r', 64));   // mikroservisy M1 (služba tu je FakeSalesReportApi)
         builder.UseSetting("WebInternalApi:ApiKey", InternalApiKey);   // mikroservisy M2A: interní API /internal/…
+        builder.UseSetting("NotificationsApi:ApiKey", NotificationsApiFactory.ApiKey);   // mikroservisy M2C
+        builder.UseSetting("PushNotifications:VapidPublicKey", "test-vapid-public-key");   // Web zná jen veřejný klíč
         // Účty krok 8: limit formulářů účtu vysoko – testy se přihlašují stokrát z jedné „IP“. Limit zkouší vlastní test.
         builder.UseSetting("RateLimiting:AccountForms:PermitLimit", "100000");
         builder.UseSetting("RateLimiting:CatalogSuggest:PermitLimit", "100000");
@@ -105,14 +118,18 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
             services.AddScoped<IServiceMessages, LocalServiceMessages>();
             services.AddSingleton<IServiceMessages>(InventoryMessages);
             services.AddSingleton<IServiceMessages>(ReportingMessages);
+            services.AddSingleton<IServiceMessages>(NotificationsMessages);
 
             // Účty krok 5: e-maily do „schránky“ testů – odkazy z nich testy otevírají.
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender>(Emails);
 
-            // E-shop krok 23: oznámení push zapnutá (jako s klíči VAPID), odeslání do „schránky“ testů.
-            services.RemoveAll<IPushSender>();
-            services.AddSingleton<IPushSender>(Push);
+            // Mikroservisy M2C: Notifications je samostatná služba – tady skutečná služba v paměti, Web ji volá přes HTTP
+            // se servisním klíčem (stránka → API → služba jako v produkci). Oznámení push z ní jdou do „schránky“ Push.
+            services.RemoveAll<INotificationsApi>();
+            services.AddScoped<INotificationsApi>(_ => new NotificationsApiClient(NotificationsAvailable
+                ? Notifications.CreateAuthorizedClient()
+                : new HttpClient(new UnavailableHandler()) { BaseAddress = new Uri("http://notifications-api/") }));
 
             // Účty krok 8: log do paměti testu.
             services.AddSingleton<ILoggerProvider>(Logs);
@@ -298,7 +315,15 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
     async Task IAsyncLifetime.DisposeAsync()
     {
         await base.DisposeAsync();
+        await Notifications.DisposeAsync();
         _databases.Dispose();
+    }
+
+    /// <summary>Spadlá služba – každý požadavek skončí chybou spojení.</summary>
+    private sealed class UnavailableHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            throw new HttpRequestException("notifications-api neběží");
     }
 
     [GeneratedRegex("name=\"__RequestVerificationToken\" type=\"hidden\" value=\"([^\"]+)\"")]

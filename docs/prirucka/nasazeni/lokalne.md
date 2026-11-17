@@ -18,6 +18,7 @@ dotnet run --project src/MiniShop.AppHost
 | Web (objednávky, UI, tato dokumentace) | https://localhost:7180 |
 | Inventory.Api (sklad) | https://localhost:7181 |
 | Reporting.Api (přehled tržeb, mikroservisy M1) | https://localhost:7182 |
+| Notifications.Api (e-maily a oznámení, mikroservisy M2C) | https://localhost:7183 |
 | Aspire dashboard | https://localhost:17180 (přihlašovací odkaz vypíše konzole) |
 | RabbitMQ management | odkaz v dashboardu (zdroj `messaging`) |
 | PostgreSQL | zdroj `postgres` / databáze `minishop` v dashboardu (connection string v detailu) |
@@ -57,10 +58,11 @@ docker start minishop-rabbit        # poprvé: docker run -d --name minishop-rab
 docker start minishop-postgres      # poprvé: docker run -d --name minishop-postgres -e POSTGRES_DB=minishop -e POSTGRES_USER=minishop -e POSTGRES_PASSWORD=minishop-vyvoj -p 5432:5432 postgres:18-alpine
 dotnet run --project src/MiniShop.Inventory.Api
 dotnet run --project src/MiniShop.Reporting.Api      # mikroservisy M1: přehled tržeb (bez ní e-shop běží, jen /Admin/Sales hlásí nedostupnost)
+dotnet run --project src/MiniShop.Notifications.Api   # mikroservisy M2C: e-maily a oznámení (bez ní stránky oznámení hlásí nedostupnost)
 dotnet run --project src/MiniShop.Web
 ```
 
-Adresu skladu a přehledu tržeb najde Web v `Services:inventory-api` a `Services:reporting-api` a databázi v `ConnectionStrings:minishop` v `appsettings.Development.json`
+Adresy skladu, přehledu tržeb a Notifications najde Web v `Services:inventory-api`, `Services:reporting-api` a `Services:notifications-api` (služba Notifications adresu Webu v `Services:web`) a databázi v `ConnectionStrings:minishop` v `appsettings.Development.json`
 (vývojové heslo `minishop-vyvoj` jen pro tento lokální kontejner).
 
 ## Přihlášení přes Google lokálně

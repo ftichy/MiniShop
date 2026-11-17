@@ -171,6 +171,31 @@ public sealed class ModuleBoundariesTests
         Assert.True(result.IsSuccessful, string.Join(", ", result.FailingTypeNames ?? []));
     }
 
+    /// <summary>
+    /// Mikroservisy M2C: Notifications běží ve vlastní službě – Web smí jen přes její HTTP API (DTO a rozhraní
+    /// z Application.Notifications, která sám implementuje pro interní API), ne do její databáze ani infrastruktury.
+    /// </summary>
+    [Fact]
+    public void Web_NesahaDoVnitrkuNotifications()
+    {
+        var result = Types.InAssembly(typeof(MiniShop.Web.Inventory.InventoryApiClient).Assembly)
+            .ShouldNot().HaveDependencyOnAny("MiniShop.Infrastructure.Notifications")
+            .GetResult();
+
+        Assert.True(result.IsSuccessful, string.Join(", ", result.FailingTypeNames ?? []));
+    }
+
+    /// <summary>Mikroservisy M2C: služba Notifications zná ostatní moduly jen ze zpráv a z interního API Webu.</summary>
+    [Fact]
+    public void NotificationsApi_ZnaJenSvujModul()
+    {
+        var result = Types.InAssembly(typeof(MiniShop.Notifications.Api.Controllers.PushController).Assembly)
+            .ShouldNot().HaveDependencyOnAny([.. ModuleNamespaces.Where(m => m.Key != Notifications).SelectMany(m => m.Value)])
+            .GetResult();
+
+        Assert.True(result.IsSuccessful, string.Join(", ", result.FailingTypeNames ?? []));
+    }
+
     /// <summary>Mikroservisy M1: služba přehledu zná ostatní moduly jen ze zpráv (Contracts).</summary>
     [Fact]
     public void ReportingApi_ZnaJenSvujModul()

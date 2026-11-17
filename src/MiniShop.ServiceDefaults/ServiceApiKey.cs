@@ -22,11 +22,15 @@ public static class ServiceApiKey
     /// </summary>
     public const string WebInternalConfigurationKey = "WebInternalApi:ApiKey";
 
+    /// <summary>Mikroservisy M2C: klíč služby Notifications (<c>NotificationsApi__ApiKey</c>, secret <c>NOTIFICATIONS_API_KEY</c>).</summary>
+    public const string NotificationsConfigurationKey = "NotificationsApi:ApiKey";
+
     private static readonly Dictionary<string, string> Secrets = new()
     {
         [ConfigurationKey] = "INVENTORY_API_KEY",
         [ReportingConfigurationKey] = "REPORTING_API_KEY",
-        [WebInternalConfigurationKey] = "WEB_INTERNAL_API_KEY"
+        [WebInternalConfigurationKey] = "WEB_INTERNAL_API_KEY",
+        [NotificationsConfigurationKey] = "NOTIFICATIONS_API_KEY"
     };
 
     /// <summary>Kratší klíč by šel uhodnout; produkce má 64 hex znaků (256 bitů).</summary>

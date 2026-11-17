@@ -25,10 +25,8 @@ namespace MiniShop.Web.Pages.Account;
 [EnableRateLimiting(AccountRateLimiting.PolicyName)]   // formulář účtu – stejný limit jako ostatní
 public sealed class EmailPreferencesModel(
     UserManager<ApplicationUser> userManager,
-    PushSubscriptionService pushSubscriptions,
-    PushNotifier pushNotifier,
-    IPushSender pushSender,
-    StaffAlertService staffAlerts,
+    INotificationsApi notifications,   // mikroservisy M2C: zařízení push a oznámení k práci drží služba Notifications
+    PushPublicKey pushKey,
     IAuthorizationService authorization,
     ILogger<EmailPreferencesModel> logger)
     : PageModel
@@ -40,10 +38,10 @@ public sealed class EmailPreferencesModel(
     public string? StatusMessage { get; set; }
 
     /// <summary>Oznámení push jsou na serveru zapnutá (klíče VAPID) – jinak se sekce neukáže.</summary>
-    public bool PushEnabled => pushSender.IsEnabled;
+    public bool PushEnabled => pushKey.IsConfigured;
 
     /// <summary>Veřejný klíč VAPID pro prohlížeč (<c>applicationServerKey</c>).</summary>
-    public string? PushPublicKey => pushSender.PublicKey;
+    public string? PushPublicKey => pushKey.Value;
 
     public IReadOnlyList<PushDeviceDto> PushDevices { get; private set; } = [];
 
@@ -52,6 +50,9 @@ public sealed class EmailPreferencesModel(
 
     /// <summary>E-shop krok 24: oznámení k práci, ke kterým má zaměstnanec roli, a jestli jsou zapnutá.</summary>
     public IReadOnlyList<(StaffAlertKind Kind, string Label, bool Enabled)> StaffAlerts { get; private set; } = [];
+
+    /// <summary>Mikroservisy M2C: služba Notifications teď neodpovídá – sekce oznámení ukáže upozornění.</summary>
+    public bool NotificationsUnavailable { get; private set; }
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
@@ -107,12 +108,15 @@ public sealed class EmailPreferencesModel(
 
         try
         {
-            await pushSubscriptions.SubscribeAsync(User.ToCustomerId(), request,
-                PushDeviceLabel.FromUserAgent(Request.Headers.UserAgent), cancellationToken);
+            if (!await notifications.SubscribeDeviceAsync(User.ToCustomerId(), request,
+                    PushDeviceLabel.FromUserAgent(Request.Headers.UserAgent), cancellationToken))
+            {
+                return BadRequest();   // neplatná adresa push služby (pravidla v doméně služby)
+            }
         }
-        catch (DomainException)
+        catch (NotificationsUnavailableException)
         {
-            return BadRequest();
+            return StatusCode(StatusCodes.Status503ServiceUnavailable);
         }
 
         // Endpoint (identifikátor zařízení) do logu nikdy – jen ID účtu.
@@ -128,15 +132,24 @@ public sealed class EmailPreferencesModel(
             return BadRequest();
         }
 
-        await pushSubscriptions.UnsubscribeAsync(User.ToCustomerId(), request.Endpoint, cancellationToken);
+        try
+        {
+            await notifications.UnsubscribeDeviceAsync(User.ToCustomerId(), request.Endpoint, cancellationToken);
+        }
+        catch (NotificationsUnavailableException)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable);
+        }
+
         return new NoContentResult();
     }
 
     /// <summary>E-shop krok 23: odebrat zařízení ze seznamu (např. ztracený telefon).</summary>
     public async Task<IActionResult> OnPostRemoveDeviceAsync(int id, CancellationToken cancellationToken)
     {
-        await pushSubscriptions.RemoveAsync(User.ToCustomerId(), id, cancellationToken);
-        StatusMessage = "Zařízení jsme odebrali – oznámení na něj už nepošleme.";
+        StatusMessage = await TryAsync(() => notifications.RemoveDeviceAsync(User.ToCustomerId(), id, cancellationToken))
+            ? "Zařízení jsme odebrali – oznámení na něj už nepošleme."
+            : Unavailable;
         return RedirectToPage();
     }
 
@@ -152,11 +165,33 @@ public sealed class EmailPreferencesModel(
             return Forbid();
         }
 
-        await staffAlerts.SetAsync(User.ToCustomerId(), kinds ?? [], allowed, cancellationToken);
+        if (!await TryAsync(() => notifications.SetStaffAlertsAsync(User.ToCustomerId(), kinds ?? [], allowed, cancellationToken)))
+        {
+            StatusMessage = Unavailable;
+            return RedirectToPage();
+        }
+
         logger.LogInformation("Účet {UserId}: oznámení k práci {Kinds}", User.ToCustomerId(),
             string.Join(", ", (kinds ?? []).Where(allowed.Contains)));
         StatusMessage = "Oznámení k práci jsou uložená.";
         return RedirectToPage();
+    }
+
+    private const string Unavailable = "Chyba: oznámení teď nejde nastavit – služba oznámení neodpovídá. Zkuste to prosím za chvíli.";
+
+    /// <summary>Mikroservisy M2C: volání služby Notifications – false, když neodpovídá (stránka to řekne, nespadne).</summary>
+    private async Task<bool> TryAsync(Func<Task> call)
+    {
+        try
+        {
+            await call();
+            return true;
+        }
+        catch (NotificationsUnavailableException ex)
+        {
+            logger.LogWarning(ex, "[Oznámení] Služba Notifications neodpovídá");
+            return false;
+        }
     }
 
     private async Task<bool> IsCustomerAsync() =>
@@ -165,21 +200,38 @@ public sealed class EmailPreferencesModel(
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
         IsCustomer = await IsCustomerAsync();
-        PushDevices = await pushSubscriptions.ListAsync(User.ToCustomerId(), cancellationToken);
-        var allowed = StaffAlertRoles.AllowedFor(User);
-        if (allowed.Count > 0)
+        try
         {
-            var enabled = await staffAlerts.GetAsync(User.ToCustomerId(), cancellationToken);
-            StaffAlerts = allowed.Select(kind => (kind, StaffAlertRoles.Labels[kind], enabled.Contains(kind))).ToList();
+            PushDevices = await notifications.ListDevicesAsync(User.ToCustomerId(), cancellationToken);
+            var allowed = StaffAlertRoles.AllowedFor(User);
+            if (allowed.Count > 0)
+            {
+                var enabled = await notifications.GetStaffAlertsAsync(User.ToCustomerId(), cancellationToken);
+                StaffAlerts = allowed.Select(kind => (kind, StaffAlertRoles.Labels[kind], enabled.Contains(kind))).ToList();
+            }
+        }
+        catch (NotificationsUnavailableException ex)
+        {
+            // Připomínka košíku (účet ve Webu) jde nastavit dál; oznámení až se služba vrátí.
+            logger.LogWarning(ex, "[Oznámení] Služba Notifications neodpovídá");
+            NotificationsUnavailable = true;
         }
     }
 
     /// <summary>E-shop krok 23: zkušební oznámení na všechna zařízení – ověření bez objednávky.</summary>
     public async Task<IActionResult> OnPostPushTestAsync(CancellationToken cancellationToken)
     {
-        var sent = await pushNotifier.SendToCustomerAsync(User.ToCustomerId(),
-            new PushMessage("MiniShop – zkouška", "Oznámení fungují. Takhle vám dáme vědět o objednávce.",
-                "/Account/EmailPreferences", "test"), cancellationToken);
+        int sent;
+        try
+        {
+            sent = await notifications.SendTestAsync(User.ToCustomerId(), cancellationToken);
+        }
+        catch (NotificationsUnavailableException)
+        {
+            StatusMessage = Unavailable;
+            return RedirectToPage();
+        }
+
         StatusMessage = sent > 0
             ? $"Zkušební oznámení odešlo (zařízení: {sent}). Mělo by se ukázat do pár sekund."
             : "Nemáte žádné zařízení se zapnutými oznámeními.";

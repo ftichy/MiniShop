@@ -25,7 +25,7 @@ public sealed class InvoicePageTests(MiniShopWebFactory web) : IAsyncLifetime
         await web.CreateUserAsync(_janEmail, Password);
         await web.CreateUserAsync(_petraEmail, Password);
         _orderId = await web.CreateOrderForAsync(_janEmail);
-        _number = await IssueInvoiceAsync(_orderId, _janEmail);
+        _number = await IssueInvoiceAsync(web, _orderId, _janEmail);
     }
 
     public Task DisposeAsync() => Task.CompletedTask;
@@ -69,7 +69,7 @@ public sealed class InvoicePageTests(MiniShopWebFactory web) : IAsyncLifetime
     public async Task Dobropis_VlastnikStahne_DetailIPrehledMajiOdkaz()
     {
         var orderId = await web.CreateOrderForAsync(_janEmail);
-        await IssueInvoiceAsync(orderId, _janEmail, withCreditNote: true);
+        await IssueInvoiceAsync(web, orderId, _janEmail, withCreditNote: true);
         var jan = await web.LoginAsync(_janEmail, Password);
         var admin = await web.LoginAsync(MiniShopWebFactory.AdminEmail, MiniShopWebFactory.AdminPassword);
 
@@ -83,7 +83,7 @@ public sealed class InvoicePageTests(MiniShopWebFactory web) : IAsyncLifetime
     }
 
     /// <summary>Faktura rovnou v databázi – jako by Invoicing zpracoval OrderPlacedV2 a PaymentSucceededV1.</summary>
-    private async Task<string> IssueInvoiceAsync(int orderId, string email, bool withCreditNote = false)
+    internal static async Task<string> IssueInvoiceAsync(MiniShopWebFactory web, int orderId, string email, bool withCreditNote = false)
     {
         await using var scope = web.Services.CreateAsyncScope();
         var user = await scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().FindByEmailAsync(email);

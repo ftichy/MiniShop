@@ -16,6 +16,19 @@ public static class ServiceApiKey
     /// <summary>Mikroservisy M1: klíč konfigurace přehledu tržeb (<c>ReportingApi__ApiKey</c>, secret <c>REPORTING_API_KEY</c>).</summary>
     public const string ReportingConfigurationKey = "ReportingApi:ApiKey";
 
+    /// <summary>
+    /// Mikroservisy M2A: klíč interního API Webu (<c>/internal/…</c>, <c>WebInternalApi__ApiKey</c>, secret
+    /// <c>WEB_INTERNAL_API_KEY</c>) – služby (od M2B Notifications) se jím ptají Webu na data jiných modulů.
+    /// </summary>
+    public const string WebInternalConfigurationKey = "WebInternalApi:ApiKey";
+
+    private static readonly Dictionary<string, string> Secrets = new()
+    {
+        [ConfigurationKey] = "INVENTORY_API_KEY",
+        [ReportingConfigurationKey] = "REPORTING_API_KEY",
+        [WebInternalConfigurationKey] = "WEB_INTERNAL_API_KEY"
+    };
+
     /// <summary>Kratší klíč by šel uhodnout; produkce má 64 hex znaků (256 bitů).</summary>
     public const int MinLength = 32;
 
@@ -28,10 +41,9 @@ public static class ServiceApiKey
         var key = configuration(configurationKey);
         if (string.IsNullOrWhiteSpace(key) || key.Length < MinLength)
         {
-            var secret = configurationKey == ReportingConfigurationKey ? "REPORTING_API_KEY" : "INVENTORY_API_KEY";
             throw new InvalidOperationException(
                 $"Chybí servisní klíč '{configurationKey}' (aspoň {MinLength} znaků). " +
-                $"V produkci secret {secret}, lokálně ho dodá Aspire nebo appsettings.Development.json.");
+                $"V produkci secret {Secrets.GetValueOrDefault(configurationKey, "?")}, lokálně ho dodá Aspire nebo appsettings.Development.json.");
         }
 
         return key;

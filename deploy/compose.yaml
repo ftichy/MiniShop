@@ -172,6 +172,8 @@ services:
       # Mikroservisy M1: přehled tržeb (stránka /Admin/Sales) ze služby reporting-api s jejím servisním klíčem.
       Services__reporting-api__http__0: http://reporting-api:8080
       ReportingApi__ApiKey: ${REPORTING_API_KEY:?Chybí REPORTING_API_KEY v .env}
+      # Mikroservisy M2A: klíč interního API Webu (/internal/…) – služby (od M2B Notifications) se jím ptají Webu.
+      WebInternalApi__ApiKey: ${WEB_INTERNAL_API_KEY:?Chybí WEB_INTERNAL_API_KEY v .env}
       # E-shop krok 8: tajemství pro podpis webhooku platební brány – bez něj se Web nespustí.
       Payments__WebhookSecret: ${PAYMENTS_WEBHOOK_SECRET:?Chybí PAYMENTS_WEBHOOK_SECRET v .env}
       # Za reverse proxy (Caddy, krok 5) věřit hlavičkám X-Forwarded-Proto/For. Bez proxy nic nemění.

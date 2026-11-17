@@ -80,6 +80,9 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   CI (matice `images`, build v E2E a ZAP + klíč v jejich `.env`), `deploy.sh` (secret, mimo `infra`, `rolling-update.sh` před Webem
   jen když ji compose commitu má – **nový `deploy.sh` na VM před sloučením**), `deploy.yml`, `docs/secrets.md`, GHCR balíček **Public**.
   Přesun modulu bez odstávky = stejná fronta + stejný inbox (služba nejdřív, pak Web bez handlerů modulu).
+  **Interní API Webu (M2A):** `/internal/…` (`InternalController`, politika `InternalApi.PolicyName` = jen klíč `WebInternalApi:ApiKey`,
+  cookie ne; Caddy `/internal/*` → 404). **Nová data pro službu od Webu = endpoint tam + metoda `WebInternalApiClient` + řádek
+  v `InternalApiTests` (výsledek přes HTTP = v procesu)**; v adrese jen ID, osobní údaje jen v těle.
 - Ordering zná produkty jen z kopie katalogu `CatalogProduct` (plní `CatalogProjectionHandler` z `ProductUpdatedV1`/`V2`,
   `StockAvailabilityChangedV1`, `ProductRemovedV1`). Obnova kopie: příkaz `SyncCatalogV1` (`CatalogSyncService`) – automaticky
   po startu Webu, když je kopie prázdná nebo neúplná (produkt s dostupností `Unknown`; `CatalogSyncOnStartupWorker`), nebo
@@ -630,8 +633,8 @@ přes stejnou frontu + inbox, UI ve Webu (služby REST API se servisním klíče
 | Krok | Stav | Souhrn |
 | --- | --- | --- |
 | M0. Příprava a Grafana (alarm `MiniShopMetricsNearLimit` ve zvláštním souboru – zdroj `grafanacloud-usage`; Alloy 384 MiB; metrika `minishop.queue.consumers` + alarmy `MiniShopQueueNoConsumer` a `MiniShopQueueSilent`, panel Posluchači front) | hotovo (nasazeno 17. 11. 2026; v Grafaně ověřeno: posluchači front – sklad 1, fronty Webu 2; 12 alarmů Normal, limit řad ze zdroje `grafanacloud-usage`) | `docs/kroky-mikroservisy/krok-m0-priprava.md` |
-| M1. Reporting jako služba (`MiniShop.Reporting.Api` – handlery, `SalesReportOnStartupWorker`, API `/api/sales` se servisním klíčem `REPORTING_API_KEY`; Web `ReportingApiClient` + upozornění při výpadku; `ApiKeyAuthenticationHandler`/`ServiceApiKeyHandler` v ServiceDefaults; Compose, CI, `deploy.sh` – služba před Webem) | hotovo lokálně (necommitováno) | `docs/kroky-mikroservisy/krok-m1-reporting.md` |
-| M2A. Interní API Webu pro Notifications (kontakt, role, název produktu, PDF) – expand | plán | — |
+| M1. Reporting jako služba (`MiniShop.Reporting.Api` – handlery, `SalesReportOnStartupWorker`, API `/api/sales` se servisním klíčem `REPORTING_API_KEY`; Web `ReportingApiClient` + upozornění při výpadku; `ApiKeyAuthenticationHandler`/`ServiceApiKeyHandler` v ServiceDefaults; Compose, CI, `deploy.sh` – služba před Webem) | hotovo (nasazeno 17. 11. 2026 jako `sha-454ffdc` bez odstávky; v produkci ověřeno: `reporting-api` healthy, frontu `minishop.reporting` poslouchá jen služba, Přehled tržeb a Přestavět fungují) | `docs/kroky-mikroservisy/krok-m1-reporting.md` |
+| M2A. Interní API Webu pro Notifications – expand (`InternalController` `/internal/…` jen se servisním klíčem `WEB_INTERNAL_API_KEY` – schéma `ApiKey` vedle cookie, politika `InternalApi.PolicyName`; Caddy `/internal/*` → 404; klient `WebInternalApiClient` v Infrastructure + test kontraktu `InternalApiTests`; `deploy.sh` připravený i na M2B) | hotovo lokálně (necommitováno) | `docs/kroky-mikroservisy/krok-m2a-interni-api.md` |
 | M2B. Notifications jako služba (`MiniShop.Notifications.Api`, `NotificationsApiClient`) | plán | — |
 | M3. Vyhodnocení – pokračovat, nebo zastavit | plán | — |
 

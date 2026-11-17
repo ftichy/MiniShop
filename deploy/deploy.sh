@@ -14,6 +14,8 @@
 #   SMTP_PASSWORD=abcdefghijklmnop                   (účty krok 5, volitelný – heslo aplikace Gmailu)
 #   INVENTORY_API_KEY=<64 hex znaků>                  (účty krok 7, povinný – servisní klíč skladu)
 #   REPORTING_API_KEY=<64 hex znaků>                  (mikroservisy M1, povinný – servisní klíč služby přehledu tržeb)
+#   WEB_INTERNAL_API_KEY=<64 hex znaků>               (mikroservisy M2A, povinný – klíč interního API Webu /internal/…)
+#   NOTIFICATIONS_API_KEY=<64 hex znaků>              (mikroservisy M2B, volitelný – servisní klíč služby Notifications)
 #   PAYMENTS_WEBHOOK_SECRET=<64 hex znaků>            (e-shop krok 8, povinný – podpis webhooku platební brány)
 #   POSTGRES_PASSWORD=<24–128 písmen/číslic>          (škálování krok 3, povinný – databáze PostgreSQL)
 #   GOOGLE_CLIENT_SECRET=GOCSPX-…                     (účty krok 10, volitelný – OAuth klient Googlu pro přihlášení)
@@ -57,6 +59,8 @@ healthchecks_backup_url=""
 smtp_password=""
 inventory_api_key=""
 reporting_api_key=""
+web_internal_api_key=""
+notifications_api_key=""
 payments_webhook_secret=""
 postgres_password=""
 google_client_secret=""
@@ -91,6 +95,14 @@ if [ ! -t 0 ]; then
                 # Mikroservisy M1: servisní klíč mezi Webem a službou přehledu tržeb = 64 hex znaků (openssl rand -hex 32).
                 [[ "$value" =~ ^[0-9a-f]{64}$ ]] || { echo "Chybný REPORTING_API_KEY (čekám 64 malých hex znaků)." >&2; exit 2; }
                 reporting_api_key="$value" ;;
+            WEB_INTERNAL_API_KEY)
+                # Mikroservisy M2A: klíč interního API Webu (služby se jím ptají Webu na data jiných modulů) = 64 hex znaků.
+                [[ "$value" =~ ^[0-9a-f]{64}$ ]] || { echo "Chybný WEB_INTERNAL_API_KEY (čekám 64 malých hex znaků)." >&2; exit 2; }
+                web_internal_api_key="$value" ;;
+            NOTIFICATIONS_API_KEY)
+                # Mikroservisy M2B: servisní klíč služby Notifications = 64 hex znaků. Prázdný = služba zatím není (M2A).
+                [[ -z "$value" || "$value" =~ ^[0-9a-f]{64}$ ]] || { echo "Chybný NOTIFICATIONS_API_KEY (čekám 64 malých hex znaků)." >&2; exit 2; }
+                notifications_api_key="$value" ;;
             PAYMENTS_WEBHOOK_SECRET)
                 # E-shop krok 8: tajemství pro podpis webhooku platební brány (HMAC) = 64 hex znaků (openssl rand -hex 32).
                 [[ "$value" =~ ^[0-9a-f]{64}$ ]] || { echo "Chybný PAYMENTS_WEBHOOK_SECRET (čekám 64 malých hex znaků)." >&2; exit 2; }
@@ -143,6 +155,8 @@ healthchecks_backup_url="${healthchecks_backup_url:-$(current HEALTHCHECKS_BACKU
 smtp_password="${smtp_password:-$(current SMTP_PASSWORD)}"
 inventory_api_key="${inventory_api_key:-$(current INVENTORY_API_KEY)}"
 reporting_api_key="${reporting_api_key:-$(current REPORTING_API_KEY)}"
+web_internal_api_key="${web_internal_api_key:-$(current WEB_INTERNAL_API_KEY)}"
+notifications_api_key="${notifications_api_key:-$(current NOTIFICATIONS_API_KEY)}"
 payments_webhook_secret="${payments_webhook_secret:-$(current PAYMENTS_WEBHOOK_SECRET)}"
 google_client_secret="${google_client_secret:-$(current GOOGLE_CLIENT_SECRET)}"
 stripe_secret_key="${stripe_secret_key:-$(current STRIPE_SECRET_KEY)}"
@@ -153,6 +167,7 @@ push_vapid_private_key="${push_vapid_private_key:-$(current PUSH_VAPID_PRIVATE_K
 [ -n "$basic_auth_hash" ] || { echo "Chybí BASIC_AUTH_HASH (na vstupu ani v .env)." >&2; exit 2; }
 [ -n "$inventory_api_key" ] || { echo "Chybí INVENTORY_API_KEY (na vstupu ani v .env)." >&2; exit 2; }
 [ -n "$reporting_api_key" ] || { echo "Chybí REPORTING_API_KEY (na vstupu ani v .env)." >&2; exit 2; }
+[ -n "$web_internal_api_key" ] || { echo "Chybí WEB_INTERNAL_API_KEY (na vstupu ani v .env)." >&2; exit 2; }
 [ -n "$payments_webhook_secret" ] || { echo "Chybí PAYMENTS_WEBHOOK_SECRET (na vstupu ani v .env)." >&2; exit 2; }
 previous_postgres_password=$(current POSTGRES_PASSWORD)
 postgres_password="${postgres_password:-$previous_postgres_password}"
@@ -186,6 +201,8 @@ chmod 755 "$work"/*.sh 2>/dev/null || true
         [ -n "$smtp_password" ] && echo "SMTP_PASSWORD=$smtp_password"
         echo "INVENTORY_API_KEY=$inventory_api_key"
         echo "REPORTING_API_KEY=$reporting_api_key"
+        echo "WEB_INTERNAL_API_KEY=$web_internal_api_key"
+        [ -n "$notifications_api_key" ] && echo "NOTIFICATIONS_API_KEY=$notifications_api_key"
         echo "PAYMENTS_WEBHOOK_SECRET=$payments_webhook_secret"
         echo "POSTGRES_PASSWORD=$postgres_password"
         [ -n "$google_client_secret" ] && echo "GOOGLE_CLIENT_SECRET=$google_client_secret"
@@ -286,19 +303,22 @@ if [ -f "$work/rolling-update.sh" ]; then
     # (--no-deps: jinak by Compose kvůli depends_on caddy → web vyměnil Web naráz), pak sklad a Web
     # kopii po kopii bez výpadku (rolling-update.sh). Commit bez skriptu (starší) = dosavadní způsob.
     services=$(docker compose config --services)
-    infra=$(echo "$services" | grep -vx -e web -e inventory-api -e reporting-api)
+    infra=$(echo "$services" | grep -vx -e web -e inventory-api -e reporting-api -e notifications-api)
     docker compose up -d --no-deps --remove-orphans --wait --wait-timeout 180 $infra || rollback
     # Nové nastavení Caddy (např. krátké dial_timeout) musí platit už během výměny kopií – při prvním nasazení
     # kroku 5B se načetlo až po ní a požadavek na odstraněnou kopii čekal 3 s → 502.
     reload_caddy_if_changed
     restart_alloy_if_changed
     ./rolling-update.sh inventory-api 1 || rollback
-    # Mikroservisy M1: přehled tržeb PŘED Webem – chvíli poslouchá frontu minishop.reporting spolu se starými kopiemi
-    # Webu (inbox ve schématu reporting je společný, nic se nezpracuje dvakrát), nové kopie Webu už ji neposlouchají.
+    # Mikroservisy M1/M2B: služby vyjmuté z Webu PŘED Webem – chvíli poslouchají frontu modulu spolu se starými kopiemi
+    # Webu (inbox ve schématu modulu je společný, nic se nezpracuje dvakrát), nové kopie Webu už ji neposlouchají.
     # Starší commity (rollback) službu nemají – pak ji --remove-orphans výše odstranil a frontu převezme starý Web.
-    if echo "$services" | grep -qx reporting-api; then
-        ./rolling-update.sh reporting-api 1 || rollback
-    fi
+    # notifications-api je tu dopředu (M2A) – M2B pak deploy.sh na VM znovu instalovat nemusí.
+    for extracted in reporting-api notifications-api; do
+        if echo "$services" | grep -qx "$extracted"; then
+            ./rolling-update.sh "$extracted" 1 || rollback
+        fi
+    done
     web_replicas=$(current WEB_REPLICAS)
     ./rolling-update.sh web "${web_replicas:-1}" || rollback
 else

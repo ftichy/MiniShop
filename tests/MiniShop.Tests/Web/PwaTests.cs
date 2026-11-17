@@ -121,6 +121,27 @@ public sealed partial class PwaTests(MiniShopWebFactory web)
         Assert.Matches("class=\"tab-bar-item active\"[^>]*data-track=\"tab-shop\"", customer);   // jsem ve výloze
     }
 
+    /// <summary>
+    /// Vzhled krok E: tmavý režim – theme.js je v hlavičce PŘED styly a bez defer/async (nastaví data-bs-theme dřív,
+    /// než se stránka vykreslí – jinak bílé probliknutí), přepínač v patičce, barva lišty pro světlý i tmavý systém.
+    /// </summary>
+    [Fact]
+    public async Task TmavyRezim_SkriptVHlavicce_PrepinacVPaticce()
+    {
+        var html = await web.CreateBrowser().GetStringAsync("/");
+
+        var head = html[..html.IndexOf("</head>", StringComparison.Ordinal)];
+        var script = Regex.Match(head, "<script[^>]*src=\"/js/theme\\.js[^\"]*\"[^>]*>");
+        Assert.True(script.Success, "theme.js chybí v <head>");
+        Assert.DoesNotMatch("defer|async", script.Value);
+        Assert.True(script.Index < head.IndexOf("site.css", StringComparison.Ordinal), "theme.js musí být před styly");
+        Assert.Contains("content=\"#161b26\" media=\"(prefers-color-scheme: dark)\"", head);
+
+        Assert.Contains("data-theme-choice=\"auto\"", html);
+        Assert.Contains("data-theme-choice=\"light\"", html);
+        Assert.Contains("data-theme-choice=\"dark\"", html);
+    }
+
     /// <summary>Položky pole v JavaScriptu: <c>const NAME = ['/a', '/b'];</c>.</summary>
     private static IReadOnlyList<string> ArrayItems(string script, string name)
     {

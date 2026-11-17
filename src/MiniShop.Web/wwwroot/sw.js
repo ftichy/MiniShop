@@ -11,7 +11,7 @@
 // Otisk souborů z PRECACHE (SHA-256 jejich obsahu za sebou – HTML bez znaků \r, ať nezáleží na koncích řádků
 // Windows/Linux –, prvních 12 znaků). Změna souboru = nový otisk = nový
 // service worker = nová mezipaměť. Po změně offline.html nebo ikony test PwaTests napíše správnou hodnotu.
-const PRECACHE_VERSION = '51a356b7f369';
+const PRECACHE_VERSION = '53e96d2bfb9a';
 const PRECACHE = ['/offline.html', '/icons/icon-192.png'];
 const OFFLINE_CACHE = `minishop-offline-${PRECACHE_VERSION}`;
 const STATIC_CACHE = 'minishop-static-v1';

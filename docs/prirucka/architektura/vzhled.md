@@ -20,6 +20,7 @@ ne hledání v šablonách. Proměnné `--ms-*` jsou naše, `--bs-*` přepisují
 | `--ms-radius` | `0.875rem` | zaoblení karet |
 | `--ms-tap` | `2.75rem` (44 px) | minimální dotyková plocha (ikony v hlavičce, štítky kategorií na dotykovém displeji) |
 | `--ms-chip-height` | `2.25rem` (36 px) | štítky kategorií na počítači – vždy na jeden řádek, řada se zalomí; na telefonu se posouvá prstem bez posuvníku |
+| `--ms-text`, `--ms-text-subtle`, `--ms-brand-text`, `--ms-header-bg`, `--ms-bar-bg`, `--ms-input-bg`, `--ms-table-head-bg` | (vzhled krok E) | barvy, které se v tmavém režimu mění – tmavé hodnoty v `[data-bs-theme=dark]` |
 
 Písmo je systémové (`system-ui`) – nic se nestahuje a na každém zařízení vypadá „domácky“.
 
@@ -158,6 +159,22 @@ v košíku se drží nad ní (`--ms-tab-bar-height`), `viewport-fit=cover` + `en
 Navazuje: **oznámení push** (e-shop krok 23, [Notifications](moduly/notifications.md#oznámení-push-e-shop-krok-23)). Mimo tento krok: **Google Play** přes TWA (Trusted Web Activity –
 balíček z této PWA, účet vývojáře a soubor `/.well-known/assetlinks.json`).
 
+## Tmavý režim (vzhled krok E)
+
+Výchozí je **Automaticky** – MiniShop je tmavý, když má tmavý vzhled telefon nebo počítač (i v nainstalované aplikaci).
+V patičce jde zvolit **Světlý / Tmavý**; volba se pamatuje jen v tomto prohlížeči (`localStorage`, bez serveru a účtu).
+
+- **Jak:** Bootstrap 5.3 přepne své komponenty (formuláře, nabídky, upozornění, tabulky…) sám atributem
+  `data-bs-theme="dark"` na `<html>`. Nastavuje ho [theme.js](code:src/MiniShop.Web/wwwroot/js/theme.js) – načítá se
+  v hlavičce **před styly a bez `defer`**, aby stránka při načtení bíle neprobliknula (hlídá `PwaTests`).
+- **Naše barvy:** proměnné `--ms-*` mají tmavé hodnoty v bloku `[data-bs-theme=dark]` v
+  [site.css](code:src/MiniShop.Web/wwwroot/css/site.css) (pozadí `#0d1117`, karty `#161b26`, barva značky jako text
+  světlejší `#a5b4fc` – `--ms-brand-text`; tlačítka zůstávají `#4f46e5`). Kontrast textu aspoň WCAG AA.
+- **Zůstává světlé:** QR kód 2FA (telefon tmavý nepřečte), pozadí fotek produktů, PDF faktury, e-maily.
+- **Dál:** lišta telefonu (`theme-color` pro světlý i tmavý systém), offline stránka podle systému, diagramy v
+  dokumentaci v tmavém tématu Mermaid (přepnutí = stránka se znovu načte), Bootstrap `btn-outline-secondary` čitelný ve tmě.
+- Bez JavaScriptu zůstává světlý vzhled. E2E scénář *Vzhled* ověří automatiku i ruční volbu.
+
 ## Ikony
 
 [Icons.cs](code:src/MiniShop.Web/Ui/Icons.cs) – pár ikon jako inline SVG (tvary z Bootstrap Icons, licence MIT):
@@ -165,7 +182,7 @@ balíček z této PWA, účet vývojáře a soubor `/.well-known/assetlinks.json
 
 ## Pravidla
 
-- Nová barva nebo rozměr = proměnná v `:root`, ne pevná hodnota v šabloně.
+- Nová barva nebo rozměr = proměnná v `:root`, ne pevná hodnota v šabloně. **Barva, která se ve tmě mění = i tmavá hodnota v `[data-bs-theme=dark]`** a kontrola v obou režimech (vzhled krok E).
 - Soubory z `wwwroot` vždy s `asp-append-version="true"` (jinak prohlížeč po nasazení použije starou verzi z cache).
 - Žádné inline `<script>` ani `onclick=` (CSP, hlídá `HardeningTests`); chování = soubor ve `wwwroot/js`
   nebo atributy Bootstrapu (`data-bs-toggle`).

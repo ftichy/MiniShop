@@ -113,7 +113,7 @@ Plán (výloha, košík, pokladna, expedice, platba, notifikace): [docs/Eshop-ro
 
 ## Vzhled
 
-Moderní vzhled a mobil – po krocích A (kostra a výloha), B (nákupní cesta), C (administrace), D (instalovatelná aplikace). Popis: [Vzhled a mobil](architektura/vzhled.md).
+Moderní vzhled a mobil – po krocích A (kostra a výloha), B (nákupní cesta), C (administrace), D (instalovatelná aplikace), E (tmavý režim). Popis: [Vzhled a mobil](architektura/vzhled.md).
 
 | Krok | Co přinesl | Souhrn |
 | --- | --- | --- |
@@ -121,6 +121,7 @@ Moderní vzhled a mobil – po krocích A (kostra a výloha), B (nákupní cesta
 | B | Nákupní cesta pro mobil – košík s kartami a spodní lištou, pokladna se souhrnem a volbami jako karty (sledování a přehrání beze změny), objednávky jako karty, detail s časovou osou, stránky účtu v kartě uprostřed (`_AccountLayout`) | [vzhled-b](code:docs/kroky-vzhled/krok-b-nakupni-cesta.md) |
 | C | Administrace pro mobil – jednotná hlavička s drobečkovou navigací (`_AdminHeader`), všechny tabulky responzivní v kartě, fronty Expedice jako seznam, formuláře v kartě, jemné barvy štítků | [vzhled-c](code:docs/kroky-vzhled/krok-c-administrace.md) |
 | D | Instalovatelná aplikace (PWA) – manifest a ikony, service worker (statické soubory z telefonu, stránky nikdy, bez sítě offline stránka), tlačítko instalace a návod pro iPhone, spodní lišta jako v mobilní aplikaci | [vzhled-d](code:docs/kroky-vzhled/krok-d-pwa.md) |
+| E | Tmavý režim – automaticky podle systému telefonu nebo počítače, ruční volba Světlý/Tmavý v patičce (pamatuje si ji prohlížeč), barvy jako proměnné s tmavými hodnotami, lišta telefonu, offline stránka a diagramy dokumentace ve tmě | [vzhled-e](code:docs/kroky-vzhled/krok-e-tmavy-rezim.md) |
 
 ## Spolupráce s agentem
 

@@ -33,7 +33,12 @@
     <meta charset="utf-8" />
     @* Vzhled krok D: viewport-fit=cover – na iPhonu stránka až k okrajům displeje, spodní lišta si odsadí „bradu“ (safe-area). *@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#4f46e5" />
+    @* Vzhled krok E: barva lišty telefonu podle světlého/tmavého systému; při ruční volbě ji přepíše theme.js. *@
+    <meta name="theme-color" content="#4f46e5" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#161b26" media="(prefers-color-scheme: dark)" />
+    <meta name="color-scheme" content="light dark" />
+    @* Vzhled krok E: tmavý režim – nastaví data-bs-theme dřív, než se stránka vykreslí (proto v hlavičce a bez defer). *@
+    <script src="~/js/theme.js" asp-append-version="true"></script>
     @* Vzhled krok D: instalovatelná aplikace (PWA) – manifest = jméno, ikony, spuštění bez lišty prohlížeče. *@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
@@ -145,7 +150,7 @@
                     @* Redesign A: hledání přímo z hlavičky – stejný formulář GET jako na stránce Obchod (/Shop?q=…). *@
                     <form class="header-search search-suggest my-2 my-lg-0 me-lg-3 flex-grow-1" method="get" action="/Shop" role="search">
                         <div class="input-group">
-                            <span class="input-group-text bg-white">@Icons.Search</span>
+                            <span class="input-group-text">@Icons.Search</span>
                             <input class="form-control border-start-0" type="search" name="q" placeholder="Hledat zboží…" aria-label="Hledat zboží" maxlength="100" data-track="nav-search"
                                    data-suggest="@Url.Content("~/api/catalog/suggest")" autocomplete="off" />
                         </div>
@@ -171,7 +176,7 @@
             @* Účty krok 12C: bez 2FA by zaměstnanec správu vůbec neviděl a nevěděl proč. *@
             <div class="alert alert-warning d-flex flex-wrap align-items-center gap-2" data-track="two-factor-required">
                 <span>Máte zaměstnaneckou roli – pro přístup do správy si nastavte <strong>dvoufázové ověření</strong>.</span>
-                <a class="btn btn-sm btn-outline-dark" href="@AccountsServiceCollectionExtensions.TwoFactorSetupPath">Nastavit</a>
+                <a class="btn btn-sm btn-warning" href="@AccountsServiceCollectionExtensions.TwoFactorSetupPath">Nastavit</a>
             </div>
         }
         @RenderBody()
@@ -190,7 +195,16 @@
         </div>
         @* Vzhled krok D: nabídka instalace – tlačítko ukáže pwa.js, jen když ji prohlížeč umí (Android/Chrome/Edge);
            na iPhonu instalace tlačítkem nejde, ukáže se návod. *@
-        <div class="container small mt-2">
+        <div class="container small mt-2 d-flex flex-wrap align-items-center gap-3">
+            @* Vzhled krok E: vzhled stránky – volbu si pamatuje prohlížeč (theme.js); bez JavaScriptu zůstane světlý. *@
+            <div class="theme-switch d-flex align-items-center gap-2" data-track="theme-switch">
+                <span class="text-body-secondary">Vzhled:</span>
+                <div class="btn-group" role="group" aria-label="Vzhled stránky">
+                    <button type="button" class="btn btn-outline-secondary" data-theme-choice="auto" aria-pressed="false" data-track="theme-auto">Automaticky</button>
+                    <button type="button" class="btn btn-outline-secondary" data-theme-choice="light" aria-pressed="false" data-track="theme-light">Světlý</button>
+                    <button type="button" class="btn btn-outline-secondary" data-theme-choice="dark" aria-pressed="false" data-track="theme-dark">Tmavý</button>
+                </div>
+            </div>
             <button type="button" class="btn btn-sm btn-outline-primary" data-pwa-install data-track="pwa-install" hidden>Nainstalovat aplikaci</button>
             <span class="text-body-secondary" data-pwa-ios-hint hidden>Aplikace na iPhonu: v Safari klepněte na <strong>Sdílet</strong> → <strong>Přidat na plochu</strong>.</span>
         </div>

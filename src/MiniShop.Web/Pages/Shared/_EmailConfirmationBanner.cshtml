@@ -9,7 +9,7 @@
     <div class="alert alert-warning d-flex flex-wrap align-items-center gap-2">
         <span>Potvrďte prosím e-mail <strong>@User.FindFirstValue(ClaimTypes.Email)</strong> – odkaz jsme poslali při registraci.</span>
         <form method="post" asp-page="/Account/ResendConfirmation" class="d-inline">
-            <button type="submit" class="btn btn-sm btn-outline-dark" data-track="resend-confirmation">Poslat znovu</button>
+            <button type="submit" class="btn btn-sm btn-warning" data-track="resend-confirmation">Poslat znovu</button>
         </form>
     </div>
 }

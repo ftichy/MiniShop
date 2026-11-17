@@ -29,6 +29,7 @@ public sealed class OutboxStatusSource(IEnumerable<IMessageStore> stores) : IOpe
 /// <summary>
 /// Observabilita G2: fronty modulů této služby v RabbitMQ – kolik zpráv čeká na consumer (backlog) a kolik leží
 /// v dead-letter frontě (stejný zdroj jako health check <c>dead-letters</c>). Štítek <c>queue</c> (např. <c>minishop.ordering</c>).
+/// Mikroservisy M0: i počet consumerů fronty – alarm, když služba běží, ale frontu nikdo neposlouchá.
 /// </summary>
 public sealed class RabbitMqQueueStatusSource(RabbitMqDeadLetterService queues) : IOperationalMetricsSource
 {
@@ -37,9 +38,11 @@ public sealed class RabbitMqQueueStatusSource(RabbitMqDeadLetterService queues) 
     public async Task<IReadOnlyList<OperationalReading>> ReadAsync(CancellationToken cancellationToken)
     {
         var readings = new List<OperationalReading>();
-        foreach (var (queue, count) in await queues.GetBacklogCountsAsync(cancellationToken))
+        foreach (var (queue, status) in await queues.GetQueueStatusesAsync(cancellationToken))
         {
-            readings.Add(new(OperationalMetrics.QueueBacklog, count, new KeyValuePair<string, object?>("queue", queue)));
+            var tag = new KeyValuePair<string, object?>("queue", queue);
+            readings.Add(new(OperationalMetrics.QueueBacklog, status.Messages, tag));
+            readings.Add(new(OperationalMetrics.QueueConsumers, status.Consumers, tag));
         }
 
         foreach (var (queue, count) in await queues.GetCountsAsync(cancellationToken))

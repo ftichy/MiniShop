@@ -55,6 +55,30 @@ groups:
           description: "Consumer nestíhá nebo neběží. Zkontrolujte, že běží služba, která frontu poslouchá (web: ordering, notifications…, inventory-api: inventory), a její logy."
           runbook_url: "https://minishop-tichy.cz/Docs/nasazeni/monitoring"
 
+      # Mikroservisy M0: stav fronty měří vedoucí kopie služby, které fronta patří. Běží-li služba bez consumeru,
+      # hlásí 0 (NoConsumer); spadne-li celá služba (nebo RabbitMQ), o její frontě nepřijde nic (Silent).
+      - alert: MiniShopQueueNoConsumer
+        expr: max by (queue) (minishop_queue_consumers) == 0
+        for: 5m
+        labels:
+          severity: warning
+          area: zpravy
+        annotations:
+          summary: "Frontu {{ $labels.queue }} 5 minut nikdo neposlouchá"
+          description: "Služba běží (hlásí stav), ale consumer RabbitMQ ne – zprávy se hromadí a nikdo je nezpracuje. Logy služby (docker compose logs <služba> | grep RabbitMQ), pak restart služby (docker compose restart <služba>)."
+          runbook_url: "https://minishop-tichy.cz/Docs/nasazeni/monitoring"
+
+      - alert: MiniShopQueueSilent
+        expr: count by (queue) (max_over_time(minishop_queue_backlog[1d])) unless count by (queue) (minishop_queue_backlog)
+        for: 5m
+        labels:
+          severity: critical
+          area: zpravy
+        annotations:
+          summary: "O frontě {{ $labels.queue }} 5 minut nepřišel stav"
+          description: "Služba, které fronta patří, neběží, nemá vedoucí kopii, nebo je nedostupný RabbitMQ. Na VM docker compose ps (stav služeb a rabbitmq), /health a /health/inventory, logy služby. Alarm sám zmizí do dne po přejmenování nebo zrušení fronty."
+          runbook_url: "https://minishop-tichy.cz/Docs/nasazeni/monitoring"
+
   - name: minishop-objednavky
     interval: 1m
     rules:

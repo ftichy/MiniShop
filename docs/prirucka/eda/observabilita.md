@@ -87,6 +87,7 @@ počítadlo projetých aut vs. pohled na parkoviště, kolik jich právě stojí
 | `minishop_outbox_poison` | zprávy, které vyčerpaly pokusy – čekají na člověka | `module` |
 | `minishop_queue_backlog` | zprávy čekající ve frontě modulu v RabbitMQ | `queue` |
 | `minishop_queue_dead_letters` | zprávy v `minishop.{modul}.dead` | `queue` |
+| `minishop_queue_consumers` | consumery, které frontu poslouchají (všechny kopie služby; 0 = zprávy nikdo nezpracuje) | `queue` |
 | `minishop_saga_active` | rozpracované ságy (konečné stavy se nehlásí) | `saga` (order/return), `state` |
 | `minishop_order_confirmation_duration_seconds` | histogram: od založení objednávky po potvrzení ságou | `payment` (none/card/cashondelivery) |
 

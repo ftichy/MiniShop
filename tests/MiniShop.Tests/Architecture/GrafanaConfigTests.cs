@@ -28,10 +28,25 @@ public sealed partial class GrafanaConfigTests
         Assert.Equal(panels.Count, panels.Select(p => p.GetProperty("id").GetInt32()).Distinct().Count());
     }
 
+    /// <summary>Mikroservisy M0: alarmy limitů (jiný zdroj dat → vlastní soubor a složka) hlídá test i promtool v CI.</summary>
+    private static string[] AlertFileNames() =>
+        Directory.GetFiles(GrafanaDirectory, "minishop-alarmy*.yaml").Select(f => Path.GetFileName(f)).Order().ToArray();
+
+    public static TheoryData<string> AlertFiles() => new(AlertFileNames());
+
     [Fact]
-    public void Alarmy_KazdyMaTrvaniPopisANavod()
+    public void Alarmy_VsechnySouboryKontrolujeCi()
     {
-        var text = File.ReadAllText(Path.Combine(GrafanaDirectory, "minishop-alarmy.yaml"));
+        var ci = File.ReadAllText(Path.Combine(FindRepositoryRoot(), ".github", "workflows", "ci.yml"));
+        Assert.Contains("minishop-alarmy-limity.yaml", AlertFileNames());
+        Assert.All(AlertFileNames(), file => Assert.Contains($"/rules/{file}", ci));
+    }
+
+    [Theory]
+    [MemberData(nameof(AlertFiles))]
+    public void Alarmy_KazdyMaTrvaniPopisANavod(string file)
+    {
+        var text = File.ReadAllText(Path.Combine(GrafanaDirectory, file));
         var rules = AlertStart().Split(text).Skip(1).ToList();
 
         Assert.NotEmpty(rules);

@@ -39,7 +39,7 @@ src/MiniShop.ServiceDefaults AddServiceDefaults (service discovery, HTTP resilie
 src/MiniShop.AppHost         .NET Aspire: RabbitMQ (persistentní kontejner) + inventory-api + web, dashboard
 tests/MiniShop.Tests         testy domény, OrderService + ságy + katalogu (PostgreSQL přes Testcontainers, oba moduly v procesu), dispatcheru,
                              outboxu, inboxu, kontraktů, architektury, InventoryApiClient
-tests/MiniShop.E2E           E2E testy v prohlížeči (Playwright, Chromium) nad spuštěnou aplikací; bez `E2E_BASE_URL` se přeskočí; CI job „E2E testy“ (nepovinný), `deploy/compose.e2e.yaml` (Mailpit)
+tests/MiniShop.E2E           E2E testy v prohlížeči (Playwright, Chromium) nad spuštěnou aplikací; bez `E2E_BASE_URL` se přeskočí; CI job „E2E testy“ (povinný od 17. 11. 2026), `deploy/compose.e2e.yaml` (Mailpit)
 docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), diagramy/
 ```
 
@@ -362,7 +362,7 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   Image publikuje CI jen z `main` po zelených testech (`ghcr.io/ftichy/minishop-web`, `…/minishop-inventory-api`, veřejné,
   amd64+arm64). Lokálně `IMAGE_PREFIX` prázdný → `minishop-…:local` z `build:`.
   Z PowerShellu přes `ssh "…"` pozor na `\n` a uvozovky – skript poslat souborem.
-- CD (krok 8): po sloučení do `main` CI → `images` → `deploy` (`.github/workflows/deploy.yml`, environment `production`):
+- CD (krok 8): po sloučení do `main` CI → `images` + `e2e` + `zap` → `deploy` (`.github/workflows/deploy.yml`, environment `production`):
   runner přes Tailscale (`tag:ci`, OAuth) → `ssh deploy@100.126.167.103 "<celý SHA>"` → vynucený příkaz
   `/usr/local/bin/minishop-deploy` (= `deploy/deploy.sh`; stáhne `deploy/` z GitHubu pro commit, `pull`, `up --wait`,
   rollback). Ruční nasazení/rollback: *Actions → Deploy → Run workflow* se SHA, nebo na VM
@@ -414,7 +414,7 @@ Rozpočet max. 100 Kč/měsíc. Souhrny kroků do `docs/kroky-cloud/`. Kroky v c
   Nová DB = `DATABASES`, nová složka s daty = `DIRECTORIES` v `backup.py` (od e-shop kroku 2B i `/inventory/images`). Před rizikovou akcí ruční záloha `sudo systemctl start minishop-backup`.
 - CI (krok 6): workflow „CI“, job „Build a testy“ (= povinný status check v rulesetu, jméno neměnit; testy nad PostgreSQL – Testcontainers). Repozitář `ftichy/MiniShop` je veřejný –
   nic tajného do gitu. `main` jen přes PR se zeleným CI (bez přímého push). SDK určuje `global.json` (10.0.200, `latestFeature`).
-  Nepovinné joby „E2E testy“ a „ZAP sken“ (OWASP ZAP baseline, pasivní, pravidla s odůvodněním v `.github/zap/rules.tsv` – FAIL = co splňujeme,
+  Povinné jsou i joby „E2E testy“ a „ZAP sken“ (od 17. 11. 2026, ruleset podle jména jobu – nepřejmenovávat; nasazení na ně čeká) (OWASP ZAP baseline, pasivní, pravidla s odůvodněním v `.github/zap/rules.tsv` – FAIL = co splňujeme,
   IGNORE = falešný poplach s důvodem; nový nález = opravit nebo IGNORE s důvodem; verze `ZAP_IMAGE` ručně).
   Nový projekt/závislost = ověřit, že CI na Linuxu projde.
 

@@ -28,6 +28,9 @@ concurrency:
 permissions:
   contents: read
 
+# Povinné kontroly v rulesetu main-protection (GitHub → Settings → Rules): „Build a testy“, „E2E testy“, „ZAP sken“
+# (od 17. 11. 2026 všechny tři). Ruleset je hlídá podle JMÉNA jobu (name:) – přejmenování = PR čeká na kontrolu,
+# která nikdy nepřijde, a nejde sloučit. Změna jména = nejdřív upravit ruleset.
 jobs:
   build-and-test:
     name: Build a testy
@@ -159,7 +162,8 @@ jobs:
 
   # E2E testy v prohlížeči (Playwright, tests/MiniShop.E2E): celý e-shop se spustí v Compose (Web + Inventory.Api + PostgreSQL +
   # RabbitMQ + Mailpit z deploy/compose.e2e.yaml) a Chromium projde nákupní cestu jako zákazník a admin.
-  # Zatím NENÍ povinný check a nic neblokuje (needs na něj nikdo nemá) – job „Build a testy“ zůstává beze změny.
+  # Povinná kontrola PR (ruleset) a na main na něm čeká nasazení (deploy needs) – aplikace, která v kontejneru
+  # nenastartuje nebo rozbije nákup, se nesloučí ani nenasadí. Nestabilní pád = Actions → Re-run failed jobs.
   # Žádné secrets: hesla pro Compose i admina se generují za běhu a po jobu zanikají s runnerem.
   e2e:
     name: E2E testy
@@ -281,7 +285,7 @@ jobs:
   # Bezpečnost C: OWASP ZAP baseline = PASIVNÍ sken (nic neútočí, jen prochází stránky jako návštěvník a čte odpovědi –
   # hlavičky, cookies, CSP, chybové stránky, knihovny se známou zranitelností). Aplikace běží v Compose jako v produkci
   # (jen compose.yaml, bez E2E doplňku). Pravidla s odůvodněním: .github/zap/rules.tsv (FAIL = job zčervená, IGNORE = neplatí pro nás).
-  # Stejně jako E2E: NENÍ povinný check, nasazení na něm nezávisí, žádné secrets.
+  # Stejně jako E2E: povinná kontrola PR a nasazení na něm čeká; žádné secrets.
   zap:
     name: ZAP sken
     runs-on: ubuntu-24.04
@@ -368,9 +372,11 @@ jobs:
         run: docker compose down -v
 
   # Cloud krok 8: po publikaci image z main se commit sám nasadí na VM (workflow deploy.yml).
+  # Od 17. 11. 2026 čeká i na E2E a ZAP (dřív jen na image – 16. 11. se tak nasadil obraz s .NET 11, který nenastartoval
+  # a zachránil to až rollback v deploy.sh).
   deploy:
     name: Nasazení
-    needs: images
+    needs: [images, e2e, zap]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     uses: ./.github/workflows/deploy.yml
     with:

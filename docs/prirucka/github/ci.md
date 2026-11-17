@@ -15,8 +15,8 @@ Kód: [ci.yml](code:.github/workflows/ci.yml)
 flowchart LR
     t["build-and-test<br/>'Build a testy'<br/>PostgreSQL (Testcontainers)"] --> i["images (matrix)<br/>web, inventory-api"]
     i --> d["deploy<br/>jen main"]
-    e["e2e<br/>'E2E testy'<br/>Playwright, nepovinný"]
-    z["zap<br/>'ZAP sken'<br/>OWASP ZAP, nepovinný"]
+    e["e2e<br/>'E2E testy'<br/>Playwright"] --> d
+    z["zap<br/>'ZAP sken'<br/>OWASP ZAP"] --> d
 
     click d "/Docs/github/cd"
 ```
@@ -26,9 +26,23 @@ flowchart LR
 | **Build a testy** | `restore` → `build -c Release` → `test` (nad PostgreSQL – Testcontainers spustí `postgres:18-alpine` v Dockeru runneru, [Databáze – testy](../architektura/databaze.md)) | cache NuGet balíčků (klíč = otisk `.csproj`, `.props`, `global.json`), výsledky testů jako artefakt `.trx` (14 dní) |
 | ↳ **Kontrola alarmů Grafany** | krok v jobu *Build a testy*: `promtool check rules` nad `deploy/grafana/minishop-alarmy.yaml` (observabilita G3) | chybný alarm (YAML, PromQL) shodí povinný check – pozná se v PR, ne až při importu do Grafany |
 | **Image web / inventory-api** | Docker Buildx | PR: jen x86, nic se neukládá (rozbitý Dockerfile se pozná před sloučením). `main`: **amd64 + arm64** (QEMU) a push do GHCR |
-| **Nasazení** | volá `deploy.yml` | jen na `main`, až po úspěšných image – viz [CD](cd.md) |
-| **E2E testy** | celý e-shop v Compose + Playwright (Chromium) | PR i `main`, běží vedle ostatních jobů; **není povinný check** a nasazení neblokuje – viz sekce „E2E testy v prohlížeči“ níže |
-| **ZAP sken** | celý e-shop v Compose + pasivní bezpečnostní sken OWASP ZAP | PR i `main`, **není povinný check** a nasazení neblokuje – viz sekce „Bezpečnostní sken (OWASP ZAP)“ níže |
+| **Nasazení** | volá `deploy.yml` | jen na `main`, až po úspěšných image **a E2E i ZAP** (od 17. 11. 2026) – viz [CD](cd.md) |
+| **E2E testy** | celý e-shop v Compose + Playwright (Chromium) | PR i `main`, běží vedle ostatních jobů; **povinný check** a nasazení na něj čeká – viz sekce „E2E testy v prohlížeči“ níže |
+| **ZAP sken** | celý e-shop v Compose + pasivní bezpečnostní sken OWASP ZAP | PR i `main`, **povinný check** a nasazení na něj čeká – viz sekce „Bezpečnostní sken (OWASP ZAP)“ níže |
+
+## Povinné kontroly
+
+Ruleset `main-protection` ([Repozitář a ochrana](repozitar.md)) pustí PR do `main` jen se zelenými joby
+**„Build a testy“, „E2E testy“ a „ZAP sken“** (E2E a ZAP povinné od 17. 11. 2026). Na `main` pak na všech čeká nasazení.
+
+- **Proč i E2E a ZAP:** „Build a testy“ ověří kód, ne kontejner. 16. 11. 2026 prošel PR od Dependabota s obrazem
+  `dotnet/aspnet:11.0`, aplikace pro .NET 10 v něm nenastartovala a zachránil to až rollback `deploy.sh`. E2E i ZAP
+  aplikaci v Compose spouštějí – takový PR už nejde sloučit.
+- **Ruleset hlídá jméno jobu** (`name:` v `ci.yml`) – přejmenování = PR čeká na kontrolu, která nikdy nepřijde.
+  Nejdřív upravit ruleset, pak jméno.
+- **Nestabilní pád** (občasný timeout v prohlížeči): Actions → běh → *Re-run failed jobs*. Opakující se pád = opravit test.
+- **Cena:** PR čeká, než doběhnou všechny tři (~5–7 min), nasazení začne o pár minut později. Výjimky v rulesetu nejsou
+  ani pro správce – při výpadku GitHubu nebo ghcr.io se nedá sloučit (vědomá daň).
 
 ## Důležitá nastavení
 

@@ -13,7 +13,7 @@ order: 1
 | --- | --- | --- |
 | General → Danger Zone | **Public** | rulesety se na bezplatném účtu vynucují jen u veřejných repozitářů (Pro by stál celý rozpočet); navíc Actions bez limitu a secret scanning zdarma |
 | Rules → Rulesets | **`main-protection`**, cíl: výchozí větev, *Active* | ochrana `main` |
-| – pravidla | zákaz smazání, zákaz force push, **povinný PR**, **povinný check „Build a testy“** (testy nad PostgreSQL; v krocích 2–3C i druhý job „Testy PostgreSQL“) | rozbitý kód se do `main` nedostane |
+| – pravidla | zákaz smazání, zákaz force push, **povinný PR**, **povinné checky „Build a testy“, „E2E testy“, „ZAP sken“** (E2E a ZAP od 17. 11. 2026, [CI](ci.md#povinné-kontroly); v krocích 2–3C i job „Testy PostgreSQL“) | rozbitý kód se do `main` nedostane |
 | – schválení | 0 povinných | jediný vývojář sám sobě schválit nemůže; ochranu dělá CI |
 | – bypass list | prázdný | pravidla platí i pro správce – „rychlá oprava přímo do main“ je přesně ta, co se rozbije |
 | Code security | **Secret scanning** + **Push protection** | GitHub odmítne push, ve kterém pozná heslo nebo token |
@@ -38,15 +38,15 @@ Každý jeho PR projde stejným CI jako jakákoli jiná změna; sloučení je ru
 `Microsoft.EntityFrameworkCore*`, `Microsoft.Extensions.*`, `System.*`, `Npgsql*` a image `dotnet/*`). Přechod z .NET 10
 na 11 je samostatný krok – SDK v `global.json`, image a všechny balíčky naráz. Runtime 11 aplikaci pro .NET 10 nespustí:
 16. 11. 2026 se sloučil image `dotnet/aspnet:11.0` pro sklad (PR #123), nová kopie byla nezdravá a `deploy.sh` vrátil
-předchozí verzi (Dockerfile vráceny na `10.0` v PR #136). **Pozor:** Dependabot PR prochází povinným „Build a testy“, ale
-spuštění kontejneru hlídají jen nepovinné „E2E testy“ a „ZAP sken“ – červené E2E/ZAP u Dependabota = nesloučit.
+předchozí verzi (Dockerfile vráceny na `10.0` v PR #136). Proto jsou od 17. 11. 2026 povinné i „E2E testy“ a „ZAP sken“, které aplikaci
+v kontejneru opravdu spouštějí – takový PR už GitHub sloučit nepustí ([CI – povinné kontroly](ci.md#povinné-kontroly)).
 Opravy `10.0.x` a nové verze ostatních knihoven (MailKit, Stripe…) chodí dál. Několik `Microsoft.Extensions.*` je už
 ve verzi 11.0.0 (PR #135) – na .NET 10 fungují, sladí se při přechodu na .NET 11.
 
 ## Pravidla práce
 
 1. Nová větev → commity → `git push` → pull request.
-2. CI musí zezelenat (povinný check „Build a testy“).
+2. CI musí zezelenat (povinné checky „Build a testy“, „E2E testy“, „ZAP sken“).
 3. Sloučení (merge commit) → automaticky build image a nasazení.
 
 ## Na internetu

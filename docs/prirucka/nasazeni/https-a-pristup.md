@@ -28,6 +28,8 @@ sequenceDiagram
         C-->>U: 301 → https://minishop-tichy.cz + stejná cesta
     else /health nebo /health/inventory
         C->>W: bez hesla (jen Healthy / Degraded / Unhealthy)
+    else /internal/… (mikroservisy M2A)
+        C-->>U: 404 – interní API Webu jen pro služby v síti Compose
     else dashboard.…
         C-->>U: 401 – zadejte heslo (basic auth, vždy)
     else cokoli jiného (účty krok 9: bez hesla)
@@ -55,6 +57,8 @@ Kód: [Caddyfile](code:deploy/Caddyfile), [compose.cloud.yaml](code:deploy/compo
 - **Caddyfile** – dva weby: `{$DOMAIN}` (aplikace) a `dashboard.{$DOMAIN}` (Aspire dashboard, **vždy** s heslem –
   logy obsahují údaje z objednávek) a přesměrování `{$LEGACY_DOMAIN}` (+ `dashboard.`) → 301 na novou doménu
   (cloud krok 13). Proměnné (`production.env` → `compose.cloud.yaml`) doplní Caddy z prostředí ještě před čtením souboru.
+- **`/internal/*` = 404** (mikroservisy M2A) – interní API Webu (pro službu Notifications) je dostupné jen v síti Compose;
+  servisní klíč `WEB_INTERNAL_API_KEY` je až druhá vrstva.
 - **Jen HTTP/1.1 a HTTP/2** – HTTP/3 by potřeboval UDP 443 v security listu i ve firewallu VM.
 - **Heslo jako bcrypt otisk** (`caddy hash-password`) – samotné heslo nikde neleží; otisk je secret
   `BASIC_AUTH_HASH` v GitHubu ([Secrets](../github/secrets.md)).

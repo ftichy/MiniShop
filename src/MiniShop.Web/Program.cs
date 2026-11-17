@@ -18,6 +18,7 @@ using MiniShop.Web.BackgroundServices;
 using MiniShop.Web.Catalog;
 using MiniShop.Web.Documentation;
 using MiniShop.Web.ErrorHandling;
+using MiniShop.Web.Internal;
 using MiniShop.Web.Extensions;
 using MiniShop.Web.Notifications;
 using MiniShop.Web.Security;
@@ -77,6 +78,8 @@ try
     builder.Services.AddReviewsInfrastructure(database);
     builder.Services.AddInvoicingInfrastructure(database);   // e-shop krok 15: faktury
     builder.Services.AddAccounts(database, builder.Configuration);
+    // Mikroservisy M2A: interní API /internal/… jen se servisním klíčem (WebInternalApi:ApiKey) – pro Notifications od M2B.
+    builder.Services.AddWebInternalApi(builder.Configuration);
 
     // Účty krok 8: zpevnění – limit odeslání formulářů účtu z jedné IP a HSTS (prohlížeč pak chodí jen přes HTTPS).
     builder.Services.AddAccountRateLimiting(builder.Configuration);

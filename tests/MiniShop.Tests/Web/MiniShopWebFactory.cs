@@ -35,6 +35,9 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
     public const string AdminEmail = "admin@test.local";
     public const string AdminPassword = "admin-heslo-pro-test";
     public const string UserEmail = "jan@test.local";
+
+    /// <summary>Mikroservisy M2A: servisní klíč interního API Webu (testy jím volají /internal/… jako budoucí služba Notifications).</summary>
+    public static readonly string InternalApiKey = new('i', 64);
     public const string UserPassword = "jan-heslo-pro-test";
     public const string WebhookSecret = "testovaci-tajemstvi-webhooku-plateb-pro-web-0123456789";
 
@@ -67,6 +70,7 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
         // Účty krok 7: servisní klíč skladu (sklad tu nahrazuje StubProductService, ale bez klíče by se Web nespustil).
         builder.UseSetting("InventoryApi:ApiKey", new string('k', 64));
         builder.UseSetting("ReportingApi:ApiKey", new string('r', 64));   // mikroservisy M1 (služba tu je FakeSalesReportApi)
+        builder.UseSetting("WebInternalApi:ApiKey", InternalApiKey);   // mikroservisy M2A: interní API /internal/…
         // Účty krok 8: limit formulářů účtu vysoko – testy se přihlašují stokrát z jedné „IP“. Limit zkouší vlastní test.
         builder.UseSetting("RateLimiting:AccountForms:PermitLimit", "100000");
         builder.UseSetting("RateLimiting:CatalogSuggest:PermitLimit", "100000");

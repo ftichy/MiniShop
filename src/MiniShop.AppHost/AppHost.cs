@@ -43,6 +43,10 @@ var reportingApi = builder.AddProject<Projects.MiniShop_Reporting_Api>("reportin
     .WithHttpHealthCheck("/health")
     .WithModuleDatabase(database);
 
+// Mikroservisy M2A: klíč interního API Webu (/internal/…) – služby (od M2B Notifications) se jím ptají Webu.
+var webInternalApiKey = builder.AddParameter("web-internal-api-key",
+    new GenerateParameterDefault { MinLength = 64, Special = false }, secret: true, persist: true);
+
 // Účty krok 5: "cvičná pošta" Mailpit – zachytí každý e-mail z Webu, nikam ven nic neodejde.
 // Pošta je vidět na webovém rozhraní (odkaz u prostředku "mailpit" v dashboardu).
 var mailpit = builder.AddContainer("mailpit", "axllent/mailpit", "v1.31.4")
@@ -57,6 +61,7 @@ builder.AddProject<Projects.MiniShop_Web>("web")
     .WithReference(reportingApi)
     .WithEnvironment("InventoryApi__ApiKey", inventoryApiKey)
     .WithEnvironment("ReportingApi__ApiKey", reportingApiKey)
+    .WithEnvironment("WebInternalApi__ApiKey", webInternalApiKey)
     .WithEnvironment("Payments__WebhookSecret", paymentsWebhookSecret)
     .WithEnvironment("Email__Host", mailpitSmtp.Property(EndpointProperty.Host))
     .WithEnvironment("Email__Port", mailpitSmtp.Property(EndpointProperty.Port))

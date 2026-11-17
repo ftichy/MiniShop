@@ -67,6 +67,12 @@
 		reverse_proxy inventory-api:8080
 	}
 
+	# Mikroservisy M2A: interní API Webu je jen pro služby v síti Compose – z internetu nikdy (ani se servisním klíčem).
+	# Klíč je druhá vrstva; tady se požadavek k Webu vůbec nedostane.
+	handle /internal/* {
+		respond 404
+	}
+
 	handle {
 		import auth-{$BASIC_AUTH:on}
 

@@ -135,6 +135,27 @@ sequenceDiagram
 - **Nový typ** = hodnota na konec `StaffAlertKind` + šablona v `PushTemplates` + `HandleAsync` ve `StaffPushHandler` +
   řádek v `StaffAlertRoles` (role, popisek) + registrace v `AddStaffPushHandlers`.
 
+## Závislosti na Webu a interní API (mikroservisy M2A)
+
+Notifications za běhu potřebuje data modulů, které běží ve Webu – přes čtyři rozhraní, která implementuje Web:
+
+| Rozhraní | K čemu | V procesu (dnes) | Přes HTTP (od M2B) |
+| --- | --- | --- | --- |
+| `ICustomerContacts` | potvrzený e-mail a souhlas při odeslání (připomínka košíku, „Dejte mi vědět“) | `IdentityCustomerContacts` | `GET /internal/customers/{id}/contact` |
+| `IStaffDirectory` | kdo z přihlášených k oznámení k práci má roli a není zablokovaný | `IdentityStaffDirectory` | `POST /internal/staff/allowed` |
+| `IProductNames` | název produktu do „Došlo zboží“ | `CatalogProductNames` | `GET /internal/products/{id}/name` |
+| `IInvoiceDocuments` | PDF faktury a dobropisu do přílohy | `InvoiceDocuments` | `GET /internal/orders/{id}/invoice`, `…/credit-notes/{číslo}` |
+
+- **Interní API** ([InternalController](code:src/MiniShop.Web/Controllers/InternalController.cs)) jen volá tytéž implementace – žádná
+  nová logika. Pustí **jen servisní klíč** `WEB_INTERNAL_API_KEY` ([InternalApi](code:src/MiniShop.Web/Internal/InternalApi.cs) –
+  druhé schéma ověření vedle cookie; cookie ani admina tu neplatí a klíč neotevře stránky). Z internetu ho Caddy
+  zavře (404) – [HTTPS a přístup](../../nasazeni/https-a-pristup.md).
+- **Klient budoucí služby** [WebInternalApiClient](code:src/MiniShop.Infrastructure/Notifications/WebInternalApiClient.cs) implementuje
+  všechna čtyři rozhraní: 404 = `null` (jako v procesu), jiná chyba = výjimka → zpráva se zopakuje a nakonec skončí
+  v dead-letter frontě (e-mail se neztratí). Shodu s implementacemi v procesu hlídá test kontraktu `InternalApiTests`.
+- **Proč dotaz a ne kopie ze zpráv:** osobní údaje (e-mail, souhlas) zůstanou jen v Accounts a platí v okamžiku
+  odeslání. Cena: když Web dlouho neběží, e-mail počká (po vyjmutí – [Mikroservisy-roadmap](code:docs/Mikroservisy-roadmap.md)).
+
 ## Proč samostatný modul
 
 - **Pub/sub:** nový kanál (SMS, push) = nový odběratel stejných událostí. Ordering se nemění (princip

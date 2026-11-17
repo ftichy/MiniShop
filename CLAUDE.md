@@ -78,7 +78,7 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   vlastní servisní klíč (`ServiceApiKey.Read(…, klíč)` + `AddServiceApiKeyAuthentication`, Web `ServiceApiKeyHandler`), zámek vedoucí
   `minishop.<služba>`, Dockerfile, AppHost, `compose.yaml` (+ `compose.grafana.yaml`, bez `depends_on` Webu, když bez ní Web běží),
   CI (matice `images`, build v E2E a ZAP + klíč v jejich `.env`), `deploy.sh` (secret, mimo `infra`, `rolling-update.sh` před Webem
-  jen když ji compose commitu má – **nový `deploy.sh` na VM před sloučením**), `deploy.yml`, `docs/secrets.md`, GHCR balíček **Public**.
+  jen když ji compose commitu má – **nový `deploy.sh` na VM před sloučením**), `deploy.yml`, `docs/secrets.md`, GHCR balíček **Public**. Zprávy služby na `/Admin/Messages` = `MessagesController` (kopie, logika v `MessagesOverview`) + řádek v `ServiceMessagesRegistration` (M2B).
   Přesun modulu bez odstávky = stejná fronta + stejný inbox (služba nejdřív, pak Web bez handlerů modulu).
   **Interní API Webu (M2A):** `/internal/…` (`InternalController`, politika `InternalApi.PolicyName` = jen klíč `WebInternalApi:ApiKey`,
   cookie ne; Caddy `/internal/*` → 404). **Nová data pro službu od Webu = endpoint tam + metoda `WebInternalApiClient` + řádek
@@ -293,7 +293,7 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   `Messaging:Retention:OutboxDays` 7 / `InboxDays` 30; mazat jen zpracované, poison nikdy; **inbox delší než nejdelší opakované doručení**),
   přehled a „Zkusit znovu“. Outbox: `NextAttemptAtUtc` + `OutboxProcessor.RetryDelay`. Consumer (`RabbitMqQueueConsumer`): selhání = kopie
   s hlavičkou `x-minishop-attempt` zpět do fronty + ack originálu, po `RabbitMqDeadLetters.MaxDeliveryAttempts` (5) nebo u nečitelné
-  zprávy do `minishop.{modul}.dead` (nové fronty – **existujícím frontám neměnit argumenty**). `/Admin/Messages`, health check `dead-letters`.
+  zprávy do `minishop.{modul}.dead` (nové fronty – **existujícím frontám neměnit argumenty**). `/Admin/Messages`, health check `dead-letters`. Od mikroservis M2B stránka ukazuje všechny služby (`IServiceMessages`, služby `/api/messages`).
 - **Průběh objednávky (krok 12):** modul Journeys (`…Journeys` ve všech vrstvách, hostuje ho Web, vlastní schéma `journeys`,
   bez zpráv → `JourneysDbContext` nedědí z `ModuleDbContext`). Proud `JourneyEvents` = jen INSERT, idempotence přes unikátní `EventId`
   z prohlížeče, řazení podle `OffsetMs` (čas od otevření formuláře). `ValidationFailed`/`OrderSubmitted` zapisuje jen server
@@ -634,8 +634,9 @@ přes stejnou frontu + inbox, UI ve Webu (služby REST API se servisním klíče
 | --- | --- | --- |
 | M0. Příprava a Grafana (alarm `MiniShopMetricsNearLimit` ve zvláštním souboru – zdroj `grafanacloud-usage`; Alloy 384 MiB; metrika `minishop.queue.consumers` + alarmy `MiniShopQueueNoConsumer` a `MiniShopQueueSilent`, panel Posluchači front) | hotovo (nasazeno 17. 11. 2026; v Grafaně ověřeno: posluchači front – sklad 1, fronty Webu 2; 12 alarmů Normal, limit řad ze zdroje `grafanacloud-usage`) | `docs/kroky-mikroservisy/krok-m0-priprava.md` |
 | M1. Reporting jako služba (`MiniShop.Reporting.Api` – handlery, `SalesReportOnStartupWorker`, API `/api/sales` se servisním klíčem `REPORTING_API_KEY`; Web `ReportingApiClient` + upozornění při výpadku; `ApiKeyAuthenticationHandler`/`ServiceApiKeyHandler` v ServiceDefaults; Compose, CI, `deploy.sh` – služba před Webem) | hotovo (nasazeno 17. 11. 2026 jako `sha-454ffdc` bez odstávky; v produkci ověřeno: `reporting-api` healthy, frontu `minishop.reporting` poslouchá jen služba, Přehled tržeb a Přestavět fungují) | `docs/kroky-mikroservisy/krok-m1-reporting.md` |
-| M2A. Interní API Webu pro Notifications – expand (`InternalController` `/internal/…` jen se servisním klíčem `WEB_INTERNAL_API_KEY` – schéma `ApiKey` vedle cookie, politika `InternalApi.PolicyName`; Caddy `/internal/*` → 404; klient `WebInternalApiClient` v Infrastructure + test kontraktu `InternalApiTests`; `deploy.sh` připravený i na M2B) | hotovo lokálně (necommitováno) | `docs/kroky-mikroservisy/krok-m2a-interni-api.md` |
-| M2B. Notifications jako služba (`MiniShop.Notifications.Api`, `NotificationsApiClient`) | plán | — |
+| M2A. Interní API Webu pro Notifications – expand (`InternalController` `/internal/…` jen se servisním klíčem `WEB_INTERNAL_API_KEY` – schéma `ApiKey` vedle cookie, politika `InternalApi.PolicyName`; Caddy `/internal/*` → 404; klient `WebInternalApiClient` v Infrastructure + test kontraktu `InternalApiTests`; `deploy.sh` připravený i na M2C) | hotovo (nasazeno 17. 11. 2026 jako `sha-83a9c0b`; v produkci ověřeno: z internetu `/internal/…` 404, zevnitř VM s klíčem 200) | `docs/kroky-mikroservisy/krok-m2a-interni-api.md` |
+| M2B. Zprávy ze všech služeb (`MessagesOverview` ve sdíleném jádru, `MessagesController` `/api/messages` v každé službě, `/Admin/Messages` přes `IServiceMessages` – Web v procesu, ostatní HTTP, nedostupná služba jen upozornění) | hotovo lokálně (necommitováno) | `docs/kroky-mikroservisy/krok-m2b-zpravy-vsech-sluzeb.md` |
+| M2C. Notifications jako služba (`MiniShop.Notifications.Api`, `NotificationsApiClient`; `deploy.sh` na VM už připravený) | plán | — |
 | M3. Vyhodnocení – pokračovat, nebo zastavit | plán | — |
 
 ## Stav observability (viz `docs/Observabilita-roadmap.md`)

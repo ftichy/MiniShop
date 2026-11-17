@@ -11,7 +11,7 @@ namespace MiniShop.Web.Controllers;
 /// Mikroservisy M2A: interní API Webu pro modul Notifications – stejné odpovědi jako implementace v procesu
 /// (<see cref="ICustomerContacts"/>, <see cref="IStaffDirectory"/>, <see cref="IProductNames"/>,
 /// <see cref="IInvoiceDocuments"/>), jen přes HTTP. Žádná nová logika: pravidla (jen potvrzený e-mail, role při odeslání,
-/// blokace) zůstávají na jednom místě. Dokud Notifications běží ve Webu (do M2B), API nikdo nevolá – ověří se předem.
+/// blokace) zůstávají na jednom místě. Dokud Notifications běží ve Webu (do M2C), API nikdo nevolá – ověří se předem.
 /// </summary>
 /// <remarks>
 /// Jen se servisním klíčem (<see cref="InternalApi.PolicyName"/>). V adrese jen ID – e-mail a jméno jsou jen v těle

@@ -1,7 +1,7 @@
 # Mikroservisy krok M0: příprava a hlídání v Grafaně
 
 Plán: [Mikroservisy-roadmap](../Mikroservisy-roadmap.md). Kód modulů se nemění – jen hlídání, které po vyjmutí
-Reportingu a Notifications (M1, M2B) začne být potřeba.
+Reportingu a Notifications (M1, M2C) začne být potřeba.
 
 ## Jak to funguje
 
@@ -31,7 +31,7 @@ A **Alloy** (třídírna telemetrie) bral 184 z 256 MiB – limit zvednut na 384
 ## Nové soubory
 
 - `deploy/grafana/minishop-alarmy-limity.yaml` – alarm limitu řad (zdroj `grafanacloud-usage`, složka „MiniShop limity“).
-- `docs/Mikroservisy-roadmap.md` – plán (M0 → M1 Reporting → M2A/M2B Notifications → M3 vyhodnocení).
+- `docs/Mikroservisy-roadmap.md` – plán (M0 → M1 Reporting → M2A interní API → M2B zprávy všech služeb → M2C Notifications → M3 vyhodnocení).
 
 ## Změněné soubory
 

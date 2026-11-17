@@ -33,8 +33,8 @@ flowchart LR
 - **Přechod bez odstávky:** při nasazení chvíli poslouchá frontu stará kopie Webu i nová služba – RabbitMQ dá zprávu
   jen jednomu a inbox ve schématu `reporting` je společný, takže nic neproběhne dvakrát. `deploy.sh` proto spouští
   `reporting-api` **před** Webem.
-- **Stránka Zprávy** (`/Admin/Messages`) ukazuje jen moduly Webu – outbox a dead-letter frontu Reportingu hlídají
-  alarmy (`MiniShopDeadLetter`, `MiniShopOutboxPoison`). Ztracenou zprávu napraví tlačítko *Přestavět*.
+- **Stránka Zprávy** (`/Admin/Messages`) ukazuje od mikroservis M2B i zprávy této služby (přes její `/api/messages`) –
+  *Zkusit znovu* a *Vrátit do fronty* fungují stejně jako u modulů Webu. Hlídají je i alarmy (`MiniShopDeadLetter`, `MiniShopOutboxPoison`).
 
 ## Součásti
 

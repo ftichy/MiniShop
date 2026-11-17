@@ -55,7 +55,7 @@ Ordering, Payments ── OrderPlacedV2, PaymentRefundedV1, … ──► Rabbit
 - **Klíč pro každou službu** – uniklý klíč skladu přehled neotevře a naopak.
 - **Web na službu nečeká** (`depends_on` ne) – bez ní běží, jen přehled hlásí nedostupnost.
 - **Stránka Zprávy (`/Admin/Messages`) Reporting neukazuje** (jako sklad) – zprávy hlídají alarmy z G3/M0 a ztracenou
-  zprávu napraví *Přestavět*. U Notifications (M2B) to nepůjde – tam přibude vzdálené zobrazení zpráv.
+  zprávu napraví *Přestavět*. U Notifications to nepůjde – proto vzdálené zobrazení zpráv.
 - **Jedna kopie služby** – zprávy při výpadku počkají; vedoucí kopie (`minishop.reporting-api`) je připravená na víc.
 
 ## Známá omezení

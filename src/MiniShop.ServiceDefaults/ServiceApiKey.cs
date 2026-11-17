@@ -18,7 +18,7 @@ public static class ServiceApiKey
 
     /// <summary>
     /// Mikroservisy M2A: klíč interního API Webu (<c>/internal/…</c>, <c>WebInternalApi__ApiKey</c>, secret
-    /// <c>WEB_INTERNAL_API_KEY</c>) – služby (od M2B Notifications) se jím ptají Webu na data jiných modulů.
+    /// <c>WEB_INTERNAL_API_KEY</c>) – služby (od M2C Notifications) se jím ptají Webu na data jiných modulů.
     /// </summary>
     public const string WebInternalConfigurationKey = "WebInternalApi:ApiKey";
 

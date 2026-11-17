@@ -35,6 +35,8 @@ public sealed class InventoryApiAuthenticationTests : IClassFixture<InventoryApi
         { "PUT", "/api/products/1" },
         { "POST", "/api/products/1/stock" },
         { "DELETE", "/api/products/1" },
+        { "GET", "/api/messages" },                                    // mikroservisy M2B
+        { "POST", "/api/messages/queues/minishop.inventory/requeue" },
     };
 
     [Theory]
@@ -67,6 +69,22 @@ public sealed class InventoryApiAuthenticationTests : IClassFixture<InventoryApi
         var products = await client.GetFromJsonAsync<List<ProductDto>>("/api/products");
 
         Assert.NotEmpty(products!);   // seed skladu
+    }
+
+    /// <summary>Mikroservisy M2B: provoz zpráv skladu pro stránku /Admin/Messages ve Webu.</summary>
+    [Fact]
+    public async Task Zpravy_SeKlicem_ModulInventoryACiziFrontaNe()
+    {
+        var client = _api.CreateClient();
+        client.DefaultRequestHeaders.Add(ServiceApiKey.HeaderName, InventoryApiFactory.ApiKey);
+
+        var status = await client.GetFromJsonAsync<MiniShop.Infrastructure.Hosting.ServiceMessagesStatus>("/api/messages");
+        var retry = await client.PostAsync($"/api/messages/Inventory/{Guid.NewGuid()}/retry", content: null);
+        var foreignQueue = await client.PostAsync("/api/messages/queues/minishop.ordering/requeue", content: null);
+
+        Assert.Equal(["Inventory"], status!.Modules.Select(m => m.Module));
+        Assert.False((await retry.Content.ReadFromJsonAsync<MiniShop.Infrastructure.Hosting.MessageRetryResult>())!.Retried);
+        Assert.Equal(HttpStatusCode.BadRequest, foreignQueue.StatusCode);   // fronta Webu skladu nepatří
     }
 
     [Theory]

@@ -16,6 +16,7 @@ using MiniShop.Infrastructure.Ordering;
 using MiniShop.Application.Notifications;
 using MiniShop.Tests.TestDoubles;
 using MiniShop.Web.Accounts;
+using MiniShop.Web.Messages;
 using MiniShop.Web.Reporting;
 
 namespace MiniShop.Tests.Web;
@@ -56,6 +57,12 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
     /// <summary>Mikroservisy M1: služba přehledu tržeb (Reporting.Api v testech Webu neběží).</summary>
     public FakeSalesReportApi SalesReports { get; } = new();
 
+    /// <summary>Mikroservisy M2B: zprávy skladu na stránce /Admin/Messages (Inventory.Api v testech Webu neběží).</summary>
+    public FakeServiceMessages InventoryMessages { get; } = new("inventory-api", "Inventory", "minishop.inventory");
+
+    /// <summary>Mikroservisy M2B: zprávy služby přehledu tržeb.</summary>
+    public FakeServiceMessages ReportingMessages { get; } = new("reporting-api", "Reporting", "minishop.reporting");
+
     /// <summary>Škálování krok 5: workery, které Web registruje (před odebráním pro testy) – hlídá je <c>WebWorkersTests</c>.</summary>
     public List<Type> RegisteredWorkers { get; private set; } = [];
 
@@ -94,6 +101,10 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
             services.AddSingleton<IProductImageService, StubProductImageService>();
             services.RemoveAll<ISalesReportApi>();
             services.AddSingleton<ISalesReportApi>(SalesReports);
+            services.RemoveAll<IServiceMessages>();   // mikroservisy M2B: Web v procesu, ostatní služby podvržené
+            services.AddScoped<IServiceMessages, LocalServiceMessages>();
+            services.AddSingleton<IServiceMessages>(InventoryMessages);
+            services.AddSingleton<IServiceMessages>(ReportingMessages);
 
             // Účty krok 5: e-maily do „schránky“ testů – odkazy z nich testy otevírají.
             services.RemoveAll<IEmailSender>();

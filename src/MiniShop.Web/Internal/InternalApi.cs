@@ -4,7 +4,7 @@ using MiniShop.ServiceDefaults;
 namespace MiniShop.Web.Internal;
 
 /// <summary>
-/// Mikroservisy M2A: interní API Webu (<c>/internal/…</c>) pro služby v síti Compose – od M2B se jím Notifications ptá
+/// Mikroservisy M2A: interní API Webu (<c>/internal/…</c>) pro služby v síti Compose – od M2C se jím Notifications ptá
 /// na data modulů, které běží ve Webu (účty, kopie katalogu, faktury). Lidé se přihlašují cookie, služby servisním klíčem;
 /// tahle politika pustí JEN klíč – cookie (i admina) tu neplatí a klíč zase neotevře stránky (výchozí schéma je cookie).
 /// </summary>

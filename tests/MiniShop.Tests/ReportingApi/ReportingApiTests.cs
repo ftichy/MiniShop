@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using MiniShop.Application.Reporting;
+using MiniShop.Infrastructure.Hosting;
 using MiniShop.Infrastructure.Outbox;
 using MiniShop.Infrastructure.Reporting;
 using MiniShop.Reporting.Api;
@@ -29,6 +30,7 @@ public sealed class ReportingApiTests : IClassFixture<ReportingApiFactory>
     [Theory]
     [InlineData("GET", "/api/sales")]
     [InlineData("POST", "/api/sales/rebuild")]
+    [InlineData("GET", "/api/messages")]   // mikroservisy M2B
     public async Task BezKliceNeboSeSpatnym_401(string method, string url)
     {
         var anonymous = _api.CreateClient();
@@ -69,6 +71,19 @@ public sealed class ReportingApiTests : IClassFixture<ReportingApiFactory>
 
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
         Assert.Equal(before + 1, await RebuildRequestsAsync());
+    }
+
+    /// <summary>Mikroservisy M2B: provoz zpráv služby pro /Admin/Messages – jen její modul a jen její fronty.</summary>
+    [Fact]
+    public async Task Zpravy_SeKlicem_JenModulReporting()
+    {
+        var client = _api.CreateAuthorizedClient();
+
+        var status = await client.GetFromJsonAsync<ServiceMessagesStatus>("/api/messages");
+        using var foreignQueue = await client.PostAsync("/api/messages/queues/minishop.notifications/requeue", content: null);
+
+        Assert.Equal(["Reporting"], status!.Modules.Select(m => m.Module));
+        Assert.Equal(HttpStatusCode.BadRequest, foreignQueue.StatusCode);
     }
 
     private async Task<int> RebuildRequestsAsync()

@@ -4,7 +4,7 @@ summary: Workflow deploy.yml – přes Tailscale a SSH spustí na VM deploy.sh, 
 order: 3
 ---
 
-> **V jedné větě:** Po úspěšném CI na `main` se runner GitHubu připojí do soukromé sítě **Tailscale**, přes SSH
+> **V jedné větě:** Po úspěšném CI na `main` (image, E2E testy i ZAP sken – [povinné kontroly](ci.md#povinné-kontroly)) se runner GitHubu připojí do soukromé sítě **Tailscale**, přes SSH
 > pošle VM jen **SHA commitu** a skript `minishop-deploy` na VM udělá zbytek – včetně návratu při chybě.
 
 Kód: [deploy.yml](code:.github/workflows/deploy.yml), [deploy.sh](code:deploy/deploy.sh)

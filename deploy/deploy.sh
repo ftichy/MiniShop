@@ -20,6 +20,7 @@
 #   STRIPE_WEBHOOK_SECRET=whsec_…                     (e-shop krok 16, volitelný – podpis webhooku Stripu)
 #   GRAFANA_CLOUD_OTLP_TOKEN=glc_…                    (observabilita G1, volitelný – token Grafana Cloud jen se zápisem;
 #                                                      povinný, dokud je compose.grafana.yaml v COMPOSE_FILE)
+#   PUSH_VAPID_PRIVATE_KEY=<43 znaků base64url>       (e-shop krok 23, volitelný – soukromý klíč VAPID pro oznámení push)
 # Co na vstupu chybí (ruční spuštění z terminálu), vezme se z dosavadního .env. Netajná konfigurace je v gitu
 # (deploy/production.env). Soubor .env na VM skript pokaždé sestaví znovu – ruční změny v něm nepřežijí.
 # Změněné heslo RabbitMQ nejdřív vymění v běžícím RabbitMQ (RABBITMQ_DEFAULT_PASS platí jen při prvním startu).
@@ -57,6 +58,7 @@ payments_webhook_secret=""
 postgres_password=""
 google_client_secret=""
 grafana_cloud_otlp_token=""
+push_vapid_private_key=""
 if [ ! -t 0 ]; then
     while IFS= read -r line || [ -n "$line" ]; do
         [ -z "$line" ] && continue
@@ -106,6 +108,10 @@ if [ ! -t 0 ]; then
                 # Observabilita G1: token Grafana Cloud (Cloud Access Policy, jen zápis) = glc_ + base64.
                 [[ -z "$value" || "$value" =~ ^glc_[A-Za-z0-9+/=_-]{20,400}$ ]] || { echo "Chybný GRAFANA_CLOUD_OTLP_TOKEN (čekám glc_…)." >&2; exit 2; }
                 grafana_cloud_otlp_token="$value" ;;
+            PUSH_VAPID_PRIVATE_KEY)
+                # E-shop krok 23: soukromý klíč VAPID (P-256, 32 bajtů v base64url = 43 znaků). Prázdné = push vypnutý.
+                [[ -z "$value" || "$value" =~ ^[A-Za-z0-9_-]{43}$ ]] || { echo "Chybný PUSH_VAPID_PRIVATE_KEY (čekám 43 znaků base64url)." >&2; exit 2; }
+                push_vapid_private_key="$value" ;;
             *)
                 echo "Neznámý klíč na vstupu: $key" >&2
                 exit 2 ;;
@@ -134,6 +140,7 @@ google_client_secret="${google_client_secret:-$(current GOOGLE_CLIENT_SECRET)}"
 stripe_secret_key="${stripe_secret_key:-$(current STRIPE_SECRET_KEY)}"
 stripe_webhook_secret="${stripe_webhook_secret:-$(current STRIPE_WEBHOOK_SECRET)}"
 grafana_cloud_otlp_token="${grafana_cloud_otlp_token:-$(current GRAFANA_CLOUD_OTLP_TOKEN)}"
+push_vapid_private_key="${push_vapid_private_key:-$(current PUSH_VAPID_PRIVATE_KEY)}"
 [ -n "$rabbitmq_password" ] || { echo "Chybí RABBITMQ_PASSWORD (na vstupu ani v .env)." >&2; exit 2; }
 [ -n "$basic_auth_hash" ] || { echo "Chybí BASIC_AUTH_HASH (na vstupu ani v .env)." >&2; exit 2; }
 [ -n "$inventory_api_key" ] || { echo "Chybí INVENTORY_API_KEY (na vstupu ani v .env)." >&2; exit 2; }
@@ -175,6 +182,7 @@ chmod 755 "$work"/*.sh 2>/dev/null || true
         [ -n "$stripe_secret_key" ] && echo "STRIPE_SECRET_KEY=$stripe_secret_key"
         [ -n "$stripe_webhook_secret" ] && echo "STRIPE_WEBHOOK_SECRET=$stripe_webhook_secret"
         [ -n "$grafana_cloud_otlp_token" ] && echo "GRAFANA_CLOUD_OTLP_TOKEN=$grafana_cloud_otlp_token"
+        [ -n "$push_vapid_private_key" ] && echo "PUSH_VAPID_PRIVATE_KEY=$push_vapid_private_key"
         true
     } > "$work/.env"
 )

@@ -155,7 +155,7 @@ flowchart LR
 Spodní lišta je jen pod šířkou `lg`; hlavička nahoře zůstala beze změny (`data-track` pro Journeys a E2E). Lišta „K pokladně“
 v košíku se drží nad ní (`--ms-tab-bar-height`), `viewport-fit=cover` + `env(safe-area-inset-*)` odsadí výřez a „bradu“ iPhonu.
 
-Mimo tento krok: **oznámení push** (klíče VAPID, souhlas, modul Notifications) a **Google Play** přes TWA (Trusted Web Activity –
+Navazuje: **oznámení push** (e-shop krok 23, [Notifications](moduly/notifications.md#oznámení-push-e-shop-krok-23)). Mimo tento krok: **Google Play** přes TWA (Trusted Web Activity –
 balíček z této PWA, účet vývojáře a soubor `/.well-known/assetlinks.json`).
 
 ## Ikony

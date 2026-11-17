@@ -16,7 +16,8 @@ public sealed class BackInStockHandler(
     ICustomerContacts contacts,
     IEmailSender emailSender,
     BackInStockEmailTemplates templates,
-    INotificationsUnitOfWork unitOfWork) : IIntegrationMessageHandler<StockAvailabilityChangedV1>
+    INotificationsUnitOfWork unitOfWork,
+    PushNotifier push) : IIntegrationMessageHandler<StockAvailabilityChangedV1>
 {
     public async Task HandleAsync(StockAvailabilityChangedV1 message, CancellationToken cancellationToken)
     {
@@ -32,6 +33,10 @@ public sealed class BackInStockHandler(
             {
                 await emailSender.SendAsync(templates.BackInStock(contact, subscription.ProductId, subscription.ProductName), cancellationToken);
             }
+
+            // E-shop krok 23: i oznámení push – doplněk; chyba push služby nesmí zopakovat e-mail, jen se poznamená.
+            await push.TrySendToCustomerAsync(subscription.CustomerId,
+                PushTemplates.BackInStock(subscription.ProductId, subscription.ProductName), cancellationToken);
 
             subscriptions.Remove(subscription);
             await unitOfWork.SaveChangesAsync(cancellationToken);

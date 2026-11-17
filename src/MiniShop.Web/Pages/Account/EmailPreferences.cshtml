@@ -1,9 +1,9 @@
 @page
 @model MiniShop.Web.Pages.Account.EmailPreferencesModel
 @{
-    ViewData["Title"] = "Nastavení e-mailů";
+    ViewData["Title"] = "Nastavení e-mailů a oznámení";
 }
-<h1>Nastavení e-mailů</h1>
+<h1>E-maily a oznámení</h1>
 
 @if (Model.StatusMessage is not null)
 {
@@ -32,5 +32,64 @@
             <button type="submit" class="btn btn-primary">Uložit</button>
             <a asp-page="/Account/ChangePassword" class="btn btn-link">Zpět na účet</a>
         </form>
+
+        @if (Model.PushEnabled)
+        {
+            @* E-shop krok 23: oznámení push. Stav zařízení zná jen prohlížeč – texty a tlačítka přepíná wwwroot/js/push.js
+               (bez skriptu zůstane vidět jen první zpráva). Endpoint zařízení na stránku nikdy nejde. *@
+            <section class="mt-5" data-push-settings data-push-key="@Model.PushPublicKey" data-track="push-settings">
+                <h2 class="h4">Oznámení na telefonu</h2>
+                <p class="text-muted">
+                    Krátké oznámení, když se s objednávkou něco stane (potvrzení, odeslání, doručení, vratka) nebo když je
+                    zboží z „Dejte mi vědět“ zase skladem. Obsahuje jen číslo objednávky a stav. E-maily chodí dál.
+                </p>
+
+                <p data-push-state="loading">Zjišťuji, jestli tento prohlížeč oznámení umí…</p>
+                <p data-push-state="unsupported" hidden>Tento prohlížeč oznámení push neumí.</p>
+                <p data-push-state="ios-install" hidden>
+                    Na iPhonu a iPadu fungují oznámení jen v nainstalované aplikaci: v Safari klepněte na <strong>Sdílet</strong>
+                    → <strong>Přidat na plochu</strong>, spusťte MiniShop z ikony a zapněte oznámení tady.
+                </p>
+                <p data-push-state="denied" hidden>
+                    Oznámení máte pro MiniShop v prohlížeči zakázaná. Povolte je v nastavení webu (ikona zámku vedle adresy,
+                    v nainstalované aplikaci v nastavení telefonu) a stránku obnovte.
+                </p>
+                <div data-push-state="off" hidden>
+                    <p>Na tomto zařízení jsou oznámení vypnutá.</p>
+                    <button type="button" class="btn btn-primary" data-push-subscribe data-track="push-subscribe">Zapnout na tomto zařízení</button>
+                </div>
+                <div data-push-state="on" hidden>
+                    <p>Na tomto zařízení jsou oznámení <strong>zapnutá</strong>.</p>
+                    <button type="button" class="btn btn-outline-secondary" data-push-unsubscribe data-track="push-unsubscribe">Vypnout na tomto zařízení</button>
+                </div>
+                <p class="text-danger small mt-2" data-push-error hidden>Nepodařilo se to – zkuste to prosím znovu.</p>
+
+                @if (Model.PushDevices.Count > 0)
+                {
+                    <h3 class="h6 mt-4">Zařízení se zapnutými oznámeními</h3>
+                    <ul class="list-group mb-3" data-track="push-devices">
+                        @foreach (var device in Model.PushDevices)
+                        {
+                            <li class="list-group-item d-flex justify-content-between align-items-center gap-2">
+                                <span>@device.DeviceLabel <span class="text-muted small">od @device.CreatedAtUtc.ToCzechString()</span></span>
+                                <form method="post" asp-page-handler="RemoveDevice" asp-route-id="@device.Id">
+                                    <button type="submit" class="btn btn-sm btn-link text-danger" data-track="push-device-remove">Odebrat</button>
+                                </form>
+                            </li>
+                        }
+                    </ul>
+                    <form method="post" asp-page-handler="PushTest">
+                        <button type="submit" class="btn btn-outline-primary btn-sm" data-track="push-test">Poslat zkušební oznámení</button>
+                    </form>
+                }
+            </section>
+        }
     </div>
 </div>
+
+@section Scripts {
+    @if (Model.PushEnabled)
+    {
+        <script src="~/js/push.js" asp-append-version="true"></script>
+    }
+}

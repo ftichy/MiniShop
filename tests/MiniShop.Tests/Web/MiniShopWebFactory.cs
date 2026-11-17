@@ -13,6 +13,7 @@ using MiniShop.Application.Inventory;
 using MiniShop.Domain.Orders;
 using MiniShop.Infrastructure.Accounts;
 using MiniShop.Infrastructure.Ordering;
+using MiniShop.Application.Notifications;
 using MiniShop.Tests.TestDoubles;
 using MiniShop.Web.Accounts;
 
@@ -44,6 +45,9 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
 
     /// <summary>Účty krok 10: falešný Google (<see cref="FakeGoogleHandler"/>).</summary>
     public FakeGoogle Google { get; } = new();
+
+    /// <summary>E-shop krok 23: oznámení push, která Web „odeslal“ (push služba bez internetu).</summary>
+    public RecordingPushSender Push { get; } = new();
 
     /// <summary>Škálování krok 5: workery, které Web registruje (před odebráním pro testy) – hlídá je <c>WebWorkersTests</c>.</summary>
     public List<Type> RegisteredWorkers { get; private set; } = [];
@@ -83,6 +87,10 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
             // Účty krok 5: e-maily do „schránky“ testů – odkazy z nich testy otevírají.
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender>(Emails);
+
+            // E-shop krok 23: oznámení push zapnutá (jako s klíči VAPID), odeslání do „schránky“ testů.
+            services.RemoveAll<IPushSender>();
+            services.AddSingleton<IPushSender>(Push);
 
             // Účty krok 8: log do paměti testu.
             services.AddSingleton<ILoggerProvider>(Logs);

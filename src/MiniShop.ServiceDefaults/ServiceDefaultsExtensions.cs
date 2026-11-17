@@ -103,7 +103,8 @@ public static class ServiceDefaultsExtensions
                 // Health checky volá Aspire každých pár sekund – do tras nepatří.
                 .AddAspNetCoreInstrumentation(options => options.Filter = context =>
                     !context.Request.Path.StartsWithSegments("/health") && !context.Request.Path.StartsWithSegments("/alive"))
-                .AddHttpClientInstrumentation()
+                // E-shop krok 23: adresa push služby obsahuje identifikátor zařízení – do trasy jen jméno serveru.
+                .AddHttpClientInstrumentation(options => options.EnrichWithHttpRequestMessage = PushServiceHosts.Redact)
                 // SQL jen jako součást nějaké operace. Workery se každé 2 s ptají outboxu "je tu něco?" –
                 // bez rodiče (Activity.Current == null) by každý takový dotaz byl samostatná trasa a zahltil dashboard.
                 .AddEntityFrameworkCoreInstrumentation(options => options.Filter = (_, _) => Activity.Current is not null));

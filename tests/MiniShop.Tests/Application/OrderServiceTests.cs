@@ -53,6 +53,7 @@ using MiniShop.Infrastructure.Reviews;
 using MiniShop.Infrastructure.Ordering;
 using MiniShop.Infrastructure.Observability;
 using MiniShop.Tests.TestDoubles;
+using MiniShop.Web.Extensions;
 using MiniShop.Web.Invoicing;
 
 namespace MiniShop.Tests.Application;
@@ -63,7 +64,7 @@ namespace MiniShop.Tests.Application;
 /// ve vlastním scope jako HTTP požadavek. Integrační zprávy doručuje InProcessIntegrationBus (bez RabbitMQ).
 /// Handlery neběží hned – test po akci "zavolá pošťáka" (<see cref="ProcessOutboxAsync"/>), jako OutboxWorker.
 /// </summary>
-public sealed class OrderServiceTests : IDisposable
+public sealed partial class OrderServiceTests : IDisposable
 {
     private static readonly DateTimeOffset Now = new(2026, 1, 15, 10, 0, 0, TimeSpan.Zero);
 
@@ -79,6 +80,7 @@ public sealed class OrderServiceTests : IDisposable
     private readonly TestDatabases _databases = new();   // škálování krok 2 a 3C: PostgreSQL (Testcontainers), schéma na modul
     private readonly FixedTimeProvider _time = new(Now);
     private readonly RecordingEmailSender _emails = new();
+    private readonly RecordingPushSender _push = new();   // e-shop krok 23: oznámení push
     private readonly InMemoryCustomerContacts _contacts = new();   // e-shop krok 10: účty se souhlasem
     private readonly InMemoryProductImageStore _images = new();   // e-shop krok 2B
     private readonly List<IDomainEvent> _dispatched = new();
@@ -184,6 +186,12 @@ public sealed class OrderServiceTests : IDisposable
         services.AddSingleton<BackInStockEmailTemplates>();
         services.AddScoped<BackInStockService>();
         services.AddIntegrationMessageHandler<StockAvailabilityChangedV1, BackInStockHandler>(IntegrationModules.Notifications);
+
+        // E-shop krok 23: oznámení push – jako AddNotificationsModule ve Webu, push služba = záznamník.
+        services.AddSingleton<IPushSender>(_push);
+        services.AddScoped<PushNotifier>();
+        services.AddScoped<PushSubscriptionService>();
+        services.AddOrderPushHandlers();
 
         // E-shop krok 8: modul Payments (účastník ságy) – jako AddPaymentsModule + AddPaymentsInfrastructure ve Webu.
         services.AddPaymentsInfrastructure(_databases.Payments, WebhookSecret);

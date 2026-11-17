@@ -56,6 +56,12 @@ public sealed partial class PwaTests(MiniShopWebFactory web)
         Assert.Contains("url.origin !== self.location.origin", script);
         // Stránky (HTML s objednávkami, adresami) jen ze sítě – do mezipaměti se ukládají jen statické cesty.
         Assert.Contains("request.mode === 'navigate'", script);
+        // E-shop krok 23: oznámení push – ukázat a klepnutím otevřít jen stránku MiniShopu (cizí adresu ze zprávy ne).
+        Assert.Contains("addEventListener('push'", script);
+        Assert.Contains("addEventListener('notificationclick'", script);
+        Assert.Contains("target.origin === self.location.origin", script);
+        Assert.Equal(HttpStatusCode.OK, (await web.CreateBrowser().GetAsync("/icons/badge-96.png")).StatusCode);
+
         var staticPaths = ArrayItems(script, "STATIC_PATHS");
         string[] allowed = ["/css/", "/js/", "/lib/", "/icons/", "/media/products/"];
         Assert.All(staticPaths, path => Assert.Contains(path, allowed));

@@ -20,6 +20,7 @@ using MiniShop.Web.Catalog;
 using MiniShop.Web.Documentation;
 using MiniShop.Web.ErrorHandling;
 using MiniShop.Web.Extensions;
+using MiniShop.Web.Notifications;
 using MiniShop.Web.Security;
 using MiniShop.Web.Ui;
 using Serilog;
@@ -29,6 +30,12 @@ Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
     .CreateBootstrapLogger();
 
+// E-shop krok 23: nový pár klíčů VAPID – jen vypsat a skončit (bez databáze a konfigurace).
+if (GenerateVapidKeysCommand.IsRequested(args))
+{
+    Environment.ExitCode = GenerateVapidKeysCommand.Run();
+}
+else
 try
 {
     var builder = WebApplication.CreateBuilder(args);

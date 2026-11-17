@@ -25,6 +25,7 @@ namespace MiniShop.Application.Notifications;
 public sealed class OrderNotificationsHandler(
     IOrderRecipientRepository recipients,
     IBackInStockRepository backInStock,
+    IPushSubscriptionRepository pushSubscriptions,
     INotificationsUnitOfWork unitOfWork,
     IEmailSender emailSender,
     OrderEmailTemplates templates,
@@ -136,6 +137,7 @@ public sealed class OrderNotificationsHandler(
     {
         await recipients.RemoveForCustomerAsync(message.CustomerId, cancellationToken);
         await backInStock.RemoveForCustomerAsync(message.CustomerId, cancellationToken);   // i lístečky „dejte mi vědět“
+        await pushSubscriptions.RemoveForCustomerAsync(message.CustomerId, cancellationToken);   // e-shop krok 23: zařízení pro push
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 

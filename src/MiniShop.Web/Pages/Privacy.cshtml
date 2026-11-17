@@ -71,6 +71,13 @@
             <td>do odeslání e-mailu, zrušení upozornění nebo smazání účtu</td>
         </tr>
         <tr>
+            @* E-shop krok 23: oznámení push *@
+            <td>Zařízení pro oznámení push: adresa „schránky“ vašeho prohlížeče u jeho push služby, dva šifrovací klíče
+                a popisek (např. „Android · Chrome“ – ze zařízení jen systém a prohlížeč)</td>
+            <td>jen když oznámení zapnete: krátká zpráva o stavu objednávky nebo naskladnění (číslo objednávky a stav, bez jména a adresy)</td>
+            <td>do vypnutí na zařízení, odebrání ze seznamu, odinstalace (push služba hlásí, že zařízení už neexistuje) nebo smazání účtu</td>
+        </tr>
+        <tr>
             <td>Průběh vyplňování formuláře objednávky (co a kdy se do formuláře zadalo – jen položky a množství)</td>
             <td>zlepšování formuláře</td>
             <td>trvale – osobní údaje neobsahuje</td>
@@ -102,6 +109,9 @@
     @* E-shop krok 16 *@
     <li><strong>Stripe</strong> (platební brána, testovací režim) – údaje o kartě zadáváte přímo na stránce Stripu;
         MiniShop je nevidí ani neukládá, dozví se jen číslo objednávky a výsledek platby.</li>
+    @* E-shop krok 23 *@
+    <li><strong>Push služba vašeho prohlížeče</strong> (Google u Chromu a Androidu, Apple u Safari, Mozilla u Firefoxu) – doručí
+        oznámení na zařízení, když je zapnete. Obsah je zašifrovaný klíčem vašeho prohlížeče, push služba ho nepřečte.</li>
 </ul>
 
 <h2 class="h4 mt-4">Vaše práva</h2>
@@ -109,5 +119,6 @@
     <li><strong>Smazání účtu</strong> zvládnete sami: po přihlášení klikněte na své jméno → <em>Smazat účet</em>.</li>
     <li><strong>Připomínky košíku</strong> zapnete a vypnete po kliknutí na své jméno → <em>Nastavení e-mailů</em>
         (nebo odkazem v každé připomínce).</li>
+    <li><strong>Oznámení push</strong> zapnete a vypnete na stejné stránce (<em>E-maily a oznámení</em>), zařízení tam jde i odebrat.</li>
     <li>Cokoli dalšího (výpis údajů, oprava): napište na <a href="mailto:ftichy.gemini@gmail.com">ftichy.gemini@gmail.com</a>.</li>
 </ul>

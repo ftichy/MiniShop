@@ -1,6 +1,6 @@
 ---
 title: Modul Notifications
-summary: E-maily zákazníkovi podle integračních událostí objednávky – odběratel, o kterém Ordering neví (pub/sub).
+summary: E-maily a oznámení push zákazníkovi podle integračních událostí objednávky – odběratel, o kterém Ordering neví (pub/sub).
 order: 5
 ---
 
@@ -44,7 +44,7 @@ flowchart TB
 | **InvoiceEmailHandler** | E-shop krok 15: e-mail s fakturou v příloze z `InvoiceIssuedV1`, od kroku 15B i s dobropisem z `CreditNoteIssuedV1`. Příjemce z kopie `OrderPlacedV2`, PDF přes `IInvoiceDocuments` (Notifications modul Invoicing neznají). | [InvoiceEmailHandler.cs](code:src/MiniShop.Application/Notifications/InvoiceEmailHandler.cs) |
 | **OrderEmailTemplates** | Texty e-mailů: prostý text a jednoduché HTML (vše kódované), souhrn položek, číslo zásilky, odkaz na detail. Osobní odběr má vlastní texty. | [OrderEmailTemplates.cs](code:src/MiniShop.Application/Notifications/OrderEmailTemplates.cs) |
 | **OrderRecipient** | Komu a o čem psát u jedné objednávky: jméno, e-mail, položky, doprava, adresa – kopie z `OrderPlacedV2`. | [OrderRecipient.cs](code:src/MiniShop.Domain/Notifications/OrderRecipient.cs) |
-| **NotificationsDbContext** | schéma `notifications`: tabulky `OrderRecipients`, `OrderRecipientItems` a inbox. Outbox má (dědí z `ModuleDbContext`), ale nepoužívá – modul nic neposílá. | [NotificationsDbContext.cs](code:src/MiniShop.Infrastructure/Notifications/NotificationsDbContext.cs) |
+| **NotificationsDbContext** | schéma `notifications`: tabulky `OrderRecipients`, `OrderRecipientItems`, `BackInStockSubscriptions`, `PushSubscriptions` (e-shop krok 23) a inbox. Outbox má (dědí z `ModuleDbContext`), ale nepoužívá – modul nic neposílá. | [NotificationsDbContext.cs](code:src/MiniShop.Infrastructure/Notifications/NotificationsDbContext.cs) |
 | **NotificationSettings** | Veřejná adresa webu pro odkazy (`Notifications:PublicBaseUrl`; produkce `PUBLIC_BASE_URL` v `production.env`). Handler běží za frontou, ne v HTTP požadavku – adresu webu sám nezná. | [NotificationSettings.cs](code:src/MiniShop.Application/Notifications/NotificationSettings.cs) |
 
 ## Jaké zprávy modul přijímá
@@ -62,13 +62,60 @@ flowchart TB
 | `ReturnRequestedV1`, `ReturnRejectedV1`, `ReturnCompletedV1` | E-shop krok 12: „pošlete nám zboží do …“, „vrácení nebylo přijato“ (důvod), „objednávka je vrácená“ (kartou / převodem) – viz [Vrácení zboží](../../toky/vraceni-zbozi.md) |
 | `ReturnRequestedV2`, `ReturnRejectedV2`, `ReturnCompletedV2` | E-shop krok 22: totéž pro vratku po částech – „Vratka 2 k objednávce …“, se seznamem vracených položek a částkou (`ReturnItemV1`) |
 | `CartAbandonedV1` | „Ve vašem košíku zůstalo zboží“ – jen se souhlasem a potvrzeným e-mailem, které `CartReminderHandler` ověří přes `ICustomerContacts` až při odeslání (e-shop krok 10, [opuštěný košík](../../toky/opusteny-kosik.md)) |
-| `StockAvailabilityChangedV1` | E-shop krok 18: „Produkt je zase skladem“ – jen přihlášeným na lísteček „Dejte mi vědět“ a jen jednou (lísteček se po odeslání smaže); přechod na „Vyprodáno“ nic neposílá |
+| `StockAvailabilityChangedV1` | E-shop krok 18: „Produkt je zase skladem“ – jen přihlášeným na lísteček „Dejte mi vědět“ a jen jednou (lísteček se po odeslání smaže); přechod na „Vyprodáno“ nic neposílá. E-shop krok 23: k e-mailu i oznámení push |
 | `InvoiceIssuedV1` | E-shop krok 15: „Faktura … k objednávce č. …“ s **PDF v příloze** – PDF si `InvoiceEmailHandler` vezme přes `IInvoiceDocuments` (implementace `InvoiceDocuments` ve Webu nad modulem [Invoicing](invoicing.md)), PDF tak nejde přes RabbitMQ ([Vystavení faktury](../../toky/faktura.md)) |
 | `CreditNoteIssuedV1` | E-shop krok 15B: „Dobropis … k objednávce č. …“ s **PDF dobropisu v příloze** (stejná cesta jako faktura, `IInvoiceDocuments.GetCreditNoteAsync`) |
 
 Neposílá nic. Ordering o modulu neví – hlídají to
 [ModuleBoundariesTests](code:tests/MiniShop.Tests/Architecture/ModuleBoundariesTests.cs) (včetně pravidla, že Ordering
 nepoužívá `IEmailSender`).
+
+## Oznámení push (e-shop krok 23)
+
+Druhý kanál vedle e-mailu: krátké oznámení na telefon nebo počítač („Objednávka č. 12 je na cestě“). Je to přesně to,
+co slibuje pub/sub – **nový odběratel stejných událostí**, Ordering ani kontrakty se nezměnily.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Z as Zákazník (prohlížeč)
+    participant W as Web – E-maily a oznámení
+    participant N as Notifications (OrderPushHandler)
+    participant P as Push služba prohlížeče<br/>(Google FCM / Apple / Mozilla)
+    participant SW as sw.js na zařízení
+    Z->>Z: Zapnout → souhlas prohlížeče
+    Z->>P: pushManager.subscribe(veřejný klíč VAPID)
+    P-->>Z: endpoint + klíče p256dh, auth
+    Z->>W: POST ?handler=PushSubscribe (JSON, antiforgery)
+    W->>W: PushSubscription do schématu notifications
+    Note over N: později: OrderShippedV1 z RabbitMQ
+    N->>N: příjemce (OrderRecipient) → ID účtu → zařízení
+    N->>P: zašifrováno (aes128gcm) + podpis VAPID
+    P->>SW: doručí (i když je aplikace zavřená)
+    SW->>Z: showNotification → klepnutí otevře /Orders/12
+```
+
+| Komponenta | K čemu | Kód |
+| --- | --- | --- |
+| **PushSubscription** | zařízení zákazníka: endpoint (jen https, unikátní), klíče `p256dh` a `auth`, popisek „Android · Chrome“. Endpoint = identifikátor zařízení = osobní údaj – nikdy do logu ani trasy | [PushSubscription.cs](code:src/MiniShop.Domain/Notifications/PushSubscription.cs) |
+| **PushSubscriptionService** | zapnout (stejné zařízení podruhé = obnovit klíče, převezme ho přihlášený účet), vypnout, odebrat, seznam; nejvýš 10 zařízení na zákazníka | [PushSubscriptionService.cs](code:src/MiniShop.Application/Notifications/PushSubscriptionService.cs) |
+| **OrderPushHandler** + **PushTemplates** | odběratel `OrderConfirmedV1`, `OrderRejectedV1`, `OrderShippedV1`, `OrderCompletedV1`, `OrderCancelledV1`, `ReturnRejectedV1/V2`, `ReturnCompletedV1/V2` – **vlastní handler = vlastní záznam v inboxu**: když push služba selže, zopakuje se jen push, ne e-mail. Texty bez osobních údajů (číslo objednávky, stav, dopravce, částka) | [OrderPushHandler.cs](code:src/MiniShop.Application/Notifications/OrderPushHandler.cs) |
+| **PushNotifier** | pošle na všechna zařízení zákazníka; 404/410 („zařízení už neexistuje“) → záznam smaže. `TrySend…` pro „Dejte mi vědět“ (push vedle e-mailu ve stejném handleru – chyba se jen poznamená) | [PushNotifier.cs](code:src/MiniShop.Application/Notifications/PushNotifier.cs) |
+| **WebPushSender** + **PushSettings** | knihovna [Lib.Net.Http.WebPush](../../treti-strany/knihovny.md): šifrování a podpis VAPID, TTL 24 h. Bez klíčů `DisabledPushSender` (sekce na stránce se neukáže) | [WebPushSender.cs](code:src/MiniShop.Infrastructure/Notifications/WebPushSender.cs) |
+| **push.js** + **sw.js** | zapnutí/vypnutí v prohlížeči; service worker ukáže oznámení (`push`) a klepnutím otevře stránku MiniShopu (`notificationclick`, cizí adresu ne) | [push.js](code:src/MiniShop.Web/wwwroot/js/push.js), [sw.js](code:src/MiniShop.Web/wwwroot/sw.js) |
+
+- **Klíče VAPID:** `dotnet run --project src/MiniShop.Web -- generate-vapid-keys`
+  ([GenerateVapidKeysCommand](code:src/MiniShop.Web/Notifications/GenerateVapidKeysCommand.cs)). Veřejný `PUSH_VAPID_PUBLIC_KEY`
+  v `deploy/production.env`, soukromý secret `PUSH_VAPID_PRIVATE_KEY` ([secrets](../../github/secrets.md)). Výměna klíčů =
+  zákazníci si oznámení musí zapnout znovu. Jen jeden klíč nebo špatný tvar = Web se nespustí.
+- **Stránka** `/Account/EmailPreferences` (*E-maily a oznámení*, jen zákazník): stav na tomto zařízení, seznam zařízení,
+  **Poslat zkušební oznámení** (ověření bez objednávky).
+- **iPhone/iPad:** push jen v aplikaci přidané na plochu (iOS 16.4+) – stránka to v Safari řekne. Android a počítač i v prohlížeči.
+- **Soukromí:** endpoint ani obsah do logu; HTTP span na push službu má `url.full` zkrácenou na jméno serveru
+  ([PushServiceHosts](code:src/MiniShop.ServiceDefaults/PushServiceHosts.cs)). Smazání účtu zařízení smaže (`CustomerAnonymizedV1`).
+- **Spolehlivost:** best effort – push služba drží zprávu nejvýš 24 h; e-maily se nezměnily. Stejný `tag` oznámení
+  nahradí předchozí, takže opakované doručení zákazník neuvidí dvakrát.
+- Oznámení pro zaměstnance (např. sklad „nová objednávka“) zatím ne – možný další krok.
 
 ## Proč samostatný modul
 

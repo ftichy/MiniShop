@@ -98,3 +98,9 @@ Apple, Mozilla), ne my. MiniShop jí dá zalepenou obálku (obsah šifrovaný kl
 2. V DevTools → *Application* → *Service workers* → **Push** pošlete testovací text – ukáže se oznámení „MiniShop“.
 3. Vypněte oznámení v nastavení webu (ikona zámku) a pošlete zkušební oznámení – seznam zařízení po odpovědi push služby
    (410) zařízení sám smaže.
+
+## Nasazení (17. 11. 2026)
+
+- Pořadí: klíče VAPID (`generate-vapid-keys` na PC, soukromý do secretu, veřejný do `production.env`) → nový `deploy.sh` na VM
+  (starý odložen jako `/usr/local/bin/minishop-deploy.before-23`) → ruční záloha → sloučení PR #142 → CD (`sha-7f21d65`).
+- Ověřeno uživatelem: zapnutí oznámení a doručení na telefon s Androidem.

@@ -115,7 +115,7 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Admin, "/Account/LoginHistory", Expect.Allowed },
         { Who.Anonymous, "/Account/EmailPreferences", Expect.Login },      // e-shop krok 10: souhlas s připomínkou košíku
         { Who.User, "/Account/EmailPreferences", Expect.Allowed },
-        { Who.Admin, "/Account/EmailPreferences", Expect.Denied },
+        { Who.Admin, "/Account/EmailPreferences", Expect.Allowed },     // e-shop krok 24: i zaměstnanci (oznámení k práci)
 
         // Jen admin
         { Who.Anonymous, "/Admin/Messages", Expect.Login },               // EDA krok 13: provoz zpráv
@@ -159,17 +159,22 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
 
     public static TheoryData<Who, string, Expect> PageActions() => new()
     {
-        // E-shop krok 23: oznámení push – jen zákazník (bez těla: projde autorizací, 400)
+        // E-shop krok 23/24: oznámení push – každý přihlášený (bez těla: projde autorizací, 400)
         { Who.Anonymous, "/Account/EmailPreferences?handler=PushSubscribe", Expect.Login },
         { Who.User, "/Account/EmailPreferences?handler=PushSubscribe", Expect.Allowed },
-        { Who.Admin, "/Account/EmailPreferences?handler=PushSubscribe", Expect.Denied },
+        { Who.Admin, "/Account/EmailPreferences?handler=PushSubscribe", Expect.Allowed },
         { Who.User, "/Account/EmailPreferences?handler=PushUnsubscribe", Expect.Allowed },
-        { Who.Admin, "/Account/EmailPreferences?handler=PushUnsubscribe", Expect.Denied },
+        { Who.Admin, "/Account/EmailPreferences?handler=PushUnsubscribe", Expect.Allowed },
         { Who.User, "/Account/EmailPreferences?handler=RemoveDevice", Expect.Allowed },
-        { Who.Admin, "/Account/EmailPreferences?handler=RemoveDevice", Expect.Denied },
+        { Who.Admin, "/Account/EmailPreferences?handler=RemoveDevice", Expect.Allowed },
         { Who.Anonymous, "/Account/EmailPreferences?handler=PushTest", Expect.Login },
         { Who.User, "/Account/EmailPreferences?handler=PushTest", Expect.Allowed },
-        { Who.Admin, "/Account/EmailPreferences?handler=PushTest", Expect.Denied },
+        { Who.Admin, "/Account/EmailPreferences?handler=PushTest", Expect.Allowed },
+        { Who.User, "/Account/EmailPreferences", Expect.Allowed },                       // připomínka košíku – zákazník
+        { Who.Admin, "/Account/EmailPreferences", Expect.Denied },                      // zaměstnanec bez role Zákazník košík nemá
+        { Who.Anonymous, "/Account/EmailPreferences?handler=StaffAlerts", Expect.Login }, // e-shop krok 24: oznámení k práci
+        { Who.User, "/Account/EmailPreferences?handler=StaffAlerts", Expect.Denied },     // zákazník bez zaměstnanecké role
+        { Who.Admin, "/Account/EmailPreferences?handler=StaffAlerts", Expect.Allowed },
 
         // E-shop krok 3: košík – jen zákazník (bez produktu: projde autorizací, hláška na stránce)
         { Who.Anonymous, "/Cart?handler=Add", Expect.Login },

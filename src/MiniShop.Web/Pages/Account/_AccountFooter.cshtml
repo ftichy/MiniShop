@@ -8,12 +8,9 @@
 }
 <hr class="my-4" />
 <p class="text-muted small">
-    @* E-shop krok 10: souhlas s připomínkou košíku (jen zákazník – admin košík nemá). *@
-    @if (User.IsInRole(AccountRoles.User))
-    {
-        <a asp-page="/Account/EmailPreferences" data-track="nav-account-email">Nastavení e-mailů</a>
-        <text>·</text>
-    }
+    @* E-shop krok 10: souhlas s připomínkou košíku; krok 23/24: oznámení push i pro zaměstnance (oznámení k práci). *@
+    <a asp-page="/Account/EmailPreferences" data-track="nav-account-email">E-maily a oznámení</a>
+    <text>·</text>
     <a asp-page="/Account/TwoFactor" data-track="nav-account-two-factor">Dvoufázové ověření</a>
     <text>·</text>
     <a asp-page="/Account/LoginHistory" data-track="nav-account-login-history">Poslední přihlášení</a>

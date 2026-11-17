@@ -115,7 +115,25 @@ sequenceDiagram
   ([PushServiceHosts](code:src/MiniShop.ServiceDefaults/PushServiceHosts.cs)). Smazání účtu zařízení smaže (`CustomerAnonymizedV1`).
 - **Spolehlivost:** best effort – push služba drží zprávu nejvýš 24 h; e-maily se nezměnily. Stejný `tag` oznámení
   nahradí předchozí, takže opakované doručení zákazník neuvidí dvakrát.
-- Oznámení pro zaměstnance (např. sklad „nová objednávka“) zatím ne – možný další krok.
+### Oznámení k práci pro zaměstnance (e-shop krok 24)
+
+| Typ (`StaffAlertKind`) | Událost | Komu (role) | Oznámení → klepnutí |
+| --- | --- | --- | --- |
+| `NewOrder` | `OrderConfirmedV1` | Sklad a expedice | „Nová objednávka č. 12 k zabalení“ → `/Admin/Fulfilment` |
+| `ReturnRequested` | `ReturnRequestedV1/V2` | Zákaznická podpora | „Žádost o vratku k objednávce č. 12“ → `/Admin/Returns` |
+| `OutOfStock` | `StockAvailabilityChangedV1` (Vyprodáno) | Sklad a expedice, Správa sortimentu | „Došlo zboží: Bezdrátová myš je vyprodaný.“ → `/Products` |
+
+- **Opt-in po typech:** zaměstnanec si na stránce *E-maily a oznámení* (od kroku 24 pro každého přihlášeného; připomínka
+  košíku jen zákazník) zaškrtne, co chce – výchozí nic. Volba = `StaffAlertSubscription` (tabulka `StaffAlertSubscriptions`,
+  typ jako text), zapnout jde jen typy, ke kterým má roli.
+- **Role ověřuje Web při odeslání:** Notifications role ani účty nezná – `IStaffDirectory` (implementace
+  [IdentityStaffDirectory](code:src/MiniShop.Web/Notifications/StaffAlerts.cs) nad Identity, přiřazení typ → role
+  v `StaffAlertRoles`) vrátí jen účty, které roli TEĎ mají a nejsou zablokované. Odebraná role = žádné oznámení.
+- **Název produktu** u „Došlo zboží“ přes most `IProductNames` (Web nad kopií katalogu – zpráva nese jen ID).
+- **Vlastní handler** [StaffPushHandler](code:src/MiniShop.Application/Notifications/StaffPushHandler.cs) – vlastní inbox;
+  odesílá přes `PushNotifier` (úklid zařízení po 404/410). Bez osobních údajů zákazníků.
+- **Nový typ** = hodnota na konec `StaffAlertKind` + šablona v `PushTemplates` + `HandleAsync` ve `StaffPushHandler` +
+  řádek v `StaffAlertRoles` (role, popisek) + registrace v `AddStaffPushHandlers`.
 
 ## Proč samostatný modul
 

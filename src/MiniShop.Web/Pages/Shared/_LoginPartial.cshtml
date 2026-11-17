@@ -19,10 +19,8 @@
                 <li><a class="dropdown-item" asp-page="/Orders/Index">Moje objednávky</a></li>
                 @* Účty krok 2: změna hesla = stránka „účet“ (pod ní další nastavení – _AccountFooter). *@
                 <li><a class="dropdown-item" asp-page="/Account/ChangePassword" data-track="nav-account">Nastavení účtu</a></li>
-                @if (User.IsInRole(AccountRoles.User))
-                {
-                    <li><a class="dropdown-item" asp-page="/Account/EmailPreferences">Nastavení e-mailů</a></li>
-                }
+                @* E-shop krok 24: i zaměstnanci (oznámení k práci, push na telefon). *@
+                <li><a class="dropdown-item" asp-page="/Account/EmailPreferences" data-track="nav-notifications">E-maily a oznámení</a></li>
                 @* Vzhled krok D: instalace aplikace – ukáže pwa.js, jen když ji prohlížeč nabízí. *@
                 <li><button type="button" class="dropdown-item" data-pwa-install data-track="nav-pwa-install" hidden>Nainstalovat aplikaci</button></li>
                 <li><hr class="dropdown-divider" /></li>

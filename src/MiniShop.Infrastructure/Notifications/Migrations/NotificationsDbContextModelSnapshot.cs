@@ -147,6 +147,37 @@ namespace MiniShop.Infrastructure.Notifications.Migrations
                     b.ToTable("PushSubscriptions", "notifications");
                 });
 
+            modelBuilder.Entity("MiniShop.Domain.Notifications.StaffAlertSubscription", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Kind");
+
+                    b.HasIndex("UserId", "Kind")
+                        .IsUnique();
+
+                    b.ToTable("StaffAlertSubscriptions", "notifications");
+                });
+
             modelBuilder.Entity("MiniShop.Infrastructure.Inbox.ProcessedMessage", b =>
                 {
                     b.Property<Guid>("EventId")

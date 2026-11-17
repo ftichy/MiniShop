@@ -42,6 +42,20 @@ public static class PushTemplates
     public static PushMessage BackInStock(int productId, string productName) =>
         new("Zboží je zase skladem", $"{productName} – objednejte, než se vyprodá.", $"/Shop/{productId}", $"back-in-stock-{productId}");
 
+    // ---------- E-shop krok 24: oznámení k práci pro zaměstnance (jen číslo objednávky / název produktu) ----------
+
+    public static PushMessage StaffNewOrder(int orderId) =>
+        new($"Nová objednávka č. {orderId} k zabalení", "Je potvrzená a čeká v Expedici.", "/Admin/Fulfilment",
+            $"staff-order-{orderId}");
+
+    public static PushMessage StaffReturnRequested(int orderId, int returnNumber) =>
+        new($"Žádost o vratku k objednávce č. {orderId}", "Zákazník chce vrátit zboží – najdete ji ve Vratkách.", "/Admin/Returns",
+            $"staff-return-{orderId}-{returnNumber}");
+
+    public static PushMessage StaffOutOfStock(int productId, string? productName) =>
+        new("Došlo zboží", productName is null ? $"Produkt č. {productId} je vyprodaný." : $"{productName} je vyprodaný.",
+            "/Products", $"staff-out-of-stock-{productId}");
+
     private static PushMessage Order(int orderId, string state, string title, string body) =>
         new(title, body, $"/Orders/{orderId}", $"order-{orderId}-{state}");
 }

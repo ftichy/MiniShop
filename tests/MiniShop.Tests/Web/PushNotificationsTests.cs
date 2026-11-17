@@ -88,6 +88,52 @@ public sealed class PushNotificationsTests(MiniShopWebFactory web)
         Assert.Empty(await DevicesAsync(userId));
     }
 
+    /// <summary>
+    /// E-shop krok 24: skladník (bez role Zákazník) na stránce vidí oznámení k práci jen pro svou roli, připomínku
+    /// košíku ne; uloží se jen typy s rolí. Při odeslání rozhoduje databáze – zablokovaný účet nic nedostane.
+    /// </summary>
+    [Fact]
+    public async Task Zamestnanec_OznameniKPraci_JenProSvouRoli_ZablokovanyNic()
+    {
+        var email = $"sklad-{Guid.NewGuid():N}@test.local";
+        await web.CreateWithRolesAsync(email, Password, MiniShop.Infrastructure.Accounts.AccountRoles.Warehouse);
+        var client = await web.LoginAsync(email, Password);
+        string userId;
+        await using (var scope = web.Services.CreateAsyncScope())
+        {
+            userId = (await scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().FindByEmailAsync(email))!.Id;
+        }
+
+        var page = WebUtility.HtmlDecode(await client.GetStringAsync(Page));
+        Assert.Contains("data-track=\"staff-alert-NewOrder\"", page);
+        Assert.Contains("data-track=\"staff-alert-OutOfStock\"", page);
+        Assert.DoesNotContain("data-track=\"staff-alert-ReturnRequested\"", page);   // podpora, ne sklad
+        Assert.DoesNotContain("data-track=\"email-cart-reminders\"", page);         // košík jen zákazník
+
+        var saved = await client.PostAsync($"{Page}?handler=StaffAlerts", new FormUrlEncodedContent(
+        [
+            new("__RequestVerificationToken", await MiniShopWebFactory.GetAntiforgeryTokenAsync(client, Page)),
+            new("kinds", "NewOrder"),
+            new("kinds", "ReturnRequested")   // podvržené – role chybí, nezapne se
+        ]));
+        Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
+
+        await using (var scope = web.Services.CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+            Assert.Equal([MiniShop.Domain.Notifications.StaffAlertKind.NewOrder],
+                (await services.GetRequiredService<StaffAlertService>().GetAsync(userId)).ToList());
+
+            var directory = services.GetRequiredService<IStaffDirectory>();
+            Assert.Equal([userId], await directory.FilterAllowedAsync(MiniShop.Domain.Notifications.StaffAlertKind.NewOrder, [userId]));
+            Assert.Empty(await directory.FilterAllowedAsync(MiniShop.Domain.Notifications.StaffAlertKind.ReturnRequested, [userId]));
+
+            var users = services.GetRequiredService<UserManager<ApplicationUser>>();
+            await users.SetLockoutEndDateAsync((await users.FindByIdAsync(userId))!, DateTimeOffset.MaxValue);   // zablokován správcem
+            Assert.Empty(await directory.FilterAllowedAsync(MiniShop.Domain.Notifications.StaffAlertKind.NewOrder, [userId]));
+        }
+    }
+
     [Fact]
     public void KlicVapid_ZPrikazu_ProjdeKontrolou_SpatnyTvarNe()
     {

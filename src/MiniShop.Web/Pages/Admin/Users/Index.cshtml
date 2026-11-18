@@ -33,7 +33,32 @@
     <p class="text-muted">Žádný účet s e-mailem obsahujícím „@Model.Search“.</p>
 }
 
-<div class="table-responsive admin-table"><table class="table table-striped align-middle">
+@* Telefon: každý uživatel jako karta pod sebou (bez posouvání do strany); od md výš tabulka. *@
+<div class="d-md-none mb-3" data-track="users-cards">
+    @foreach (var row in Model.Users)
+    {
+        var account = row.Account;
+        <div class="card mb-2">
+            <div class="card-body py-2 px-3">
+                <div class="d-flex justify-content-between align-items-start gap-2">
+                    <a asp-page="/Admin/Users/Detail" asp-route-id="@account.Id" class="fw-semibold text-break">@account.DisplayName</a>
+                    <partial name="_LockBadge" model="account" />
+                </div>
+                <div class="text-break small">
+                    @account.Email
+                    @if (!account.EmailConfirmed)
+                    {
+                        <span class="badge badge-soft-secondary ms-1" title="E-mail není potvrzený">nepotvrzený</span>
+                    }
+                </div>
+                <div class="my-1"><partial name="_RoleBadge" model="account.Roles" /></div>
+                <div class="small text-muted">Objednávky: @row.OrderCount · Útrata: @row.TotalSpent.ToString("N2") Kč</div>
+            </div>
+        </div>
+    }
+</div>
+
+<div class="table-responsive admin-table d-none d-md-block"><table class="table table-striped align-middle">
     <thead>
         <tr>
             <th>Jméno</th>

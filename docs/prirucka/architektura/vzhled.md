@@ -83,6 +83,7 @@ flowchart LR
   `<partial name="_AdminHeader" model='new MiniShop.Web.Ui.AdminHeaderModel("Název")' />`.
 - **Tabulky** jsou v obalu `table-responsive admin-table` (karta): na telefonu se posouvají do strany uvnitř karty,
   stránka zůstane v šířce displeje. **Nová tabulka v administraci = stejný obal.**
+  Seznam *Uživatelé* je na telefonu (pod `md`) jako karty pod sebou (`d-md-none`), tabulka je od `md` výš (`d-none d-md-block`) – admin nemusí posouvat do strany.
 - **Expedice**: fronty *K odeslání* a *Na cestě* jako seznam – tlačítka Odeslat / Doručeno jsou na telefonu bez posouvání.
 - **Formuláře** zakládání (produkt, kupon, kategorie) a úprava produktu v kartě, na telefonu hlavní tlačítko přes
   celou šířku (`.admin-form`).

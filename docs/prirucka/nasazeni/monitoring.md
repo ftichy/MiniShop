@@ -57,6 +57,10 @@ Přirovnání: Aspire dashboard je tachometr (jen „teď“), Grafana Cloud če
 - **Osobní údaje:** před odesláním do cloudu Alloy smaže atributy `client.address`, `client.port`, `network.peer.address`,
   `http.client_ip`, `user_agent.original` a `url.query`. Je to druhá vrstva – aplikace e-maily ani IP do logů a tras
   nepíše ([Účty – zpevnění](../architektura/moduly/accounts.md)). `enduser.id` (ID účtu) zůstává.
+- **Jen potřebné metriky (mikroservisy M4):** filtr `cloud_metrics` pouští do Grafana Cloud jen `minishop.*`,
+  `http.server.request.duration` a `dotnet.*` (běh .NET – paměť, GC). Histogramy HTTP klienta, DNS, Kestrelu nebo
+  přihlašování zabíraly stovky řad a nikdo je nečetl – zůstávají jen v Aspire dashboardu, který dostává všechno.
+  **Nová metrika, kterou chcete v Grafaně (dashboard, alarm), musí projít filtrem** – vlastní `minishop.*` projde sama.
 - **Přihlášení:** Instance ID a adresa v `deploy/production.env` (netajné), token jen se zápisem v secretu
   `GRAFANA_CLOUD_OTLP_TOKEN` ([Secrets](../github/secrets.md)) – čtení dat z Grafany jím nejde.
 - **Výpadek Grafana Cloud** aplikaci neovlivní: Alloy data chvíli drží v paměti a opakuje, pak je zahodí. Výpadek Alloye
@@ -101,7 +105,7 @@ zdroj `-prom`, složka **MiniShop** (jen pro tyto alarmy – import pravidla ve 
 | `MiniShopConfirmationSlo` | za 7 dní < 99 % objednávek do 30 s | jako u pomalého potvrzování; rozpočet chyb je vyčerpaný |
 | `MiniShopHttp5xx` | > 3 odpovědi 5xx za 10 min | dashboard Chyby 5xx podle stránky, Explore → `-logs` (úroveň Error) → odkaz na trasu |
 | `MiniShopTelemetryMissing` | 10 min nepřišly metriky stavu | `/health`, UptimeRobot, na VM `docker compose ps` (web, alloy), `docker compose logs alloy` |
-| `MiniShopMetricsNearLimit` | víc než 8 000 aktivních metrických řad 30 min (limit free tieru 10 000; běžně ~3 400, při nasazení dočasně ~6 300) | Explore → `-prom`: `count by (job) ({__name__=~".+"})` – která služba roste; zahodit nepotřebné metriky v [config.alloy](code:deploy/config.alloy), méně přihrádek histogramů v ServiceDefaults |
+| `MiniShopMetricsNearLimit` | víc než 8 000 aktivních metrických řad 30 min (limit free tieru 10 000; před filtrem M4 běžně ~4 700, při nasazení s provozem až ~10 200) | Explore → `-prom`: `topk(30, count by (__name__) ({__name__=~".+"}))` – která metrika roste, `count by (job) ({__name__=~".+"})` – která služba; zúžit filtr `cloud_metrics` v [config.alloy](code:deploy/config.alloy), méně přihrádek histogramů v ServiceDefaults |
 
 Prahy jsou pro malý provoz MiniShopu – úprava v YAML (PR) a nový import.
 

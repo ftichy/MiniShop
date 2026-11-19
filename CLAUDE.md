@@ -641,7 +641,8 @@ přes stejnou frontu + inbox, UI ve Webu (služby REST API se servisním klíče
 | M2A. Interní API Webu pro Notifications – expand (`InternalController` `/internal/…` jen se servisním klíčem `WEB_INTERNAL_API_KEY` – schéma `ApiKey` vedle cookie, politika `InternalApi.PolicyName`; Caddy `/internal/*` → 404; klient `WebInternalApiClient` v Infrastructure + test kontraktu `InternalApiTests`; `deploy.sh` připravený i na M2C) | hotovo (nasazeno 17. 11. 2026 jako `sha-83a9c0b`; v produkci ověřeno: z internetu `/internal/…` 404, zevnitř VM s klíčem 200) | `docs/kroky-mikroservisy/krok-m2a-interni-api.md` |
 | M2B. Zprávy ze všech služeb (`MessagesOverview` ve sdíleném jádru, `MessagesController` `/api/messages` v každé službě, `/Admin/Messages` přes `IServiceMessages` – Web v procesu, ostatní HTTP, nedostupná služba jen upozornění) | hotovo (nasazeno 17. 11. 2026 jako `sha-667a4ee`; v produkci ověřeno: stránka Zprávy ukazuje Web, sklad i přehled tržeb) | `docs/kroky-mikroservisy/krok-m2b-zpravy-vsech-sluzeb.md` |
 | M2C. Notifications jako služba (`MiniShop.Notifications.Api` – handlery, SMTP, VAPID, API pro stránky Webu, `/api/messages`; data z interního API Webu přes `WebInternalApiClient`; Web `NotificationsApiClient` + upozornění při výpadku, jen veřejný klíč VAPID; secret `NOTIFICATIONS_API_KEY`; testy Webu proti službě v paměti přes HTTP) | hotovo (nasazeno 17. 11. 2026 jako `sha-c121d48`; v produkci ověřeno: frontu `minishop.notifications` poslouchá jen služba, zkušební oznámení, objednávka – e-maily, push zákazníkovi i oznámení skladníkovi) | `docs/kroky-mikroservisy/krok-m2c-notifications.md` |
-| M3. Vyhodnocení – pokračovat, nebo zastavit | plán | — |
+| M3. Vyhodnocení – pokračovat, nebo zastavit (měřeno 19. 11. 2026: paměť 1,67 GiB, služby CPU ~0 %, nasazení +45 s, řady při nasazení s provozem ~10 200 > limit 10 000; výpadek Notifications bez ztráty zpráv, `MiniShopQueueSilent` Firing za ~13 min; příručka `architektura/mikroservisy.md`) | hotovo – **zastavit**: další moduly nevyjímat, knihovny nedělit; Reporting.Api a Notifications.Api zůstávají jako ukázka | `docs/kroky-mikroservisy/krok-m3-vyhodnoceni.md` |
+| M4. Méně metrik v Alloyi (filtr `cloud_metrics` v `deploy/config.alloy` – do Grafana Cloud jen `minishop.*`, `http.server.request.duration`, `dotnet.*`; Aspire dál vše) | hotovo v PR (čeká na nasazení a změření řad) | `docs/kroky-mikroservisy/krok-m4-mene-metrik.md` |
 
 ## Stav observability (viz `docs/Observabilita-roadmap.md`)
 Historie telemetrie, dashboard zpráv a ság, alarmy – Grafana Cloud Free (stack `patientjaguar2071`, region EU Germany, 0 Kč).
@@ -649,6 +650,8 @@ Souhrny kroků do `docs/kroky-observabilita/`. Aplikace se kvůli Grafaně nemě
 - **Alloy jen v produkci:** `deploy/compose.grafana.yaml` (v `COMPOSE_FILE` v `production.env`) přidá `alloy` a přesměruje
   `OTEL_EXPORTER_OTLP_ENDPOINT` služeb na `http://alloy:4317`; `deploy/config.alloy` posílá vše do Aspire dashboardu a do Grafana Cloud
   přes filtr `privacy` (maže IP, user agent, `url.query`). **Nový atribut s osobním údajem = smazat i v `config.alloy`.**
+  Mikroservisy M4: filtr `cloud_metrics` pouští do Grafany jen `minishop.*`, `http.server.request.duration` a `dotnet.*` –
+  **nová cizí metrika pro dashboard/alarm = povolit tam** (Aspire dostává vše).
   Lokálně (AppHost, `compose.yaml`) beze změny. Změnu `config.alloy` načte `deploy.sh` restartem Alloye. Vypnutí = odebrat soubor z `COMPOSE_FILE`.
 - Endpoint a Instance ID v `production.env` (netajné), token jen se zápisem = secret `GRAFANA_CLOUD_OTLP_TOKEN` (`glc_…`,
   povinný se zapnutým doplňkem; `docs/secrets.md` R15). `compose.grafana.yaml` a `config.alloy` jsou v `deploy.sh` **volitelné soubory**

@@ -101,12 +101,15 @@ flowchart TB
   service discovery, resilience, OpenTelemetry) dodává [MiniShop.ServiceDefaults](code:src/MiniShop.ServiceDefaults/ServiceDefaultsExtensions.cs).
 - **V cloudu** – Docker Compose na virtuálním stroji (popsáno v části o nasazení).
 
-## Proč dvě služby (a ne jedna)
+## Proč víc služeb (a ne jedna)
 
 Sklad se z aplikace „vystěhoval“ v kroku 10B, aby bylo vidět, co se změní, když modul přestane být ve stejném
 procesu: transport *v paměti* přestal stačit, adresy služeb se musí zjistit (service discovery), HTTP volání
 musí přežít výpadek (resilience) a ladění potřebuje trasování. Kód modulů se přitom téměř nezměnil –
 díky tomu, že už předtím mluvily jen přes zprávy.
+
+Reporting a Notifications následovaly na zkoušku (mikroservisy M1–M2C). Vyhodnocení s naměřenou cenou a rozhodnutím
+dál nevyjímat je na stránce [Mikroservisy – co stály](mikroservisy.md).
 
 ## Na internetu
 

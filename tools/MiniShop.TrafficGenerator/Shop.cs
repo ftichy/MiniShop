@@ -87,7 +87,8 @@ public static class Shop
         while (DateTime.UtcNow - started < patience)
         {
             var page = await session.GetAsync($"/Orders/{orderId}");
-            if (Regex.IsMatch(page.Html, "data-track=\"order-detail-status\"[^>]*>\\s*" + Regex.Escape(statusText)))
+            // Razor kóduje české znaky („Potvrzen&#xE1;“) – porovnávat až dekódovaný text, jinak se stav nenajde nikdy.
+            if (Regex.IsMatch(WebUtility.HtmlDecode(page.Html), "data-track=\"order-detail-status\"[^>]*>\\s*" + Regex.Escape(statusText)))
             {
                 return DateTime.UtcNow - started;
             }

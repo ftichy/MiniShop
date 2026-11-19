@@ -144,6 +144,13 @@ try
         return;
     }
 
+    // Generátor provozu (issue #155): "dotnet MiniShop.Web.dll create-loadtest-users" založí testovací účty a skončí.
+    if (CreateLoadTestUsersCommand.IsRequested(args))
+    {
+        Environment.ExitCode = await CreateLoadTestUsersCommand.RunAsync(app.Services, args);
+        return;
+    }
+
     // 2FA krok A2: "dotnet MiniShop.Web.dll reset-2fa --email …" zruší dvoufázové ověření účtu (ztráta telefonu) a skončí.
     if (ResetTwoFactorCommand.IsRequested(args))
     {

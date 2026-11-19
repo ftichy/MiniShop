@@ -282,6 +282,9 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   **Nová událost s oznámením = šablona v `PushTemplates` + `HandleAsync` v `OrderPushHandler` + řádek v `AddOrderPushHandlers`.** Klíče:
   `PUSH_VAPID_PUBLIC_KEY` (`production.env`) + secret `PUSH_VAPID_PRIVATE_KEY`. Testy: `RecordingPushSender` (`_push`, `web.Push` = push ze služby `web.Notifications` – `NotificationsApiFactory` v paměti, Web ji volá přes HTTP; `web.NotificationsAvailable = false` = výpadek).
   **Oznámení k práci (e-shop krok 24):** nový typ = konec `StaffAlertKind` + `PushTemplates` + `StaffPushHandler` + řádek `StaffAlertRoles` (role, popisek) + `AddStaffPushHandlers`; role rozhoduje Web při odeslání (`IStaffDirectory`). Testy: `InMemoryStaffDirectory` (`_staff`).
+- **Generátor provozu (e-shop krok 25, issue #155):** `tools/MiniShop.TrafficGenerator` (HTTP, bez prohlížeče, spouští člověk z PC) – zákazníci
+  `loadtest-N@loadtest.minishop.invalid` + skladník s 2FA z příkazu `create-loadtest-users` (`LoadTestAccountSeeder`); **e-maily na `*.invalid`
+  `SmtpEmailSender` neodešle**, platí jen dobírka. Změna polí pokladny/expedice/vratky = zkontrolovat `Shop.cs`/`Desk.cs` generátoru. Příručka `nasazeni/generator-provozu.md`.
 - **Hodnocení produktů (e-shop krok 14):** modul Reviews (`…Reviews` ve všech vrstvách, hostuje Web, schéma `reviews` s inboxem + outboxem,
   fronta `minishop.reviews`; **musí do zálohy** – nejde přestavět). Kopie nákupů `PurchasedOrder` z `OrderPlacedV2`, `OrderCompletedV1`
   (doručeno), `ReturnCompletedV1` (vráceno), `OrderSnapshotV2`, `CustomerAnonymizedV1` (smazat nákupy, autor „Smazaný zákazník“) – upsert,

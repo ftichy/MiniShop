@@ -63,7 +63,7 @@ public static class CreateAdminCommand
     }
 
     /// <summary>Heslo bez zobrazení na obrazovce. Přesměrovaný vstup (skript, test) se čte jako obyčejný řádek.</summary>
-    private static string ReadPassword(string prompt)
+    internal static string ReadPassword(string prompt)
     {
         Console.Write(prompt);
         if (Console.IsInputRedirected)

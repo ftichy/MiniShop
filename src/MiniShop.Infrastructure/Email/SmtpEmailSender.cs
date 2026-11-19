@@ -17,6 +17,13 @@ public sealed class SmtpEmailSender(IOptions<EmailSettings> options, ILogger<Smt
     {
         var settings = options.Value;
 
+        // Issue #155: testovací účty generátoru provozu mají adresu na doméně .invalid (RFC 2606 – nikdy neexistuje).
+        if (message.To.TrimEnd().EndsWith(".invalid", StringComparison.OrdinalIgnoreCase))
+        {
+            logger.LogInformation("E-mail „{Subject}“ se neodeslal – adresát je testovací účet (.invalid)", message.Subject);
+            return;
+        }
+
         var mime = new MimeMessage();
         mime.From.Add(new MailboxAddress(settings.FromName, settings.FromAddress));
         mime.To.Add(MailboxAddress.Parse(message.To));

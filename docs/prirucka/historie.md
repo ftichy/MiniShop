@@ -166,6 +166,8 @@ Plán: [docs/Mikroservisy-roadmap.md](code:docs/Mikroservisy-roadmap.md) – vyj
 | M2A | Interní API Webu `/internal/…` jen se servisním klíčem (druhé schéma ověření vedle cookie, z internetu zavřené v Caddy) a klient budoucí služby Notifications s testem kontraktu – expand bez změny chování | [krok-m2a](code:docs/kroky-mikroservisy/krok-m2a-interni-api.md) |
 | M2B | Stránka Zprávy pro všechny služby – každá služba nabízí `/api/messages` (stejná logika ze sdíleného jádra), Web je ukáže pohromadě a nedostupnou službu označí jen upozorněním | [krok-m2b](code:docs/kroky-mikroservisy/krok-m2b-zpravy-vsech-sluzeb.md) |
 | M2C | Notifications jako samostatná služba `MiniShop.Notifications.Api` – e-maily a oznámení push mimo Web, data jiných modulů z interního API Webu, stránky Webu přes API služby, výpadek služby i Webu bez ztráty e-mailu | [krok-m2c](code:docs/kroky-mikroservisy/krok-m2c-notifications.md) |
+| M3 | Vyhodnocení v produkci (paměť, metrické řady, doba nasazení, zátěž z generátoru, zkouška výpadku služby) a rozhodnutí dál nevyjímat – stránka [Mikroservisy – co stály](architektura/mikroservisy.md) | [krok-m3](code:docs/kroky-mikroservisy/krok-m3-vyhodnoceni.md) |
+| M4 | Méně metrik v Grafaně – Alloy posílá do cloudu jen metriky, které čtou dashboardy a alarmy; Aspire dashboard dál všechno | [krok-m4](code:docs/kroky-mikroservisy/krok-m4-mene-metrik.md) |
 
 ## Proč po krocích
 

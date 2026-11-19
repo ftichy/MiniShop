@@ -61,9 +61,31 @@ otelcol.processor.attributes "privacy" {
   }
 
   output {
-    metrics = [otelcol.processor.batch.cloud.input]
+    metrics = [otelcol.processor.filter.cloud_metrics.input]
     logs    = [otelcol.processor.batch.cloud.input]
     traces  = [otelcol.processor.batch.cloud.input]
+  }
+}
+
+// 3) Mikroservisy M4: do Grafana Cloud jen metriky, které někdo čte – limit free tieru je 10 000 aktivních řad
+// a při nasazení s provozem jich bylo ~10 200 (M3). Zůstávají:
+//   minishop.*                    – vlastní metriky (dashboard, alarmy, SLO)
+//   http.server.request.duration  – 5xx alarm, doba odezvy v dashboardu, tutoriál
+//   dotnet.*                      – paměť, GC a vlákna služeb (málo řad, hodí se při hledání úniku paměti)
+// Zahazuje se hlavně HTTP klient, DNS, Kestrel, přihlašování a směrování (histogramy – stovky řad, nikdo je nečte).
+// Aspire dashboard dál dostává všechno (jde do něj přímo z receiveru). Nová metrika do Grafany = přidat sem.
+// Podmínka říká, co ZAHODIT (OTTL; jména metrik v OTLP s tečkami, v Grafaně se z nich stanou podtržítka).
+otelcol.processor.filter "cloud_metrics" {
+  error_mode = "ignore"
+
+  metrics {
+    metric = [
+      `not (IsMatch(name, "^minishop[.]") or name == "http.server.request.duration" or IsMatch(name, "^dotnet[.]"))`,
+    ]
+  }
+
+  output {
+    metrics = [otelcol.processor.batch.cloud.input]
   }
 }
 

@@ -20,14 +20,16 @@ else
     </div>
 }
 
-<div class="card mx-auto" style="max-width: 32rem">
+@* Vzhled krok F2: živý výřez – dokud se platba zakládá, htmx ho každé 3 s vymění; se Stripem pak server pošle
+   HX-Redirect a prohlížeč přejde na bránu celý. *@
+<div id="pay-live" class="card mx-auto" style="max-width: 32rem" live-region="@Model.IsLive">
     <div class="card-body">
         <h1 class="h4 card-title">Platba kartou</h1>
 
         @if (Model.Payment is null)
         {
             @* Sága platbu založí až po rezervaci zboží (pár sekund). *@
-            <p class="text-muted" data-reload-when-idle>Připravujeme platbu – stránka se za chvilku sama obnoví…</p>
+            <p class="text-muted" data-track="pay-preparing">Připravujeme platbu – za chvilku se tu objeví…</p>
         }
         else
         {
@@ -46,8 +48,8 @@ else
             }
             else if (Model.CanPay && Model.IsStripe)
             {
-                @* Stripe: platba ještě nemá adresu brány (nemělo by nastat) – stránka se obnoví a přesměruje. *@
-                <p class="text-muted" data-reload-when-idle>Připravujeme platební bránu – stránka se za chvilku sama obnoví…</p>
+                @* Stripe: platba ještě nemá adresu brány (nemělo by nastat) – výřez se obnoví a server přesměruje na bránu. *@
+                <p class="text-muted">Připravujeme platební bránu – za chvilku vás na ni přesměrujeme…</p>
             }
             else if (Model.CanPay)
             {
@@ -88,6 +90,3 @@ else
     </div>
 </div>
 
-@section Scripts {
-    <script src="~/js/orders-reload.js" asp-append-version="true"></script>
-}

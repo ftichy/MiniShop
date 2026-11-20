@@ -161,6 +161,18 @@ public static class ShopFlow
     }
 
     /// <summary>
+    /// Vzhled krok F2: na otevřeném detailu objednávky počká, až se stav sám změní (živý výřez, htmx) – bez obnovení
+    /// stránky. Značka v <c>window</c> by po načtení stránky zmizela, takže ověří, že se stránka opravdu nenačetla znovu.
+    /// </summary>
+    public static async Task WaitForLiveOrderStatusAsync(IPage page, string statusText)
+    {
+        await page.EvaluateAsync("window.__minishopNoReload = true");
+        var status = page.Locator("[data-track=order-detail-status]").Filter(new() { HasText = statusText });
+        await Expect(status).ToBeVisibleAsync(new() { Timeout = (float)E2EEnvironment.Patience.TotalMilliseconds });
+        Assert.True(await page.EvaluateAsync<bool>("window.__minishopNoReload === true"), "Stránka se načetla znovu – stav měl vyměnit živý výřez.");
+    }
+
+    /// <summary>
     /// E-shop krok 22: admin objednávku zabalí, odešle a doručí (stránka Expedice). Od kroku 26B kurýr = „Předat dopravci“:
     /// číslo zásilky přidělí simulovaný dopravce (carrier-sim) zprávou a od 26C ohlásí i doručení webhookem.
     /// </summary>

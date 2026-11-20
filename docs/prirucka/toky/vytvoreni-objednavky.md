@@ -102,8 +102,8 @@ sequenceDiagram
 
 ## Co si všimnout
 
-- **Kroky 1–7 jsou jediné synchronní.** Zákazník nečeká na sklad – dostane `Pending` a stránka se sama obnoví
-  (jen když zrovna nic nevyplňuje).
+- **Kroky 1–7 jsou jediné synchronní.** Zákazník nečeká na sklad – dostane `Pending` a stav na stránce se sám
+  aktualizuje (vzhled krok F2: živý výřez přes htmx, bez načtení celé stránky – [Vzhled a mobil](../architektura/vzhled.md)).
 - **Každý `COMMIT` je jedna lokální transakce** v jedné databázi. Mezi databázemi putují jen zprávy.
 - **Mezi fázemi jsou časové mezery** (kolo workeru 2 s, doručení přes RabbitMQ). Proto potvrzení trvá několik sekund.
 - **Každé převzetí zprávy jde přes inbox** – kdyby se cokoli doručilo dvakrát, nic se nezdvojí.

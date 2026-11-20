@@ -7,6 +7,9 @@
 }
 <p class="small mb-2"><a asp-page="/Orders/Index" data-track="order-detail-back">← Objednávky</a></p>
 
+@* Vzhled krok F2: živý výřez – dokud se na něco čeká (sága, platba, vratka, dopravce), htmx ho každé 3 s vymění
+   za čerstvý (DetailModel.IsLive); stránka se nenačítá celá a rozepsaný formulář se nepřepíše. *@
+<div id="order-live" live-region="@Model.IsLive">
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <h1 class="mb-0">Objednávka č. @order.Id</h1>
     <span class="badge fs-6 @OrderStatusLabels.Badge(order.Status)" data-track="order-detail-status">@OrderStatusLabels.Text(order.Status, order.ShippingMethod)</span>
@@ -16,14 +19,14 @@
 
 @if (order.Status == "Pending")
 {
-    @* Krok 9: sklad objednávku ověřuje na pozadí (sága) – stránka se za 2 s sama obnoví. *@
-    <p class="text-muted small" data-reload-when-idle>Čekáme na potvrzení skladu, stránka se sama obnoví…</p>
+    @* Krok 9: sklad objednávku ověřuje na pozadí (sága) – stav se sám aktualizuje (vzhled F2: živý výřez). *@
+    <p class="text-muted small" data-track="order-detail-waiting">Čekáme na potvrzení skladu, stav se sám aktualizuje…</p>
 }
 else if (order.Status == "AwaitingPayment")
 {
     @* E-shop krok 8: zboží drží rezervace, zákazník má na zaplacení omezený čas (pak sága objednávku zamítne).
-       Stránka se obnovuje – po zaplacení (třeba v jiné záložce) se ukáže potvrzení. *@
-    <div class="alert alert-warning d-flex justify-content-between align-items-center" data-reload-when-idle>
+       Výřez se obnovuje – po zaplacení (třeba v jiné záložce) se ukáže potvrzení. *@
+    <div class="alert alert-warning d-flex justify-content-between align-items-center">
         <span>Zboží máme rezervované. Zaplaťte prosím kartou do @Model.PaymentMinutes minut od rezervace, jinak objednávku zrušíme.</span>
         @if (Model.IsOwnCustomerOrder)
         {
@@ -41,8 +44,8 @@ else if (order.Status == "AwaitingPayment")
 }
 else if (order.Status == "ReturnRequested")
 {
-    @* E-shop krok 12: sága vratky čeká na zboží – pak sklad naskladní a Payments vrátí peníze (stránka se obnovuje). *@
-    <div class="alert alert-info" data-reload-when-idle data-track="order-return-pending">
+    @* E-shop krok 12: sága vratky čeká na zboží – pak sklad naskladní a Payments vrátí peníze (výřez se obnovuje). *@
+    <div class="alert alert-info" data-track="order-return-pending">
         Čekáme na vrácené zboží – pošlete ho na adresu <strong>MiniShop, Skladová 1, 110 00 Praha</strong>
         (termín najdete v e-mailu). Peníze vrátíme, jakmile zásilku převezmeme.
         @if (Model.Detail.ReturnReason is not null)
@@ -74,7 +77,7 @@ else if (order.Status == "Completed" && Model.Detail.ReturnRejectionReason is no
 @if (Model.Detail.Returns is { Count: > 0 } returns)
 {
     @* E-shop krok 22: vratky po částech – objednávka zůstává doručená, každá vratka má vlastní stav. *@
-    <div class="card card-body mb-3" data-track="order-returns" @(returns.Any(r => r.Status == "Requested") ? "data-reload-when-idle" : "")>
+    <div class="card card-body mb-3" data-track="order-returns">
         <h2 class="h6 mb-2">Vratky</h2>
         @foreach (var orderReturn in returns)
         {
@@ -302,7 +305,4 @@ else if (order.Status == "Completed" && Model.Detail.ReturnRejectionReason is no
         }
     </div>
 </div>
-
-@section Scripts {
-    <script src="~/js/orders-reload.js" asp-append-version="true"></script>
-}
+</div>

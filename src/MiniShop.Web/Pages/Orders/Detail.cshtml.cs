@@ -56,6 +56,16 @@ public sealed class DetailModel(
     /// <summary>E-shop krok 8: kolik minut má zákazník na platbu kartou (termín ságy).</summary>
     public int PaymentMinutes => (int)sagaSettings.PaymentTimeout.TotalMinutes;
 
+    /// <summary>
+    /// Vzhled krok F2: na něco se čeká, výřez se sám obnovuje – sága (sklad, platba), předání dopravci, zásilka u dopravce
+    /// (až do doručení / vrácení), vratka. Hotová objednávka se neobnovuje (formulář vratky se nepřepisuje).
+    /// </summary>
+    public bool IsLive =>
+        Order.Status is "Pending" or "AwaitingPayment" or "ReturnRequested"
+        || Order.AwaitingShipment
+        || (Order.Status == "Shipped" && Order.ShippedByCarrier)
+        || Detail.Returns?.Any(r => r.Status == "Requested") == true;
+
     /// <summary>E-shop krok 15/15B: číslo faktury (null = zatím není) a dobropisy (krok 22: i víc – vratky po částech).</summary>
     public OrderDocumentsDto Documents { get; private set; } = new(null, []);
 

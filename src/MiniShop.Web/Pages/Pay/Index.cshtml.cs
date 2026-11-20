@@ -6,6 +6,7 @@ using MiniShop.Application.Ordering;
 using MiniShop.Application.Payments;
 using MiniShop.Infrastructure.Payments;
 using MiniShop.Web.Accounts;
+using MiniShop.Web.Ui;
 
 namespace MiniShop.Web.Pages.Pay;
 
@@ -42,6 +43,9 @@ public sealed class IndexModel(
     /// <summary>E-shop krok 16: platby jdou přes Stripe – stránka jen přesměruje na bránu nebo ukáže stav.</summary>
     public bool IsStripe => gatewayInfo.IsStripe;
 
+    /// <summary>Vzhled krok F2: platba se ještě zakládá (nebo u Stripu čeká na adresu brány) – výřez se sám obnovuje.</summary>
+    public bool IsLive => Payment is null || (CanPay && IsStripe);
+
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
         if (!await LoadAsync(cancellationToken))
@@ -54,6 +58,14 @@ public sealed class IndexModel(
         if (CanPay && Payment?.CheckoutUrl is { } url && Uri.TryCreate(url, UriKind.Absolute, out var gatewayUrl)
             && gatewayUrl.Scheme == Uri.UriSchemeHttps)
         {
+            // Vzhled krok F2: dotaz živého výřezu (htmx na pozadí) by přesměrování na cizí doménu neprovedl – HX-Redirect
+            // převede celou stránku.
+            if (Request.IsHtmxRequest())
+            {
+                Response.Headers[Htmx.RedirectHeader] = gatewayUrl.ToString();
+                return new EmptyResult();
+            }
+
             return Redirect(gatewayUrl.ToString());
         }
 

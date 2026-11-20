@@ -31,6 +31,7 @@ public sealed class TestDatabases : IDisposable
     public ModuleDatabase Reporting => Database;
     public ModuleDatabase Reviews => Database;
     public ModuleDatabase Invoicing => Database;
+    public ModuleDatabase Shipping => Database;   // e-shop krok 26B
 
     /// <summary>Konfigurace služby v paměti (WebApplicationFactory) – stejný klíč jako v produkci: <c>ConnectionStrings:minishop</c>.</summary>
     public void Configure(IWebHostBuilder builder) =>

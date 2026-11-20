@@ -26,8 +26,8 @@ app.MapShipmentsApi();
 
 var settings = app.Services.GetRequiredService<IOptions<CarrierOptions>>().Value;
 app.Logger.LogInformation(
-    "Simulátor dopravce: krok {StepSeconds} s, webhooky {Webhooks}, zlobení 503 {Failure}, ztracená odpověď {Lost}, dvakrát {Duplicate}, mimo pořadí {Reorder}, vůbec {Drop}",
+    "Simulátor dopravce: krok {StepSeconds} s, webhooky {Webhooks}, zlobení 503 {Failure}, ztracená odpověď {Lost}, dvakrát {Duplicate}, mimo pořadí {Reorder}, vůbec {Drop}, odmítnutí {Reject}",
     settings.StepSeconds, string.IsNullOrWhiteSpace(settings.WebhookUrl) ? "vypnuté" : "zapnuté",
-    settings.Chaos.FailureRate, settings.Chaos.LostResponseRate, settings.Chaos.DuplicateRate, settings.Chaos.ReorderRate, settings.Chaos.DropRate);
+    settings.Chaos.FailureRate, settings.Chaos.LostResponseRate, settings.Chaos.DuplicateRate, settings.Chaos.ReorderRate, settings.Chaos.DropRate, settings.Chaos.RejectRate);
 
 app.Run();

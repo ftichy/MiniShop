@@ -109,6 +109,20 @@ public class Order : Entity
     public string? TrackingNumber { get; private set; }
 
     /// <summary>
+    /// E-shop krok 26B: kdy skladník předal objednávku dopravci (<see cref="RequestShipment"/>) – čeká se na číslo zásilky.
+    /// Null = nepředáno, nebo dopravce zásilku odmítl (<see cref="ShipmentError"/>).
+    /// </summary>
+    public DateTime? ShipmentRequestedAtUtc { get; private set; }
+
+    /// <summary>E-shop krok 26B: proč dopravce zásilku naposledy odmítl (česká hláška pro Expedici), nebo null.</summary>
+    public string? ShipmentError { get; private set; }
+
+    public const int ShipmentErrorMaxLength = 300;
+
+    /// <summary>E-shop krok 26B: předává se dopravci a ještě nepřišlo číslo zásilky ani odmítnutí.</summary>
+    public bool IsAwaitingShipment => Status == OrderStatus.Packing && ShipmentRequestedAtUtc is not null;
+
+    /// <summary>
     /// E-shop krok 6: pojistka proti souběhu (concurrency token) – každá změna stavu ji zvýší. Admin odesílá a zákazník
     /// ruší ve stejné chvíli → druhý zápis (UPDATE … WHERE Version = původní) selže a nic se nepřepíše.
     /// </summary>
@@ -288,6 +302,69 @@ public class Order : Entity
     public void Ship(string? carrier, string? trackingNumber, DateTime shippedAtUtc)
     {
         EnsureStatus(OrderStatus.Packing, "Odeslat lze jen zabalenou objednávku.");
+        if (IsAwaitingShipment)
+        {
+            throw new DomainException("Zásilka se předává dopravci – počkejte na číslo zásilky.");
+        }
+
+        ShipNow(carrier, trackingNumber, shippedAtUtc);
+    }
+
+    /// <summary>
+    /// E-shop krok 26B: skladník předává zabalenou objednávku dopravci. Číslo zásilky přidělí dopravce – přijde zprávou
+    /// (<see cref="ConfirmShipment"/>), nebo odmítnutí (<see cref="FailShipment"/>). Dvojklik / souběh = podruhé chyba.
+    /// </summary>
+    public void RequestShipment(DateTime requestedAtUtc)
+    {
+        EnsureStatus(OrderStatus.Packing, "Dopravci lze předat jen zabalenou objednávku.");
+        if (ShippingMethod != ShippingMethod.Courier || DeliveryAddress is null)
+        {
+            throw new DomainException("Dopravci se předává jen zásilka kurýrem s doručovací adresou.");
+        }
+
+        if (ShipmentRequestedAtUtc is not null)
+        {
+            throw new DomainException("Zásilka se už dopravci předává.");
+        }
+
+        ShipmentRequestedAtUtc = requestedAtUtc;
+        ShipmentError = null;
+        Version++;   // bez změny stavu – souběh (dvojklik, zákazník ruší) ale zastavit musí
+        Raise(new OrderShipmentRequested(this, requestedAtUtc));
+    }
+
+    /// <summary>
+    /// E-shop krok 26B: dopravce zásilku převzal do systému (ShipmentCreatedV1) → odeslat. Opakovaná nebo opožděná zpráva
+    /// (objednávka už odeslaná, mezitím ručně jiným dopravcem) vrátí false a nic nezmění.
+    /// </summary>
+    public bool ConfirmShipment(string carrier, string trackingNumber, DateTime shippedAtUtc)
+    {
+        if (!IsAwaitingShipment)
+        {
+            return false;
+        }
+
+        ShipmentError = null;
+        ShipNow(carrier, trackingNumber, shippedAtUtc);
+        return true;
+    }
+
+    /// <summary>E-shop krok 26B: dopravce zásilku odmítl (ShipmentFailedV1) → zpět do „K odeslání“ s hláškou.</summary>
+    public bool FailShipment(string reason)
+    {
+        if (!IsAwaitingShipment)
+        {
+            return false;
+        }
+
+        ShipmentRequestedAtUtc = null;
+        ShipmentError = reason.Length > ShipmentErrorMaxLength ? reason[..ShipmentErrorMaxLength] : reason;
+        Version++;
+        return true;
+    }
+
+    private void ShipNow(string? carrier, string? trackingNumber, DateTime shippedAtUtc)
+    {
         if (ShippingMethod == ShippingMethod.Pickup)
         {
             carrier = null;
@@ -329,6 +406,12 @@ public class Order : Entity
             throw new DomainException(Status is OrderStatus.Shipped or OrderStatus.Completed
                 ? "Odeslanou objednávku už zrušit nejde."
                 : "Tuto objednávku už zrušit nejde.");
+        }
+
+        // E-shop krok 26B: zásilka už může u dopravce existovat a simulátor storno neumí (krok 26D).
+        if (IsAwaitingShipment)
+        {
+            throw new DomainException("Objednávka se předává dopravci – zrušit už nejde.");
         }
 
         ChangeStatus(OrderStatus.Cancelled, cancelledAtUtc);

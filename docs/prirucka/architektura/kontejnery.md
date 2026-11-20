@@ -89,6 +89,9 @@ flowchart TB
   servisní klíč `REPORTING_API_KEY`). Data dostává služba jen ze zpráv.
 - **Web ↔ Notifications.Api přes HTTP** (mikroservisy M2C): Web volá API služby kvůli stránkám (`NOTIFICATIONS_API_KEY`),
   služba volá interní API Webu kvůli kontaktu zákazníka, rolím, názvu produktu a PDF faktur (`WEB_INTERNAL_API_KEY`).
+- **Web → carrier-sim přes HTTP** (e-shop krok 26B): modul Shipping zakládá zásilky u [simulovaného dopravce](dopravce.md)
+  (`CARRIER_API_KEY`, `Idempotency-Key`). Volá se z handleru zprávy `CreateShipmentV1`, ne ze stránky – výpadek dopravce
+  tak jen zdrží odeslání, stránky běží dál.
 - **Business tok jde jen přes RabbitMQ.** Objednávka nikdy nevolá sklad synchronně. Kdyby sklad neběžel, objednávka
   se přijme a počká (nebo ji sága po timeoutu zamítne).
 

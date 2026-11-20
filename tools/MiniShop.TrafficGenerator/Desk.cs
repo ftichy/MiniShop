@@ -17,8 +17,9 @@ public sealed class Desk(Session session, TimeSpan patience) : IDisposable
         {
             var fulfilment = await session.GetAsync("/Admin/Fulfilment");
             await session.PostAsync(fulfilment, "/Admin/Fulfilment?handler=StartPacking", [("ids", orderId.ToString())]);
-            await session.PostAsync("/Admin/Fulfilment", $"/Admin/Fulfilment?handler=Ship&id={orderId}",
-                ("carrier", "PPL"), ("trackingNumber", $"LT{orderId}"));
+            // E-shop krok 26B: kurýr = předat dopravci; číslo zásilky přidělí (simulovaný) dopravce zprávou za pár sekund.
+            await session.PostAsync("/Admin/Fulfilment", $"/Admin/Fulfilment?handler=HandOver&id={orderId}");
+            await Shop.WaitForStatusAsync(session, orderId, "Odeslaná", patience);
             await session.PostAsync("/Admin/Fulfilment", $"/Admin/Fulfilment?handler=Deliver&id={orderId}");
         }
         finally

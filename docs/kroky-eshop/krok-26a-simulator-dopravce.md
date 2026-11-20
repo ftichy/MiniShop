@@ -61,8 +61,8 @@ Přirovnání: cvičná pošta. Doručuje, ale na povel ztratí potvrzení, poš
 
 1. Před sloučením: secrets `CARRIER_API_KEY` a `CARRIER_WEBHOOK_SECRET` (64 hex, vlastní) v environmentu `production`,
    nový `deploy.sh` na VM (`scp` + `sudo install`).
-2. Po nasazení: balíček GHCR `minishop-carrier-sim` přepnout na **Public** (první push ho založí jako soukromý –
-   do té doby `docker compose pull` na VM selže). Pak *Run workflow* Deploy znovu, pokud první nasazení spadlo.
+2. Balíček GHCR `minishop-carrier-sim` vznikl při prvním pushi rovnou veřejný (převzal viditelnost veřejného repozitáře) –
+   VM ho stáhla napoprvé, přepínat na Public nebylo potřeba. Kdyby pull selhal (`denied`), přepnout ručně a znovu *Run workflow*.
 3. Na VM `docker compose ps` – `carrier-sim` healthy; `docker compose logs carrier-sim` – „Simulátor dopravce: krok 30 s,
    webhooky vypnuté …“.
 4. E-shop se chová jako dřív (Expedice beze změny).

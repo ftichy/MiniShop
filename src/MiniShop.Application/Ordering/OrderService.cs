@@ -153,6 +153,9 @@ public sealed class OrderService(
         CancellationToken cancellationToken = default) =>
         ChangeAsync(id, actingUserId, order => order.Ship(carrier, trackingNumber, UtcNow), cancellationToken);        // → OrderShipped → OrderShippedV1
 
+    public Task<OrderDto> RequestShipmentAsync(int id, string? actingUserId = null, CancellationToken cancellationToken = default) =>
+        ChangeAsync(id, actingUserId, order => order.RequestShipment(UtcNow), cancellationToken);                      // → OrderShipmentRequested → CreateShipmentV1
+
     /// <remarks>E-shop krok 6: „vyřídit“ = doručeno – jde až po odeslání (dřív rovnou z Confirmed).</remarks>
     public Task<OrderDto> CompleteAsync(int id, string? actingUserId = null, CancellationToken cancellationToken = default) =>
         ChangeAsync(id, actingUserId, order => order.MarkDelivered(UtcNow), cancellationToken);                        // → OrderCompleted

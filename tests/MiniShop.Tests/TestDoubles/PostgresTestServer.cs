@@ -9,6 +9,7 @@ using MiniShop.Infrastructure.Persistence;
 using MiniShop.Infrastructure.Reporting;
 using MiniShop.Infrastructure.Invoicing;
 using MiniShop.Infrastructure.Reviews;
+using MiniShop.Infrastructure.Shipping;
 using Npgsql;
 using Testcontainers.PostgreSql;
 
@@ -90,6 +91,7 @@ internal static class PostgresTestServer
         Migrate<ReviewsDbContext>(database, ReviewsDbContext.Schema);
         Migrate<AccountsDbContext>(database, AccountsDbContext.Schema);
         Migrate<InvoicingDbContext>(database, InvoicingDbContext.Schema);
+        Migrate<ShippingDbContext>(database, ShippingDbContext.Schema);   // e-shop krok 26B
     }
 
     private static void Migrate<TContext>(ModuleDatabase database, string schema) where TContext : DbContext

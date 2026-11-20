@@ -18,7 +18,7 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("ordering")
-                .HasAnnotation("ProductVersion", "10.0.14")
+                .HasAnnotation("ProductVersion", "10.0.15")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pg_trgm");
@@ -269,6 +269,13 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
                     b.Property<string>("ReturnRejectionReason")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
+
+                    b.Property<string>("ShipmentError")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTime?>("ShipmentRequestedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("ShippingMethod")
                         .IsRequired()

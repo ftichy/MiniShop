@@ -141,18 +141,22 @@ public static class ShopFlow
         await ReloadUntilAsync(page, $"/Orders/{orderId}", status, $"stav „{statusText}“ objednávky {orderId}");
     }
 
-    /// <summary>E-shop krok 22: admin objednávku zabalí, odešle a doručí (stránka Expedice).</summary>
+    /// <summary>
+    /// E-shop krok 22: admin objednávku zabalí, odešle a doručí (stránka Expedice). Od kroku 26B kurýr = „Předat dopravci“:
+    /// číslo zásilky přidělí simulovaný dopravce (carrier-sim) zprávou – čeká se, až se objednávka objeví „Na cestě“.
+    /// </summary>
     public static async Task ShipAndDeliverAsync(IPage back, int orderId)
     {
         await back.GotoAsync("/Admin/Fulfilment");
         await back.Locator($"input[name=ids][value='{orderId}']").CheckAsync();
         await back.Locator("[data-track=fulfilment-start-packing]").ClickAsync();
-        await back.Locator($"#carrier-{orderId}").FillAsync("PPL");
-        await back.Locator($"#tracking-{orderId}").FillAsync($"E2E{orderId}");
-        await back.Locator($"form:has(#carrier-{orderId}) [data-track=fulfilment-ship]").ClickAsync();
-        await back.Locator(".list-group-item")
+        await back.Locator($"form:has(a:text-is('č. {orderId}')) [data-track=fulfilment-hand-over]").ClickAsync();
+
+        var deliver = back.Locator(".list-group-item")
             .Filter(new() { Has = back.GetByRole(AriaRole.Link, new() { Name = $"č. {orderId}", Exact = true }) })
-            .Locator("[data-track=fulfilment-deliver]").ClickAsync();
+            .Locator("[data-track=fulfilment-deliver]");
+        await ReloadUntilAsync(back, "/Admin/Fulfilment", deliver, $"objednávka {orderId} na cestě (číslo zásilky od dopravce)");
+        await deliver.ClickAsync();
     }
 
     /// <summary>Platba kartou na simulované bráně: detail (čeká na ságu) → „Zaplatit“ → /Pay → „Zaplatit“.</summary>

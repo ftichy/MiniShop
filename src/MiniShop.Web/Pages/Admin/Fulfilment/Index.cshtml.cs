@@ -85,6 +85,22 @@ public sealed class IndexModel(IOrderService orderService) : PageModel
         return RedirectToPage();
     }
 
+    /// <summary>
+    /// E-shop krok 26B: předat zabalenou objednávku (kurýr) dopravci. Číslo zásilky přidělí dopravce – přijde zprávou
+    /// za pár sekund (stránka se sama obnoví); odmítnutí se ukáže u objednávky s možností zkusit znovu.
+    /// </summary>
+    public async Task<IActionResult> OnPostHandOverAsync(int id, CancellationToken cancellationToken)
+    {
+        var errors = new List<string>();
+        if (await TryAsync(id, () => orderService.RequestShipmentAsync(id, User.ToActingUserId(), cancellationToken), errors))
+        {
+            StatusMessage = $"Objednávka č. {id} se předává dopravci – číslo zásilky přijde za chvíli.";
+        }
+
+        ErrorMessage = errors.FirstOrDefault();
+        return RedirectToPage();
+    }
+
     /// <summary>Simulace dopravce: zásilka doručena (osobní odběr: vyzvednuta).</summary>
     public async Task<IActionResult> OnPostDeliverAsync(int id, CancellationToken cancellationToken)
     {

@@ -227,7 +227,7 @@ else if (order.Status == "Completed" && Model.Detail.ReturnRejectionReason is no
         @* E-shop krok 6 a 9: zrušit jde kdykoli před odesláním (i během čekání na sklad nebo platbu). Handler i kontrola práv jsou na stránce
            Objednávky (zákazník ruší jen svou); balení a odeslání má admin na stránce Expedice. *@
         @* Účty krok 12B: cizí objednávku ruší jen podpora. *@
-        @if (OrderStatusLabels.CanCancel(order.Status) && (Model.IsOwnOrder || Model.CanSupport))
+        @if (OrderStatusLabels.CanCancel(order) && (Model.IsOwnOrder || Model.CanSupport))
         {
             <form method="post" asp-page="/Orders/Index" asp-page-handler="Cancel" asp-route-id="@order.Id">
                 <button type="submit" class="btn btn-outline-danger w-100">Zrušit objednávku</button>

@@ -42,6 +42,7 @@ public sealed class StaffAreaTests(MiniShopWebFactory web)
 
         ("GET", "/Admin/Fulfilment", [Warehouse]),
         ("POST", "/Admin/Fulfilment?handler=StartPacking", [Warehouse]),
+        ("POST", "/Admin/Fulfilment?handler=HandOver&id=999", [Warehouse]),   // e-shop krok 26B
         ("GET", "/Admin/Returns", [Warehouse, Support]),
         ("POST", "/Admin/Returns?handler=Accept&id=999", [Warehouse]),
         ("POST", "/Admin/Returns?handler=Reject&id=999", [Support]),

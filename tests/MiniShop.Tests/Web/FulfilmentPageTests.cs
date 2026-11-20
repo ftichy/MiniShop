@@ -35,6 +35,29 @@ public sealed class FulfilmentPageTests(MiniShopWebFactory web)
         Assert.Contains("Doručená", delivered);
     }
 
+    /// <summary>
+    /// E-shop krok 26B: kurýr = „Předat dopravci“. Číslo zásilky přijde zprávou (outbox tu neběží – to testuje
+    /// OrderServiceTests), stránka mezitím ukáže „Předává se dopravci…“ a zákazník už nemůže zrušit.
+    /// </summary>
+    [Fact]
+    public async Task Kuryr_PredatDopravci_PredavaSe_ZrusitNejde_DvojklikHlaska()
+    {
+        var (customer, orderId) = await CustomerWithOrderAsync("expedice-4@example.com", ShippingMethod.Courier);
+        var admin = await web.LoginAsync(MiniShopWebFactory.AdminEmail, MiniShopWebFactory.AdminPassword);
+        await PostAsync(admin, "/Admin/Fulfilment?handler=StartPacking", ("ids", orderId.ToString()));
+        Assert.Contains("data-track=\"fulfilment-hand-over\"", await admin.GetStringAsync("/Admin/Fulfilment"));
+
+        await PostAsync(admin, $"/Admin/Fulfilment?handler=HandOver&id={orderId}");
+
+        var page = Decode(await admin.GetStringAsync("/Admin/Fulfilment"));
+        Assert.Contains($"Objednávka č. {orderId} se předává dopravci", page);
+        Assert.Contains("data-track=\"fulfilment-handing-over\"", page);
+        Assert.DoesNotContain("Zrušit objednávku", await DetailAsync(customer, orderId));
+
+        await PostAsync(admin, $"/Admin/Fulfilment?handler=HandOver&id={orderId}");   // dvojklik
+        Assert.Contains($"Č. {orderId}: Zásilka se už dopravci předává.", Decode(await admin.GetStringAsync("/Admin/Fulfilment")));
+    }
+
     [Fact]
     public async Task OsobniOdber_PripravenoKVyzvednuti_BezDopravce()
     {

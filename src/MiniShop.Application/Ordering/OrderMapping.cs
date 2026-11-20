@@ -28,7 +28,8 @@ public static class OrderMapping
             order.CouponCode,          // e-shop krok 13
             order.CouponDiscount,
             order.IsAwaitingShipment,   // e-shop krok 26B: předává se dopravci
-            order.ShipmentError);
+            order.ShipmentError,
+            order.IsShippedByCarrier);   // e-shop krok 26C: doručení hlásí dopravce
 
     /// <summary>E-shop krok 5: objednávka s historií stavů v pořadí, jak nastaly (podle Id – pořadí zápisu).</summary>
     public static OrderDetailDto ToDetailDto(this Order order) =>

@@ -78,7 +78,7 @@ try
     // Mikroservisy M1: Reporting (přehled tržeb) běží jako samostatná služba MiniShop.Reporting.Api.
     builder.Services.AddReviewsInfrastructure(database);
     builder.Services.AddInvoicingInfrastructure(database);   // e-shop krok 15: faktury
-    builder.Services.AddShippingInfrastructure(database);    // e-shop krok 26B: zásilky u dopravce
+    builder.Services.AddShippingInfrastructure(database, builder.Configuration[CarrierWebhookSettings.ConfigurationKey]);   // e-shop krok 26B/C: zásilky u dopravce, webhook
     builder.Services.AddAccounts(database, builder.Configuration);
     // Mikroservisy M2A: interní API /internal/… jen se servisním klíčem (WebInternalApi:ApiKey) – pro Notifications od M2C.
     builder.Services.AddWebInternalApi(builder.Configuration);
@@ -100,6 +100,7 @@ try
     // Krok 9: hlídání termínů ságy (sklad neodpověděl včas → zamítnout).
     builder.Services.AddLeaderOnlyHostedService<OrderSagaTimeoutWorker>();
     builder.Services.AddLeaderOnlyHostedService<CartReminderWorker>();   // e-shop krok 10: opuštěné košíky
+    builder.Services.AddLeaderOnlyHostedService<ShipmentReconciliationWorker>();   // e-shop krok 26C: dohledání zásilek u dopravce
 
     builder.Services.AddLeaderOnlyHostedService<LoginAttemptRetentionWorker>();   // 2FA krok B: úklid auditu přihlášení (90 dní)
 

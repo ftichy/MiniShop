@@ -19,7 +19,7 @@ nebo pozdě – a e-shop se musí naučit s tím počítat dřív, než ho potk�
 
 Plán celé integrace: [Doprava-roadmap](code:docs/Doprava-roadmap.md) (26A simulátor, 26B vytvoření zásilky,
 26C webhooky a dohledání stavu). Od kroku 26B zásilky zakládá [modul Shipping](moduly/shipping.md) po kliknutí
-„Předat dopravci“ v Expedici; webhooky o stavu e-shop zatím nepřijímá (26C).
+„Předat dopravci“ v Expedici a od 26C přijímá webhooky o stavu (`/api/shipping/carrier-webhook`) – doručení hlásí dopravce.
 
 ## Co umí
 
@@ -76,6 +76,9 @@ Pravděpodobnosti 0–1 v `Carrier:Chaos` (Compose `CARRIER_CHAOS_…`, výchoz�
 
 ## Provoz
 
+- **Produkce (e-shop krok 26C):** `deploy/production.env` – webhooky na `http://web:8080/api/shipping/carrier-webhook`
+  (uvnitř sítě Compose, jméno `web` = všechny kopie), krok 30 s (doručení ~2 min), mírné zlobení: dvakrát 20 %, mimo
+  pořadí 20 %, vůbec 10 %, 503 a ztracená odpověď 5 %, odmítnutí 0. Změna = PR do `production.env`.
 - Kontejner `carrier-sim` ([compose.yaml](code:deploy/compose.yaml)), image `minishop-carrier-sim`, jen ve vnitřní síti
   Compose (žádný port ven), `mem_limit 256m`. Nasazuje se jako infrastruktura – krátký restart = dopravce chvíli
   neodpovídá, což e-shop musí snést.

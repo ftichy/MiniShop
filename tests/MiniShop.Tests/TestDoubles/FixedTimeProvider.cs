@@ -8,4 +8,7 @@ public sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     public override DateTimeOffset GetUtcNow() => _now;
 
     public void Advance(TimeSpan by) => _now += by;
+
+    /// <summary>E-shop krok 26C: srovnat hodiny s jiným FixedTimeProvider (simulátor dopravce ↔ e-shop – podpis webhooku má čas).</summary>
+    public void Set(DateTimeOffset now) => _now = now;
 }

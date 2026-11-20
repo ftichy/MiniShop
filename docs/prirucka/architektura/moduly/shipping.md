@@ -1,12 +1,13 @@
 ---
 title: Modul Shipping
-summary: Předání zásilky dopravci – příkaz CreateShipmentV1, volání API dopravce s Idempotency-Key, překlad cizích pojmů, odpověď ShipmentCreatedV1 / ShipmentFailedV1.
+summary: Předání zásilky dopravci (CreateShipmentV1, Idempotency-Key, ShipmentCreatedV1 / ShipmentFailedV1) a doručení – podepsané webhooky, stav jen dopředu, dohledání, ShipmentDeliveredV1.
 order: 10
 ---
 
 > **V jedné větě:** Shipping na příkaz `CreateShipmentV1` založí zásilku u dopravce ([simulovaný dopravce](../dopravce.md)),
 > výsledek oznámí událostí `ShipmentCreatedV1` (číslo zásilky) nebo `ShipmentFailedV1` (dopravce odmítl) a Ordering
-> podle ní objednávku odešle, nebo vrátí skladníkovi s hláškou. Běží ve službě **Web** (e-shop krok 26B), data má ve schématu `shipping`.
+> podle ní objednávku odešle, nebo vrátí skladníkovi s hláškou. Od kroku 26C přijímá **webhooky** o stavu zásilky a doručení
+> oznámí `ShipmentDeliveredV1`. Běží ve službě **Web** (e-shop krok 26B), data má ve schématu `shipping`.
 
 ## Komponentní diagram
 
@@ -80,16 +81,62 @@ díky Idempotency-Key.
 dopravce (`trackingNumber`, kódy chyb). Ven vrací naše typy (`CarrierShipmentAccepted`, `CarrierShipmentRejected`)
 a kódy překládá na české hlášky. Kdyby se simulátor vyměnil za skutečnou Zásilkovnu, změní se jen tahle třída.
 
+## Doručení: webhooky a dohledání (e-shop krok 26C)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as carrier-sim
+    participant E as Web /api/shipping/carrier-webhook
+    participant P as CarrierWebhookProcessor
+    participant T as ShipmentTrackingService
+    participant O as Ordering (ShipmentResultHandler)
+
+    C->>E: POST { id, type, data: { trackingNumber, status, sequence } }<br/>Carrier-Signature: t=…,v1=…
+    E->>P: tělo + podpis
+    P->>P: HMAC + čas (max. 5 min) – špatně → 401, z těla nic
+    P->>P: „in_transit“ → InTransit (překladová vrstva)
+    P->>T: ApplyAsync(číslo, sequence, stav)
+    T->>T: Shipment.ApplyTracking – duplicita / pozdní = jen historie
+    T-->>E: COMMIT (+ ShipmentDeliveredV1, je-li doručeno)
+    E-->>C: 200 (souběh → 503, dopravce zopakuje)
+    Note over O: ShipmentDeliveredV1 → Order.MarkDeliveredByCarrier → OrderCompletedV1 (e-mail, faktura u dobírky…)
+```
+
+- **Nejdřív podpis, pak obsah.** [CarrierWebhookProcessor](code:src/MiniShop.Infrastructure/Shipping/CarrierWebhookProcessor.cs)
+  ověří HMAC-SHA256 tajemstvím `Carrier:WebhookSecret` nad „čas.tělo“ a stáří zprávy (5 min – starou zachycenou zprávu
+  nejde „přehrát“). Endpoint je bez přihlášení a dostupný i z internetu jako webhook Stripu; chrání ho podpis.
+- **`sequence` = přirozený klíč idempotence.** `Shipment.ApplyTracking` zapíše stav do historie `ShipmentTrackingEvents`
+  (unikátní zásilka + `sequence`): stejné pořadí podruhé = duplicita (nic), nižší než aktuální = jen historie
+  („doručuje se“ po „doručeno“ stav nevrátí), vyšší = nový stav. Doručeno → doménová událost `ShipmentDelivered` →
+  `ShipmentDeliveredV1` v téže transakci.
+- **Rychlá odpověď.** Zápis je malý, takže webhook se zpracuje hned a odpoví 200. Dvě kopie Webu, dva webhooky téže
+  zásilky naráz → `Shipment.Version` zastaví druhý zápis → 503 → dopravce ho za chvíli zopakuje.
+- **Dohledání.** [ShipmentReconciliationWorker](code:src/MiniShop.Web/BackgroundServices/ShipmentReconciliationWorker.cs)
+  (jen vedoucí kopie, každou minutu): zásilka na cestě bez novinky déle než `Shipping:ReconcileAfterMinutes` (2) → GET
+  u dopravce → stejné `ApplyTracking`. Dopravce zásilku nezná (404) → `UnknownAtCarrier` a v Expedici se vrátí tlačítko
+  „Doručeno“ pro člověka.
+- Pozdní doručení po ručním „Doručeno“ nic nezmění (`MarkDeliveredByCarrier` vrátí false).
+
+Přirovnání: čekáte balík – pošta posílá SMS, některá přijde dvakrát, některá pozdě a jedna vůbec. Pořadí poznáte
+podle času na SMS (`sequence`), a když se dlouho nic neděje, podíváte se do sledování zásilky sami (dohledání).
+
 ## Data
 
 - Tabulka `Shipments` ve schématu `shipping`: jeden řádek na příkaz (unikátní `CommandId`), vytvořená zásilka nejvýš
   jedna na objednávku (filtrovaný unikátní index). Adresu si modul **neukládá** – zná ji objednávka i dopravce.
-- Objednávka si pamatuje `ShipmentRequestedAtUtc` (předává se) a `ShipmentError` (poslední odmítnutí).
-- Do logu jen číslo objednávky a zásilky; na trasu `minishop.order.id` a `minishop.shipment.result` (`created` / `failed`).
+  Od 26C i stav doručování, `LastSequence`, čas poslední novinky a dohledání, `Version`; historie v `ShipmentTrackingEvents`.
+- Objednávka si pamatuje `ShipmentRequestedAtUtc` (předává se / předáno dopravci) a `ShipmentError` (poslední odmítnutí).
+- Stránky (detail objednávky – průběh zásilky, Expedice – stav u dopravce) čtou zásilku přes `ShipmentQueryService`;
+  Ordering o stavech dopravce neví.
+- Do logu jen číslo objednávky a zásilky; na trasu `minishop.order.id`, `minishop.shipment.result` (`created` / `failed`)
+  a `minishop.shipment.status` (stav po webhooku).
 
 ## Testy
 
 - [OrderServiceTests.Shipping](code:tests/MiniShop.Tests/Application/OrderServiceTests.Shipping.cs) – celá cesta proti
   skutečnému simulátoru v paměti: úspěch, ztracená odpověď (žádná druhá zásilka), odmítnutí a nový pokus, nedostupný
-  dopravce, zrušení a dvojklik po předání, osobní odběr a střet zájmů.
-- [FulfilmentPageTests](code:tests/MiniShop.Tests/Web/FulfilmentPageTests.cs) – tlačítko a stav „Předává se dopravci…“.
+  dopravce, zrušení a dvojklik po předání, osobní odběr a střet zájmů; 26C: doručení webhooky, duplicity a pořadí,
+  ztracené webhooky + dohledání, podvržený/starý podpis, pozdní webhook po ručním doručení.
+- [FulfilmentPageTests](code:tests/MiniShop.Tests/Web/FulfilmentPageTests.cs) – tlačítko a stav „Předává se dopravci…“;
+  [CarrierWebhookEndpointTests](code:tests/MiniShop.Tests/Web/CarrierWebhookEndpointTests.cs) – endpoint přes HTTP.

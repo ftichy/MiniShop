@@ -215,10 +215,11 @@ public sealed partial class OrderServiceTests : IDisposable
         // E-shop krok 26B: modul Shipping – jako AddShippingModule + AddShippingInfrastructure ve Webu; dopravce = skutečný
         // simulátor v paměti (CarrierSimulatorFactory) přes HTTP. Pole _carrier čte lambda při každém volání – test si ho
         // může vyměnit za simulátor se „zlobením“ (UseCarrier).
-        services.AddShippingInfrastructure(_databases.Shipping);
+        services.AddShippingInfrastructure(_databases.Shipping, MiniShop.Tests.CarrierSimulator.CarrierSimulatorFactory.WebhookSecret);
         services.AddIntegrationMessageHandler<CreateShipmentV1, CreateShipmentHandler>(IntegrationModules.Shipping);
         services.AddIntegrationMessageHandler<ShipmentCreatedV1, ShipmentResultHandler>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<ShipmentFailedV1, ShipmentResultHandler>(IntegrationModules.Ordering);
+        services.AddIntegrationMessageHandler<ShipmentDeliveredV1, ShipmentResultHandler>(IntegrationModules.Ordering);   // e-shop krok 26C
         services.AddDomainEventHandler<OrderShipmentRequested, PublishOrderIntegrationEventsHandler>();
         services.AddScoped<ICarrierGateway>(_ => new CarrierApiClient(Carrier.CreateAuthorizedClient(), NullLogger<CarrierApiClient>.Instance));
 

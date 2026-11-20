@@ -138,7 +138,7 @@ else
     }
 </div>
 
-@* Fronta 3: na cestě – „Doručeno“ zatím ručně; od e-shop kroku 26C ho u kurýra ohlásí dopravce webhookem. *@
+@* Fronta 3: na cestě – u zásilek předaných dopravci hlásí doručení dopravce (e-shop krok 26C), jinak ručně „Doručeno“. *@
 <h2 class="h4 mt-5">Na cestě <span class="badge badge-soft-primary">@Model.InTransit.Count</span></h2>
 @if (Model.InTransit.Count == 0)
 {
@@ -155,11 +155,22 @@ else
                     <a asp-page="/Orders/Detail" asp-route-id="@order.Id" class="fw-bold">č. @order.Id</a> – @order.CustomerName <partial name="_OwnOrderBadge" model="Model.IsOwn(order)" />
                     <div class="small text-muted">@(order.ShippingMethod == "Pickup" ? "čeká na vyzvednutí" : $"{order.Carrier} {order.TrackingNumber}".Trim())</div>
                 </div>
-                <form method="post" asp-page-handler="Deliver" asp-route-id="@order.Id">
-                    <button type="submit" class="btn btn-outline-success btn-sm" data-track="fulfilment-deliver" disabled="@Model.IsOwn(order)">
-                        @(order.ShippingMethod == "Pickup" ? "Vyzvednuto" : "Doručeno")
-                    </button>
-                </form>
+                @if (Model.CanMarkDelivered(order))
+                {
+                    <form method="post" asp-page-handler="Deliver" asp-route-id="@order.Id">
+                        <button type="submit" class="btn btn-outline-success btn-sm" data-track="fulfilment-deliver" disabled="@Model.IsOwn(order)">
+                            @(order.ShippingMethod == "Pickup" ? "Vyzvednuto" : "Doručeno")
+                        </button>
+                    </form>
+                }
+                else
+                {
+                    @* E-shop krok 26C: doručení hlásí dopravce (webhook / dohledání) – stav a čas poslední novinky. *@
+                    var tracking = Model.Tracking.GetValueOrDefault(order.Id);
+                    <span class="badge badge-soft-info" data-track="fulfilment-carrier-status" data-reload-when-idle>
+                        @MiniShop.Web.Shipping.ShipmentStatusLabels.Label(tracking?.Status ?? "Created")@(tracking?.LastUpdateAtUtc is { } at ? $" · {at.ToCzechString()}" : "")
+                    </span>
+                }
             </div>
         }
     </div>

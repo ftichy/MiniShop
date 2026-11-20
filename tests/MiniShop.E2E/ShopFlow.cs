@@ -143,7 +143,7 @@ public static class ShopFlow
 
     /// <summary>
     /// E-shop krok 22: admin objednávku zabalí, odešle a doručí (stránka Expedice). Od kroku 26B kurýr = „Předat dopravci“:
-    /// číslo zásilky přidělí simulovaný dopravce (carrier-sim) zprávou – čeká se, až se objednávka objeví „Na cestě“.
+    /// číslo zásilky přidělí simulovaný dopravce (carrier-sim) zprávou a od 26C ohlásí i doručení webhookem.
     /// </summary>
     public static async Task ShipAndDeliverAsync(IPage back, int orderId)
     {
@@ -152,11 +152,9 @@ public static class ShopFlow
         await back.Locator("[data-track=fulfilment-start-packing]").ClickAsync();
         await back.Locator($"form:has(a:text-is('č. {orderId}')) [data-track=fulfilment-hand-over]").ClickAsync();
 
-        var deliver = back.Locator(".list-group-item")
-            .Filter(new() { Has = back.GetByRole(AriaRole.Link, new() { Name = $"č. {orderId}", Exact = true }) })
-            .Locator("[data-track=fulfilment-deliver]");
-        await ReloadUntilAsync(back, "/Admin/Fulfilment", deliver, $"objednávka {orderId} na cestě (číslo zásilky od dopravce)");
-        await deliver.ClickAsync();
+        // E-shop krok 26C: doručení hlásí dopravce webhookem (v CI krok 3 s) – nikdo neklikne „Doručeno“.
+        await WaitForOrderStatusAsync(back, orderId, "Doručená");
+        await Expect(back.Locator("[data-track=order-shipment-steps]")).ToContainTextAsync("Doručeno");
     }
 
     /// <summary>Platba kartou na simulované bráně: detail (čeká na ságu) → „Zaplatit“ → /Pay → „Zaplatit“.</summary>

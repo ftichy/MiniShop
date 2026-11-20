@@ -13,3 +13,9 @@ public sealed record ShipmentFailed(Shipment Shipment, DateTime OccurredAtUtc) :
 {
     public Guid EventId { get; init; } = Guid.NewGuid();
 }
+
+/// <summary>E-shop krok 26C: dopravce zásilku doručil (webhook nebo dohledání).</summary>
+public sealed record ShipmentDelivered(Shipment Shipment, DateTime OccurredAtUtc) : IDomainEvent
+{
+    public Guid EventId { get; init; } = Guid.NewGuid();
+}

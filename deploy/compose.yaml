@@ -273,6 +273,8 @@ services:
       NotificationsApi__ApiKey: ${NOTIFICATIONS_API_KEY:?Chybí NOTIFICATIONS_API_KEY v .env}
       # E-shop krok 26B: dopravce (simulátor carrier-sim) – Web zakládá zásilky přes jeho API se svým klíčem u dopravce.
       Services__carrier-sim__http__0: http://carrier-sim:8080
+      # E-shop krok 26C: podpis webhooků dopravce (/api/shipping/carrier-webhook) – stejné tajemství jako carrier-sim.
+      Carrier__WebhookSecret: ${CARRIER_WEBHOOK_SECRET:?Chybí CARRIER_WEBHOOK_SECRET v .env}
       Carrier__ApiKey: ${CARRIER_API_KEY:?Chybí CARRIER_API_KEY v .env}
     # Škálování krok 5: víc kopií Webu (produkce 2 – production.env). Všechny sdílí volume web-data: klíče Data Protection
     # musí být společné (cookie přihlášení a formuláře z jedné kopie platí i v druhé), logy má každá vlastní soubor.

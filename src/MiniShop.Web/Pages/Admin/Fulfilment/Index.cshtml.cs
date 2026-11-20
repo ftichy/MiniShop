@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using MiniShop.Application.Exceptions;
 using MiniShop.Application.Ordering;
+using MiniShop.Application.Shipping;
 using MiniShop.Domain.Exceptions;
 using MiniShop.Web.Accounts;
 
@@ -18,7 +19,7 @@ namespace MiniShop.Web.Pages.Admin.Fulfilment;
 /// skončí hláškou místo přepsání (Order.Version). Složka /Admin je zamčená i konvencí AuthorizeFolder.
 /// </remarks>
 [Authorize(Policy = AuthorizationPolicies.RequireFulfilment)]   // účty krok 12B
-public sealed class IndexModel(IOrderService orderService) : PageModel
+public sealed class IndexModel(IOrderService orderService, ShipmentQueryService shipments) : PageModel
 {
     /// <summary>
     /// Účty krok 12C: vlastní objednávka skladníka (podle e-mailu účtu – jen pro obrazovku; server pravidlo hlídá podle ID
@@ -35,6 +36,13 @@ public sealed class IndexModel(IOrderService orderService) : PageModel
     public IReadOnlyList<OrderDto> ToShip { get; private set; } = [];
     public IReadOnlyList<OrderDto> InTransit { get; private set; } = [];
 
+    /// <summary>E-shop krok 26C: stav zásilek předaných dopravci (podle čísla objednávky) – doručení hlásí dopravce.</summary>
+    public IReadOnlyDictionary<int, ShipmentTrackingDto> Tracking { get; private set; } = new Dictionary<int, ShipmentTrackingDto>();
+
+    /// <summary>Tlačítko „Doručeno“ jen tam, kde doručení nehlásí dopravce (osobní odběr, ručně odeslané) nebo ho dopravce nezná.</summary>
+    public bool CanMarkDelivered(OrderDto order) =>
+        !order.ShippedByCarrier || (Tracking.TryGetValue(order.Id, out var t) && t.UnknownAtCarrier);
+
     [TempData]
     public string? StatusMessage { get; set; }
 
@@ -47,6 +55,7 @@ public sealed class IndexModel(IOrderService orderService) : PageModel
         ToPack = queue.Where(o => o.Status == "Confirmed").ToList();
         ToShip = queue.Where(o => o.Status == "Packing").ToList();
         InTransit = queue.Where(o => o.Status == "Shipped").ToList();
+        Tracking = await shipments.GetByOrderIdsAsync(InTransit.Where(o => o.ShippedByCarrier).Select(o => o.Id).ToList(), cancellationToken);
     }
 
     /// <summary>Hromadně: začít balit vybrané objednávky. Každá zvlášť – chyba jedné (zrušená) nezastaví ostatní.</summary>

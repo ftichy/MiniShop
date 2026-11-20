@@ -84,11 +84,119 @@ public class Shipment : Entity
         shipment.Raise(new Events.ShipmentFailed(shipment, atUtc));
         return shipment;
     }
+
+    // ---- E-shop krok 26C: průběh doručování (webhooky dopravce a dohledání) ----
+
+    private readonly List<ShipmentTrackingEvent> _tracking = [];
+
+    /// <summary>Historie stavů od dopravce v pořadí <see cref="ShipmentTrackingEvent.Sequence"/> (i pozdě došlé).</summary>
+    public IReadOnlyCollection<ShipmentTrackingEvent> Tracking => _tracking.AsReadOnly();
+
+    /// <summary>Nejvyšší pořadí stavu, který už zásilka má – podle něj se pozná pozdní zpráva (stav jen dopředu).</summary>
+    public int LastSequence { get; private set; }
+
+    /// <summary>Kdy přišla poslední novinka od dopravce (webhook nebo dohledání).</summary>
+    public DateTime? LastCarrierUpdateAtUtc { get; private set; }
+
+    /// <summary>Kdy se naposledy dohledávalo (GET u dopravce) – dohledání se tak neopakuje každou minutu.</summary>
+    public DateTime? LastCheckedAtUtc { get; private set; }
+
+    /// <summary>Dopravce zásilku při dohledání nezná (smazaná data, chyba) – musí rozhodnout člověk v Expedici.</summary>
+    public bool UnknownAtCarrier { get; private set; }
+
+    /// <summary>Pojistka proti souběhu: dva webhooky téže zásilky na dvou kopiích Webu – druhý zápis selže a dopravce ho zopakuje.</summary>
+    public int Version { get; private set; }
+
+    /// <summary>Zásilka je u dopravce a ještě nedoručená (čeká na další stavy, případně dohledání).</summary>
+    public bool IsOnTheWay => Status is ShipmentStatus.Created or ShipmentStatus.PickedUp or ShipmentStatus.InTransit
+        or ShipmentStatus.OutForDelivery;
+
+    /// <summary>
+    /// Nový stav od dopravce. <paramref name="sequence"/> = pořadí u zásilky (přirozený klíč idempotence):
+    /// stejné podruhé = duplicita (nic), nižší než aktuální = jen do historie (stav jen dopředu), vyšší = nový stav;
+    /// doručeno → <see cref="Events.ShipmentDelivered"/>. Vrací, jestli se něco změnilo.
+    /// </summary>
+    public bool ApplyTracking(int sequence, ShipmentStatus status, DateTime occurredAtUtc, DateTime receivedAtUtc)
+    {
+        if (status is ShipmentStatus.Created or ShipmentStatus.Failed)
+        {
+            throw new DomainException("Od dopravce může přijít jen stav doručování.");
+        }
+
+        if (Status == ShipmentStatus.Failed || sequence <= 0 || _tracking.Any(t => t.Sequence == sequence))
+        {
+            return false;   // odmítnutá zásilka, nesmysl, nebo duplicita
+        }
+
+        _tracking.Add(new ShipmentTrackingEvent(sequence, status, occurredAtUtc, receivedAtUtc));
+        LastCarrierUpdateAtUtc = receivedAtUtc;
+        UnknownAtCarrier = false;
+        Version++;
+
+        if (sequence > LastSequence)
+        {
+            LastSequence = sequence;
+            var wasDelivered = Status == ShipmentStatus.Delivered;
+            Status = status;
+            if (status == ShipmentStatus.Delivered && !wasDelivered)
+            {
+                Raise(new Events.ShipmentDelivered(this, occurredAtUtc));
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>Dohledání proběhlo (s výsledkem nebo bez) – další až po čase.</summary>
+    public void MarkChecked(DateTime checkedAtUtc, bool unknownAtCarrier)
+    {
+        LastCheckedAtUtc = checkedAtUtc;
+        UnknownAtCarrier = unknownAtCarrier;
+        Version++;
+    }
 }
 
-/// <summary>E-shop krok 26B: stav zásilky v našem modulu (ne slovník dopravce). Nové hodnoty jen na konec (ukládá se text).</summary>
+/// <summary>
+/// E-shop krok 26B/26C: stav zásilky v našem modulu (ne slovník dopravce – ten překládá CarrierApiClient).
+/// Nové hodnoty jen na konec (ukládá se text).
+/// </summary>
 public enum ShipmentStatus
 {
     Created,
-    Failed
+    Failed,
+    PickedUp,
+    InTransit,
+    OutForDelivery,
+    Delivered
+}
+
+/// <summary>E-shop krok 26C: jeden stav od dopravce (řádek historie). Unikátní zásilka + <see cref="Sequence"/>.</summary>
+public sealed class ShipmentTrackingEvent
+{
+    // Konstruktor pro EF Core.
+    private ShipmentTrackingEvent()
+    {
+    }
+
+    public ShipmentTrackingEvent(int sequence, ShipmentStatus status, DateTime occurredAtUtc, DateTime receivedAtUtc)
+    {
+        Sequence = sequence;
+        Status = status;
+        OccurredAtUtc = occurredAtUtc;
+        ReceivedAtUtc = receivedAtUtc;
+    }
+
+    public int Id { get; private set; }
+
+    public Guid ShipmentId { get; private set; }
+
+    public int Sequence { get; private set; }
+
+    public ShipmentStatus Status { get; private set; }
+
+    /// <summary>Kdy se to u dopravce stalo.</summary>
+    public DateTime OccurredAtUtc { get; private set; }
+
+    /// <summary>Kdy jsme se to dozvěděli (rozdíl = zpoždění webhooku).</summary>
+    public DateTime ReceivedAtUtc { get; private set; }
 }

@@ -37,6 +37,10 @@ služby ──OTLP──► alloy ──► aspire-dashboard            (všechn
 
 Odhad úspory: **~1 600–1 800 řad** v běžném provozu (z ~5 460 na ~3 700), při nasazení zhruba dvojnásobek.
 
+**Skutečnost (20. 11. 2026):** před nasazením ~5 200, hned po něm ~1 300 (noc), s provozem kolem poledne ~1 800 – úspora
+~65 %, víc než odhad (tabulka viděla jen top 30 metrik; řady `http_server_…` přes den ještě porostou). Všech 14 metrik
+`minishop_*` filtrem prochází, dashboard i alarmy mají data.
+
 ## Změněné soubory
 
 - `deploy/config.alloy` – procesor `cloud_metrics` mezi `privacy` a `batch` (jen metriky).

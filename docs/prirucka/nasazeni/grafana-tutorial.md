@@ -64,8 +64,14 @@ Explore → zdroj **`…-traces`** → *Query type* **TraceQL** → dotaz:
 { span.enduser.id = "8f3c…" }
 ```
 
-→ **Run query**. Dole je tabulka požadavků toho uživatele (*Name* = stránka, např. `POST Checkout/Index`, *Start time*, *Duration*).
-Uvidíte, jestli vůbec dorazil k pokladně, kolikrát klikal a jestli některý požadavek trval podezřele dlouho.
+→ **Run query**. Dole je tabulka požadavků toho uživatele (*Name* = metoda a šablona cesty, např. `POST Checkout`,
+`GET Orders/{id:int}`, `GET Pay/{orderId:int}`; *Start time*, *Duration*). Uvidíte, jestli vůbec dorazil k pokladně
+a kolikrát klikal. Šipkou vlevo řádek rozbalíte – je tam span s atributem `enduser.id`.
+
+**Pozor na *Duration* v tabulce:** je to délka **celé trasy**, ne požadavku. U `POST Checkout` trasa pokračuje i po odpovědi
+zákazníkovi (outbox → RabbitMQ → sága → sklad → potvrzení), takže tabulka ukáže třeba **10 s**, i když zákazník čekal
+**0,5 s** – to uvidíte po rozbalení řádku u spanu s `kind = server`. Pomalý požadavek hledejte dotazem s `duration`
+(ten měří jeden span) – viz případ 3 níže.
 
 **Krok 4 – celý příběh objednávky.** Objednávka neběží v jednom požadavku – po odeslání pokladny jde přes outbox,
 RabbitMQ, sklad, ságu a platbu ([vytvoření objednávky](../toky/vytvoreni-objednavky.md), [cesta zprávy](../toky/cesta-zpravy.md)). Všechny tyto kroky nesou číslo objednávky:
@@ -100,12 +106,16 @@ Jména zákazníka, adresa ani e-mail na trase nejsou (data jdou do Grafana Clou
 Business údaje nese **skutečné zpracování**: span se stejným jménem, který má pod sebou dotazy `postgres` nebo další kroky
 (`dispatch …`, `publish …`), u skladu s předponou služby `inventory-api`.
 
-**Krok 5 – logy k trase.** Ve vodopádu u spanu klikněte na ikonu **logů** („Logs for this span“) – Grafana otevře logy se stejným
-Trace ID. Nebo ručně: Explore → zdroj **`…-logs`** → **Code**:
+**Krok 5 – logy k trase.** Ve vodopádu klikněte na span a v jeho detailu vpravo nahoře na černé tlačítko
+**„Logs for this span“** – Grafana rozdělí okno a vedle trasy ukáže řádky logu se stejným Trace ID (např.
+`HTTP "GET" "/Orders/280" responded 200 in 12.2845 ms`). Dotaz si sestaví sama; ručně stejný: Explore → zdroj
+**`…-logs`** → **Code**:
 
 ```
-{service_name="web"} | trace_id="<Trace ID z kroku 4>"
+{service_name="web"} | logfmt | json | drop __error__ | trace_id="<Trace ID z kroku 4>"
 ```
+
+(`logfmt | json` rozloží řádek na pole, `drop __error__` zahodí chyby rozkladu u řádků v jiném formátu.)
 
 Logy mají úroveň – **Error** a **Warning** jsou to, co hledáte.
 
@@ -141,6 +151,11 @@ Logy mají úroveň – **Error** a **Warning** jsou to, co hledáte.
    ```
    { resource.service.name = "web" && kind = server && duration > 500ms }
    ```
+
+   `duration` tady měří **jeden span** – požadavek, na který uživatel čekal (`kind = server`). Sloupec *Duration* v tabulce
+   ale ukazuje celou trasu (u pokladny i sága po odpovědi) – rozbalte řádek a podívejte se na span `server`.
+   **Výsledek „nic“** může znamenat, že je web rychlý – nebo že čerstvá trasa ještě nedorazila (do Grafany jde
+   se zpožděním až pár minut). Ověřte dotaz s nižší hranicí (`duration > 50ms`) – když najde požadavky, dotaz funguje.
 3. Otevřete nejdelší trasu a ve vodopádu hledejte **nejdelší pruh**:
    - dlouhý SQL span (`SELECT …`) → pomalý dotaz do databáze;
    - dlouhý `GET` na `inventory-api` → pomalý sklad (administrace se ptá skladu přes HTTP);
@@ -250,7 +265,7 @@ a rozdělit podle štítku; `histogram_quantile(0.95, …)` = hodnota, pod ktero
 | pomalé požadavky | traces | `{ resource.service.name = "web" && kind = server && duration > 500ms }` |
 | co havarovalo | traces | `{ status = error }` → span → *Events* (`exception.*`) |
 | chyby v logu | Drilldown → Logs | služba → *Levels* error |
-| logy k trase | logs | `{service_name="web"} \| trace_id="<Trace ID>"` |
+| logy k trase | logs | ve vodopádu *Logs for this span*, ručně `{service_name="web"} \| logfmt \| json \| drop __error__ \| trace_id="<Trace ID>"` |
 | text v logu | logs | `{service_name="web"} \|= "text"` |
 | běžící kopie služby | prom | `target_info{job="web"}` |
 | poison / dead-letter | prom | `minishop_outbox_poison`, `minishop_queue_dead_letters` |

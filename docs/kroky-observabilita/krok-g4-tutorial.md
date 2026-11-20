@@ -37,7 +37,7 @@ Stránka příručky [Grafana krok za krokem](../prirucka/nasazeni/grafana-tutor
 
 - Snímky obrazovky v návodu nejsou – rozhraní Grafana Cloud se často mění; popisy jsou podle textů tlačítek (anglicky).
 - Ověřené nad produkcí při psaní: `span.url.path`, `target_info`, metriky `minishop_*` a dashboard. Ostatní dotazy
-  (`enduser.id`, `minishop.order.id`, LogQL s `trace_id`, `kind = server && duration`) vychází z kódu – ověřit při prvním použití.
+  (`enduser.id`, `minishop.order.id`, LogQL s `trace_id`, `kind = server && duration`) vycházely z kódu – ověřeny 20. 11. 2026 (viz níže).
 
 ## Jak ověřit
 
@@ -56,3 +56,15 @@ Stránka příručky [Grafana krok za krokem](../prirucka/nasazeni/grafana-tutor
   Drilldown → Logs s filtrem úrovně. Ověřeno uživatelem v produkci; ostatní případy přečíslované (6 hledání v logu, 7 graf ukazuje nesmysl, 8 kolik objednávek).
 - Poznámka o **auditních kopiích** spanů `process …` (`minishop.audit`, bez potomků) – business údaje nese skutečné zpracování.
 - Ověřeno nad produkcí i `{ span.minishop.order.id = … }` a business atributy na trasách (PR #111).
+
+## Ověření zbylých dotazů (20. 11. 2026, e-shop krok 26E)
+
+Uživatel prošel nad produkcí poslední dotazy psané jen podle kódu – **tutoriál je celý ověřený**:
+
+- `{ span.enduser.id = "…" }` – funguje; jména požadavků jsou šablony cest (`GET Orders/{id:int}`), ne jména stránek → opraveno.
+- `{ resource.service.name = "web" && kind = server && duration > 500ms }` – funguje, ale první pokus vrátil „nic“: čerstvá
+  trasa do Grafany dorazí se zpožděním. Doplněno: ověřit nižší hranicí (`> 50ms`).
+- **Duration v tabulce = celá trasa**, `duration` v dotazu = jeden span: `POST Checkout` ukázal 10,5 s, ale požadavek trval
+  0,5 s – zbytek je asynchronní sága po odpovědi. Doplněno do případů 1 a 3.
+- **Logs for this span** – tlačítko v detailu spanu otevře logy vedle trasy. Ruční LogQL nahrazen ověřeným tvarem, který
+  sestaví Grafana: `{service_name="web"} | logfmt | json | drop __error__ | trace_id="…"`.

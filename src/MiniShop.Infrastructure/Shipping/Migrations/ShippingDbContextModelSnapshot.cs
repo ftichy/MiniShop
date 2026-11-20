@@ -39,6 +39,15 @@ namespace MiniShop.Infrastructure.Shipping.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
+                    b.Property<DateTime?>("LastCarrierUpdateAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("LastCheckedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("LastSequence")
+                        .HasColumnType("integer");
+
                     b.Property<int>("OrderId")
                         .HasColumnType("integer");
 
@@ -54,6 +63,13 @@ namespace MiniShop.Infrastructure.Shipping.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<bool>("UnknownAtCarrier")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CommandId")
@@ -63,7 +79,42 @@ namespace MiniShop.Infrastructure.Shipping.Migrations
                         .IsUnique()
                         .HasFilter("\"Status\" = 'Created'");
 
+                    b.HasIndex("TrackingNumber");
+
                     b.ToTable("Shipments", "shipping");
+                });
+
+            modelBuilder.Entity("MiniShop.Domain.Shipping.ShipmentTrackingEvent", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("ReceivedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ShipmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShipmentId", "Sequence")
+                        .IsUnique();
+
+                    b.ToTable("ShipmentTrackingEvents", "shipping");
                 });
 
             modelBuilder.Entity("MiniShop.Infrastructure.Inbox.ProcessedMessage", b =>
@@ -130,6 +181,20 @@ namespace MiniShop.Infrastructure.Shipping.Migrations
                     b.HasIndex("ProcessedAtUtc");
 
                     b.ToTable("OutboxMessages", "shipping");
+                });
+
+            modelBuilder.Entity("MiniShop.Domain.Shipping.ShipmentTrackingEvent", b =>
+                {
+                    b.HasOne("MiniShop.Domain.Shipping.Shipment", null)
+                        .WithMany("Tracking")
+                        .HasForeignKey("ShipmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MiniShop.Domain.Shipping.Shipment", b =>
+                {
+                    b.Navigation("Tracking");
                 });
 #pragma warning restore 612, 618
         }

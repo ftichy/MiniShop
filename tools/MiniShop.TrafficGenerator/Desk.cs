@@ -3,14 +3,18 @@ using System.Text.RegularExpressions;
 namespace MiniShop.TrafficGenerator;
 
 /// <summary>
-/// Skladník: jedna přihlášená relace, které zákaznické scénáře zadávají práci (zabalit, odeslat, doručit, převzít vratku).
+/// Skladník: jedna přihlášená relace, které zákaznické scénáře zadávají práci (zabalit, předat dopravci, převzít vratku).
 /// Zámek – skladník dělá jednu věc po druhé, jako člověk.
 /// </summary>
 public sealed class Desk(Session session, TimeSpan patience) : IDisposable
 {
     private readonly SemaphoreSlim _lock = new(1, 1);
 
-    public async Task ShipAndDeliverAsync(int orderId)
+    /// <summary>
+    /// Zabalit a předat dopravci (e-shop krok 26B). Doručí dopravce sám – webhookem nebo dohledáním (26C), skladník už neklikne.
+    /// Na „Odeslaná“ a „Doručená“ čeká zákaznický scénář – skladník mezitím obslouží ostatní.
+    /// </summary>
+    public async Task HandOverAsync(int orderId)
     {
         await _lock.WaitAsync();
         try
@@ -19,8 +23,6 @@ public sealed class Desk(Session session, TimeSpan patience) : IDisposable
             await session.PostAsync(fulfilment, "/Admin/Fulfilment?handler=StartPacking", [("ids", orderId.ToString())]);
             // E-shop krok 26B: kurýr = předat dopravci; číslo zásilky přidělí (simulovaný) dopravce zprávou za pár sekund.
             await session.PostAsync("/Admin/Fulfilment", $"/Admin/Fulfilment?handler=HandOver&id={orderId}");
-            await Shop.WaitForStatusAsync(session, orderId, "Odeslaná", patience);
-            await session.PostAsync("/Admin/Fulfilment", $"/Admin/Fulfilment?handler=Deliver&id={orderId}");
         }
         finally
         {

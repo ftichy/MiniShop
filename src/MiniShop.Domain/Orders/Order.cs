@@ -363,6 +363,24 @@ public class Order : Entity
         return true;
     }
 
+    /// <summary>E-shop krok 26C: zásilku předal dopravce (číslo zásilky od něj) – doručení pak hlásí on, ne skladník.</summary>
+    public bool IsShippedByCarrier => ShipmentRequestedAtUtc is not null && Status != OrderStatus.Packing;
+
+    /// <summary>
+    /// E-shop krok 26C: dopravce ohlásil doručení (ShipmentDeliveredV1). Už doručená (ručně „Doručeno“ dřív) nebo jiný
+    /// stav = false, nic se nemění – zpráva může přijít pozdě nebo podruhé.
+    /// </summary>
+    public bool MarkDeliveredByCarrier(DateTime deliveredAtUtc)
+    {
+        if (Status != OrderStatus.Shipped)
+        {
+            return false;
+        }
+
+        MarkDelivered(deliveredAtUtc);
+        return true;
+    }
+
     private void ShipNow(string? carrier, string? trackingNumber, DateTime shippedAtUtc)
     {
         if (ShippingMethod == ShippingMethod.Pickup)

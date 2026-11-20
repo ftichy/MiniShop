@@ -14,11 +14,17 @@ namespace MiniShop.Infrastructure.Shipping;
 /// </summary>
 public static class ShippingInfrastructure
 {
-    public static IServiceCollection AddShippingInfrastructure(this IServiceCollection services, ModuleDatabase database)
+    /// <param name="webhookSecret">E-shop krok 26C: tajemství podpisu webhooků dopravce (min. 32 znaků, jinak se služba nespustí).</param>
+    public static IServiceCollection AddShippingInfrastructure(this IServiceCollection services, ModuleDatabase database,
+        string? webhookSecret)
     {
         services.AddDbContext<ShippingDbContext>(options => options.UseModuleDatabase(database, ShippingDbContext.Schema));
         services.AddScoped<IShippingUnitOfWork>(sp => sp.GetRequiredService<ShippingDbContext>());
         services.AddScoped<IShipmentRepository, ShipmentRepository>();
+        services.AddScoped<ShipmentTrackingService>();   // e-shop krok 26C: webhook + dohledání
+        services.AddScoped<ShipmentQueryService>();
+        services.AddSingleton(new CarrierWebhookSettings(webhookSecret));
+        services.AddScoped<CarrierWebhookProcessor>();
 
         services.AddSingleton<IOutboxProcessor, OutboxProcessor<ShippingDbContext>>();
         services.AddHealthChecks().AddCheck<OutboxHealthCheck<ShippingDbContext>>("outbox-shipping");

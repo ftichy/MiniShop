@@ -13,8 +13,22 @@ public sealed class ShipmentResultHandler(
     IOrderingUnitOfWork unitOfWork,
     TimeProvider timeProvider) :
     IIntegrationMessageHandler<ShipmentCreatedV1>,
-    IIntegrationMessageHandler<ShipmentFailedV1>
+    IIntegrationMessageHandler<ShipmentFailedV1>,
+    IIntegrationMessageHandler<ShipmentDeliveredV1>
 {
+    /// <summary>E-shop krok 26C: dopravce doručil → objednávka doručená (OrderCompleted → OrderCompletedV1, e-mail, faktura…).</summary>
+    public async Task HandleAsync(ShipmentDeliveredV1 message, CancellationToken cancellationToken)
+    {
+        TraceTags.TagOrder(message.OrderId);
+        var order = await orders.GetByIdAsync(message.OrderId, cancellationToken)
+            ?? throw new InvalidOperationException($"Objednávka {message.OrderId} neexistuje.");
+
+        if (order.MarkDeliveredByCarrier(message.DeliveredAtUtc))
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+    }
+
     public async Task HandleAsync(ShipmentCreatedV1 message, CancellationToken cancellationToken)
     {
         TraceTags.TagOrder(message.OrderId);

@@ -20,7 +20,7 @@ public sealed class WorkerRegistrationTests(MiniShopWebFactory web)
     {
         _ = web.Services;   // postaví Web (registrace workerů se zachytí před jejich odebráním)
 
-        AssertLeaderOnly(web.RegisteredWorkers, "OrderSagaTimeoutWorker", "CartReminderWorker", "CatalogSyncOnStartupWorker",
+        AssertLeaderOnly(web.RegisteredWorkers, "OrderSagaTimeoutWorker", "CartReminderWorker", "ShipmentReconciliationWorker", "CatalogSyncOnStartupWorker",
             "PurchasesSyncOnStartupWorker", "OutboxWorker", "MessageRetentionWorker", "LoginAttemptRetentionWorker",
             "OperationalMetricsWorker");
     }

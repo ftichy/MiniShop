@@ -346,6 +346,9 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.User, "POST", "/api/payments/webhook", Expect.Unauthorized },
         // E-shop krok 16: webhook Stripu – také bez přihlášení (chrání ho podpis Stripe-Signature); bez Stripu 404.
         { Who.Anonymous, "POST", "/api/payments/stripe-webhook", Expect.Allowed },
+        // E-shop krok 26C: webhook dopravce – bez přihlášení, chrání ho podpis Carrier-Signature s časem: bez něj 401.
+        { Who.Anonymous, "POST", "/api/shipping/carrier-webhook", Expect.Unauthorized },
+        { Who.User, "POST", "/api/shipping/carrier-webhook", Expect.Unauthorized },
     };
 
     [Theory]

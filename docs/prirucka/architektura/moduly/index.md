@@ -61,7 +61,7 @@ flowchart LR
         s1[Zásilky u dopravce]
     end
     o1 -->|CreateShipmentV1| s1
-    s1 -->|"ShipmentCreatedV1, ShipmentFailedV1"| o1
+    s1 -->|"ShipmentCreatedV1, ShipmentFailedV1, ShipmentDeliveredV1"| o1
 
     jou -.-|"spojené jen číslem objednávky (zapíše UI)"| ord
 

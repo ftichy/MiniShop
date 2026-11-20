@@ -156,6 +156,16 @@ else if (order.Status == "Completed" && Model.Detail.ReturnRejectionReason is no
                         <div class="col-sm-6">
                             <h2 class="h6 text-muted mb-1">Zásilka</h2>
                             <div data-track="order-detail-tracking">@order.Carrier@(order.TrackingNumber is null ? "" : $", číslo zásilky {order.TrackingNumber}")</div>
+                            @if (Model.Shipment is { Steps.Count: > 0 } shipment)
+                            {
+                                @* E-shop krok 26C: průběh od dopravce (webhooky / dohledání), v pořadí, jak se stal. *@
+                                <ul class="list-unstyled small text-muted mt-1 mb-0" data-track="order-shipment-steps">
+                                    @foreach (var step in shipment.Steps)
+                                    {
+                                        <li>@MiniShop.Web.Shipping.ShipmentStatusLabels.Label(step.Status) · @step.OccurredAtUtc.ToCzechString()</li>
+                                    }
+                                </ul>
+                            }
                         </div>
                     }
                     else if (order.ShippingMethod == "Pickup")

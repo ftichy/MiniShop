@@ -8,6 +8,7 @@ using MiniShop.Domain.Exceptions;
 using MiniShop.Application.Ordering;
 using MiniShop.Application.Invoicing;
 using MiniShop.Application.Ordering.Saga;
+using MiniShop.Application.Shipping;
 using MiniShop.Web.Accounts;
 
 namespace MiniShop.Web.Pages.Orders;
@@ -23,10 +24,14 @@ public sealed class DetailModel(
     IOrderService orderService,
     IAuthorizationService authorization,
     OrderSagaSettings sagaSettings,
-    InvoiceService invoices)
+    InvoiceService invoices,
+    ShipmentQueryService shipments)
     : PageModel
 {
     public OrderDetailDto Detail { get; private set; } = null!;
+
+    /// <summary>E-shop krok 26C: průběh zásilky od dopravce (jen objednávky předané dopravci), jinak null.</summary>
+    public ShipmentTrackingDto? Shipment { get; private set; }
 
     public OrderDto Order => Detail.Order;
 
@@ -119,6 +124,7 @@ public sealed class DetailModel(
         CanManageOrders = (await authorization.AuthorizeAsync(User, AuthorizationPolicies.RequireOrderOverview)).Succeeded;   // účty krok 12B
         CanSupport = (await authorization.AuthorizeAsync(User, AuthorizationPolicies.RequireSupport)).Succeeded;
         CanFulfil = (await authorization.AuthorizeAsync(User, AuthorizationPolicies.RequireFulfilment)).Succeeded;
+        Shipment = Detail.Order.ShippedByCarrier ? await shipments.GetByOrderIdAsync(id, cancellationToken) : null;   // e-shop krok 26C
         IsOwnOrder = Detail.CustomerId == User.FindFirstValue(ClaimTypes.NameIdentifier);
         IsOwnCustomerOrder = IsOwnOrder
             && (await authorization.AuthorizeAsync(User, AuthorizationPolicies.RequireCustomer)).Succeeded;

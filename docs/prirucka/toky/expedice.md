@@ -81,9 +81,11 @@ sequenceDiagram
 
 ## Doručení
 
-„Doručeno“ zatím kliká admin (od e-shop kroku 26C ho u kurýra ohlásí dopravce webhookem):
-`CompleteAsync` → `order.MarkDelivered()` (jen ze `Shipped`) → `OrderCompleted` → sága `Shipped → Completed`,
-integrační `OrderCompletedV1` (podle ní e-mail „doručeno“ z modulu Notifications) (kontrakt zůstal stejný, jen teď znamená „doručeno“).
+U kurýra předaného dopravci hlásí doručení **dopravce** (e-shop krok 26C): podepsaný webhook → modul Shipping →
+`ShipmentDeliveredV1` → `order.MarkDeliveredByCarrier()` → `OrderCompleted`; ztracený webhook dožene dohledání (GET u dopravce
+po 2 minutách ticha) – podrobně v [modulu Shipping](../architektura/moduly/shipping.md).
+Osobní odběr a ručně odeslané zásilky dál kliká admin: `CompleteAsync` → `order.MarkDelivered()` (jen ze `Shipped`).
+V obou případech sága `Shipped → Completed` a integrační `OrderCompletedV1` (podle ní e-mail „doručeno“ z modulu Notifications).
 
 ## Proč událost, a ne příkaz
 

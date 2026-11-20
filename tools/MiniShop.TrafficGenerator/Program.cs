@@ -25,6 +25,9 @@ catch (Exception ex)
 
 using var desk = new Desk(staffSession, options.Patience);
 
+// E-shop krok 26C: doručení řídí dopravce (4 kroky po 30 s); ztracený webhook dožene dohledání za 2–3 min.
+static TimeSpan DeliveryPatience(Options options) => options.Patience > TimeSpan.FromMinutes(6) ? options.Patience : TimeSpan.FromMinutes(6);
+
 async Task Pause(Random random)
 {
     if (options.PauseSeconds > 0)
@@ -71,8 +74,10 @@ async Task RunCustomerAsync(int number)
                     await Shop.WaitForStatusAsync(session, orderId.Value, "Zrušená", options.Patience);
                     break;
                 default:
-                    await desk.ShipAndDeliverAsync(orderId.Value);
-                    await Shop.WaitForStatusAsync(session, orderId.Value, "Doručená", options.Patience);
+                    await desk.HandOverAsync(orderId.Value);
+                    // E-shop krok 26C: doručení hlásí dopravce – 4 kroky po 30 s, ztracený webhook dožene dohledání (2–3 min).
+                    await Shop.WaitForStatusAsync(session, orderId.Value, "Odeslaná", options.Patience);
+                    await Shop.WaitForStatusAsync(session, orderId.Value, "Doručená", DeliveryPatience(options));
                     if (scenario == "vrácená")
                     {
                         await Pause(random);

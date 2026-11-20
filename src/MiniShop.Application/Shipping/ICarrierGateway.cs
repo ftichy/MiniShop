@@ -13,6 +13,12 @@ public interface ICarrierGateway
     /// </summary>
     Task<CarrierShipmentResult> CreateShipmentAsync(CarrierShipmentRequest request, Guid idempotencyKey,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// E-shop krok 26C: dohledání – všechny stavy zásilky u dopravce (už přeložené). Null = dopravce zásilku nezná (404).
+    /// Dočasná nedostupnost = <see cref="CarrierUnavailableException"/>.
+    /// </summary>
+    Task<IReadOnlyList<CarrierTrackingUpdate>?> GetTrackingAsync(string trackingNumber, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Zásilka, jak ji MiniShop předává dopravci.</summary>

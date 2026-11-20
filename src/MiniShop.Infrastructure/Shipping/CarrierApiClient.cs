@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Microsoft.Extensions.Logging;
 using MiniShop.Application.Shipping;
+using MiniShop.Domain.Shipping;
 
 namespace MiniShop.Infrastructure.Shipping;
 
@@ -72,6 +73,55 @@ public sealed class CarrierApiClient(HttpClient http, ILogger<CarrierApiClient> 
         }
     }
 
+    /// <summary>E-shop krok 26C: dohledání – GET /v1/shipments/{číslo}; 404 = dopravce zásilku nezná (null).</summary>
+    public async Task<IReadOnlyList<CarrierTrackingUpdate>?> GetTrackingAsync(string trackingNumber,
+        CancellationToken cancellationToken = default)
+    {
+        HttpResponseMessage response;
+        try
+        {
+            response = await http.GetAsync($"/v1/shipments/{Uri.EscapeDataString(trackingNumber)}", cancellationToken);
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested && IsTransient(ex))
+        {
+            throw new CarrierUnavailableException($"Dopravce neodpovídá ({ex.GetType().Name}).", ex);
+        }
+
+        using (response)
+        {
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                logger.LogWarning("Dopravce zásilku {TrackingNumber} nezná", trackingNumber);
+                return null;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new CarrierUnavailableException($"Dopravce odpověděl {(int)response.StatusCode} při dohledání.");
+            }
+
+            var shipment = await response.Content.ReadFromJsonAsync<CarrierTrackingJson>(cancellationToken)
+                ?? throw new CarrierUnavailableException("Dopravce vrátil prázdnou odpověď.");
+            return shipment.Events
+                .Select(e => TranslateStatus(e.Status) is { } status ? new CarrierTrackingUpdate(e.Sequence, status, e.OccurredAt) : null)
+                .OfType<CarrierTrackingUpdate>()
+                .ToList();
+        }
+    }
+
+    /// <summary>
+    /// E-shop krok 26C: stav ve slovníku dopravce → náš stav (anti-corruption layer). Neznámý stav (dopravce přidal nový)
+    /// = null → přeskočit, ne spadnout (tolerant reader).
+    /// </summary>
+    public static ShipmentStatus? TranslateStatus(string? carrierStatus) => carrierStatus switch
+    {
+        "accepted" => ShipmentStatus.PickedUp,
+        "in_transit" => ShipmentStatus.InTransit,
+        "out_for_delivery" => ShipmentStatus.OutForDelivery,
+        "delivered" => ShipmentStatus.Delivered,
+        _ => null
+    };
+
     /// <summary>Kódy chyb dopravce → česká hláška pro skladníka (bez osobních údajů).</summary>
     public static string Translate(string? code) => code switch
     {
@@ -102,4 +152,8 @@ public sealed class CarrierApiClient(HttpClient http, ILogger<CarrierApiClient> 
     private sealed record CarrierShipmentJson(string TrackingNumber, string Status);
 
     private sealed record CarrierErrorJson(string? Code, string? Message);
+
+    private sealed record CarrierTrackingJson(string TrackingNumber, string Status, IReadOnlyList<CarrierEventJson> Events);
+
+    private sealed record CarrierEventJson(string Id, int Sequence, string Status, DateTime OccurredAt);
 }

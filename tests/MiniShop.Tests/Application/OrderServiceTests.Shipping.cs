@@ -16,13 +16,177 @@ namespace MiniShop.Tests.Application;
 /// </summary>
 public sealed partial class OrderServiceTests
 {
-    /// <summary>Dopravce (simulátor). Výchozí spolehlivý; <see cref="UseCarrier"/> ho vymění za zlobivého.</summary>
-    private CarrierSimulatorFactory Carrier => _carrier ??= new CarrierSimulatorFactory();
+    /// <summary>
+    /// Dopravce (simulátor). Výchozí spolehlivý; <see cref="UseCarrier"/> ho vymění za zlobivého. Hodiny simulátoru jdou
+    /// s hodinami testu (<c>_time</c>) – podpis webhooku nese čas a e-shop starší než 5 minut odmítne.
+    /// </summary>
+    private CarrierSimulatorFactory Carrier
+    {
+        get
+        {
+            if (_carrier is null)
+            {
+                _carrier = new CarrierSimulatorFactory();
+                _carrier.Time.Set(_time.GetUtcNow());
+            }
+
+            return _carrier;
+        }
+    }
 
     private void UseCarrier(params (string Key, string Value)[] settings)
     {
         _carrier?.Dispose();
         _carrier = new CarrierSimulatorFactory(settings.ToDictionary(s => s.Key, s => (string?)s.Value));
+        _carrier.Time.Set(_time.GetUtcNow());
+    }
+
+    private int _forwardedWebhooks;
+
+    /// <summary>
+    /// E-shop krok 26C: posune čas o <paramref name="steps"/> kroků dopravce (oběma hodinám), simulátor pošle webhooky
+    /// a ty se doručí webhook procesoru e-shopu (jako HTTP endpoint, se stejným tělem a podpisem); pak outboxy.
+    /// </summary>
+    private async Task AdvanceCarrierAsync(int steps = 1)
+    {
+        for (var i = 0; i < steps; i++)
+        {
+            _time.Advance(TimeSpan.FromSeconds(CarrierSimulatorFactory.StepSeconds));
+            Carrier.Time.Set(_time.GetUtcNow());
+            await Carrier.ProcessAsync();
+            await ForwardWebhooksAsync();
+        }
+
+        await ProcessOutboxAsync();
+    }
+
+    private async Task<List<CarrierWebhookResult>> ForwardWebhooksAsync()
+    {
+        var results = new List<CarrierWebhookResult>();
+        foreach (var webhook in Carrier.Webhooks.Received.Skip(_forwardedWebhooks).ToList())
+        {
+            _forwardedWebhooks++;
+            await using var scope = _services.CreateAsyncScope();
+            results.Add(await scope.ServiceProvider.GetRequiredService<CarrierWebhookProcessor>().ProcessAsync(webhook.Body, webhook.Signature));
+        }
+
+        return results;
+    }
+
+    /// <summary>Předaná objednávka kurýrem: zabalit, předat dopravci, číslo zásilky.</summary>
+    private async Task<OrderDto> ShippedByCarrierAsync()
+    {
+        var order = await PackedCourierOrderAsync();
+        await Orders(s => s.RequestShipmentAsync(order.Id, Petra.CustomerId));
+        await ProcessOutboxAsync();
+        Assert.Equal("Shipped", await StatusAsync(order.Id));
+        return order;
+    }
+
+    private async Task<MiniShop.Application.Shipping.ShipmentTrackingDto> TrackingAsync(int orderId)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return (await scope.ServiceProvider.GetRequiredService<MiniShop.Application.Shipping.ShipmentQueryService>().GetByOrderIdAsync(orderId))!;
+    }
+
+    [Fact]
+    public async Task DopravceDoruci_WebhookyPosouvajiStav_ObjednavkaDorucena()
+    {
+        var order = await ShippedByCarrierAsync();
+
+        await AdvanceCarrierAsync(2);
+        Assert.Equal("Shipped", await StatusAsync(order.Id));
+        Assert.Equal("InTransit", (await TrackingAsync(order.Id)).Status);
+
+        await AdvanceCarrierAsync(2);
+
+        Assert.Equal("Completed", await StatusAsync(order.Id));
+        var tracking = await TrackingAsync(order.Id);
+        Assert.Equal(["PickedUp", "InTransit", "OutForDelivery", "Delivered"], tracking.Steps.Select(s => s.Status));
+        Assert.Single(_bus.Published.OfType<ShipmentDeliveredV1>());
+        Assert.Single(_bus.Published.OfType<OrderCompletedV1>(), c => c.OrderId == order.Id);   // e-mail „doručeno“, faktura u dobírky …
+    }
+
+    [Fact]
+    public async Task WebhookyDvakratAMimoPoradi_StavJenDopredu_DorucenoJednou()
+    {
+        UseCarrier(("Carrier:Chaos:DuplicateRate", "1"), ("Carrier:Chaos:ReorderRate", "1"));
+        var order = await ShippedByCarrierAsync();
+
+        await AdvanceCarrierAsync(6);
+
+        Assert.Equal("Completed", await StatusAsync(order.Id));
+        var tracking = await TrackingAsync(order.Id);
+        Assert.Equal("Delivered", tracking.Status);   // „doručuje se“ přišlo po „doručeno“ – stav zůstal
+        Assert.Equal(4, tracking.Steps.Count);         // duplicity se do historie nezapsaly
+        Assert.Single(_bus.Published.OfType<ShipmentDeliveredV1>());
+    }
+
+    [Fact]
+    public async Task WebhookySeZtrati_DohledaniDozeneDoruceni()
+    {
+        UseCarrier(("Carrier:Chaos:DropRate", "1"));   // dopravce neposílá nic
+        var order = await ShippedByCarrierAsync();
+        await AdvanceCarrierAsync(4);
+        Assert.Equal("Shipped", await StatusAsync(order.Id));
+
+        _time.Advance(TimeSpan.FromMinutes(3));   // ticho > 2 minuty
+        Carrier.Time.Set(_time.GetUtcNow());
+        await using (var scope = _services.CreateAsyncScope())
+        {
+            Assert.Equal(1, await scope.ServiceProvider.GetRequiredService<MiniShop.Application.Shipping.ShipmentTrackingService>()
+                .ReconcileAsync(TimeSpan.FromMinutes(2), batchSize: 20));
+        }
+
+        await ProcessOutboxAsync();
+        Assert.Equal("Completed", await StatusAsync(order.Id));
+    }
+
+    [Fact]
+    public async Task Webhook_PodpisCasObsahANeznamaZasilka()
+    {
+        var order = await ShippedByCarrierAsync();
+        await AdvanceCarrierAsync(1);
+        var genuine = Carrier.Webhooks.Received[0];
+
+        async Task<CarrierWebhookResult> SendAsync(string body, string? signature)
+        {
+            await using var scope = _services.CreateAsyncScope();
+            return await scope.ServiceProvider.GetRequiredService<CarrierWebhookProcessor>().ProcessAsync(body, signature);
+        }
+
+        string Sign(string body, DateTimeOffset at) =>
+            MiniShop.CarrierSimulator.WebhookDispatcher.Sign(CarrierSimulatorFactory.WebhookSecret, body, at);
+
+        // Podvržený obsah s původním podpisem, bez podpisu, cizí tajemství → 401.
+        var forged = genuine.Body.Replace("accepted", "delivered");
+        Assert.Equal(CarrierWebhookResult.InvalidSignature, await SendAsync(forged, genuine.Signature));
+        Assert.Equal(CarrierWebhookResult.InvalidSignature, await SendAsync(genuine.Body, null));
+        Assert.Equal(CarrierWebhookResult.InvalidSignature, await SendAsync(genuine.Body,
+            MiniShop.CarrierSimulator.WebhookDispatcher.Sign(new string('x', 64), genuine.Body, _time.GetUtcNow())));
+
+        // Přehraná stará zpráva (podpis platný, ale 10 minut starý) → 401.
+        Assert.Equal(CarrierWebhookResult.InvalidSignature, await SendAsync(genuine.Body, Sign(genuine.Body, _time.GetUtcNow().AddMinutes(-10))));
+
+        // Platný podpis, ale nečitelné tělo → 400; cizí zásilka → 200 (dopravce nemá opakovat), nic se nezmění.
+        Assert.Equal(CarrierWebhookResult.Invalid, await SendAsync("{nesmysl", Sign("{nesmysl", _time.GetUtcNow())));
+        var unknown = genuine.Body.Replace(Carrier.Services.GetRequiredService<MiniShop.CarrierSimulator.ShipmentStore>()
+            .Read(s => s.Shipments[0].TrackingNumber), "CS0000000000");
+        Assert.Equal(CarrierWebhookResult.Accepted, await SendAsync(unknown, Sign(unknown, _time.GetUtcNow())));
+        Assert.Equal("PickedUp", (await TrackingAsync(order.Id)).Status);
+    }
+
+    [Fact]
+    public async Task DorucenoRucneDriv_PozdniWebhookNicNezmeni()
+    {
+        var order = await ShippedByCarrierAsync();
+        await Orders(s => s.CompleteAsync(order.Id, Petra.CustomerId));   // skladník klikl „Doručeno“ (zásilka ztracená u dopravce)
+        await ProcessOutboxAsync();
+
+        await AdvanceCarrierAsync(4);
+
+        Assert.Equal("Completed", await StatusAsync(order.Id));
+        Assert.Single(_bus.Published.OfType<OrderCompletedV1>(), c => c.OrderId == order.Id);   // jen jednou
     }
 
     [Fact]

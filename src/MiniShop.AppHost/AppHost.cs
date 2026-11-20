@@ -101,10 +101,16 @@ var carrierWebhookSecret = builder.AddParameter("carrier-webhook-secret",
 var carrierSim = builder.AddProject<Projects.MiniShop_CarrierSimulator>("carrier-sim")
     .WithEnvironment("Carrier__ApiKey", carrierApiKey)
     .WithEnvironment("Carrier__WebhookSecret", carrierWebhookSecret)
+    // E-shop krok 26C: kam posílat webhooky o stavu zásilky (HTTP adresa Webu, kterou Aspire přidělí).
+    .WithEnvironment("Carrier__WebhookUrl",
+        ReferenceExpression.Create($"{web.GetEndpoint("http")}/api/shipping/carrier-webhook"))
     .WithHttpHealthCheck("/health");
 
-// E-shop krok 26B: Web zakládá zásilky u dopravce (bez WaitFor – Web běží i bez dopravce, předání se zopakuje).
-web.WithReference(carrierSim).WithEnvironment("Carrier__ApiKey", carrierApiKey);
+// E-shop krok 26B: Web zakládá zásilky u dopravce (bez WaitFor – Web běží i bez dopravce, předání se zopakuje);
+// 26C: Web ověřuje podpis webhooků stejným tajemstvím.
+web.WithReference(carrierSim)
+    .WithEnvironment("Carrier__ApiKey", carrierApiKey)
+    .WithEnvironment("Carrier__WebhookSecret", carrierWebhookSecret);
 
 builder.Build().Run();
 

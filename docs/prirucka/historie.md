@@ -113,6 +113,7 @@ Plán (výloha, košík, pokladna, expedice, platba, notifikace): [docs/Eshop-ro
 | 24 | Oznámení k práci pro zaměstnance – sklad dostane „Nová objednávka k zabalení“ a „Došlo zboží“, podpora „Žádost o vratku“; zaměstnanec si typy zaškrtne sám (jen pro svou roli), role se ověřuje při odeslání; stránka *E-maily a oznámení* i pro zaměstnance | [eshop-24](code:docs/kroky-eshop/krok-24-oznameni-zamestnancum.md) |
 | 26A | Simulovaný dopravce – kontejner `carrier-sim` jako „cizí firma“: REST API zásilek s `Idempotency-Key`, podepsané webhooky o stavu a nastavitelné zlobení (503, ztracená odpověď, webhook dvakrát, mimo pořadí, vůbec); e-shop ho zatím nevolá – [Simulovaný dopravce](architektura/dopravce.md) | [krok-26a](code:docs/kroky-eshop/krok-26a-simulator-dopravce.md) |
 | 26B | Předání zásilky dopravci – skladník klikne „Předat dopravci“, modul Shipping založí zásilku u simulovaného dopravce s `Idempotency-Key` (žádná druhá zásilka ani po ztracené odpovědi), číslo zásilky nebo odmítnutí se vrátí zprávou; po předání nejde zrušit – [modul Shipping](architektura/moduly/shipping.md) | [krok-26b](code:docs/kroky-eshop/krok-26b-vytvoreni-zasilky.md) |
+| 26C | Doručení hlásí dopravce – podepsané webhooky (podpis a čas, jinak 401), duplicity a pozdní zprávy podle pořadí `sequence` (stav jen dopředu), ztracené webhooky dožene dohledání u dopravce; zákazník vidí průběh zásilky – [modul Shipping](architektura/moduly/shipping.md) | [krok-26c](code:docs/kroky-eshop/krok-26c-webhooky-dopravce.md) |
 
 ## Vzhled
 

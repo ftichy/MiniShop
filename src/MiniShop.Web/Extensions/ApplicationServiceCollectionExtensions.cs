@@ -127,6 +127,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddIntegrationMessageHandler<CreateShipmentV1, CreateShipmentHandler>(IntegrationModules.Shipping);
         services.AddIntegrationMessageHandler<ShipmentCreatedV1, ShipmentResultHandler>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<ShipmentFailedV1, ShipmentResultHandler>(IntegrationModules.Ordering);
+        services.AddIntegrationMessageHandler<ShipmentDeliveredV1, ShipmentResultHandler>(IntegrationModules.Ordering);   // e-shop krok 26C
 
         var apiKey = ServiceApiKey.Read(key => configuration[key], ServiceApiKey.CarrierConfigurationKey);
         services.AddHttpClient<ICarrierGateway, CarrierApiClient>(http => http.BaseAddress = new Uri("https+http://carrier-sim"))

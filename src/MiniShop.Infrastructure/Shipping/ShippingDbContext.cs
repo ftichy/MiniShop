@@ -27,6 +27,8 @@ public sealed class ShippingDbContext(DbContextOptions<ShippingDbContext> option
             e.EventId, e.OccurredAtUtc, e.Shipment.OrderId, e.Shipment.Carrier!, e.Shipment.TrackingNumber!))],
         ShipmentFailed e => [OutboxMessageFactory.Create(new ShipmentFailedV1(
             e.EventId, e.OccurredAtUtc, e.Shipment.OrderId, e.Shipment.FailureReason!))],
+        ShipmentDelivered e => [OutboxMessageFactory.Create(new ShipmentDeliveredV1(   // e-shop krok 26C
+            e.EventId, e.OccurredAtUtc, e.Shipment.OrderId, e.Shipment.TrackingNumber!, e.OccurredAtUtc))],
         _ => throw new InvalidOperationException(
             $"Událost {domainEvent.GetType().Name} nemá převod do outboxu. Doplňte ji do {nameof(ShippingDbContext)}.")
     };

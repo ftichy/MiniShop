@@ -13,6 +13,7 @@
     <ProjectReference Include="..\MiniShop.Inventory.Api\MiniShop.Inventory.Api.csproj" />
     <ProjectReference Include="..\MiniShop.Reporting.Api\MiniShop.Reporting.Api.csproj" />
     <ProjectReference Include="..\MiniShop.Notifications.Api\MiniShop.Notifications.Api.csproj" />
+    <ProjectReference Include="..\MiniShop.CarrierSimulator\MiniShop.CarrierSimulator.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.PostgreSQL" Version="13.6.5" />

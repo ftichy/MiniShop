@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- E-shop krok 26A: simulovaný dopravce = „cizí firma“. Záměrně BEZ referencí na projekty MiniShopu (hlídá
+       CarrierSimulatorTests) a bez telemetrie do Grafany – s e-shopem mluví jen přes HTTP API a webhooky jako skutečný
+       dopravce. Data v souboru na vlastním volume, ne v naší databázi. -->
+  <PropertyGroup>
+    <RootNamespace>MiniShop.CarrierSimulator</RootNamespace>
+  </PropertyGroup>
+</Project>

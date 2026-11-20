@@ -27,6 +27,8 @@ Pravidla:
 | `STRIPE_WEBHOOK_SECRET` | tajemství webhooku Stripu (e-shop krok 16) – podpis `Stripe-Signature` na `/api/payments/stripe-webhook`. Kdo ho zná, může „zaplatit“ objednávku, k níž zná ID session. Tvar `whsec_…`, jedno na endpoint ve Stripe Dashboardu | `.env` na VM → `Payments__Stripe__WebhookSecret` ve `web` | [R13](#r13-klíče-stripu) | při podezření |
 | `GRAFANA_CLOUD_OTLP_TOKEN` | token Grafana Cloud (observabilita G1, *Cloud Access Policy* jen se **zápisem** metrik, logů a tras) – Alloy jím posílá telemetrii do stacku `patientjaguar2071`. Kdo ho zná, může do Grafany posílat vymyšlená data a vyčerpat limity free tieru; číst data jím **nejde**. Tvar `glc_…`. Povinný, dokud je `compose.grafana.yaml` v `COMPOSE_FILE` (`deploy/production.env`) | `.env` na VM → proměnná kontejneru `alloy`; lokálně `deploy/.env` (jen pro generálku) | [R15](#r15-token-grafana-cloud) | při podezření, jinak 1× ročně |
 | `PUSH_VAPID_PRIVATE_KEY` | soukromý klíč VAPID (e-shop krok 23, oznámení push) – služba `notifications-api` (od mikroservis M2C, dřív Web) jím podepisuje každou zprávu push službám prohlížečů (Google FCM, Apple, Mozilla). Kdo ho zná (a má endpoint zařízení), může zákazníkům posílat oznámení „jako MiniShop“. Tvar 43 znaků base64url, k němu patří veřejný `PUSH_VAPID_PUBLIC_KEY` v `deploy/production.env`. Volitelný – prázdný = push vypnutý | `.env` na VM → proměnná kontejneru `notifications-api` (Web zná jen veřejný klíč); lokálně `deploy/.env` / user secrets | [R16](#r16-klíče-vapid-oznámení-push) | při podezření (výměna vypne oznámení na všech zařízeních) |
+| `CARRIER_API_KEY` | klíč e-shopu u simulovaného dopravce (e-shop krok 26A) – Web jím od kroku 26B zakládá zásilky (`X-Api-Key` na `carrier-sim`). Kdo ho zná a dostane se do sítě Dockeru, založí zásilku nebo přečte stav cizí zásilky (bez adresy). 64 hex znaků, povinný | `.env` na VM → `Carrier__ApiKey` v kontejneru `carrier-sim` (od 26B i `web`) | [R20](#r20-klíče-simulovaného-dopravce) | při podezření, jinak 1× ročně |
+| `CARRIER_WEBHOOK_SECRET` | tajemství podpisu webhooků dopravce (e-shop krok 26A) – HMAC v hlavičce `Carrier-Signature`. Kdo ho zná, může od kroku 26C „doručit“ libovolnou odeslanou objednávku. 64 hex znaků, povinný | `.env` na VM → `Carrier__WebhookSecret` v kontejneru `carrier-sim` (od 26C i `web`) | [R20](#r20-klíče-simulovaného-dopravce) | při podezření, jinak 1× ročně |
 
 ## Secrets nasazení (GitHub → Environments → `production`)
 
@@ -242,6 +244,16 @@ Nový klíč (`ssh-keygen`), veřejnou část přidat na VM do `/home/ubuntu/.ss
    Postupné nasazení vymění nejdřív službu, pak kopie Webu – stránka *E-maily a oznámení* může pár sekund hlásit
    „služba oznámení neodpovídá“ (e-maily z fronty to neovlivní).
 3. Ověření: *E-maily a oznámení* ukáže zařízení; *Správa → Zprávy* ukáže oddíl Notifications bez „neodpovídá“.
+
+### R20. Klíče simulovaného dopravce
+
+1. Nový klíč – 64 malých hex znaků stejně jako u R9, **jiný pro `CARRIER_API_KEY` a `CARRIER_WEBHOOK_SECRET`**
+   a jiný než ostatní servisní klíče.
+2. GitHub → *Environments* → `production` → `CARRIER_API_KEY` (nebo `CARRIER_WEBHOOK_SECRET`) → nová hodnota →
+   *Actions → Deploy → Run workflow*. Dopravce se restartuje jako infrastruktura (pár sekund neodpovídá – e-shop to
+   od kroku 26B zopakuje). Výměna tajemství webhooků může shodit webhooky odeslané těsně před výměnou – od kroku 26C je
+   dožene dohledání stavu (GET).
+3. Ověření: `docker compose ps` – `carrier-sim` healthy; od 26B nová zásilka v *Expedici*.
 
 ### Které SHA nasadit
 

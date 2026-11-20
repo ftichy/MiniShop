@@ -28,3 +28,5 @@ crash.log
 
 # Cloud krok 6: výsledky testů (dotnet test --results-directory)
 TestResults/
+# E-shop krok 26A: zásilky simulovaného dopravce při lokálním běhu
+src/MiniShop.CarrierSimulator/data/

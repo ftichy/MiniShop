@@ -92,6 +92,17 @@ var web = builder.AddProject<Projects.MiniShop_Web>("web")
 
 notificationsApi.WithReference(web);   // interní API Webu (/internal/…)
 
+// E-shop krok 26A: simulovaný dopravce („cizí firma“ – bez databáze MiniShopu a bez RabbitMQ). Klíč e-shopu u dopravce
+// a tajemství podpisu webhooků generuje Aspire. Web ho začne volat v kroku 26B, webhooky přijímat v 26C.
+var carrierApiKey = builder.AddParameter("carrier-api-key",
+    new GenerateParameterDefault { MinLength = 64, Special = false }, secret: true, persist: true);
+var carrierWebhookSecret = builder.AddParameter("carrier-webhook-secret",
+    new GenerateParameterDefault { MinLength = 64, Special = false }, secret: true, persist: true);
+builder.AddProject<Projects.MiniShop_CarrierSimulator>("carrier-sim")
+    .WithEnvironment("Carrier__ApiKey", carrierApiKey)
+    .WithEnvironment("Carrier__WebhookSecret", carrierWebhookSecret)
+    .WithHttpHealthCheck("/health");
+
 builder.Build().Run();
 
 internal static class ModuleDatabaseResourceExtensions

@@ -44,6 +44,8 @@ flowchart LR
 | `STRIPE_WEBHOOK_SECRET` | tajemství webhooku Stripu (`whsec_…`) – podpis `Stripe-Signature` na `/api/payments/stripe-webhook`; volitelný (e-shop krok 16) | GitHub `production` → `.env` na VM → kontejner `web` |
 | `GRAFANA_CLOUD_OTLP_TOKEN` | token Grafana Cloud jen se zápisem (`glc_…`) – Alloy jím posílá telemetrii do Grafana Cloud; povinný, dokud je `compose.grafana.yaml` v `COMPOSE_FILE` (observabilita G1, [Monitoring](../nasazeni/monitoring.md)) | GitHub `production` → `.env` na VM → kontejner `alloy` |
 | `PUSH_VAPID_PRIVATE_KEY` | soukromý klíč VAPID pro oznámení push (e-shop krok 23, [Notifications](../architektura/moduly/notifications.md#oznámení-push-e-shop-krok-23)); volitelný – veřejný klíč je `PUSH_VAPID_PUBLIC_KEY` v `deploy/production.env`; vytvoří je `generate-vapid-keys` | GitHub `production` → `.env` na VM → kontejner `web` |
+| `CARRIER_API_KEY` | klíč e-shopu u simulovaného dopravce – Web jím od kroku 26B zakládá zásilky ([Simulovaný dopravce](../architektura/dopravce.md)); povinný (e-shop krok 26A) | GitHub `production` → `.env` na VM → kontejner `carrier-sim` (od 26B i `web`) |
+| `CARRIER_WEBHOOK_SECRET` | tajemství podpisu webhooků dopravce (`Carrier-Signature`, HMAC); povinný (e-shop krok 26A) | GitHub `production` → `.env` na VM → kontejner `carrier-sim` (od 26C i `web`) |
 | `DEPLOY_SSH_KEY` | soukromý klíč pro spuštění `minishop-deploy` | GitHub `production` |
 | `TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET` | připojení runneru do Tailscale | GitHub `production` |
 | `GITHUB_TOKEN` | push image do GHCR | vytváří ho GitHub pro každý běh |

@@ -17,7 +17,7 @@ Rozhodnutí:
 | G1 | Alloy na VM + export tras, logů a metrik do Grafana Cloud (stack `patientjaguar2071`, EU), filtr osobních údajů, secret `GRAFANA_CLOUD_OTLP_TOKEN` | hotovo (13. 11. 2026) |
 | G2 | Dashboard EDA jako kód: metriky stavu z aplikace (outbox čekající/poison, fronty backlog/dead-letter, ságy podle stavu – jen vedoucí kopie), doba potvrzení objednávky, JSON dashboard v gitu (import ručně) | hotovo (13. 11. 2026) |
 | G3 | Alarmy a SLO jako kód: dead-letter, outbox se nevyprazdňuje, 5xx, výpadek telemetrie; SLO „99 % objednávek potvrzeno do 30 s“, e-mail | hotovo (14. 11. 2026) |
-| G4 | Tutoriál pro začátečníka v příručce, krok za krokem na případech z MiniShopu: „mám čas a uživatele – proběhlo vše v pořádku, kde je chyba?“ (trasa → log → chyba ve spanu), pomalý web, alarm na dead-letter, chybovost po nasazení, hledání v logu, dashboard a alarmy z G2/G3 | v práci |
+| G4 | Tutoriál pro začátečníka v příručce, krok za krokem na případech z MiniShopu: „mám čas a uživatele – proběhlo vše v pořádku, kde je chyba?“ (trasa → log → chyba ve spanu), pomalý web, alarm na dead-letter, chybovost po nasazení, hledání v logu, dashboard a alarmy z G2/G3 | hotovo – všechny dotazy ověřeny nad produkcí 20. 11. 2026 |
 | G5 | Hlídání před mikroservisami ([Mikroservisy-roadmap](Mikroservisy-roadmap.md), krok M0): alarm na limit aktivních řad (zdroj `grafanacloud-usage`), Alloy 384 MiB, metrika a alarmy „fronta bez posluchače“ / „fronta mlčí“ | hotovo (17. 11. 2026) |
 
 Limity free tieru: 10 000 aktivních metrických řad, 50 GB logů, 50 GB tras měsíčně, historie 14 dní, 3 uživatelé.

@@ -8,6 +8,7 @@ using MiniShop.Infrastructure.Hosting;
 using MiniShop.Infrastructure.Journeys;
 using MiniShop.Infrastructure.Notifications;
 using MiniShop.Infrastructure.Payments;
+using MiniShop.Infrastructure.Shipping;
 using MiniShop.Infrastructure.Invoicing;
 using MiniShop.Infrastructure.Reviews;
 using MiniShop.Infrastructure.Ordering;
@@ -77,6 +78,7 @@ try
     // Mikroservisy M1: Reporting (přehled tržeb) běží jako samostatná služba MiniShop.Reporting.Api.
     builder.Services.AddReviewsInfrastructure(database);
     builder.Services.AddInvoicingInfrastructure(database);   // e-shop krok 15: faktury
+    builder.Services.AddShippingInfrastructure(database);    // e-shop krok 26B: zásilky u dopravce
     builder.Services.AddAccounts(database, builder.Configuration);
     // Mikroservisy M2A: interní API /internal/… jen se servisním klíčem (WebInternalApi:ApiKey) – pro Notifications od M2C.
     builder.Services.AddWebInternalApi(builder.Configuration);
@@ -163,6 +165,7 @@ try
     await PaymentsDatabaseInitializer.InitializeAsync(app.Services);
     await ReviewsDatabaseInitializer.InitializeAsync(app.Services);
     await InvoicingDatabaseInitializer.InitializeAsync(app.Services);
+    await ShippingDatabaseInitializer.InitializeAsync(app.Services);
 
     // Účty krok 2: role + první admin. AdminBootstrap je nastavený jen ve vývoji (appsettings.Development.json),
     // v produkci admina založí příkaz create-admin.

@@ -1,6 +1,6 @@
 ---
 title: Moduly
-summary: Ordering, Inventory, Journeys, Accounts, Notifications, Payments, Reporting, Reviews a Invoicing – business oblasti s vlastními daty, které se navzájem neznají.
+summary: Ordering, Inventory, Journeys, Accounts, Notifications, Payments, Reporting, Reviews, Invoicing a Shipping – business oblasti s vlastními daty, které se navzájem neznají.
 order: 3
 ---
 
@@ -57,6 +57,11 @@ flowchart LR
     o1 -->|"OrderPlacedV2, OrderCompletedV1, OrderRejectedV1, OrderCancelledV1, ReturnCompletedV1"| f1
     p1 -->|PaymentSucceededV1| f1
     f1 -->|"InvoiceIssuedV1, CreditNoteIssuedV1"| n1
+    subgraph shp["Shipping (služba Web)"]
+        s1[Zásilky u dopravce]
+    end
+    o1 -->|CreateShipmentV1| s1
+    s1 -->|"ShipmentCreatedV1, ShipmentFailedV1"| o1
 
     jou -.-|"spojené jen číslem objednávky (zapíše UI)"| ord
 
@@ -73,6 +78,7 @@ flowchart LR
     click r1 "/Docs/architektura/moduly/reporting"
     click v1 "/Docs/architektura/moduly/reviews"
     click f1 "/Docs/architektura/moduly/invoicing"
+    click s1 "/Docs/architektura/moduly/shipping"
 ```
 
 | Modul | Odpovídá za | Databáze | Kde v kódu |
@@ -86,6 +92,7 @@ flowchart LR
 | [Reporting](reporting.md) | přehled tržeb pro admina – čtecí model (CQRS) z událostí, přestavění ze snímků (e-shop krok 11) | schéma `reporting` | `Domain/Reporting`, `Application/Reporting`, `Infrastructure/Reporting` |
 | [Reviews](reviews.md) | hodnocení produktů – hodnotí jen ten, kdo zboží dostal (kopie nákupů z událostí), souhrn do výlohy (e-shop krok 14) | schéma `reviews` | `Domain/Reviews`, `Application/Reviews`, `Infrastructure/Reviews` |
 | [Invoicing](invoicing.md) | faktury – vystavení po zaplacení z událostí, číselná řada bez děr, PDF, e-mail s přílohou přes Notifications (e-shop krok 15); dobropisy po zrušení či vrácení (15B) | schéma `invoicing` | `Domain/Invoicing`, `Application/Invoicing`, `Infrastructure/Invoicing` |
+| [Shipping](shipping.md) | předání zásilky dopravci – příkaz, volání API dopravce s Idempotency-Key, číslo zásilky nebo odmítnutí zpět Orderingu (e-shop krok 26B) | schéma `shipping` | `Domain/Shipping`, `Application/Shipping`, `Infrastructure/Shipping` |
 
 ## Pravidla hranic
 

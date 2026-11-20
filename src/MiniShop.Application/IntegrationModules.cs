@@ -26,4 +26,7 @@ public static class IntegrationModules
 
     /// <summary>E-shop krok 15: faktury – kopie objednávek z událostí, vystavení po zaplacení, PDF.</summary>
     public const string Invoicing = "invoicing";
+
+    /// <summary>E-shop krok 26B: předání zásilek dopravci (příkaz CreateShipmentV1, volá API dopravce).</summary>
+    public const string Shipping = "shipping";
 }

@@ -63,5 +63,8 @@ public static class OrderStatusLabels
     /// </summary>
     public static bool CanCancel(string status) => status is "Pending" or "AwaitingPayment" or "Confirmed" or "Packing";
 
+    /// <summary>E-shop krok 26B: po předání dopravci už ne (Order.Cancel to odmítne – zásilka může u dopravce existovat).</summary>
+    public static bool CanCancel(MiniShop.Application.Ordering.OrderDto order) => CanCancel(order.Status) && !order.AwaitingShipment;
+
     private static bool IsPickup(string shippingMethod) => shippingMethod == "Pickup";
 }

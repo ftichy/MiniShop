@@ -18,7 +18,8 @@ Přirovnání: simulátor je cvičná pošta. Dopisy doručuje, ale občas ztrat
 nebo pozdě – a e-shop se musí naučit s tím počítat dřív, než ho potká skutečná pošta.
 
 Plán celé integrace: [Doprava-roadmap](code:docs/Doprava-roadmap.md) (26A simulátor, 26B vytvoření zásilky,
-26C webhooky a dohledání stavu).
+26C webhooky a dohledání stavu). Od kroku 26B zásilky zakládá [modul Shipping](moduly/shipping.md) po kliknutí
+„Předat dopravci“ v Expedici; webhooky o stavu e-shop zatím nepřijímá (26C).
 
 ## Co umí
 
@@ -71,6 +72,7 @@ Pravděpodobnosti 0–1 v `Carrier:Chaos` (Compose `CARRIER_CHAOS_…`, výchoz�
 | `DuplicateRate` | webhook přijde dvakrát | inbox – zpracovat událost jen jednou |
 | `ReorderRate` | webhook se zdrží až za následující | stav jen dopředu (`sequence`) |
 | `DropRate` | webhook se nepošle vůbec | dohledat stav sám (`GET`) |
+| `RejectRate` (krok 26B) | `POST` vrátí 422 `address_not_serviceable` („na adresu nedoručujeme“) | trvalá chyba – neopakovat, říct člověku (Expedice ukáže hlášku a „Zkusit znovu“) |
 
 ## Provoz
 

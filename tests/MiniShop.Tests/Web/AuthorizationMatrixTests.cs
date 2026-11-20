@@ -227,6 +227,8 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Admin, "/Admin/Fulfilment?handler=StartPacking", Expect.Allowed },
         { Who.User, "/Admin/Fulfilment?handler=Ship&id=999", Expect.Denied },
         { Who.Admin, "/Admin/Fulfilment?handler=Ship&id=999", Expect.Allowed },
+        { Who.User, "/Admin/Fulfilment?handler=HandOver&id=999", Expect.Denied },   // e-shop krok 26B
+        { Who.Admin, "/Admin/Fulfilment?handler=HandOver&id=999", Expect.Allowed },
         { Who.User, "/Admin/Fulfilment?handler=Deliver&id=999", Expect.Denied },
         { Who.Admin, "/Admin/Fulfilment?handler=Deliver&id=999", Expect.Allowed },
 

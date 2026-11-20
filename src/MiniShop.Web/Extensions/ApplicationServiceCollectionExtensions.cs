@@ -8,6 +8,7 @@ using MiniShop.Application.Ordering.Checkout;
 using MiniShop.Application.Ordering.Coupons;
 using MiniShop.Application.Notifications;
 using MiniShop.Application.Payments;
+using MiniShop.Application.Shipping;
 using MiniShop.Application.Ordering.IntegrationEvents;
 using MiniShop.Application.Ordering.Pricing;
 using MiniShop.Application.Ordering.Saga;
@@ -17,6 +18,7 @@ using MiniShop.Contracts.Inventory;
 using MiniShop.Contracts.Orders;
 using MiniShop.Contracts.Payments;
 using MiniShop.Contracts.Reporting;
+using MiniShop.Contracts.Shipping;
 using MiniShop.Application.Invoicing;
 using MiniShop.Application.Reviews;
 using MiniShop.Contracts.Invoicing;
@@ -25,6 +27,7 @@ using MiniShop.Domain.Orders.Events;
 using MiniShop.Infrastructure;
 using MiniShop.Infrastructure.Notifications;
 using MiniShop.Infrastructure.Ordering;
+using MiniShop.Infrastructure.Shipping;
 using MiniShop.ServiceDefaults;
 using MiniShop.Web.Accounts;
 using MiniShop.Web.Inventory;
@@ -49,6 +52,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddJourneysModule();
         services.AddNotificationsBridge(configuration);   // mikroservisy M2C: modul běží jako služba
         services.AddPaymentsModule();
+        services.AddShippingModule(configuration);   // e-shop krok 26B: předání zásilek dopravci
         services.AddReviewsModule();
         services.AddInvoicingModule(configuration);
         services.AddInventoryApiClient(configuration);
@@ -114,6 +118,23 @@ public static class ApplicationServiceCollectionExtensions
     }
 
     /// <summary>
+    /// E-shop krok 26B: modul Shipping – na příkaz CreateShipmentV1 založí zásilku u dopravce (klient s klíčem
+    /// <c>Carrier:ApiKey</c>, adresa <c>carrier-sim</c>); odpověď (ShipmentCreatedV1/ShipmentFailedV1) zpracuje Ordering.
+    /// Databázi registruje AddShippingInfrastructure.
+    /// </summary>
+    public static IServiceCollection AddShippingModule(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddIntegrationMessageHandler<CreateShipmentV1, CreateShipmentHandler>(IntegrationModules.Shipping);
+        services.AddIntegrationMessageHandler<ShipmentCreatedV1, ShipmentResultHandler>(IntegrationModules.Ordering);
+        services.AddIntegrationMessageHandler<ShipmentFailedV1, ShipmentResultHandler>(IntegrationModules.Ordering);
+
+        var apiKey = ServiceApiKey.Read(key => configuration[key], ServiceApiKey.CarrierConfigurationKey);
+        services.AddHttpClient<ICarrierGateway, CarrierApiClient>(http => http.BaseAddress = new Uri("https+http://carrier-sim"))
+            .AddHttpMessageHandler(() => new ServiceApiKeyHandler(apiKey));
+        return services;
+    }
+
+    /// <summary>
     /// Mikroservisy M2C: modul Notifications běží jako služba MiniShop.Notifications.Api. Ve Webu zůstávají jen
     /// implementace rozhraní, která služba volá přes interní API (/internal/…, M2A) – kontakt zákazníka, role
     /// zaměstnanců, název produktu, PDF faktur – a klient služby pro stránky (zařízení push, oznámení k práci,
@@ -155,6 +176,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddDomainEventHandler<OrderShipped, PublishOrderIntegrationEventsHandler>();   // e-shop krok 6
         services.AddDomainEventHandler<OrderCompleted, PublishOrderIntegrationEventsHandler>();
         services.AddDomainEventHandler<OrderCancelled, PublishOrderIntegrationEventsHandler>();
+        services.AddDomainEventHandler<OrderShipmentRequested, PublishOrderIntegrationEventsHandler>();   // e-shop krok 26B: → CreateShipmentV1
 
         // Sága objednávky (krok 9, orchestrace): orchestrátor poslouchá události objednávky (doménové)
         // a odpovědi skladu (integrační).

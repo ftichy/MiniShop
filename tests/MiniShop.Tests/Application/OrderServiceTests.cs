@@ -52,7 +52,10 @@ using MiniShop.Infrastructure.Reporting;
 using MiniShop.Infrastructure.Invoicing;
 using MiniShop.Infrastructure.Reviews;
 using MiniShop.Infrastructure.Ordering;
+using MiniShop.Application.Shipping;
+using MiniShop.Contracts.Shipping;
 using MiniShop.Infrastructure.Observability;
+using MiniShop.Infrastructure.Shipping;
 using MiniShop.Tests.TestDoubles;
 using MiniShop.Web.Extensions;
 using MiniShop.Web.Invoicing;
@@ -86,6 +89,7 @@ public sealed partial class OrderServiceTests : IDisposable
     private readonly InMemoryStaffDirectory _staff = new();   // e-shop krok 24: role zaměstnanců
     private readonly InMemoryCustomerContacts _contacts = new();   // e-shop krok 10: účty se souhlasem
     private readonly InMemoryProductImageStore _images = new();   // e-shop krok 2B
+    private MiniShop.Tests.CarrierSimulator.CarrierSimulatorFactory? _carrier;   // e-shop krok 26B: dopravce (líně – jen testy expedice)
     private readonly List<IDomainEvent> _dispatched = new();
     private readonly ServiceProvider _services;
     private readonly RecordingIntegrationBus _bus;
@@ -208,6 +212,16 @@ public sealed partial class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<RefundPaymentV1, PaymentCommandHandlers>(IntegrationModules.Payments);
         services.AddIntegrationMessageHandler<RefundPaymentV2, PaymentCommandHandlers>(IntegrationModules.Payments);   // e-shop krok 22: vratka po částech
 
+        // E-shop krok 26B: modul Shipping – jako AddShippingModule + AddShippingInfrastructure ve Webu; dopravce = skutečný
+        // simulátor v paměti (CarrierSimulatorFactory) přes HTTP. Pole _carrier čte lambda při každém volání – test si ho
+        // může vyměnit za simulátor se „zlobením“ (UseCarrier).
+        services.AddShippingInfrastructure(_databases.Shipping);
+        services.AddIntegrationMessageHandler<CreateShipmentV1, CreateShipmentHandler>(IntegrationModules.Shipping);
+        services.AddIntegrationMessageHandler<ShipmentCreatedV1, ShipmentResultHandler>(IntegrationModules.Ordering);
+        services.AddIntegrationMessageHandler<ShipmentFailedV1, ShipmentResultHandler>(IntegrationModules.Ordering);
+        services.AddDomainEventHandler<OrderShipmentRequested, PublishOrderIntegrationEventsHandler>();
+        services.AddScoped<ICarrierGateway>(_ => new CarrierApiClient(Carrier.CreateAuthorizedClient(), NullLogger<CarrierApiClient>.Instance));
+
         // E-shop krok 11: modul Reporting (přehled tržeb) – jako AddReportingModule + AddReportingInfrastructure ve Webu,
         // a snímky objednávek pro přestavění (handler v Orderingu).
         services.AddReportingInfrastructure(_databases.Reporting);
@@ -272,6 +286,7 @@ public sealed partial class OrderServiceTests : IDisposable
         ReportingDatabaseInitializer.InitializeAsync(_services).GetAwaiter().GetResult();
         ReviewsDatabaseInitializer.InitializeAsync(_services).GetAwaiter().GetResult();
         InvoicingDatabaseInitializer.InitializeAsync(_services).GetAwaiter().GetResult();
+        ShippingDatabaseInitializer.InitializeAsync(_services).GetAwaiter().GetResult();
         InventoryDb(async db => { await InventoryDatabaseInitializer.MigrateAsync(db); return true; }).GetAwaiter().GetResult();
     }
 
@@ -3637,6 +3652,7 @@ public sealed partial class OrderServiceTests : IDisposable
     public void Dispose()
     {
         _services.Dispose();
+        _carrier?.Dispose();
         _databases.Dispose();
     }
 }

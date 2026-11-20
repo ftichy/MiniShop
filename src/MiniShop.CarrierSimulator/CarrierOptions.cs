@@ -67,6 +67,9 @@ public sealed class ChaosOptions
     /// <summary>Zásilka vznikne, ale odpověď „se ztratí“ (503) – opakování se stejným Idempotency-Key ji musí najít.</summary>
     public double LostResponseRate { get; set; }
 
+    /// <summary>Krok 26B: dopravce na adresu nedoručuje (422 <c>address_not_serviceable</c>) – trvalá chyba, rozhodne člověk.</summary>
+    public double RejectRate { get; set; }
+
     /// <summary>Webhook přijde dvakrát (stejné ID události) – e-shop ho musí zpracovat jen jednou.</summary>
     public double DuplicateRate { get; set; }
 
@@ -84,7 +87,8 @@ public sealed class ChaosOptions
         foreach (var (name, value) in new[]
         {
             (nameof(FailureRate), FailureRate), (nameof(LostResponseRate), LostResponseRate),
-            (nameof(DuplicateRate), DuplicateRate), (nameof(ReorderRate), ReorderRate), (nameof(DropRate), DropRate)
+            (nameof(DuplicateRate), DuplicateRate), (nameof(ReorderRate), ReorderRate), (nameof(DropRate), DropRate),
+            (nameof(RejectRate), RejectRate)
         })
         {
             if (value is < 0 or > 1)

@@ -1,6 +1,7 @@
 using MiniShop.Application.Abstractions;
 using MiniShop.Contracts;
 using MiniShop.Contracts.Orders;
+using MiniShop.Contracts.Shipping;
 using MiniShop.Application.Ordering.Saga;
 using MiniShop.Domain.Orders;
 using MiniShop.Domain.Orders.Events;
@@ -32,7 +33,8 @@ public sealed class PublishOrderIntegrationEventsHandler(
     IDomainEventHandler<OrderReturned>,
     IDomainEventHandler<OrderPartialReturnRequested>,
     IDomainEventHandler<OrderPartialReturnRejected>,
-    IDomainEventHandler<OrderPartialReturnCompleted>
+    IDomainEventHandler<OrderPartialReturnCompleted>,
+    IDomainEventHandler<OrderShipmentRequested>
 {
     /// <summary>
     /// Vznik objednávky ve dvou verzích (e-shop krok 7, expand → contract): V1 pro stávající odběratele,
@@ -163,6 +165,28 @@ public sealed class PublishOrderIntegrationEventsHandler(
             orderReturn.Amount,
             RefundedByCard: order.PaymentMethod == PaymentMethod.Card,
             order.FullyReturnedProductIds()));
+    }
+
+    /// <summary>
+    /// E-shop krok 26B: předat dopravci = PŘÍKAZ modulu Shipping (jeden příjemce). Adresa a jméno odchází dál dopravci;
+    /// dobírka = celá částka objednávky. ID příkazu bude u dopravce Idempotency-Key.
+    /// </summary>
+    public async Task HandleAsync(OrderShipmentRequested domainEvent, CancellationToken cancellationToken)
+    {
+        var order = domainEvent.Order;
+        var address = order.DeliveryAddress
+            ?? throw new InvalidOperationException($"Objednávka {order.Id} předaná dopravci nemá adresu.");
+
+        publisher.Send(new CreateShipmentV1(
+            Guid.NewGuid(),
+            domainEvent.OccurredAtUtc,
+            order.Id,
+            order.CustomerName,
+            address.Street,
+            address.City,
+            address.PostalCode,
+            order.PaymentMethod == PaymentMethod.CashOnDelivery ? order.TotalPrice : null));
+        await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
     private async Task PublishAsync(CancellationToken cancellationToken, params IIntegrationEvent[] integrationEvents)

@@ -170,6 +170,21 @@ public sealed class IntegrationContractTests
             json);
     }
 
+    /// <summary>E-shop krok 26B: předání zásilky dopravci – příkaz a obě odpovědi.</summary>
+    [Fact]
+    public void ZasilkaUDopravce_TvarJsonuSeNezmenil()
+    {
+        Assert.Equal(
+            """{"CommandId":"11111111-2222-3333-4444-555555555555","OccurredAtUtc":"2026-01-15T10:00:00Z","OrderId":42,"RecipientName":"Jan Novak","Street":"Dlouha 5","City":"Praha","PostalCode":"11000","CashOnDelivery":399}""",
+            OutboxMessageFactory.Create(new MiniShop.Contracts.Shipping.CreateShipmentV1(EventId, OccurredAtUtc, 42, "Jan Novak", "Dlouha 5", "Praha", "11000", 399m)).Payload);
+        Assert.Equal(
+            """{"EventId":"11111111-2222-3333-4444-555555555555","OccurredAtUtc":"2026-01-15T10:00:00Z","OrderId":42,"Carrier":"Simulator","TrackingNumber":"CS0123456789"}""",
+            OutboxMessageFactory.Create(new MiniShop.Contracts.Shipping.ShipmentCreatedV1(EventId, OccurredAtUtc, 42, "Simulator", "CS0123456789")).Payload);
+        Assert.Equal(
+            """{"EventId":"11111111-2222-3333-4444-555555555555","OccurredAtUtc":"2026-01-15T10:00:00Z","OrderId":42,"Reason":"Mimo oblast"}""",
+            OutboxMessageFactory.Create(new MiniShop.Contracts.Shipping.ShipmentFailedV1(EventId, OccurredAtUtc, 42, "Mimo oblast")).Payload);
+    }
+
     /// <summary>Žádost Orderingu o celý katalog (obnova kopie katalogu).</summary>
     [Fact]
     public void SyncCatalogV1_TvarJsonuSeNezmenil()

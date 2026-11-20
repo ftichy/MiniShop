@@ -1,9 +1,10 @@
+using System.Text.RegularExpressions;
 using Microsoft.Playwright;
 using static Microsoft.Playwright.Assertions;
 
 namespace MiniShop.E2E;
 
-/// <summary>Scénář 2: admin objednávku zabalí, odešle (dopravce + číslo zásilky) a doručí; zákazník vidí „Doručená“.</summary>
+/// <summary>Scénář 2: admin objednávku zabalí, předá dopravci (číslo zásilky od simulátoru) a doručí; zákazník vidí „Doručená“.</summary>
 public sealed class ExpediceTests : E2ETestBase
 {
     [E2EAdminFact]
@@ -24,23 +25,13 @@ public sealed class ExpediceTests : E2ETestBase
             var orderId = await ShopFlow.CheckoutAsync(shop, mobile: false, payment: "CashOnDelivery");
             await ShopFlow.WaitForOrderStatusAsync(shop, orderId, "Potvrzená");
 
-            // Admin: K zabalení → K odeslání → Na cestě.
+            // Admin: K zabalení → Předat dopravci (e-shop krok 26B: číslo přidělí simulovaný dopravce) → Na cestě → Doručeno.
             await ShopFlow.LoginAdminAsync(back, E2EEnvironment.AdminEmail!, E2EEnvironment.AdminPassword!);
-            await back.GotoAsync("/Admin/Fulfilment");
-            await back.Locator($"input[name=ids][value='{orderId}']").CheckAsync();
-            await back.Locator("[data-track=fulfilment-start-packing]").ClickAsync();
+            await ShopFlow.ShipAndDeliverAsync(back, orderId);
 
-            await back.Locator($"#carrier-{orderId}").FillAsync("PPL");
-            await back.Locator($"#tracking-{orderId}").FillAsync($"E2E{orderId}");
-            await back.Locator($"form:has(#carrier-{orderId}) [data-track=fulfilment-ship]").ClickAsync();
-
-            var inTransit = back.Locator(".list-group-item").Filter(new() { Has = back.GetByRole(AriaRole.Link, new() { Name = $"č. {orderId}", Exact = true }) })
-                .Locator("[data-track=fulfilment-deliver]");
-            await inTransit.ClickAsync();
-
-            // Zákazník po obnovení vidí „Doručená“.
+            // Zákazník po obnovení vidí „Doručená“ a číslo zásilky od dopravce.
             await ShopFlow.WaitForOrderStatusAsync(shop, orderId, "Doručená");
-            await Expect(shop.Locator("[data-track=order-detail-tracking]")).ToContainTextAsync($"E2E{orderId}");
+            await Expect(shop.Locator("[data-track=order-detail-tracking]")).ToContainTextAsync(new Regex(@"Simulovaný dopravce.*CS\d{10}"));
         }, () => customer, () => admin);
 
         if (customer is not null)

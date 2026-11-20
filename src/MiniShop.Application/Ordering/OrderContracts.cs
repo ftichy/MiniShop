@@ -32,7 +32,9 @@ public sealed record OrderDto(
     string? TrackingNumber = null,
     string PaymentMethod = "None",
     string? CouponCode = null,
-    decimal CouponDiscount = 0m);
+    decimal CouponDiscount = 0m,
+    bool AwaitingShipment = false,
+    string? ShipmentError = null);
 
 /// <summary>E-shop krok 5: jeden řádek historie stavů. <paramref name="ChangedAtUtc"/> = null u objednávek starších než krok 5.</summary>
 public sealed record OrderStatusChangeDto(string Status, DateTime? ChangedAtUtc, string? Note);

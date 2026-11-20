@@ -47,6 +47,12 @@
             <td>do smazání účtu (pak se smaže celé)</td>
         </tr>
         <tr>
+            @* E-shop krok 26B *@
+            <td>Zásilka u dopravce (kurýr): jméno a doručovací adresa, číslo objednávky, u dobírky částka</td>
+            <td>doručení zásilky; MiniShop si u sebe drží jen číslo zásilky</td>
+            <td>u dopravce 30 dní po doručení</td>
+        </tr>
+        <tr>
             @* E-shop krok 17: košík se ukládá jako historie změn *@
             <td>Košík: vybrané produkty, množství a cena při přidání; historie změn košíku (co a kdy jste přidali, změnili, odebrali)</td>
             <td>nákup – košík zůstane i po odhlášení; historii vidíte na stránce košíku, souhrnně (bez jmen) ji používáme ke zlepšování nabídky</td>
@@ -109,6 +115,9 @@
     @* E-shop krok 16 *@
     <li><strong>Stripe</strong> (platební brána, testovací režim) – údaje o kartě zadáváte přímo na stránce Stripu;
         MiniShop je nevidí ani neukládá, dozví se jen číslo objednávky a výsledek platby.</li>
+    @* E-shop krok 26B *@
+    <li><strong>Dopravce</strong> (zatím simulovaný – běží na stejném serveru jako MiniShop) – u objednávky kurýrem dostane jméno
+        a doručovací adresu, aby mohl zásilku doručit.</li>
     @* E-shop krok 23 *@
     <li><strong>Push služba vašeho prohlížeče</strong> (Google u Chromu a Androidu, Apple u Safari, Mozilla u Firefoxu) – doručí
         oznámení na zařízení, když je zapnete. Obsah je zašifrovaný klíčem vašeho prohlížeče, push služba ho nepřečte.</li>

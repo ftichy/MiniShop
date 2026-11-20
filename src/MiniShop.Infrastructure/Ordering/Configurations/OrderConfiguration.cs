@@ -40,6 +40,7 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         // na ConcurrencyConflictException (409 / hláška na stránce).
         builder.Property(o => o.Carrier).HasMaxLength(50);
         builder.Property(o => o.TrackingNumber).HasMaxLength(50);
+        builder.Property(o => o.ShipmentError).HasMaxLength(Order.ShipmentErrorMaxLength);   // e-shop krok 26B
         builder.Property(o => o.Version).IsConcurrencyToken();
 
         // Hodnotový objekt = sloupce v tabulce Orders (žádná vlastní tabulka ani ID). Bez adresy = všechny NULL.

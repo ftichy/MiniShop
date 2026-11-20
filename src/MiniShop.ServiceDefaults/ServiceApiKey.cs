@@ -25,12 +25,16 @@ public static class ServiceApiKey
     /// <summary>Mikroservisy M2C: klíč služby Notifications (<c>NotificationsApi__ApiKey</c>, secret <c>NOTIFICATIONS_API_KEY</c>).</summary>
     public const string NotificationsConfigurationKey = "NotificationsApi:ApiKey";
 
+    /// <summary>E-shop krok 26B: klíč e-shopu u dopravce (<c>Carrier__ApiKey</c>, secret <c>CARRIER_API_KEY</c>) – Web jím volá <c>carrier-sim</c>.</summary>
+    public const string CarrierConfigurationKey = "Carrier:ApiKey";
+
     private static readonly Dictionary<string, string> Secrets = new()
     {
         [ConfigurationKey] = "INVENTORY_API_KEY",
         [ReportingConfigurationKey] = "REPORTING_API_KEY",
         [WebInternalConfigurationKey] = "WEB_INTERNAL_API_KEY",
-        [NotificationsConfigurationKey] = "NOTIFICATIONS_API_KEY"
+        [NotificationsConfigurationKey] = "NOTIFICATIONS_API_KEY",
+        [CarrierConfigurationKey] = "CARRIER_API_KEY"
     };
 
     /// <summary>Kratší klíč by šel uhodnout; produkce má 64 hex znaků (256 bitů).</summary>

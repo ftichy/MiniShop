@@ -90,6 +90,7 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
         builder.UseSetting("ReportingApi:ApiKey", new string('r', 64));   // mikroservisy M1 (služba tu je FakeSalesReportApi)
         builder.UseSetting("WebInternalApi:ApiKey", InternalApiKey);   // mikroservisy M2A: interní API /internal/…
         builder.UseSetting("NotificationsApi:ApiKey", NotificationsApiFactory.ApiKey);   // mikroservisy M2C
+        builder.UseSetting("Carrier:ApiKey", MiniShop.Tests.CarrierSimulator.CarrierSimulatorFactory.ApiKey);   // e-shop krok 26B (dopravce se tu nevolá – outbox neběží)
         builder.UseSetting("PushNotifications:VapidPublicKey", "test-vapid-public-key");   // Web zná jen veřejný klíč
         // Účty krok 8: limit formulářů účtu vysoko – testy se přihlašují stokrát z jedné „IP“. Limit zkouší vlastní test.
         builder.UseSetting("RateLimiting:AccountForms:PermitLimit", "100000");

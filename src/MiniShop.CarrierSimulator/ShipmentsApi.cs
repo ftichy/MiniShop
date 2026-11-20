@@ -62,6 +62,15 @@ public static partial class ShipmentsApi
         var hash = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(request, HashJson)));
         var now = time.GetUtcNow().UtcDateTime;
 
+        // Zlobení 3 (krok 26B): na adresu nedoručujeme – trvalá chyba (opakování nepomůže). Jen u nového klíče:
+        // zásilka, která už vznikla, se při opakování neodmítne.
+        var known = store.Read(state => state.Shipments.Any(s => s.IdempotencyKey == idempotencyKey));
+        if (!known && dice.Roll(chaos.RejectRate))
+        {
+            log.LogInformation("Zlobení: zásilka pro {Reference} odmítnuta – adresa mimo oblast", request!.Reference);
+            return Error(StatusCodes.Status422UnprocessableEntity, "address_not_serviceable", "Na tuto adresu nedoručujeme.");
+        }
+
         var (shipment, replayed, conflict) = store.Update(state =>
         {
             var existing = state.Shipments.FirstOrDefault(s => s.IdempotencyKey == idempotencyKey);

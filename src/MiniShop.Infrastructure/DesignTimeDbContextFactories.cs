@@ -10,6 +10,7 @@ using MiniShop.Infrastructure.Persistence;
 using MiniShop.Infrastructure.Reporting;
 using MiniShop.Infrastructure.Invoicing;
 using MiniShop.Infrastructure.Reviews;
+using MiniShop.Infrastructure.Shipping;
 
 namespace MiniShop.Infrastructure;
 
@@ -69,4 +70,10 @@ internal sealed class InvoicingDesignTimeFactory : IDesignTimeDbContextFactory<I
 internal sealed class AccountsDesignTimeFactory : IDesignTimeDbContextFactory<AccountsDbContext>
 {
     public AccountsDbContext CreateDbContext(string[] args) => new(DesignTimeDatabase.Options<AccountsDbContext>(AccountsDbContext.Schema));
+}
+
+/// <summary>E-shop krok 26B: modul Shipping (zásilky u dopravce).</summary>
+internal sealed class ShippingDesignTimeFactory : IDesignTimeDbContextFactory<ShippingDbContext>
+{
+    public ShippingDbContext CreateDbContext(string[] args) => new(DesignTimeDatabase.Options<ShippingDbContext>(ShippingDbContext.Schema));
 }

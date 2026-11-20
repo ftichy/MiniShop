@@ -26,7 +26,7 @@ mimo pořadí, nebo vůbec. Krok má naučit integraci s nespolehlivou službou 
 | Krok | Co | Chování produkce |
 | --- | --- | --- |
 | 26A. Simulátor dopravce | `MiniShop.CarrierSimulator`: `POST /v1/shipments` (`Idempotency-Key`), `GET /v1/shipments/{číslo}`, časová osa stavů, webhooky s podpisem `Carrier-Signature`, zlobení `Carrier:Chaos`; Compose, CI image, `deploy.sh` (secrets `CARRIER_API_KEY`, `CARRIER_WEBHOOK_SECRET`). Souhrn [krok-26a](kroky-eshop/krok-26a-simulator-dopravce.md). | beze změny – simulátor jen běží |
-| 26B. Vytvoření zásilky | Modul Shipping: `CreateShipmentV1` → klient dopravce (opakování, `Idempotency-Key` = ID příkazu) → `ShipmentCreatedV1` → `Order.Ship` (dopravce + číslo); trvalá chyba → `ShipmentFailedV1` → upozornění v Expedici. Tlačítko „Předat dopravci“ místo ručního čísla. Generátor provozu, E2E expedice, `/Privacy` (adresa jde dopravci). | číslo zásilky přiděluje dopravce |
+| 26B. Vytvoření zásilky | Modul Shipping: `CreateShipmentV1` → klient dopravce (opakování, `Idempotency-Key` = ID příkazu) → `ShipmentCreatedV1` → `Order.Ship` (dopravce + číslo); trvalá chyba → `ShipmentFailedV1` → upozornění v Expedici. Tlačítko „Předat dopravci“ místo ručního čísla. Generátor provozu, E2E expedice, `/Privacy` (adresa jde dopravci). Souhrn [krok-26b](kroky-eshop/krok-26b-vytvoreni-zasilky.md). | číslo zásilky přiděluje dopravce |
 | 26C. Webhooky a dohledání | `/api/shipping/carrier-webhook` (podpis, čas, inbox), stav jen dopředu, `ShipmentStatusChangedV1`, `ShipmentDeliveredV1` → `MarkDelivered`; dohledání `GET` u zásilek bez novinky; průběh zásilky na detailu objednávky; „Doručeno“ jen pro osobní odběr; zlobení zapnuté v produkci. | doručení řídí dopravce |
 | 26D. (volitelně) Nedoručeno | Nezastižen, vráceno odesílateli → kompenzace (dobropis, vrácení peněz, naskladnění). | — |
 
@@ -38,7 +38,7 @@ mimo pořadí, nebo vůbec. Krok má naučit integraci s nespolehlivou službou 
 | Paměť VM | +~100–150 MiB (`carrier-sim`, `mem_limit 256m`) |
 | Řady Grafany | simulátor žádné; modul Shipping pár `minishop_*` (fronta, outbox) |
 | Secrets | +2 (`CARRIER_API_KEY`, `CARRIER_WEBHOOK_SECRET`) |
-| Ruční kroky | 26A: secrets + nový `deploy.sh` na VM před sloučením, balíček GHCR `minishop-carrier-sim` Public |
+| Ruční kroky | 26A: secrets + nový `deploy.sh` na VM před sloučením |
 
 ## Rizika
 

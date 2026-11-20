@@ -64,6 +64,7 @@ v tabulce nejsou – jsou popsané níže.
 | Co | K čemu | Proč | Odkazy |
 | --- | --- | --- | --- |
 | **Bootstrap 5** (5.3.3, CSS + JS bundle, lokálně ve `wwwroot/lib/bootstrap`) | vzhled UI – mřížka, formuláře, tabulky; od redesignu A i menu pro mobil, rozbalovací nabídky a panel filtrů (JS) – [Vzhled a mobil](../architektura/vzhled.md) | hotový základ, vlastní vzhled jen CSS proměnné; JS ověřený otiskem SRI; od účtů kroku 8 ne z CDN – CSP pouští jen vlastní soubory a cizí server nevidí návštěvníky | [getbootstrap.com](https://getbootstrap.com/) |
+| **htmx 2** (2.0.4, lokálně ve `wwwroot/lib/htmx`, licence Zero-Clause BSD) | vzhled krok F1: formulář na pozadí a výměna jen kousku stránky – „Do košíku“ bez obnovení stránky ([Vzhled a mobil](../architektura/vzhled.md)) | stránky zůstávají serverové (Razor Pages), přibydou jen atributy v HTML místo vlastního JavaScriptu; funguje s CSP `script-src 'self'` (`allowEval: false`); soubor ověřen stejným otiskem SHA-384 ze dvou CDN | [htmx.org](https://htmx.org/) |
 | **Markdig** | převod Markdownu této dokumentace na HTML (na serveru) | nejrychlejší a nejúplnější Markdown pro .NET, tabulky i Mermaid bloky | [GitHub](https://github.com/xoofx/markdig) |
 | **Mermaid** (lokální kopie ve `wwwroot/lib/mermaid`) | diagramy z textu v prohlížeči | diagram se píše jako text vedle dokumentace a mění se s ní v PR | [mermaid.js.org](https://mermaid.js.org/) |
 

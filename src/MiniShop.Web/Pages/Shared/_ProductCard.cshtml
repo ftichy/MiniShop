@@ -38,8 +38,10 @@
                 }
                 else
                 {
-                    @* E-shop krok 3: do košíku (POST na stránku Košík, pak zpět i s filtry). Krok 4B: jediná cesta k objednávce. *@
-                    <form method="post" asp-page="/Cart/Index" asp-page-handler="Add">
+                    @* E-shop krok 3: do košíku (POST na stránku Košík, pak zpět i s filtry). Krok 4B: jediná cesta k objednávce.
+                       Vzhled krok F1: s JavaScriptem na pozadí přes htmx – stránka zůstane, vymění se jen odznak košíku a hláška. *@
+                    <form method="post" asp-page="/Cart/Index" asp-page-handler="Add" data-cart-add
+                          hx-post="@Url.Page("/Cart/Index", "Add")" hx-swap="none" hx-disabled-elt="find button">
                         <input type="hidden" name="productId" value="@p.ProductId" />
                         <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
                         <button type="submit" class="btn btn-primary btn-sm w-100 d-inline-flex align-items-center justify-content-center gap-1" data-track="shop-add-to-cart">

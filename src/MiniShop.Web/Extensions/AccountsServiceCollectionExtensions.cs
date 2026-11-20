@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Identity;
 using MiniShop.Infrastructure.Accounts;
 using MiniShop.Infrastructure.Persistence;
 using MiniShop.Web.Accounts;
+using MiniShop.Web.Ui;
 
 namespace MiniShop.Web.Extensions;
 
@@ -94,6 +95,13 @@ public static class AccountsServiceCollectionExtensions
         if (context.Request.Path.StartsWithSegments("/api"))
         {
             context.Response.StatusCode = apiStatusCode;
+        }
+        else if (context.Request.IsHtmxRequest())
+        {
+            // Vzhled krok F1: formulář poslaný htmx na pozadí (např. Do košíku po vypršení přihlášení) – přesměrování 302
+            // by htmx tiše načetl a nic by se nestalo; HX-Redirect převede celou stránku na přihlášení.
+            context.Response.StatusCode = StatusCodes.Status200OK;
+            context.Response.Headers[Htmx.RedirectHeader] = redirectPath ?? context.RedirectUri;
         }
         else
         {

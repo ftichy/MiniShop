@@ -37,6 +37,8 @@
     <meta name="theme-color" content="#4f46e5" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#161b26" media="(prefers-color-scheme: dark)" />
     <meta name="color-scheme" content="light dark" />
+    @* Vzhled krok F1: htmx bez eval a inline skriptů (CSP), jen požadavky na vlastní web, bez vkládaných stylů. *@
+    <meta name="htmx-config" content='{"allowEval":false,"allowScriptTags":false,"includeIndicatorStyles":false,"selfRequestsOnly":true,"historyCacheSize":0}' />
     @* Vzhled krok E: tmavý režim – nastaví data-bs-theme dřív, než se stránka vykreslí (proto v hlavičce a bez defer). *@
     <script src="~/js/theme.js" asp-append-version="true"></script>
     @* Vzhled krok D: instalovatelná aplikace (PWA) – manifest = jméno, ikony, spuštění bez lišty prohlížeče. *@
@@ -159,7 +161,8 @@
                 </div>
 
                 <div class="d-flex align-items-center gap-1 ms-auto ms-lg-0">
-                    @await Component.InvokeAsync("CartBadge")
+                    @* Vzhled krok F1: obal s id – po „Do košíku“ ho htmx vymění (partial _CartAddResult). *@
+                    <div id="cart-badge" class="htmx-region">@await Component.InvokeAsync("CartBadge")</div>
                     <button class="navbar-toggler d-lg-none" type="button" data-bs-toggle="collapse" data-bs-target="#main-nav"
                             aria-controls="main-nav" aria-expanded="false" aria-label="Otevřít menu" data-track="nav-toggle">
                         @Icons.Menu
@@ -210,12 +213,19 @@
         </div>
     </footer>
     <partial name="_TabBar" />
+    @* Vzhled krok F1: hláška po přidání do košíku (vyplní htmx, ukáže js/cart-add.js) – dole, ať je vidět i po odscrollování. *@
+    <div class="toast-container cart-toast-container position-fixed start-50 translate-middle-x p-3">
+        <div id="cart-toast"></div>
+    </div>
     @* Redesign A: Bootstrap JS lokálně (menu na mobilu, rozbalovací nabídky, panel filtrů) – soubor, ne inline skript (CSP). *@
     <script src="~/lib/bootstrap/js/bootstrap.bundle.min.js" asp-append-version="true"></script>
     @* Stránkování seznamů: výběr velikosti stránky odešle formulář (partial _Pager). *@
     <script src="~/js/pager.js" asp-append-version="true"></script>
     <script src="~/js/search-suggest.js" asp-append-version="true"></script>
     <script src="~/js/pwa.js" asp-append-version="true"></script>
+    @* Vzhled krok F1: částečné obnovení stránky (formulář na pozadí, výměna kousku HTML) – lokálně, ne z CDN. *@
+    <script src="~/lib/htmx/htmx.min.js" asp-append-version="true"></script>
+    <script src="~/js/cart-add.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

@@ -1,0 +1,26 @@
+@using MiniShop.Web.Carts
+@model CartAddResultModel
+@* Vzhled krok F1: odpověď na „Do košíku“ z htmx – nic se nevykreslí na místo formuláře (hx-swap="none"), jen tři prvky
+   se vymění podle id („out-of-band“): odznak v hlavičce, odznak ve spodní liště a hláška. Zobrazení hlášky: js/cart-add.js. *@
+<div id="cart-badge" class="htmx-region" hx-swap-oob="true">
+    @await Component.InvokeAsync("CartBadge")
+</div>
+<div id="cart-badge-tab" class="htmx-region" hx-swap-oob="true">
+    @await Component.InvokeAsync("CartBadge", new { variant = CartBadgeViewComponent.TabVariant })
+</div>
+<div id="cart-toast" hx-swap-oob="true">
+    <div class="toast align-items-center border-0 @(Model.IsError ? "text-bg-danger" : "text-bg-success")"
+         role="@(Model.IsError ? "alert" : "status")" aria-live="@(Model.IsError ? "assertive" : "polite")" aria-atomic="true"
+         data-track="@(Model.IsError ? "cart-toast-error" : "cart-toast")">
+        <div class="d-flex">
+            <div class="toast-body">
+                @Model.Message
+                @if (!Model.IsError)
+                {
+                    <a asp-page="/Cart/Index" class="link-light fw-semibold ms-1" data-track="cart-toast-open">Zobrazit košík</a>
+                }
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Zavřít"></button>
+        </div>
+    </div>
+</div>

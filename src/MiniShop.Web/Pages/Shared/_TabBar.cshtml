@@ -13,7 +13,8 @@
         <span class="tab-bar-icon">@Icons.Bag</span>
         <span>Obchod</span>
     </a>
-    @await Component.InvokeAsync("CartBadge", new { variant = CartBadgeViewComponent.TabVariant })
+    @* Vzhled krok F1: obal s id – po „Do košíku“ ho htmx vymění (partial _CartAddResult). *@
+    <div id="cart-badge-tab" class="htmx-region">@await Component.InvokeAsync("CartBadge", new { variant = CartBadgeViewComponent.TabVariant })</div>
     @if (signedIn)
     {
         <a class="tab-bar-item@(ordersActive ? " active" : "")" asp-page="/Orders/Index" data-track="tab-orders" aria-current="@(ordersActive ? "page" : null)">

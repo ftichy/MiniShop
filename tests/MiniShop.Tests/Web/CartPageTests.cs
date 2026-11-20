@@ -92,13 +92,89 @@ public sealed class CartPageTests(MiniShopWebFactory web)
         Assert.DoesNotContain("data-track=\"nav-cart\"", await client.GetStringAsync("/Shop"));
     }
 
+    // ---------- Vzhled krok F1: Do košíku bez obnovení stránky (htmx) ----------
+
+    [Fact]
+    public async Task Htmx_PridaniZVylohy_JenOdznakAHlaskaBezPresmerovani()
+    {
+        await web.EnsureCatalogProductAsync(306, "Htmx klávesnice", 450m);
+        var client = await CustomerAsync();
+
+        var shop = await client.GetStringAsync("/Shop?q=htmx");
+        Assert.Contains("data-cart-add", shop);
+        Assert.Contains("hx-post=\"/Cart?handler=Add\"", shop);
+        Assert.Contains("id=\"cart-badge\"", shop);       // obaly, které htmx vymění
+        Assert.Contains("id=\"cart-badge-tab\"", shop);
+        Assert.Contains("id=\"cart-toast\"", shop);
+        Assert.Matches("src=\"/lib/htmx/htmx\\.min\\.js\\?v=[^\"]+\"", shop);
+
+        var response = await PostAsync(client, "/Cart?handler=Add", Htmx, ("productId", "306"), ("returnUrl", "/Shop?q=htmx"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);   // žádné přesměrování – stránka zůstane, kde byla
+        var html = Decode(await response.Content.ReadAsStringAsync());
+        Assert.Contains("id=\"cart-badge\" class=\"htmx-region\" hx-swap-oob=\"true\"", html);
+        Assert.Contains("id=\"cart-badge-tab\" class=\"htmx-region\" hx-swap-oob=\"true\"", html);
+        Assert.Contains("data-track=\"cart-toast\"", html);
+        Assert.Contains("„Htmx klávesnice“ je v košíku.", html);
+        Assert.Matches("data-track=\"nav-cart\"[^>]*aria-label=\"Košík, \\d+ ks\"", html);   // nový počet kusů
+
+        // Hláška už byla v odpovědi – na příští stránce se znovu neukáže.
+        Assert.DoesNotContain("„Htmx klávesnice“ je v košíku.", Decode(await client.GetStringAsync("/Shop?q=htmx")));
+        Assert.Contains("Htmx klávesnice", Decode(await client.GetStringAsync("/Cart")));
+    }
+
+    [Fact]
+    public async Task Htmx_PorusenePravidloKosiku_CervenaHlaska()
+    {
+        await web.EnsureCatalogProductAsync(307, "Htmx monitor", 3_990m);
+        var client = await CustomerAsync();
+
+        var response = await PostAsync(client, "/Cart?handler=Add", Htmx, ("productId", "307"), ("quantity", "500"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = Decode(await response.Content.ReadAsStringAsync());
+        Assert.Contains("data-track=\"cart-toast-error\"", html);
+        Assert.Contains("text-bg-danger", html);
+        Assert.Contains("Množství musí být od 1 do 100 kusů.", html);
+        Assert.DoesNotContain("Zobrazit košík", html);
+    }
+
+    [Fact]
+    public async Task Htmx_Neprihlaseny_CelaStrankaNaPrihlaseni()
+    {
+        var client = web.CreateBrowser();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/Cart?handler=Add")
+        {
+            Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["productId"] = "306" })
+        };
+        request.Headers.Add("HX-Request", "true");
+
+        var response = await client.SendAsync(request);
+
+        // Přesměrování 302 by htmx provedl potichu na pozadí – HX-Redirect převede celou stránku.
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("/Account/Login?ReturnUrl=", response.Headers.GetValues("HX-Redirect").Single());
+    }
+
+    private static readonly (string Name, string Value)[] Htmx = [("HX-Request", "true")];
+
     private Task<HttpClient> CustomerAsync() => web.LoginAsync(MiniShopWebFactory.UserEmail, MiniShopWebFactory.UserPassword);
 
-    private static async Task<HttpResponseMessage> PostAsync(HttpClient client, string url, params (string Name, string Value)[] fields)
+    private static Task<HttpResponseMessage> PostAsync(HttpClient client, string url, params (string Name, string Value)[] fields) =>
+        PostAsync(client, url, [], fields);
+
+    private static async Task<HttpResponseMessage> PostAsync(HttpClient client, string url, (string Name, string Value)[] headers,
+        params (string Name, string Value)[] fields)
     {
         var form = fields.ToDictionary(f => f.Name, f => f.Value);
         form["__RequestVerificationToken"] = await MiniShopWebFactory.GetAntiforgeryTokenAsync(client, "/Shop");
-        return await client.PostAsync(url, new FormUrlEncodedContent(form));
+        using var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = new FormUrlEncodedContent(form) };
+        foreach (var (name, value) in headers)
+        {
+            request.Headers.Add(name, value);
+        }
+
+        return await client.SendAsync(request);
     }
 
     private static string Decode(string html) => WebUtility.HtmlDecode(html);

@@ -5,6 +5,8 @@ using MiniShop.Application.Exceptions;
 using MiniShop.Application.Ordering.Carts;
 using MiniShop.Domain.Exceptions;
 using MiniShop.Web.Accounts;
+using MiniShop.Web.Carts;
+using MiniShop.Web.Ui;
 
 namespace MiniShop.Web.Pages.Cart;
 
@@ -36,12 +38,31 @@ public sealed class IndexModel(ICartService carts, CartHistoryService history) :
     }
 
     /// <param name="returnUrl">Kam se vrátit (stránka výlohy i s filtry). Jen lokální adresa – jinak košík.</param>
-    public Task<IActionResult> OnPostAddAsync(int productId, string? returnUrl, CancellationToken cancellationToken, int quantity = 1) =>
-        ExecuteAsync(async () =>
+    /// <remarks>
+    /// Vzhled krok F1: z htmx (výloha, detail produktu) se nepřesměrovává – odpověď je jen nový odznak košíku a hláška
+    /// (<c>_CartAddResult</c>, výměna podle id), stránka zůstane, kde byla. Bez JavaScriptu přesměrování jako dřív.
+    /// </remarks>
+    public async Task<IActionResult> OnPostAddAsync(int productId, string? returnUrl, CancellationToken cancellationToken, int quantity = 1)
+    {
+        var result = await ExecuteAsync(async () =>
         {
             var name = await carts.AddItemAsync(User.ToCustomerId(), productId, quantity, cancellationToken);
             StatusMessage = $"„{name}“ je v košíku.";
         }, Url.IsLocalUrl(returnUrl) ? returnUrl : null);
+
+        if (!Request.IsHtmxRequest())
+        {
+            return result;
+        }
+
+        // Hláška jde rovnou do odpovědi – z TempData ji smazat, jinak by se ukázala ještě na příští stránce.
+        var message = new CartAddResultModel(ErrorMessage ?? StatusMessage ?? string.Empty, IsError: ErrorMessage is not null);
+        StatusMessage = null;
+        ErrorMessage = null;
+        TempData.Remove(nameof(StatusMessage));
+        TempData.Remove(nameof(ErrorMessage));
+        return Partial("_CartAddResult", message);
+    }
 
     public Task<IActionResult> OnPostChangeQuantityAsync(int productId, int quantity, CancellationToken cancellationToken) =>
         ExecuteAsync(() => carts.ChangeQuantityAsync(User.ToCustomerId(), productId, quantity, cancellationToken));

@@ -119,6 +119,9 @@ public sealed class CarrierApiClient(HttpClient http, ILogger<CarrierApiClient> 
         "in_transit" => ShipmentStatus.InTransit,
         "out_for_delivery" => ShipmentStatus.OutForDelivery,
         "delivered" => ShipmentStatus.Delivered,
+        "delivery_failed" => ShipmentStatus.DeliveryFailed,          // e-shop krok 26D
+        "returning" => ShipmentStatus.ReturningToSender,
+        "returned_to_sender" => ShipmentStatus.ReturnedToSender,
         _ => null
     };
 

@@ -14,8 +14,25 @@ public sealed class ShipmentResultHandler(
     TimeProvider timeProvider) :
     IIntegrationMessageHandler<ShipmentCreatedV1>,
     IIntegrationMessageHandler<ShipmentFailedV1>,
-    IIntegrationMessageHandler<ShipmentDeliveredV1>
+    IIntegrationMessageHandler<ShipmentDeliveredV1>,
+    IIntegrationMessageHandler<ShipmentReturnedV1>
 {
+    /// <summary>
+    /// E-shop krok 26D: dopravce zásilku vrátil nedoručenou → objednávka ReturnedToSender (→ OrderReturnedToSenderV1: sklad,
+    /// peníze, dobropis, e-mail a tržby si každý modul vyřídí sám). Už doručená / už vrácená = nic.
+    /// </summary>
+    public async Task HandleAsync(ShipmentReturnedV1 message, CancellationToken cancellationToken)
+    {
+        TraceTags.TagOrder(message.OrderId);
+        var order = await orders.GetByIdAsync(message.OrderId, cancellationToken)
+            ?? throw new InvalidOperationException($"Objednávka {message.OrderId} neexistuje.");
+
+        if (order.ReturnToSender(message.ReturnedAtUtc))
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+    }
+
     /// <summary>E-shop krok 26C: dopravce doručil → objednávka doručená (OrderCompleted → OrderCompletedV1, e-mail, faktura…).</summary>
     public async Task HandleAsync(ShipmentDeliveredV1 message, CancellationToken cancellationToken)
     {

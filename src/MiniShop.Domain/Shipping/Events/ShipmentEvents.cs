@@ -19,3 +19,9 @@ public sealed record ShipmentDelivered(Shipment Shipment, DateTime OccurredAtUtc
 {
     public Guid EventId { get; init; } = Guid.NewGuid();
 }
+
+/// <summary>E-shop krok 26D: zásilku se nepodařilo doručit a dopravce ji vrátil odesílateli.</summary>
+public sealed record ShipmentReturned(Shipment Shipment, DateTime OccurredAtUtc) : IDomainEvent
+{
+    public Guid EventId { get; init; } = Guid.NewGuid();
+}

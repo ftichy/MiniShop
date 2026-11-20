@@ -94,8 +94,14 @@ public static partial class ShipmentsApi
                 CashOnDelivery = request.CashOnDelivery,
                 CreatedAtUtc = now,
                 IdempotencyKey = idempotencyKey,
-                RequestHash = hash
+                RequestHash = hash,
+                // Zlobení 4 (krok 26D): příjemce nebude k zastižení → zásilka se vrátí odesílateli.
+                Undeliverable = dice.Roll(chaos.UndeliverableRate)
             };
+            if (created.Undeliverable)
+            {
+                log.LogInformation("Zlobení: zásilka {TrackingNumber} se nepodaří doručit", created.TrackingNumber);
+            }
             state.Shipments.Add(created);
             return (ToResponse(created), false, false);
         });

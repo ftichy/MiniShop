@@ -31,8 +31,13 @@ public sealed class SalesProjectionHandler(
     IIntegrationMessageHandler<ReturnCompletedV1>,
     IIntegrationMessageHandler<ReturnCompletedV2>,
     IIntegrationMessageHandler<PaymentRefundedV2>,
-    IIntegrationMessageHandler<OrderPartialReturnsSnapshotV1>
+    IIntegrationMessageHandler<OrderPartialReturnsSnapshotV1>,
+    IIntegrationMessageHandler<OrderReturnedToSenderV1>
 {
+    /// <summary>E-shop krok 26D: dopravce zásilku vrátil – z tržby zmizí (vrácené peníze přijdou zvlášť jako PaymentRefundedV1).</summary>
+    public Task HandleAsync(OrderReturnedToSenderV1 message, CancellationToken cancellationToken) =>
+        ChangeAsync(message.OrderId, order => order.ApplyStatus(SalesOrderStatus.ReturnedToSender, UtcNow), cancellationToken);
+
     public Task HandleAsync(OrderPlacedV2 message, CancellationToken cancellationToken) =>
         ChangeAsync(message.OrderId, order => order.ApplyPlaced(message.OccurredAtUtc, message.TotalPrice,
             message.ShippingPrice, ToLines(message.Items), UtcNow), cancellationToken);
@@ -97,6 +102,7 @@ public sealed class SalesProjectionHandler(
         "Rejected" => SalesOrderStatus.Rejected,
         "Cancelled" => SalesOrderStatus.Cancelled,
         "Returned" => SalesOrderStatus.Returned,             // e-shop krok 12
+        "ReturnedToSender" => SalesOrderStatus.ReturnedToSender,   // e-shop krok 26D
         "ReturnRequested" => SalesOrderStatus.Completed,     // vrácení teprve probíhá – tržba zatím platí
         _ => SalesOrderStatus.Placed   // Pending, AwaitingPayment
     };

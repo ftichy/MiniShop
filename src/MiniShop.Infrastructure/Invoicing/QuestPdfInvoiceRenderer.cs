@@ -201,6 +201,7 @@ public sealed class QuestPdfInvoiceRenderer : IInvoicePdfRenderer
         CreditNoteReason.Cancelled => "zrušená objednávka",
         CreditNoteReason.Rejected => "zamítnutá objednávka",
         CreditNoteReason.Returned => "vrácené zboží",
+        CreditNoteReason.ReturnedToSender => "nedoručená zásilka",   // e-shop krok 26D
         _ => reason.ToString()
     };
 

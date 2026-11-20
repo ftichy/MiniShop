@@ -134,6 +134,14 @@ public sealed class OrderSaga
         : OrderSagaAction.None;
 
     /// <summary>
+    /// E-shop krok 26D: dopravce zásilku vrátil nedoručenou – sága jen zaznamená konec. Zboží a peníze nevrací ona,
+    /// ale moduly samy podle události OrderReturnedToSenderV1 (choreografie, jako vydání rezervace u OrderShippedV1).
+    /// </summary>
+    public OrderSagaAction OrderReturnedToSender(DateTime nowUtc) => State == OrderSagaState.Shipped
+        ? MoveTo(OrderSagaState.ReturnedToSender, nowUtc, OrderSagaAction.None)
+        : OrderSagaAction.None;
+
+    /// <summary>
     /// Zákazník (nebo admin) objednávku zrušil – vrátit, co už je zarezervované nebo zaplacené (kompenzace).
     /// E-shop krok 9: i když sklad nebo brána ještě neodpověděli – pozdní odpověď dožene <see cref="StockReserved"/>
     /// a <see cref="PaymentSucceeded"/>.
@@ -266,7 +274,10 @@ public enum OrderSagaState
     /// <summary>
     /// E-shop krok 9: zrušeno dřív, než sklad odpověděl – nic se nevrací. Pozdní rezervace se ještě uvolní (ReleasingStock).
     /// </summary>
-    Cancelled
+    Cancelled,
+
+    /// <summary>E-shop krok 26D: konec – dopravce zásilku vrátil, zboží a peníze vrací moduly samy (choreografie).</summary>
+    ReturnedToSender
 }
 
 /// <summary>Co má orchestrátor udělat po přechodu ságy.</summary>

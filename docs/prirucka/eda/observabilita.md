@@ -63,9 +63,9 @@ požadavků se nezaznamenávají vůbec – konkrétní data jsou v MiniShopu (d
 | krok ságy objednávky | `minishop.saga.state_before`, `.state`, `.action`, `minishop.order.status`, `.rejection_reason` |
 | sága vratky | `minishop.return_saga.state_before`, `.state`, `.action` |
 | změna stavu (expedice, zrušení, vratka) | `minishop.order.status` |
-| sklad | `minishop.stock.result` (reserved / failed / released / fulfilled / returned), `minishop.stock.lines`, `minishop.stock.quantity` (naskladněné kusy vratky), `minishop.stock.missing` (vratka chtěla víc kusů, než bylo vydáno) |
+| sklad | `minishop.stock.result` (reserved / failed / released / fulfilled / returned / returned_to_sender), `minishop.stock.lines`, `minishop.stock.quantity` (naskladněné kusy vratky), `minishop.stock.missing` (vratka chtěla víc kusů, než bylo vydáno) |
 | platba | `minishop.payment.result` (requested / succeeded / failed / refunded / partly_refunded), `.amount`, `.gateway`, `.failure_reason` |
-| zásilka (e-shop krok 26B, 26C) | `minishop.shipment.result` (created / failed) – předání dopravci; `minishop.shipment.status` (PickedUp / InTransit / OutForDelivery / Delivered) – po webhooku; `minishop.shipment.reconciled` – kolik zásilek dohledání zkontrolovalo; číslo objednávky `minishop.order.id`, adresa nikdy |
+| zásilka (e-shop krok 26B, 26C, 26D) | `minishop.shipment.result` (created / failed) – předání dopravci; `minishop.shipment.status` (PickedUp / InTransit / OutForDelivery / Delivered / DeliveryFailed / ReturningToSender / ReturnedToSender) – po webhooku; `minishop.shipment.reconciled` – kolik zásilek dohledání zkontrolovalo; číslo objednávky `minishop.order.id`, adresa nikdy |
 | vratka po částech (e-shop krok 22) | `minishop.return.number` (pořadí vratky v objednávce, 0 = celá objednávka – sága vratky v Orderingu, sklad, Payments i dobropis v Invoicingu) |
 | košík | `minishop.cart.action` (add / update / remove), `minishop.product.id`, `minishop.cart.quantity` |
 | e-maily | `minishop.email.sent` (který e-mail = jméno spanu, např. `process OrderConfirmedV1`) |

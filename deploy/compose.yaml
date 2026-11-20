@@ -216,6 +216,7 @@ services:
       Carrier__Chaos__ReorderRate: ${CARRIER_CHAOS_REORDER_RATE:-0}
       Carrier__Chaos__DropRate: ${CARRIER_CHAOS_DROP_RATE:-0}
       Carrier__Chaos__RejectRate: ${CARRIER_CHAOS_REJECT_RATE:-0}
+      Carrier__Chaos__UndeliverableRate: ${CARRIER_CHAOS_UNDELIVERABLE_RATE:-0}
     volumes:
       - carrier-data:/data
     # Žádné "ports": dopravce je dostupný jen uvnitř sítě Compose (pro Web).

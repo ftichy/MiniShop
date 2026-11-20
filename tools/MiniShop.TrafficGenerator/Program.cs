@@ -26,7 +26,8 @@ catch (Exception ex)
 using var desk = new Desk(staffSession, options.Patience);
 
 // E-shop krok 26C: doručení řídí dopravce (4 kroky po 30 s); ztracený webhook dožene dohledání za 2–3 min.
-static TimeSpan DeliveryPatience(Options options) => options.Patience > TimeSpan.FromMinutes(6) ? options.Patience : TimeSpan.FromMinutes(6);
+// Krok 26D: nedoručitelná zásilka jde 8 kroků (2× nezastižen, zpět odesílateli) = 4 min + případné dohledání.
+static TimeSpan DeliveryPatience(Options options) => options.Patience > TimeSpan.FromMinutes(8) ? options.Patience : TimeSpan.FromMinutes(8);
 
 async Task Pause(Random random)
 {
@@ -77,8 +78,13 @@ async Task RunCustomerAsync(int number)
                     await desk.HandOverAsync(orderId.Value);
                     // E-shop krok 26C: doručení hlásí dopravce – 4 kroky po 30 s, ztracený webhook dožene dohledání (2–3 min).
                     await Shop.WaitForStatusAsync(session, orderId.Value, "Odeslaná", options.Patience);
-                    await Shop.WaitForStatusAsync(session, orderId.Value, "Doručená", DeliveryPatience(options));
-                    if (scenario == "vrácená")
+                    // Krok 26D: dopravce může zásilku vrátit nedoručenou (zlobení UndeliverableRate) – i to je platný konec.
+                    var (outcome, _) = await Shop.WaitForAnyStatusAsync(session, orderId.Value, DeliveryPatience(options), "Doručená", "Vráceno dopravcem");
+                    if (outcome == "Vráceno dopravcem")
+                    {
+                        scenario += " → vráceno dopravcem";
+                    }
+                    else if (scenario == "vrácená")
                     {
                         await Pause(random);
                         await Shop.RequestReturnAsync(session, orderId.Value);

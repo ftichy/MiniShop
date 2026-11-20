@@ -166,6 +166,22 @@ public sealed class CarrierSimulatorTests
     }
 
     [Fact]
+    public async Task ZlobeniNedorucitelna_DvakratNezastizenPakZpetOdesilateli()
+    {
+        using var carrier = new CarrierSimulatorFactory(new Dictionary<string, string?> { ["Carrier:Chaos:UndeliverableRate"] = "1" });
+        var client = carrier.CreateAuthorizedClient();
+        var tracking = await CreateAsync(client);
+
+        await carrier.AdvanceStepsAsync(CarrierStatuses.UndeliverableTimeline.Length + 2);
+
+        var shipment = await client.GetFromJsonAsync<ShipmentResponse>($"/v1/shipments/{tracking}");
+        Assert.Equal(CarrierStatuses.ReturnedToSender, shipment!.Status);
+        Assert.Equal(CarrierStatuses.UndeliverableTimeline, shipment.Events.Select(e => e.Status));
+        Assert.Equal(CarrierStatuses.UndeliverableTimeline, carrier.Webhooks.Received.Select(w => Data(w).GetProperty("status").GetString()));
+        Assert.DoesNotContain(CarrierStatuses.Delivered, shipment.Events.Select(e => e.Status));
+    }
+
+    [Fact]
     public async Task ZlobeniDvakrat_StejneIdUdalostiPrijdeDvakrat()
     {
         using var carrier = new CarrierSimulatorFactory(new Dictionary<string, string?> { ["Carrier:Chaos:DuplicateRate"] = "1" });

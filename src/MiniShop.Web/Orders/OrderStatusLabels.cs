@@ -17,6 +17,7 @@ public static class OrderStatusLabels
         "Completed" => "badge-soft-success",
         "ReturnRequested" => "badge-soft-warning",   // e-shop krok 12
         "Returned" => "badge-soft-secondary",
+        "ReturnedToSender" => "badge-soft-danger",   // e-shop krok 26D
         _ => "badge-soft-secondary"
     };
 
@@ -36,6 +37,7 @@ public static class OrderStatusLabels
         ("Cancelled", _) => "Zrušená",
         ("ReturnRequested", _) => "Vrací se",
         ("Returned", _) => "Vrácená",
+        ("ReturnedToSender", _) => "Vráceno dopravcem",
         _ => status
     };
 
@@ -55,6 +57,7 @@ public static class OrderStatusLabels
         ("Cancelled", _) => "Objednávka zrušena",
         ("ReturnRequested", _) => "Zákazník požádal o vrácení – čekáme na zboží",
         ("Returned", _) => "Zboží je zpět na skladu – objednávka vrácená",
+        ("ReturnedToSender", _) => "Zásilku se nepodařilo doručit – dopravce ji vrátil, zboží je zpět na skladu",
         _ => status
     };
 

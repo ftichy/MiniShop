@@ -45,7 +45,8 @@ sequenceDiagram
 
 Celé `/v1` jen s hlavičkou `X-Api-Key` (secret `CARRIER_API_KEY`).
 
-**Stavy** jsou ve slovníku dopravce (`created`, `accepted`, `in_transit`, `out_for_delivery`, `delivered`), ne MiniShopu.
+**Stavy** jsou ve slovníku dopravce (`created`, `accepted`, `in_transit`, `out_for_delivery`, `delivered`; od kroku 26D
+i `delivery_failed`, `returning`, `returned_to_sender`), ne MiniShopu.
 E-shop si je přeloží na své pojmy – tzv. *anti-corruption layer* (vrstva, která nepustí cizí pojmy do naší domény).
 
 **Webhook** (`POST` na `Carrier:WebhookUrl`, prázdná = neposílat):
@@ -73,12 +74,14 @@ Pravděpodobnosti 0–1 v `Carrier:Chaos` (Compose `CARRIER_CHAOS_…`, výchoz�
 | `ReorderRate` | webhook se zdrží až za následující | stav jen dopředu (`sequence`) |
 | `DropRate` | webhook se nepošle vůbec | dohledat stav sám (`GET`) |
 | `RejectRate` (krok 26B) | `POST` vrátí 422 `address_not_serviceable` („na adresu nedoručujeme“) | trvalá chyba – neopakovat, říct člověku (Expedice ukáže hlášku a „Zkusit znovu“) |
+| `UndeliverableRate` (krok 26D) | zásilka (kostka se hodí už při vzniku) jde jinou cestou: … doručuje se → nezastižen → doručuje se → nezastižen → vrací se → vráceno odesílateli | kompenzace bez ságy – zboží zpět na sklad, peníze a dobropis u karty ([vráceno dopravcem](../toky/expedice.md)) |
 
 ## Provoz
 
 - **Produkce (e-shop krok 26C):** `deploy/production.env` – webhooky na `http://web:8080/api/shipping/carrier-webhook`
   (uvnitř sítě Compose, jméno `web` = všechny kopie), krok 30 s (doručení ~2 min), mírné zlobení: dvakrát 20 %, mimo
-  pořadí 20 %, vůbec 10 %, 503 a ztracená odpověď 5 %, odmítnutí 0. Změna = PR do `production.env`.
+  pořadí 20 %, vůbec 10 %, 503 a ztracená odpověď 5 %, odmítnutí 0; od kroku 26D nedoručitelná zásilka 10 %
+  (`CARRIER_CHAOS_UNDELIVERABLE_RATE`). Změna = PR do `production.env`.
 - Kontejner `carrier-sim` ([compose.yaml](code:deploy/compose.yaml)), image `minishop-carrier-sim`, jen ve vnitřní síti
   Compose (žádný port ven), `mem_limit 256m`. Nasazuje se jako infrastruktura – krátký restart = dopravce chvíli
   neodpovídá, což e-shop musí snést.

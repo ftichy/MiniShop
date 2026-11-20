@@ -117,6 +117,10 @@ sequenceDiagram
   u dopravce → stejné `ApplyTracking`. Dopravce zásilku nezná (404) → `UnknownAtCarrier` a v Expedici se vrátí tlačítko
   „Doručeno“ pro člověka.
 - Pozdní doručení po ručním „Doručeno“ nic nezmění (`MarkDeliveredByCarrier` vrátí false).
+- **Vráceno odesílateli (e-shop krok 26D).** Nové stavy `DeliveryFailed` (nezastižen), `ReturningToSender`
+  a `ReturnedToSender` (konec). Vráceno → doménová událost `ShipmentReturned` → `ShipmentReturnedV1` → Ordering
+  `order.ReturnToSender()` → `OrderReturnedToSenderV1` (kompenzace dělají moduly samy – [tok expedice](../../toky/expedice.md)).
+  Konečný stav (doručeno / vráceno) už žádná další zpráva nepřepíše.
 
 Přirovnání: čekáte balík – pošta posílá SMS, některá přijde dvakrát, některá pozdě a jedna vůbec. Pořadí poznáte
 podle času na SMS (`sequence`), a když se dlouho nic neděje, podíváte se do sledování zásilky sami (dohledání).
@@ -138,5 +142,8 @@ podle času na SMS (`sequence`), a když se dlouho nic neděje, podíváte se do
   skutečnému simulátoru v paměti: úspěch, ztracená odpověď (žádná druhá zásilka), odmítnutí a nový pokus, nedostupný
   dopravce, zrušení a dvojklik po předání, osobní odběr a střet zájmů; 26C: doručení webhooky, duplicity a pořadí,
   ztracené webhooky + dohledání, podvržený/starý podpis, pozdní webhook po ručním doručení.
+- [OrderServiceTests.ReturnedToSender](code:tests/MiniShop.Tests/Application/OrderServiceTests.ReturnedToSender.cs) – 26D:
+  vráceno dopravcem na dobírku i kartou (sklad, refund, dobropis, e-maily, tržby), duplicitní zprávy, pozdní návrat
+  po ručním doručení, přestavění přehledu tržeb.
 - [FulfilmentPageTests](code:tests/MiniShop.Tests/Web/FulfilmentPageTests.cs) – tlačítko a stav „Předává se dopravci…“;
   [CarrierWebhookEndpointTests](code:tests/MiniShop.Tests/Web/CarrierWebhookEndpointTests.cs) – endpoint přes HTTP.

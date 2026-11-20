@@ -85,6 +85,18 @@ public sealed class OrderEmailTemplates(NotificationSettings settings)
                 : string.Format(Czech, "vrácené zboží jsme převzali. Částku {0:N2} Kč vám pošleme převodem – " +
                     "odpovězte prosím na tento e-mail s číslem účtu.", amount));
 
+    /// <summary>
+    /// E-shop krok 26D: dopravce zásilku nedoručil a vrátil ji. Kartou: peníze se vrací (o refundu přijde ještě e-mail
+    /// z Payments); dobírka: nic se neplatí.
+    /// </summary>
+    public EmailMessage ReturnedToSender(OrderMailRecipient to, decimal amount, bool refundedByCard) =>
+        Build(to, $"Zásilku s objednávkou č. {to.OrderId} se nepodařilo doručit",
+            refundedByCard
+                ? string.Format(Czech, "kurýr vás opakovaně nezastihl a dopravce nám zásilku vrátil. Objednávku jsme proto ukončili " +
+                    "a částku {0:N2} Kč vám vracíme na kartu. Pokud zboží stále chcete, objednejte ho prosím znovu.", amount)
+                : "kurýr vás opakovaně nezastihl a dopravce nám zásilku vrátil. Objednávku jsme proto ukončili – dobírku " +
+                    "neplatíte. Pokud zboží stále chcete, objednejte ho prosím znovu.");
+
     /// <summary>E-shop krok 22: žádost o vratku po částech – které položky, kam a do kdy poslat.</summary>
     public EmailMessage PartialReturnRequested(OrderMailRecipient to, int returnNumber, DateTime sendByUtc, IEnumerable<ReturnItemV1> items) =>
         Build(to, $"Vratka {returnNumber} k objednávce č. {to.OrderId} – pošlete nám zboží",

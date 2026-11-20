@@ -73,6 +73,7 @@ public sealed class IndexModel(ISalesReportApi reports, ILogger<IndexModel> logg
         "Rejected" => "Zamítnuté",
         "Cancelled" => "Zrušené",
         "Returned" => "Vrácené",
+        "ReturnedToSender" => "Vrácené dopravcem",   // e-shop krok 26D
         _ => status
     };
 }

@@ -10,6 +10,9 @@ public static class ShipmentStatusLabels
         "InTransit" => "Na cestě",
         "OutForDelivery" => "Doručuje se",
         "Delivered" => "Doručeno",
+        "DeliveryFailed" => "Nezastižen",   // e-shop krok 26D
+        "ReturningToSender" => "Vrací se odesílateli",
+        "ReturnedToSender" => "Vráceno odesílateli",
         _ => status
     };
 }

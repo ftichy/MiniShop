@@ -1,5 +1,6 @@
 using MiniShop.Application.Abstractions;
 using MiniShop.Contracts.Inventory;
+using MiniShop.Contracts.Orders;
 using MiniShop.Domain.Inventory;
 
 namespace MiniShop.Application.Inventory;
@@ -23,25 +24,14 @@ public sealed class RestockReturnedGoodsHandler(
     IInventoryUnitOfWork unitOfWork,
     TimeProvider timeProvider) :
     IIntegrationMessageHandler<RestockReturnedGoodsV1>,
-    IIntegrationMessageHandler<RestockReturnedGoodsV2>
+    IIntegrationMessageHandler<RestockReturnedGoodsV2>,
+    IIntegrationMessageHandler<OrderReturnedToSenderV1>
 {
     public async Task HandleAsync(RestockReturnedGoodsV1 command, CancellationToken cancellationToken)
     {
         TraceTags.TagOrder(command.OrderId);
         var now = timeProvider.GetUtcNow().UtcDateTime;
-        var returnable = await reservations.GetReturnableByOrderIdAsync(command.OrderId, cancellationToken);
-        var productsById = await ProductsAsync(returnable, cancellationToken);
-
-        var quantity = 0;
-        foreach (var reservation in returnable)
-        {
-            var returned = reservation.MarkReturned(now);   // zbytek po případných částečných vratkách
-            if (productsById.TryGetValue(reservation.ProductId, out var product))
-            {
-                product.AddStock(returned, now);   // → změna dostupnosti → výloha (StockAvailabilityChangedV1)
-                quantity += returned;
-            }
-        }
+        var quantity = await RestockAllAsync(command.OrderId, now, cancellationToken);
 
         publisher.Publish(new ReturnedGoodsRestockedV1(Guid.NewGuid(), now, command.OrderId, quantity));
         await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -105,6 +95,41 @@ public sealed class RestockReturnedGoodsHandler(
         {
             TraceTags.Tag("minishop.stock.missing", missing);   // vratka chtěla víc kusů, než bylo vydáno – stojí za prověření
         }
+    }
+
+    /// <summary>
+    /// E-shop krok 26D: dopravce vrátil zásilku nedoručenou – UDÁLOST (choreografie), ne příkaz ságy: naskladnit všechno
+    /// vydané a nikomu neodpovídat (Ordering na sklad nečeká). Opakovaná zpráva nic nenaskladní – vrácené rezervace už
+    /// mezi vratnými nejsou.
+    /// </summary>
+    public async Task HandleAsync(OrderReturnedToSenderV1 message, CancellationToken cancellationToken)
+    {
+        TraceTags.TagOrder(message.OrderId);
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        var quantity = await RestockAllAsync(message.OrderId, now, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        TraceTags.Tag("minishop.stock.result", "returned_to_sender");
+        TraceTags.Tag("minishop.stock.quantity", quantity);
+    }
+
+    /// <summary>Všechny vydané (a ještě nevrácené) kusy objednávky zpět na sklad. Vrací počet naskladněných kusů.</summary>
+    private async Task<int> RestockAllAsync(int orderId, DateTime now, CancellationToken cancellationToken)
+    {
+        var returnable = await reservations.GetReturnableByOrderIdAsync(orderId, cancellationToken);
+        var productsById = await ProductsAsync(returnable, cancellationToken);
+
+        var quantity = 0;
+        foreach (var reservation in returnable)
+        {
+            var returned = reservation.MarkReturned(now);   // zbytek po případných částečných vratkách
+            if (productsById.TryGetValue(reservation.ProductId, out var product))
+            {
+                product.AddStock(returned, now);   // → změna dostupnosti → výloha (StockAvailabilityChangedV1)
+                quantity += returned;
+            }
+        }
+
+        return quantity;
     }
 
     private async Task<Dictionary<int, Product>> ProductsAsync(IReadOnlyList<StockReservation> reservations,

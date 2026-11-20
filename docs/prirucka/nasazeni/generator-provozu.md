@@ -47,7 +47,7 @@ pauzy jsou náhodné ±50 %, aby provoz nevypadal jako špička). Lokálně sta�
 Zákazníci jedou paralelně, scénáře se střídají podle čísla zákazníka a kola:
 
 - **doručená** – výloha → košík (1–2 náhodné produkty) → pokladna (kurýr, dobírka) → potvrzení ságou → skladník zabalí,
-  předá dopravci (číslo zásilky přidělí simulovaný dopravce – e-shop krok 26B), doručení ohlásí dopravce sám (26C, ~2 min);
+  předá dopravci (číslo zásilky přidělí simulovaný dopravce – e-shop krok 26B), doručení ohlásí dopravce sám (26C, ~2 min) – asi každou desátou zásilku dopravce nedoručí a vrátí (26D, ~4 min), pak má scénář ve výsledku „→ vráceno dopravcem“;
 - **zrušená** – totéž až po potvrzení, pak zákazník objednávku zruší (uvolnění rezervace, dobropis nevzniká – nic nebylo zaplaceno);
 - **vrácená** – doručená + žádost o vrácení + skladník vratku převezme (zboží zpět na sklad, dobropis).
 

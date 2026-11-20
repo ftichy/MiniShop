@@ -34,7 +34,7 @@ flowchart LR
 | Hlídač | Co sleduje | Kdy se ozve |
 | --- | --- | --- |
 | **Aspire dashboard** | trasy, strukturované logy, metriky obou služeb – živě, jen v paměti | nic neposílá – díváte se do něj (https://dashboard.minishop-tichy.cz) |
-| **Grafana Cloud** (observabilita G1–G3) | totéž s historií 14 dní: trasy (Tempo), logy (Loki), metriky (Mimir); dashboard „Zprávy a ságy“ | e-mailem při alarmu: dead-letter, poison, zaseklý outbox/fronta/sága, 5xx, pomalé potvrzování, SLO, výpadek telemetrie (https://patientjaguar2071.grafana.net) |
+| **Grafana Cloud** (observabilita G1–G3) | totéž s historií 14 dní: trasy (Tempo), logy (Loki), metriky (Mimir); dashboard „Zprávy a ságy“ | e-mailem při alarmu: dead-letter, poison, zaseklý outbox/fronta/sága/zásilka, 5xx, pomalé potvrzování, SLO, výpadek telemetrie (https://patientjaguar2071.grafana.net) |
 | **Health checky** `/health` | připravenost služby + [outbox](../eda/outbox.md) (zpráva visí > 5 min → *Degraded*) + od EDA kroku 13 [dead-letter fronty](../eda/provoz-zprav.md) (odložená zpráva → *Degraded*) | využívá je Compose (`up --wait`), Deploy i UptimeRobot |
 | **UptimeRobot** | zvenku `/health` a `/health/inventory`, hledá přesný text `Healthy` | služba neodpovídá nebo není *Healthy* |
 | **Alarmy OCI** ([monitoring.tf](code:infra/monitoring.tf)) | CPU > 80 %, paměť > 90 %, metriky přestaly chodit | podmínka platí 15 min v kuse; připomenutí každé 4 h |
@@ -101,6 +101,7 @@ zdroj `-prom`, složka **MiniShop** (jen pro tyto alarmy – import pravidla ve 
 | `MiniShopQueueNoConsumer` | služba běží, ale frontu 5 min nikdo neposlouchá (`minishop_queue_consumers` = 0) | logy služby (`docker compose logs <služba> \| grep RabbitMQ`), pak `docker compose restart <služba>` |
 | `MiniShopQueueSilent` | o frontě, která za poslední den hlásila stav, 5 min nic nepřišlo – služba neběží nebo RabbitMQ | `docker compose ps` (služba, `rabbitmq`), `/health`, `/health/inventory`, logy služby; po zrušení fronty zmizí sám do dne |
 | `MiniShopSagaStuck` | sága čeká na sklad 10 min (timeout je 30 s) | `/health/inventory`, fronta `minishop.inventory`, trasa objednávky v Grafaně (`minishop.order.id`) |
+| `MiniShopShipmentStale` | zásilka u dopravce 15 min bez novinky (krok 30 s) nebo ji dopravce nezná, 10 min (e-shop krok 26E) | `docker compose ps carrier-sim`, `docker compose logs carrier-sim`; dashboard řádek Dopravce; zásilku, kterou dopravce nezná, vyřeší člověk v Expedici tlačítkem Doručeno |
 | `MiniShopSlowConfirmation` | p95 potvrzení (bez karty) > 30 s 15 min | dashboard řádek Zprávy (zpoždění outboxu, fronty), trasa pomalé objednávky |
 | `MiniShopConfirmationSlo` | za 7 dní < 99 % objednávek do 30 s | jako u pomalého potvrzování; rozpočet chyb je vyčerpaný |
 | `MiniShopHttp5xx` | > 3 odpovědi 5xx za 10 min | dashboard Chyby 5xx podle stránky, Explore → `-logs` (úroveň Error) → odkaz na trasu |

@@ -4,6 +4,7 @@ using MiniShop.Contracts.Orders;
 using MiniShop.Contracts.Shipping;
 using MiniShop.Domain.Exceptions;
 using MiniShop.Domain.Orders;
+using MiniShop.Infrastructure.Observability;
 using MiniShop.Infrastructure.Outbox;
 using MiniShop.Infrastructure.Shipping;
 using MiniShop.Tests.CarrierSimulator;
@@ -141,6 +142,101 @@ public sealed partial class OrderServiceTests
         await ProcessOutboxAsync();
         Assert.Equal("Completed", await StatusAsync(order.Id));
     }
+
+    // ---------- E-shop krok 26E: provoz dopravce ----------
+
+    /// <summary>Dopravce udělá kroky a pošle webhooky, ale e-shopu nedorazí (ztratily se po cestě).</summary>
+    private async Task AdvanceCarrierLostWebhooksAsync(int steps)
+    {
+        for (var i = 0; i < steps; i++)
+        {
+            _time.Advance(TimeSpan.FromSeconds(CarrierSimulatorFactory.StepSeconds));
+            Carrier.Time.Set(_time.GetUtcNow());
+            await Carrier.ProcessAsync();
+            _forwardedWebhooks = Carrier.Webhooks.Received.Count;
+        }
+    }
+
+    private async Task<int> ReconcileAfterAsync(TimeSpan wait)
+    {
+        _time.Advance(wait);
+        Carrier.Time.Set(_time.GetUtcNow());
+        int checkedCount;
+        await using (var scope = _services.CreateAsyncScope())
+        {
+            checkedCount = await scope.ServiceProvider.GetRequiredService<MiniShop.Application.Shipping.ShipmentTrackingService>()
+                .ReconcileAsync(TimeSpan.FromMinutes(2), batchSize: 20);
+        }
+
+        await ProcessOutboxAsync();
+        return checkedCount;
+    }
+
+    [Fact]
+    public async Task UkoncenaZasilka_ZtracenyMezikrok_DohledaniHoJednouDoplni()
+    {
+        var order = await ShippedByCarrierAsync();
+        await AdvanceCarrierAsync(1);                  // převzato
+        await AdvanceCarrierLostWebhooksAsync(1);      // „na cestě“ se ztratilo
+        await AdvanceCarrierAsync(2);                  // doručuje se, doručeno
+        Assert.Equal("Completed", await StatusAsync(order.Id));
+        Assert.Equal(["PickedUp", "OutForDelivery", "Delivered"], (await TrackingAsync(order.Id)).Steps.Select(s => s.Status));
+
+        Assert.Equal(0, await ReconcileAfterAsync(TimeSpan.Zero));   // hned po konci ne – pozdní webhooky mají čas dorazit
+
+        Assert.Equal(1, await ReconcileAfterAsync(TimeSpan.FromMinutes(3)));
+        Assert.Equal(["PickedUp", "InTransit", "OutForDelivery", "Delivered"], (await TrackingAsync(order.Id)).Steps.Select(s => s.Status));
+        Assert.Equal("Delivered", (await TrackingAsync(order.Id)).Status);
+        Assert.Single(_bus.Published.OfType<ShipmentDeliveredV1>());   // doplnění historie nic dalšího neoznámí
+
+        Assert.Equal(0, await ReconcileAfterAsync(TimeSpan.FromMinutes(3)));   // jen jednou
+    }
+
+    [Fact]
+    public async Task Nezastizen_WebhookyPakNeprisly_DohledaniNajdeAVratiOdesilateli()
+    {
+        UseCarrier(("Carrier:Chaos:UndeliverableRate", "1"));
+        var order = await ShippedByCarrierAsync();
+        await AdvanceCarrierAsync(4);                  // … nezastižen
+        Assert.Equal("DeliveryFailed", (await TrackingAsync(order.Id)).Status);
+        await AdvanceCarrierLostWebhooksAsync(UndeliverableSteps - 4);
+
+        // Krok 26E: dřív dohledání stavy z 26D neznalo a zásilka „nezastižen“ by visela navždy.
+        Assert.Equal(1, await ReconcileAfterAsync(TimeSpan.FromMinutes(3)));
+
+        Assert.Equal("ReturnedToSender", await StatusAsync(order.Id));
+        Assert.Single(_bus.Published.OfType<OrderReturnedToSenderV1>());
+    }
+
+    [Fact]
+    public async Task Metriky_ZasilkyPodleStavu_ZaseknuteAUkoncene()
+    {
+        var order = await ShippedByCarrierAsync();
+        var source = _services.GetServices<IOperationalMetricsSource>().OfType<ShipmentStatusSource>().Single();
+
+        var readings = await source.ReadAsync(CancellationToken.None);
+        Assert.Equal(1, ShipmentReading(readings, OperationalMetrics.ShipmentActive, "Created"));
+        Assert.Equal(0, ShipmentReading(readings, OperationalMetrics.ShipmentStale));
+        // Každý stav vždy (i nula): 6 na cestě + 2 ukončené + 1 zaseknuté.
+        Assert.Equal(MiniShop.Domain.Shipping.Shipment.OnTheWayStatuses.Length + MiniShop.Domain.Shipping.Shipment.FinishedStatuses.Length + 1,
+            readings.Count);
+
+        _time.Advance(TimeSpan.FromMinutes(16));       // dopravce mlčí (nic se neposouvá)
+        Assert.Equal(1, ShipmentReading(await source.ReadAsync(CancellationToken.None), OperationalMetrics.ShipmentStale));
+
+        await AdvanceCarrierAsync(4);
+        Assert.Equal("Completed", await StatusAsync(order.Id));
+        readings = await source.ReadAsync(CancellationToken.None);
+        Assert.Equal(0, ShipmentReading(readings, OperationalMetrics.ShipmentStale));
+        Assert.Equal(1, ShipmentReading(readings, OperationalMetrics.ShipmentFinished, "Delivered"));
+        Assert.Equal(0, ShipmentReading(readings, OperationalMetrics.ShipmentFinished, "ReturnedToSender"));
+        Assert.Equal(0, readings.Where(r => r.Metric == OperationalMetrics.ShipmentActive).Sum(r => r.Value));
+        Assert.DoesNotContain(readings, r => r.Tags.Any(t => t.Key != "status"));   // žádná čísla zásilek/objednávek
+    }
+
+    private static long ShipmentReading(IReadOnlyList<OperationalReading> readings, string metric, string? status = null) =>
+        readings.Single(r => r.Metric == metric
+                             && (status is null || r.Tags.Contains(new KeyValuePair<string, object?>("status", status)))).Value;
 
     [Fact]
     public async Task Webhook_PodpisCasObsahANeznamaZasilka()

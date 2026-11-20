@@ -6,8 +6,8 @@ namespace MiniShop.Infrastructure.Shipping;
 
 public sealed class ShipmentRepository(ShippingDbContext db) : IShipmentRepository
 {
-    private static readonly ShipmentStatus[] OnTheWay =
-        [ShipmentStatus.Created, ShipmentStatus.PickedUp, ShipmentStatus.InTransit, ShipmentStatus.OutForDelivery];
+    private static readonly ShipmentStatus[] OnTheWay = Shipment.OnTheWayStatuses;
+    private static readonly ShipmentStatus[] Finished = Shipment.FinishedStatuses;
 
     public Task<Shipment?> GetByCommandIdAsync(Guid commandId, CancellationToken cancellationToken = default) =>
         db.Shipments.FirstOrDefaultAsync(s => s.CommandId == commandId, cancellationToken);
@@ -18,9 +18,15 @@ public sealed class ShipmentRepository(ShippingDbContext db) : IShipmentReposito
     public async Task<IReadOnlyList<Shipment>> GetQuietAsync(DateTime quietSinceUtc, int batchSize,
         CancellationToken cancellationToken = default) =>
         await db.Shipments
-            .Where(s => OnTheWay.Contains(s.Status)
-                && (s.LastCarrierUpdateAtUtc ?? s.RequestedAtUtc) < quietSinceUtc
-                && (s.LastCheckedAtUtc == null || s.LastCheckedAtUtc < quietSinceUtc))
+            .Where(s => (OnTheWay.Contains(s.Status)
+                    && (s.LastCarrierUpdateAtUtc ?? s.RequestedAtUtc) < quietSinceUtc
+                    && (s.LastCheckedAtUtc == null || s.LastCheckedAtUtc < quietSinceUtc))
+                // E-shop krok 26E: ukončená s dírou v historii (ztracený webhook) – jednou po konci: další novinka
+                // (doplněný stav) posune LastCarrierUpdateAtUtc, ale dohledání ho hned dorovná LastCheckedAtUtc.
+                || (Finished.Contains(s.Status)
+                    && s.Tracking.Count < s.LastSequence
+                    && s.LastCarrierUpdateAtUtc < quietSinceUtc
+                    && (s.LastCheckedAtUtc == null || s.LastCheckedAtUtc < s.LastCarrierUpdateAtUtc)))
             .OrderBy(s => s.LastCarrierUpdateAtUtc ?? s.RequestedAtUtc)
             .Take(batchSize)
             .ToListAsync(cancellationToken);

@@ -90,11 +90,14 @@ počítadlo projetých aut vs. pohled na parkoviště, kolik jich právě stojí
 | `minishop_queue_dead_letters` | zprávy v `minishop.{modul}.dead` | `queue` |
 | `minishop_queue_consumers` | consumery, které frontu poslouchají (všechny kopie služby; 0 = zprávy nikdo nezpracuje) | `queue` |
 | `minishop_saga_active` | rozpracované ságy (konečné stavy se nehlásí) | `saga` (order/return), `state` |
+| `minishop_shipment_active` | zásilky na cestě u dopravce (e-shop krok 26E) | `status` |
+| `minishop_shipment_finished` | zásilky ukončené za posledních 24 h – doručeno / vráceno odesílateli | `status` |
+| `minishop_shipment_stale` | zásilky na cestě bez novinky déle než 15 min nebo neznámé u dopravce (alarm `MiniShopShipmentStale`) | – |
 | `minishop_order_confirmation_duration_seconds` | histogram: od založení objednávky po potvrzení ságou | `payment` (none/card/cashondelivery) |
 
 - Stav zjišťuje [OperationalMetricsWorker](code:src/MiniShop.Infrastructure/Hosting/OperationalMetricsWorker.cs) každých 30 s
   ze zdrojů `IOperationalMetricsSource` ([outbox a fronty](code:src/MiniShop.Infrastructure/Observability/MessagingStatusSources.cs),
-  [ságy](code:src/MiniShop.Infrastructure/Ordering/SagaStatusSource.cs)) – **jen na vedoucí kopii** (jinak by dvě kopie Webu hlásily totéž
+  [ságy](code:src/MiniShop.Infrastructure/Ordering/SagaStatusSource.cs), [zásilky](code:src/MiniShop.Infrastructure/Shipping/ShipmentStatusSource.cs)) – **jen na vedoucí kopii** (jinak by dvě kopie Webu hlásily totéž
   dvakrát). Hodnoty drží [OperationalMetrics](code:src/MiniShop.Infrastructure/Observability/OperationalMetrics.cs) a OpenTelemetry je čte
   jako *observable gauge*; snímek starší než 2 min se nehlásí (žádná zamrzlá čísla po ztrátě vedení).
 - Doba potvrzení se zapíše v [OrderSagaOrchestrator](code:src/MiniShop.Application/Ordering/Saga/OrderSagaOrchestrator.cs) až po

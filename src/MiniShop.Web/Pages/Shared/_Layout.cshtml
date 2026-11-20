@@ -226,6 +226,8 @@
     @* Vzhled krok F1: částečné obnovení stránky (formulář na pozadí, výměna kousku HTML) – lokálně, ne z CDN. *@
     <script src="~/lib/htmx/htmx.min.js" asp-append-version="true"></script>
     <script src="~/js/cart-add.js" asp-append-version="true"></script>
+    @* Vzhled krok F2: živé výřezy (tag helper live-region) – pojistka, ať výměna nesmaže rozepsaný formulář. *@
+    <script src="~/js/live-region.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

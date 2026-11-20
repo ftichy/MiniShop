@@ -210,6 +210,35 @@ sequenceDiagram
 - **E2E** po kliknutí nečekají na adresu (ta se nemění), ale na změnu odznaku košíku a hlášku – a ověří, že se adresa
   ani pozice stránky nezměnily (`ShopFlow.AddToCartAsync`).
 
+### Živý výřez – stav bez obnovení stránky (vzhled krok F2)
+
+Stránky, kde se čeká na něco na pozadí (sága, platba, dopravce, vratka), se dřív každé 2 s **celé načítaly znovu**
+(`orders-reload.js`) – blikaly, skákaly nahoru a v Expedici mazaly zaškrtnuté balení i rozepsané číslo zásilky.
+Teď se obnovuje jen **výřez**:
+
+```html
+<div id="order-live" live-region="@Model.IsLive">   …   </div>
+```
+
+- Tag helper [LiveRegionTagHelper](code:src/MiniShop.Web/Ui/LiveRegionTagHelper.cs) při `true` přidá `hx-get` (tatáž
+  adresa i s parametry), `hx-trigger="every 3s"`, `hx-select="#id"` a `hx-swap="outerHTML"` – htmx stáhne na pozadí
+  celou stránku, vybere z ní jen výřez a vymění ho. Žádný nový endpoint, výřez se vykresluje stejným kódem jako stránka.
+- **Konec dotazování přijde sám:** když už se na nic nečeká, server výřez vykreslí bez atributů (`IsLive = false`)
+  a po výměně se htmx přestane ptát.
+- **Pojistka rozepsaného formuláře** – [live-region.js](code:src/MiniShop.Web/wwwroot/js/live-region.js): dokud je ve výřezu
+  změněné pole (zaškrtnutí, text), rozbalený `<details>` nebo v něm má uživatel kurzor, výměna se odloží na další tik.
+
+| Stránka | Výřez | Obnovuje se, dokud |
+| --- | --- | --- |
+| Detail objednávky | `#order-live` (vše pod odkazem zpět) | čeká na sklad / platbu / vrácené zboží, předává se dopravci, **zásilku veze dopravce** (nově – průběh zásilky živě) |
+| Moje / všechny objednávky | `#orders-live` (seznam; hledání a průběh nad ním) | některá čeká na sklad |
+| Platba `/Pay` | `#pay-live` (karta platby) | platba se zakládá; se Stripem pak server pošle `HX-Redirect` na bránu (přesměrování na cizí doménu by htmx na pozadí neprovedl) |
+| Expedice | `#fulfilment-live` (všechny tři fronty) | zásilka se předává dopravci nebo je u něj na cestě |
+| Vratky | `#returns-live` (seznam) | je otevřená vratka |
+
+E2E *Nákup kartou* na otevřeném detailu počká na „Potvrzená“ a ověří, že se stránka nenačetla znovu (značka ve `window`).
+Až přijde SignalR (krok F3), nahradí dotazování každé 3 s signálem „změnilo se“ – výřez zůstane stejný.
+
 ## Ikony
 
 [Icons.cs](code:src/MiniShop.Web/Ui/Icons.cs) – pár ikon jako inline SVG (tvary z Bootstrap Icons, licence MIT):
@@ -224,6 +253,9 @@ sequenceDiagram
 - **Akce bez obnovení stránky (vzhled krok F1) = formulář s `hx-post` + odpověď s prvky `hx-swap-oob` (podle `id`); bez
   JavaScriptu musí fungovat i obyčejný formulář** (handler podle `Request.IsHtmxRequest()` vrátí partial, jinak přesměruje).
   Žádné `hx-on` ani výrazy v `hx-trigger` (`allowEval: false`).
+- **Stav, který se mění na pozadí (vzhled krok F2) = živý výřez** `<div id="…" live-region="@Model.IsLive">` – ne obnovení
+  celé stránky. Formuláře, které uživatel vyplňuje a nemají se měnit, patří mimo výřez (pojistka v `live-region.js` je
+  jen záloha).
 - `data-track` a ID polí se nemění – podle nich [sleduje a přehrává](../eda/proud-udalosti.md) průběh pokladny.
 - Ověření na mobilu: DevTools (Ctrl+Shift+M) nebo snímek v headless Edge
   (`msedge --headless=new --window-size=500,1200 --screenshot=… https://localhost:7180/Shop` – menší šířku Edge nedovolí).

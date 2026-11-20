@@ -75,12 +75,6 @@ else if (Model.NeedsEmailConfirmation)
     <p>@(Model.SearchId is null ? "Zatím žádné objednávky." : $"Objednávka č. {Model.SearchId} nebyla nalezena.")</p>
 }
 
-@if (Model.HasPendingOrders)
-{
-    @* Krok 9: sklad objednávku ověřuje na pozadí (sága) – za 2 s se podíváme znovu. *@
-    <p class="text-muted small" data-reload-when-idle>Některé objednávky čekají na ověření skladu, stránka se sama obnoví…</p>
-}
-
 @* Krok 12A: vstupem je číslo objednávky – zobrazí, jak uživatel formulář vyplňoval. Účty krok 12B: jen podpora. *@
 @if (Model.CanSupport)
 {
@@ -95,6 +89,14 @@ else if (Model.NeedsEmailConfirmation)
             <button type="submit" formaction="@Url.Page("/Orders/Replay")" class="btn btn-sm btn-outline-primary">▶ Přehrát</button>
         </div>
     </form>
+}
+
+@* Vzhled krok F2: živý výřez – dokud některá objednávka čeká na sklad (sága), htmx ho každé 3 s vymění za čerstvý;
+   formuláře hledání a průběhu nad ním zůstanou, jak jsou. *@
+<div id="orders-live" live-region="@Model.HasPendingOrders">
+@if (Model.HasPendingOrders)
+{
+    <p class="text-muted small" data-track="orders-waiting">Některé objednávky čekají na ověření skladu, stav se sám aktualizuje…</p>
 }
 
 @* Vzhled B: objednávka jako karta – hlavička (číslo, datum, stav), položky jako řádky (bez tabulky – na telefonu
@@ -173,10 +175,6 @@ else if (Model.NeedsEmailConfirmation)
     </div>
 }
 </div>
+</div>
 
 <partial name="_Pager" model="Model.Pager" />
-
-@section Scripts {
-    @* Účty krok 8: obnovení stránky ze souboru (CSP nepustí inline skript). *@
-    <script src="~/js/orders-reload.js" asp-append-version="true"></script>
-}

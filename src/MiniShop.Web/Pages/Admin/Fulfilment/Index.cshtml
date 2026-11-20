@@ -15,6 +15,9 @@
     <div class="alert alert-danger">@Model.ErrorMessage</div>
 }
 
+@* Vzhled krok F2: živý výřez se všemi frontami (objednávka mezi nimi přechází) – dokud se předává dopravci nebo je u něj
+   na cestě, htmx ho každé 3 s vymění; zaškrtnuté balení, rozepsané číslo zásilky či rozbalený formulář výměnu odloží. *@
+<div id="fulfilment-live" live-region="@Model.IsLive">
 @* Fronta 1: potvrzené objednávky – hromadně začít balit (zaškrtnout a jedno tlačítko). *@
 <h2 class="h4 mt-4">K zabalení <span class="badge badge-soft-primary">@Model.ToPack.Count</span></h2>
 @if (Model.ToPack.Count == 0)
@@ -79,7 +82,7 @@ else
                     <div class="col-md-8 text-md-end">
                         @if (order.AwaitingShipment)
                         {
-                            <span class="badge badge-soft-info" data-track="fulfilment-handing-over" data-reload-when-idle>Předává se dopravci…</span>
+                            <span class="badge badge-soft-info" data-track="fulfilment-handing-over">Předává se dopravci…</span>
                         }
                         else
                         {
@@ -167,7 +170,7 @@ else
                 {
                     @* E-shop krok 26C: doručení hlásí dopravce (webhook / dohledání) – stav a čas poslední novinky. *@
                     var tracking = Model.Tracking.GetValueOrDefault(order.Id);
-                    <span class="badge badge-soft-info" data-track="fulfilment-carrier-status" data-reload-when-idle>
+                    <span class="badge badge-soft-info" data-track="fulfilment-carrier-status">
                         @MiniShop.Web.Shipping.ShipmentStatusLabels.Label(tracking?.Status ?? "Created")@(tracking?.LastUpdateAtUtc is { } at ? $" · {at.ToCzechString()}" : "")
                     </span>
                 }
@@ -175,6 +178,7 @@ else
         }
     </div>
 }
+</div>
 
 @functions {
     private static string ShippingText(OrderDto order) => order.ShippingMethod switch
@@ -183,9 +187,4 @@ else
         "Pickup" => "osobní odběr",
         _ => "bez dopravy (API)"
     };
-}
-
-@section Scripts {
-    @* E-shop krok 26B: „Předává se dopravci…“ – stránka se sama obnoví, až přijde číslo zásilky. *@
-    <script src="~/js/orders-reload.js" asp-append-version="true"></script>
 }

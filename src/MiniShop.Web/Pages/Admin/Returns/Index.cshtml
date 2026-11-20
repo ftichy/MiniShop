@@ -17,13 +17,16 @@
     <div class="alert alert-danger">@Model.ErrorMessage</div>
 }
 
+@* Vzhled krok F2: živý výřez – dokud je otevřená vratka, htmx ho každé 3 s vymění (sága naskladní, vrátí peníze);
+   rozepsaný důvod zamítnutí výměnu odloží (live-region.js). *@
+<div id="returns-live" live-region="@(Model.Rows.Count > 0)">
 @if (Model.Rows.Count == 0)
 {
     <p class="text-muted">Žádná vratka nečeká.</p>
 }
 else
 {
-    <div class="list-group" data-reload-when-idle>
+    <div class="list-group">
         @foreach (var row in Model.Rows)
         {
             var order = row.Order;
@@ -81,6 +84,4 @@ else
     </div>
 }
 
-@section Scripts {
-    <script src="~/js/orders-reload.js" asp-append-version="true"></script>
-}
+</div>

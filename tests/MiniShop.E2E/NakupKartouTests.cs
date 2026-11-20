@@ -23,8 +23,8 @@ public sealed class NakupKartouTests : E2ETestBase
             // Sága rezervuje zboží (~4–8 s) → objednávka čeká na platbu → zákazník platí na bráně.
             await ShopFlow.PayByCardAsync(page, orderId);
 
-            // Webhook brány → sága potvrdí objednávku.
-            await ShopFlow.WaitForOrderStatusAsync(page, orderId, "Potvrzená");
+            // Webhook brány → sága potvrdí objednávku. Vzhled F2: detail je otevřený a stav se změní sám, bez obnovení stránky.
+            await ShopFlow.WaitForLiveOrderStatusAsync(page, "Potvrzená");
             await Expect(page.Locator("[data-track=order-detail-history]")).ToContainTextAsync(new Regex("Potvrzen"));
         }, () => customer);
 

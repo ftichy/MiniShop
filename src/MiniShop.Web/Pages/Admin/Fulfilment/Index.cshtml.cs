@@ -43,6 +43,12 @@ public sealed class IndexModel(IOrderService orderService, ShipmentQueryService 
     public bool CanMarkDelivered(OrderDto order) =>
         !order.ShippedByCarrier || (Tracking.TryGetValue(order.Id, out var t) && t.UnknownAtCarrier);
 
+    /// <summary>
+    /// Vzhled krok F2: něco se právě děje u dopravce – předává se (čeká na číslo zásilky), nebo je na cestě a doručení
+    /// ohlásí dopravce. Výřez se pak sám obnovuje.
+    /// </summary>
+    public bool IsLive => ToShip.Any(o => o.AwaitingShipment) || InTransit.Any(o => o.ShippedByCarrier && !CanMarkDelivered(o));
+
     [TempData]
     public string? StatusMessage { get; set; }
 

@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/MiniShop.CarrierSimulator/MiniShop.CarrierSimulator.csproj" />
     <Project Path="src/MiniShop.Contracts/MiniShop.Contracts.csproj" />
     <Project Path="src/MiniShop.Domain/MiniShop.Domain.csproj" />
     <Project Path="src/MiniShop.AppHost/MiniShop.AppHost.csproj" />

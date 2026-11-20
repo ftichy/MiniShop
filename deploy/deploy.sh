@@ -24,6 +24,9 @@
 #   GRAFANA_CLOUD_OTLP_TOKEN=glc_…                    (observabilita G1, volitelný – token Grafana Cloud jen se zápisem;
 #                                                      povinný, dokud je compose.grafana.yaml v COMPOSE_FILE)
 #   PUSH_VAPID_PRIVATE_KEY=<43 znaků base64url>       (e-shop krok 23, volitelný – soukromý klíč VAPID pro oznámení push)
+#   CARRIER_API_KEY=<64 hex znaků>                    (e-shop krok 26A, volitelný – klíč e-shopu u simulovaného dopravce;
+#                                                      povinný, jakmile compose.yaml commitu obsahuje carrier-sim)
+#   CARRIER_WEBHOOK_SECRET=<64 hex znaků>             (e-shop krok 26A, volitelný – podpis webhooků dopravce; dtto)
 # Co na vstupu chybí (ruční spuštění z terminálu), vezme se z dosavadního .env. Netajná konfigurace je v gitu
 # (deploy/production.env). Soubor .env na VM skript pokaždé sestaví znovu – ruční změny v něm nepřežijí.
 # Změněné heslo RabbitMQ nejdřív vymění v běžícím RabbitMQ (RABBITMQ_DEFAULT_PASS platí jen při prvním startu).
@@ -66,6 +69,8 @@ postgres_password=""
 google_client_secret=""
 grafana_cloud_otlp_token=""
 push_vapid_private_key=""
+carrier_api_key=""
+carrier_webhook_secret=""
 if [ ! -t 0 ]; then
     while IFS= read -r line || [ -n "$line" ]; do
         [ -z "$line" ] && continue
@@ -131,6 +136,14 @@ if [ ! -t 0 ]; then
                 # E-shop krok 23: soukromý klíč VAPID (P-256, 32 bajtů v base64url = 43 znaků). Prázdné = push vypnutý.
                 [[ -z "$value" || "$value" =~ ^[A-Za-z0-9_-]{43}$ ]] || { echo "Chybný PUSH_VAPID_PRIVATE_KEY (čekám 43 znaků base64url)." >&2; exit 2; }
                 push_vapid_private_key="$value" ;;
+            CARRIER_API_KEY)
+                # E-shop krok 26A: klíč e-shopu u simulovaného dopravce = 64 hex znaků (openssl rand -hex 32).
+                [[ -z "$value" || "$value" =~ ^[0-9a-f]{64}$ ]] || { echo "Chybný CARRIER_API_KEY (čekám 64 malých hex znaků)." >&2; exit 2; }
+                carrier_api_key="$value" ;;
+            CARRIER_WEBHOOK_SECRET)
+                # E-shop krok 26A: tajemství podpisu webhooků dopravce (HMAC) = 64 hex znaků.
+                [[ -z "$value" || "$value" =~ ^[0-9a-f]{64}$ ]] || { echo "Chybný CARRIER_WEBHOOK_SECRET (čekám 64 malých hex znaků)." >&2; exit 2; }
+                carrier_webhook_secret="$value" ;;
             *)
                 echo "Neznámý klíč na vstupu: $key" >&2
                 exit 2 ;;
@@ -163,6 +176,8 @@ stripe_secret_key="${stripe_secret_key:-$(current STRIPE_SECRET_KEY)}"
 stripe_webhook_secret="${stripe_webhook_secret:-$(current STRIPE_WEBHOOK_SECRET)}"
 grafana_cloud_otlp_token="${grafana_cloud_otlp_token:-$(current GRAFANA_CLOUD_OTLP_TOKEN)}"
 push_vapid_private_key="${push_vapid_private_key:-$(current PUSH_VAPID_PRIVATE_KEY)}"
+carrier_api_key="${carrier_api_key:-$(current CARRIER_API_KEY)}"
+carrier_webhook_secret="${carrier_webhook_secret:-$(current CARRIER_WEBHOOK_SECRET)}"
 [ -n "$rabbitmq_password" ] || { echo "Chybí RABBITMQ_PASSWORD (na vstupu ani v .env)." >&2; exit 2; }
 [ -n "$basic_auth_hash" ] || { echo "Chybí BASIC_AUTH_HASH (na vstupu ani v .env)." >&2; exit 2; }
 [ -n "$inventory_api_key" ] || { echo "Chybí INVENTORY_API_KEY (na vstupu ani v .env)." >&2; exit 2; }
@@ -210,6 +225,8 @@ chmod 755 "$work"/*.sh 2>/dev/null || true
         [ -n "$stripe_webhook_secret" ] && echo "STRIPE_WEBHOOK_SECRET=$stripe_webhook_secret"
         [ -n "$grafana_cloud_otlp_token" ] && echo "GRAFANA_CLOUD_OTLP_TOKEN=$grafana_cloud_otlp_token"
         [ -n "$push_vapid_private_key" ] && echo "PUSH_VAPID_PRIVATE_KEY=$push_vapid_private_key"
+        [ -n "$carrier_api_key" ] && echo "CARRIER_API_KEY=$carrier_api_key"
+        [ -n "$carrier_webhook_secret" ] && echo "CARRIER_WEBHOOK_SECRET=$carrier_webhook_secret"
         true
     } > "$work/.env"
 )
@@ -303,6 +320,7 @@ if [ -f "$work/rolling-update.sh" ]; then
     # (--no-deps: jinak by Compose kvůli depends_on caddy → web vyměnil Web naráz), pak sklad a Web
     # kopii po kopii bez výpadku (rolling-update.sh). Commit bez skriptu (starší) = dosavadní způsob.
     services=$(docker compose config --services)
+    # Simulovaný dopravce (carrier-sim, e-shop krok 26A) je tu záměrně jako infrastruktura – krátký restart snese.
     infra=$(echo "$services" | grep -vx -e web -e inventory-api -e reporting-api -e notifications-api)
     docker compose up -d --no-deps --remove-orphans --wait --wait-timeout 180 $infra || rollback
     # Nové nastavení Caddy (např. krátké dial_timeout) musí platit už během výměny kopií – při prvním nasazení

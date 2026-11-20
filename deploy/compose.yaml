@@ -194,6 +194,33 @@ services:
         condition: service_healthy
     healthcheck: *dotnet-healthcheck
 
+  # E-shop krok 26A: simulovaný dopravce – „cizí firma“ (vlastní data v souboru, žádná databáze MiniShopu, RabbitMQ ani
+  # telemetrie). Web ho volá od kroku 26B, webhooky o stavu posílá od 26C (Carrier__WebhookUrl). Nasazuje se jako
+  # infrastruktura (krátký restart = dopravce chvíli neodpovídá, což musí e-shop stejně snést).
+  carrier-sim:
+    image: ${IMAGE_PREFIX:-}minishop-carrier-sim:${IMAGE_TAG:-local}
+    build:
+      context: ..
+      dockerfile: src/MiniShop.CarrierSimulator/Dockerfile
+    restart: unless-stopped
+    environment:
+      # Klíč e-shopu u dopravce a tajemství podpisu webhooků. Bez nich se Compose ani nespustí (:?).
+      Carrier__ApiKey: ${CARRIER_API_KEY:?Chybí CARRIER_API_KEY v .env}
+      Carrier__WebhookSecret: ${CARRIER_WEBHOOK_SECRET:?Chybí CARRIER_WEBHOOK_SECRET v .env}
+      Carrier__WebhookUrl: ${CARRIER_WEBHOOK_URL:-}
+      Carrier__StepSeconds: ${CARRIER_STEP_SECONDS:-30}
+      # „Zlobení“ (0–1): 503, ztracená odpověď, webhook dvakrát / mimo pořadí / vůbec. Produkce v production.env.
+      Carrier__Chaos__FailureRate: ${CARRIER_CHAOS_FAILURE_RATE:-0}
+      Carrier__Chaos__LostResponseRate: ${CARRIER_CHAOS_LOST_RESPONSE_RATE:-0}
+      Carrier__Chaos__DuplicateRate: ${CARRIER_CHAOS_DUPLICATE_RATE:-0}
+      Carrier__Chaos__ReorderRate: ${CARRIER_CHAOS_REORDER_RATE:-0}
+      Carrier__Chaos__DropRate: ${CARRIER_CHAOS_DROP_RATE:-0}
+    volumes:
+      - carrier-data:/data
+    # Žádné "ports": dopravce je dostupný jen uvnitř sítě Compose (pro Web).
+    mem_limit: 256m
+    healthcheck: *dotnet-healthcheck
+
   web:
     image: ${IMAGE_PREFIX:-}minishop-web:${IMAGE_TAG:-local}
     build:
@@ -270,5 +297,6 @@ volumes:
   inventory-data:
   reporting-data:   # mikroservisy M1: jen logy služby přehledu
   notifications-data:   # mikroservisy M2C: jen logy služby Notifications
+  carrier-data:   # e-shop krok 26A: zásilky simulovaného dopravce (soubor, nezálohuje se – jde o „cizí“ data)
   web-data:
   postgres-data:   # škálování krok 1 a 3: data PostgreSQL – nemazat (zálohuje pg_dump v backup.sh)

@@ -20,6 +20,7 @@
     <ProjectReference Include="..\..\src\MiniShop.Inventory.Api\MiniShop.Inventory.Api.csproj" />
     <ProjectReference Include="..\..\src\MiniShop.Reporting.Api\MiniShop.Reporting.Api.csproj" />
     <ProjectReference Include="..\..\src\MiniShop.Notifications.Api\MiniShop.Notifications.Api.csproj" />
+    <ProjectReference Include="..\..\src\MiniShop.CarrierSimulator\MiniShop.CarrierSimulator.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

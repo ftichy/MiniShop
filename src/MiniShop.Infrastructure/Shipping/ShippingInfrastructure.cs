@@ -25,6 +25,7 @@ public static class ShippingInfrastructure
         services.AddScoped<ShipmentQueryService>();
         services.AddSingleton(new CarrierWebhookSettings(webhookSecret));
         services.AddScoped<CarrierWebhookProcessor>();
+        services.AddSingleton<IOperationalMetricsSource, ShipmentStatusSource>();   // e-shop krok 26E: zásilky pro Grafanu
 
         services.AddSingleton<IOutboxProcessor, OutboxProcessor<ShippingDbContext>>();
         services.AddHealthChecks().AddCheck<OutboxHealthCheck<ShippingDbContext>>("outbox-shipping");

@@ -13,7 +13,8 @@ public interface IShipmentRepository
 
     /// <summary>
     /// E-shop krok 26C: zásilky na cestě, o kterých od <paramref name="quietSinceUtc"/> nic nepřišlo a které se od té doby
-    /// ani nedohledávaly – nejstarší první, nejvýš <paramref name="batchSize"/>.
+    /// ani nedohledávaly – nejstarší první, nejvýš <paramref name="batchSize"/>. E-shop krok 26E: navíc ukončené zásilky
+    /// s dírou v historii (ztracený webhook), které se od poslední novinky ještě nedohledávaly – jednou.
     /// </summary>
     Task<IReadOnlyList<Shipment>> GetQuietAsync(DateTime quietSinceUtc, int batchSize, CancellationToken cancellationToken = default);
 

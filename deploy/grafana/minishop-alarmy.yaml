@@ -93,6 +93,17 @@ groups:
           description: "Sága čeká na odpověď skladu (timeout rezervace je 30 s, takže 10 minut = něco nefunguje). Zkontrolujte inventory-api (/health/inventory), frontu minishop.inventory a dead-letter fronty; trasu objednávky najdete v Grafaně podle minishop.order.id."
           runbook_url: "https://minishop-tichy.cz/Docs/nasazeni/monitoring"
 
+      - alert: MiniShopShipmentStale
+        expr: max(minishop_shipment_stale) > 0
+        for: 10m
+        labels:
+          severity: warning
+          area: doprava
+        annotations:
+          summary: "{{ $value }} zásilek bez novinky od dopravce déle než 15 minut"
+          description: "Zásilky se u dopravce nehýbou (krok 30 s), nebo je dopravce nezná. Na VM docker compose ps carrier-sim a docker compose logs carrier-sim; v Expedici zásilky s upozorněním, že je dopravce nezná, vyřeší člověk tlačítkem Doručeno."
+          runbook_url: "https://minishop-tichy.cz/Docs/nasazeni/monitoring"
+
       - alert: MiniShopSlowConfirmation
         expr: histogram_quantile(0.95, sum by (le) (rate(minishop_order_confirmation_duration_seconds_bucket{payment!="card"}[1h]))) > 30
         for: 15m

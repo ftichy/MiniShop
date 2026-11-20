@@ -218,6 +218,7 @@ Explore → **`…-prom`** → **Code** (rozsah klidně *Last 7 days*):
 | kolik objednávek se potvrdilo za posledních 24 h (podle platby) | `sum by (payment) (increase(minishop_order_confirmation_duration_seconds_count[24h]))` |
 | za kolik sekund se potvrzuje 95 % objednávek | `histogram_quantile(0.95, sum by (le) (rate(minishop_order_confirmation_duration_seconds_bucket[1h])))` |
 | kolik ság je rozpracovaných a v jakém stavu | `max by (saga, state) (minishop_saga_active)` |
+| kolik zásilek je u dopravce a v jakém stavu (e-shop krok 26E) | `max by (status) (minishop_shipment_active)` |
 | kolik zpráv doručil outbox za hodinu (podle modulu) | `sum by (module) (increase(minishop_outbox_delivered_total[1h]))` |
 
 Vysvětlivky: `increase(x[24h])` = o kolik čítač vzrostl za 24 h; `rate` = rychlost za sekundu; `sum by (štítek)` = sečíst

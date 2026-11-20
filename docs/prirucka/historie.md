@@ -115,6 +115,7 @@ Plán (výloha, košík, pokladna, expedice, platba, notifikace): [docs/Eshop-ro
 | 26B | Předání zásilky dopravci – skladník klikne „Předat dopravci“, modul Shipping založí zásilku u simulovaného dopravce s `Idempotency-Key` (žádná druhá zásilka ani po ztracené odpovědi), číslo zásilky nebo odmítnutí se vrátí zprávou; po předání nejde zrušit – [modul Shipping](architektura/moduly/shipping.md) | [krok-26b](code:docs/kroky-eshop/krok-26b-vytvoreni-zasilky.md) |
 | 26C | Doručení hlásí dopravce – podepsané webhooky (podpis a čas, jinak 401), duplicity a pozdní zprávy podle pořadí `sequence` (stav jen dopředu), ztracené webhooky dožene dohledání u dopravce; zákazník vidí průběh zásilky – [modul Shipping](architektura/moduly/shipping.md) | [krok-26c](code:docs/kroky-eshop/krok-26c-webhooky-dopravce.md) |
 | 26D | Vráceno dopravcem – kurýr zákazníka dvakrát nezastihne a dopravce zásilku vrátí; Ordering jen oznámí `OrderReturnedToSenderV1` a každý modul si udělá svoje (choreografie místo ságy): zboží zpět na sklad, kartou refund a dobropis, e-mail, mimo tržbu – [tok expedice](toky/expedice.md) | [krok-26d](code:docs/kroky-eshop/krok-26d-vraceno-odesilateli.md) |
+| 26E | Provoz dopravce – ztracené mezikroky v historii zásilky se po konci doplní dohledáním, dohledání zná i stavy nedoručitelné zásilky, Grafana ukazuje zásilky podle stavu a hlídá zaseknuté (alarm `MiniShopShipmentStale`) – [modul Shipping](architektura/moduly/shipping.md) | [krok-26e](code:docs/kroky-eshop/krok-26e-provoz-dopravce.md) |
 
 ## Vzhled
 

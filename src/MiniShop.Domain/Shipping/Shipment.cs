@@ -107,9 +107,27 @@ public class Shipment : Entity
     /// <summary>Pojistka proti souběhu: dva webhooky téže zásilky na dvou kopiích Webu – druhý zápis selže a dopravce ho zopakuje.</summary>
     public int Version { get; private set; }
 
+    /// <summary>
+    /// Stavy „u dopravce, ještě nekončí“ – jediné místo (doména, dotazy repozitáře, metriky). Nový stav doručování = sem
+    /// (e-shop krok 26E: dohledání neznalo stavy z 26D, protože seznam byl i v repozitáři).
+    /// </summary>
+    public static readonly ShipmentStatus[] OnTheWayStatuses =
+    [
+        ShipmentStatus.Created, ShipmentStatus.PickedUp, ShipmentStatus.InTransit, ShipmentStatus.OutForDelivery,
+        ShipmentStatus.DeliveryFailed, ShipmentStatus.ReturningToSender
+    ];
+
+    /// <summary>Konečné stavy – doručeno, nebo vráceno odesílateli (krok 26D).</summary>
+    public static readonly ShipmentStatus[] FinishedStatuses = [ShipmentStatus.Delivered, ShipmentStatus.ReturnedToSender];
+
     /// <summary>Zásilka je u dopravce a ještě nedoručená (čeká na další stavy, případně dohledání).</summary>
-    public bool IsOnTheWay => Status is ShipmentStatus.Created or ShipmentStatus.PickedUp or ShipmentStatus.InTransit
-        or ShipmentStatus.OutForDelivery or ShipmentStatus.DeliveryFailed or ShipmentStatus.ReturningToSender;
+    public bool IsOnTheWay => OnTheWayStatuses.Contains(Status);
+
+    /// <summary>
+    /// E-shop krok 26E: v historii chybí stav – některý webhook se ztratil (pořadí 1…<see cref="LastSequence"/> nejsou všechna).
+    /// U ukončené zásilky ho jednou doplní dohledání.
+    /// </summary>
+    public bool HasHistoryGaps => _tracking.Count < LastSequence;
 
     /// <summary>
     /// Nový stav od dopravce. <paramref name="sequence"/> = pořadí u zásilky (přirozený klíč idempotence):
@@ -155,13 +173,16 @@ public class Shipment : Entity
     }
 
     /// <summary>Konečný stav – doručeno, nebo vráceno odesílateli (krok 26D).</summary>
-    public bool IsFinished => Status is ShipmentStatus.Delivered or ShipmentStatus.ReturnedToSender;
+    public bool IsFinished => FinishedStatuses.Contains(Status);
 
-    /// <summary>Dohledání proběhlo (s výsledkem nebo bez) – další až po čase.</summary>
+    /// <summary>
+    /// Dohledání proběhlo (s výsledkem nebo bez) – další až po čase. Ukončenou zásilku, kterou dopravce už nezná (smazal
+    /// data), neoznačí jako neznámou – je doručená/vrácená a člověk nemá co řešit (krok 26E).
+    /// </summary>
     public void MarkChecked(DateTime checkedAtUtc, bool unknownAtCarrier)
     {
         LastCheckedAtUtc = checkedAtUtc;
-        UnknownAtCarrier = unknownAtCarrier;
+        UnknownAtCarrier = unknownAtCarrier && !IsFinished;
         Version++;
     }
 }

@@ -28,6 +28,9 @@ public sealed class OperationalMetrics : IDisposable
     public const string QueueDeadLetters = "minishop.queue.dead_letters";
     public const string QueueConsumers = "minishop.queue.consumers";   // mikroservisy M0
     public const string SagaActive = "minishop.saga.active";
+    public const string ShipmentActive = "minishop.shipment.active";       // e-shop krok 26E
+    public const string ShipmentFinished = "minishop.shipment.finished";
+    public const string ShipmentStale = "minishop.shipment.stale";
 
     private readonly Meter _meter = new(MessagingTelemetry.SourceName);
     private readonly TimeProvider _timeProvider;
@@ -44,6 +47,9 @@ public sealed class OperationalMetrics : IDisposable
         Gauge(QueueDeadLetters, "{message}", "Zprávy v dead-letter frontě modulu (minishop.{modul}.dead)");
         Gauge(QueueConsumers, "{consumer}", "Consumery, které poslouchají frontu modulu (všechny kopie služby; 0 = zprávy nikdo nezpracuje)");
         Gauge(SagaActive, "{saga}", "Rozpracované ságy podle stavu (objednávky a vratky)");
+        Gauge(ShipmentActive, "{shipment}", "Zásilky na cestě u dopravce podle stavu");
+        Gauge(ShipmentFinished, "{shipment}", "Zásilky ukončené za posledních 24 h podle výsledku (doručeno / vráceno odesílateli)");
+        Gauge(ShipmentStale, "{shipment}", "Zásilky na cestě bez novinky od dopravce déle než 15 min nebo neznámé u dopravce");
     }
 
     /// <summary>Nový snímek od workeru – nahradí celý předchozí (co v něm chybí, už se nehlásí).</summary>

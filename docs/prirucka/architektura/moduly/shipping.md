@@ -121,6 +121,15 @@ sequenceDiagram
   a `ReturnedToSender` (konec). Vráceno → doménová událost `ShipmentReturned` → `ShipmentReturnedV1` → Ordering
   `order.ReturnToSender()` → `OrderReturnedToSenderV1` (kompenzace dělají moduly samy – [tok expedice](../../toky/expedice.md)).
   Konečný stav (doručeno / vráceno) už žádná další zpráva nepřepíše.
+- **Ztracený mezikrok (e-shop krok 26E).** Webhook „na cestě“ se ztratí, ale další přijdou – stav jde dál, jen v historii
+  chybí řádek (`HasHistoryGaps`: méně záznamů než `LastSequence`). Při kroku 30 s nenastanou 2 minuty ticha, takže by
+  ho dohledání u zásilky na cestě nenašlo. Proto se dohledání **jednou** zeptá i na ukončenou zásilku s dírou
+  (2 min po konci, aby stihly dorazit i opožděné webhooky) a chybějící stavy doplní jen do historie – stav, objednávka
+  ani zprávy se nemění. Seznamy stavů „na cestě“ a „ukončeno“ jsou jen v doméně (`Shipment.OnTheWayStatuses`,
+  `FinishedStatuses`) – v 26D je repozitář měl zvlášť a dohledání nové stavy neznalo.
+- **Grafana (26E).** [ShipmentStatusSource](code:src/MiniShop.Infrastructure/Shipping/ShipmentStatusSource.cs): zásilky na cestě
+  podle stavu, ukončené za 24 h a zaseknuté (15 min bez novinky) → alarm `MiniShopShipmentStale`, řádek Dopravce
+  v dashboardu – viz [observabilita](../../eda/observabilita.md).
 
 Přirovnání: čekáte balík – pošta posílá SMS, některá přijde dvakrát, některá pozdě a jedna vůbec. Pořadí poznáte
 podle času na SMS (`sequence`), a když se dlouho nic neděje, podíváte se do sledování zásilky sami (dohledání).

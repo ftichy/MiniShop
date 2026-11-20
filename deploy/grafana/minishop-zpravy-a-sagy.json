@@ -225,6 +225,35 @@
       "targets": [ { "refId": "A", "expr": "round(sum(increase(minishop_order_confirmation_duration_seconds_count{payment!=\"card\"}[7d])) - sum(increase(minishop_order_confirmation_duration_seconds_bucket{payment!=\"card\", le=\"30\"}[7d])))", "instant": true } ],
       "fieldConfig": { "defaults": { "unit": "none", "decimals": 0, "noValue": "žádná objednávka", "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 1 } ] } }, "overrides": [] },
       "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "type": "row", "title": "Dopravce (e-shop krok 26)", "collapsed": false, "id": 105,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 54 }, "panels": []
+    },
+    {
+      "type": "stat", "title": "Zaseknuté zásilky", "id": 22,
+      "description": "Zásilky na cestě bez novinky od dopravce déle než 15 min, nebo zásilky, které dopravce nezná. Normální zásilka se hýbe každých 30 s. Nad nulou déle než 10 min = alarm MiniShopShipmentStale.",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 55 },
+      "targets": [ { "refId": "A", "expr": "max(minishop_shipment_stale)", "instant": true } ],
+      "fieldConfig": { "defaults": { "unit": "none", "decimals": 0, "noValue": "bez dat", "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "type": "timeseries", "title": "Zásilky na cestě podle stavu", "id": 23,
+      "description": "Kolik zásilek je právě u dopravce v jakém stavu (Created = čeká na převzetí, DeliveryFailed = kurýr nezastihl, ReturningToSender = vrací se k nám).",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 9, "x": 6, "y": 55 },
+      "targets": [ { "refId": "A", "expr": "max by (status) (minishop_shipment_active)", "legendFormat": "{{status}}" } ],
+      "fieldConfig": { "defaults": { "unit": "none", "decimals": 0, "custom": { "fillOpacity": 0, "lineInterpolation": "stepAfter" } }, "overrides": [] }
+    },
+    {
+      "type": "timeseries", "title": "Ukončené zásilky za 24 h – doručeno / vráceno", "id": 24,
+      "description": "Klouzavých 24 h: doručené a vrácené odesílateli (v produkci zlobení UndeliverableRate 10 % – vrácených má být zhruba desetina).",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 9, "x": 15, "y": 55 },
+      "targets": [ { "refId": "A", "expr": "max by (status) (minishop_shipment_finished)", "legendFormat": "{{status}}" } ],
+      "fieldConfig": { "defaults": { "unit": "none", "decimals": 0, "custom": { "fillOpacity": 10 } }, "overrides": [] }
     }
   ]
 }

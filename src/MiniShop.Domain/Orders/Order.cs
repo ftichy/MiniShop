@@ -381,6 +381,23 @@ public class Order : Entity
         return true;
     }
 
+    /// <summary>
+    /// E-shop krok 26D: dopravce zásilku nedoručil a vrátil ji (ShipmentReturnedV1) → <see cref="OrderStatus.ReturnedToSender"/>
+    /// + <see cref="OrderReturnedToSender"/>. Jen z <see cref="OrderStatus.Shipped"/>; pozdní nebo opakovaná zpráva
+    /// (už doručená ručně, už vrácená) = false, nic se nemění.
+    /// </summary>
+    public bool ReturnToSender(DateTime returnedAtUtc)
+    {
+        if (Status != OrderStatus.Shipped)
+        {
+            return false;
+        }
+
+        ChangeStatus(OrderStatus.ReturnedToSender, returnedAtUtc, "Dopravce zásilku nedoručil a vrátil ji.");
+        Raise(new OrderReturnedToSender(this, returnedAtUtc));
+        return true;
+    }
+
     private void ShipNow(string? carrier, string? trackingNumber, DateTime shippedAtUtc)
     {
         if (ShippingMethod == ShippingMethod.Pickup)

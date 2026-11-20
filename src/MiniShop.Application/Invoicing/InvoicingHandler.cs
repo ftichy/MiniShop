@@ -39,7 +39,8 @@ public sealed class InvoicingHandler(
     IIntegrationMessageHandler<OrderCancelledV1>,
     IIntegrationMessageHandler<ReturnCompletedV1>,
     IIntegrationMessageHandler<ReturnCompletedV2>,
-    IIntegrationMessageHandler<CustomerAnonymizedV1>
+    IIntegrationMessageHandler<CustomerAnonymizedV1>,
+    IIntegrationMessageHandler<OrderReturnedToSenderV1>
 {
     public const string PaidByCard = "Uhrazeno kartou online";
     public const string PaidOnDelivery = "Uhrazeno při převzetí";
@@ -78,6 +79,13 @@ public sealed class InvoicingHandler(
     /// <summary>Zrušená před vystavením faktury se nefakturuje; zrušení po vystavení = dobropis (krok 15B).</summary>
     public Task HandleAsync(OrderCancelledV1 message, CancellationToken cancellationToken) =>
         ChangeAsync(message.OrderId, order => order.MarkVoided(CreditNoteReason.Cancelled, RefundedToCard), cancellationToken);
+
+    /// <summary>
+    /// E-shop krok 26D: dopravce zásilku vrátil nedoručenou (choreografie). Kartou zaplacená má fakturu → dobropis, peníze
+    /// vrací Payments na kartu. Dobírka zaplacená nebyla a faktura vzniká až po doručení → jen „nefakturovat“.
+    /// </summary>
+    public Task HandleAsync(OrderReturnedToSenderV1 message, CancellationToken cancellationToken) =>
+        ChangeAsync(message.OrderId, order => order.MarkVoided(CreditNoteReason.ReturnedToSender, RefundedToCard), cancellationToken);
 
     /// <summary>E-shop krok 15B: vrácené zboží = dobropis k faktuře (kartou vráceno na kartu, dobírka převodem).</summary>
     public Task HandleAsync(ReturnCompletedV1 message, CancellationToken cancellationToken) =>

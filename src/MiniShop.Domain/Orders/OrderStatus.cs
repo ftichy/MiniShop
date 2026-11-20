@@ -40,5 +40,11 @@ public enum OrderStatus
     ReturnRequested = 8,
 
     /// <summary>E-shop krok 12: vrácená – zboží je zpět na skladu, peníze vrácené (kartou) nebo vrací admin ručně (dobírka).</summary>
-    Returned = 9
+    Returned = 9,
+
+    /// <summary>
+    /// E-shop krok 26D: dopravce zásilku nedoručil a vrátil ji zpět – zboží jde zpět na sklad, kartou se vrací peníze
+    /// (choreografie podle OrderReturnedToSenderV1). Konečný stav, na rozdíl od <see cref="Returned"/> bez rozhodování člověka.
+    /// </summary>
+    ReturnedToSender = 10
 }

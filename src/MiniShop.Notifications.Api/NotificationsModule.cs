@@ -38,6 +38,7 @@ public static class NotificationsModule
         services.AddIntegrationMessageHandler<ReturnRequestedV2, OrderNotificationsHandler>(IntegrationModules.Notifications);   // e-shop krok 22: vratka po částech
         services.AddIntegrationMessageHandler<ReturnRejectedV2, OrderNotificationsHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<ReturnCompletedV2, OrderNotificationsHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<OrderReturnedToSenderV1, OrderNotificationsHandler>(IntegrationModules.Notifications);   // e-shop krok 26D
 
         // E-shop krok 10: připomínka opuštěného košíku – kontakt a souhlas až při odeslání (z účtů ve Webu, M2A interní API).
         services.AddSingleton<CartEmailTemplates>();

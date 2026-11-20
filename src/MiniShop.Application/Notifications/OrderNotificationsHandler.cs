@@ -44,7 +44,8 @@ public sealed class OrderNotificationsHandler(
     IIntegrationMessageHandler<ReturnCompletedV1>,
     IIntegrationMessageHandler<ReturnRequestedV2>,
     IIntegrationMessageHandler<ReturnRejectedV2>,
-    IIntegrationMessageHandler<ReturnCompletedV2>
+    IIntegrationMessageHandler<ReturnCompletedV2>,
+    IIntegrationMessageHandler<OrderReturnedToSenderV1>
 {
     /// <summary>Jak dlouho čekat, než dorazí OrderPlacedV2 (zpráva mimo pořadí), u potvrzení a zamítnutí.</summary>
     public static readonly TimeSpan MaxWaitForPlacedOrder = TimeSpan.FromMinutes(5);
@@ -114,6 +115,11 @@ public sealed class OrderNotificationsHandler(
     public async Task HandleAsync(ReturnRejectedV1 message, CancellationToken cancellationToken) =>
         await SendAsync(await RecipientOrFallbackAsync(message.OrderId, message.CustomerEmail, cancellationToken),
             to => templates.ReturnRejected(to, message.Reason), cancellationToken);
+
+    /// <summary>E-shop krok 26D: dopravce zásilku vrátil nedoručenou – vysvětlit zákazníkovi, co se děje s penězi.</summary>
+    public async Task HandleAsync(OrderReturnedToSenderV1 message, CancellationToken cancellationToken) =>
+        await SendAsync(await RecipientOrFallbackAsync(message.OrderId, message.CustomerEmail, cancellationToken),
+            to => templates.ReturnedToSender(to, message.TotalPrice, message.RefundedByCard), cancellationToken);
 
     public async Task HandleAsync(ReturnCompletedV1 message, CancellationToken cancellationToken) =>
         await SendAsync(await RecipientOrFallbackAsync(message.OrderId, message.CustomerEmail, cancellationToken),

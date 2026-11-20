@@ -114,6 +114,7 @@ Plán (výloha, košík, pokladna, expedice, platba, notifikace): [docs/Eshop-ro
 | 26A | Simulovaný dopravce – kontejner `carrier-sim` jako „cizí firma“: REST API zásilek s `Idempotency-Key`, podepsané webhooky o stavu a nastavitelné zlobení (503, ztracená odpověď, webhook dvakrát, mimo pořadí, vůbec); e-shop ho zatím nevolá – [Simulovaný dopravce](architektura/dopravce.md) | [krok-26a](code:docs/kroky-eshop/krok-26a-simulator-dopravce.md) |
 | 26B | Předání zásilky dopravci – skladník klikne „Předat dopravci“, modul Shipping založí zásilku u simulovaného dopravce s `Idempotency-Key` (žádná druhá zásilka ani po ztracené odpovědi), číslo zásilky nebo odmítnutí se vrátí zprávou; po předání nejde zrušit – [modul Shipping](architektura/moduly/shipping.md) | [krok-26b](code:docs/kroky-eshop/krok-26b-vytvoreni-zasilky.md) |
 | 26C | Doručení hlásí dopravce – podepsané webhooky (podpis a čas, jinak 401), duplicity a pozdní zprávy podle pořadí `sequence` (stav jen dopředu), ztracené webhooky dožene dohledání u dopravce; zákazník vidí průběh zásilky – [modul Shipping](architektura/moduly/shipping.md) | [krok-26c](code:docs/kroky-eshop/krok-26c-webhooky-dopravce.md) |
+| 26D | Vráceno dopravcem – kurýr zákazníka dvakrát nezastihne a dopravce zásilku vrátí; Ordering jen oznámí `OrderReturnedToSenderV1` a každý modul si udělá svoje (choreografie místo ságy): zboží zpět na sklad, kartou refund a dobropis, e-mail, mimo tržbu – [tok expedice](toky/expedice.md) | [krok-26d](code:docs/kroky-eshop/krok-26d-vraceno-odesilateli.md) |
 
 ## Vzhled
 

@@ -84,7 +84,8 @@ public sealed class SalesOrder
 
     /// <summary>Do tržby patří objednávky, o kterých známe detaily a které nejsou zamítnuté ani zrušené.</summary>
     public bool CountsAsRevenue => PlacedAtUtc is not null
-        && Status is not (SalesOrderStatus.Rejected or SalesOrderStatus.Cancelled or SalesOrderStatus.Returned);
+        && Status is not (SalesOrderStatus.Rejected or SalesOrderStatus.Cancelled or SalesOrderStatus.Returned
+            or SalesOrderStatus.ReturnedToSender);
 
     public static SalesOrder Create(int orderId, DateTime nowUtc) =>
         new() { OrderId = orderId, Status = SalesOrderStatus.Placed, UpdatedAtUtc = nowUtc };
@@ -145,7 +146,8 @@ public sealed class SalesOrder
     }
 
     private static bool IsFinal(SalesOrderStatus status) =>
-        status is SalesOrderStatus.Rejected or SalesOrderStatus.Cancelled or SalesOrderStatus.Returned;
+        status is SalesOrderStatus.Rejected or SalesOrderStatus.Cancelled or SalesOrderStatus.Returned
+            or SalesOrderStatus.ReturnedToSender;
 
     private static int Rank(SalesOrderStatus status) => status switch
     {
@@ -174,7 +176,10 @@ public enum SalesOrderStatus
     Cancelled,
 
     /// <summary>E-shop krok 12: vrácená (zboží zpět, peníze vrácené) – do tržby se nepočítá.</summary>
-    Returned
+    Returned,
+
+    /// <summary>E-shop krok 26D: dopravce zásilku nedoručil a vrátil – do tržby se nepočítá.</summary>
+    ReturnedToSender
 }
 
 /// <summary>Řádek objednávky v přehledu – název a cena z doby objednání.</summary>

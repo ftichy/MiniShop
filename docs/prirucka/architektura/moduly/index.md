@@ -29,6 +29,7 @@ flowchart LR
     i2 -->|"StockReservedV1, StockReservationFailedV1, StockReleasedV1"| o2
     i1 -->|"ProductUpdatedV1 + V2, StockAvailabilityChangedV1, ProductRemovedV1"| o3
     o3 -->|SyncCatalogV1| i1
+    o1 -->|"OrderShippedV1, OrderReturnedToSenderV1"| i2
     subgraph acc["Accounts (služba Web)"]
         a1[Uživatelské účty, přihlášení]
     end
@@ -39,6 +40,7 @@ flowchart LR
         p1[Platby kartou]
     end
     o2 -->|"RequestPaymentV1, RefundPaymentV1"| p1
+    o1 -->|OrderReturnedToSenderV1| p1
     p1 -->|"PaymentSucceededV1, PaymentFailedV1"| o2
     o1 -->|"OrderPlacedV2, OrderConfirmedV1, …, CustomerAnonymizedV1"| n1
     subgraph rep["Reporting (služba Web)"]
@@ -54,14 +56,14 @@ flowchart LR
     subgraph fak["Invoicing (služba Web)"]
         f1[Faktury + kopie objednávek]
     end
-    o1 -->|"OrderPlacedV2, OrderCompletedV1, OrderRejectedV1, OrderCancelledV1, ReturnCompletedV1"| f1
+    o1 -->|"OrderPlacedV2, OrderCompletedV1, OrderRejectedV1, OrderCancelledV1, ReturnCompletedV1, OrderReturnedToSenderV1"| f1
     p1 -->|PaymentSucceededV1| f1
     f1 -->|"InvoiceIssuedV1, CreditNoteIssuedV1"| n1
     subgraph shp["Shipping (služba Web)"]
         s1[Zásilky u dopravce]
     end
     o1 -->|CreateShipmentV1| s1
-    s1 -->|"ShipmentCreatedV1, ShipmentFailedV1, ShipmentDeliveredV1"| o1
+    s1 -->|"ShipmentCreatedV1, ShipmentFailedV1, ShipmentDeliveredV1, ShipmentReturnedV1"| o1
 
     jou -.-|"spojené jen číslem objednávky (zapíše UI)"| ord
 

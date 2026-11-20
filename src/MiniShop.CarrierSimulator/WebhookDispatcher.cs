@@ -40,7 +40,8 @@ public sealed class WebhookDispatcher(
         {
             foreach (var shipment in state.Shipments)
             {
-                while (shipment.Events.Count < CarrierStatuses.Timeline.Length)
+                var timeline = shipment.Timeline;
+                while (shipment.Events.Count < timeline.Length)
                 {
                     var index = shipment.Events.Count;
                     var occurredAt = shipment.CreatedAtUtc + step * (index + 1);
@@ -53,7 +54,7 @@ public sealed class WebhookDispatcher(
                     {
                         Id = "evt_" + Guid.NewGuid().ToString("N"),
                         Sequence = index + 1,
-                        Status = CarrierStatuses.Timeline[index],
+                        Status = timeline[index],
                         OccurredAtUtc = occurredAt
                     };
                     shipment.Events.Add(evt);
@@ -62,12 +63,12 @@ public sealed class WebhookDispatcher(
                 }
             }
 
-            // Úklid: doručené zásilky (s adresou příjemce) jen po dobu RetentionDays.
+            // Úklid: ukončené zásilky (doručené i vrácené, s adresou příjemce) jen po dobu RetentionDays.
             var removed = state.Shipments.RemoveAll(s =>
-                s.DeliveredAtUtc is { } delivered && delivered < now.AddDays(-settings.RetentionDays));
+                s.FinishedAtUtc is { } finished && finished < now.AddDays(-settings.RetentionDays));
             if (removed > 0)
             {
-                log.LogInformation("Úklid: smazáno {Count} doručených zásilek", removed);
+                log.LogInformation("Úklid: smazáno {Count} ukončených zásilek", removed);
             }
 
             return 0;
@@ -105,7 +106,7 @@ public sealed class WebhookDispatcher(
 
         // Zlobení „mimo pořadí“: webhook počká až za ten následující (poslední stav nemá na co čekat → předběhne předchozí).
         var dueAt = evt.OccurredAtUtc;
-        if (evt.Sequence < CarrierStatuses.Timeline.Length && dice.Roll(chaos.ReorderRate))
+        if (evt.Sequence < shipment.Timeline.Length && dice.Roll(chaos.ReorderRate))
         {
             dueAt = evt.OccurredAtUtc + step + TimeSpan.FromSeconds(1);
             log.LogInformation("Zlobení: webhook {EventId} se zdrží za následující", evt.Id);

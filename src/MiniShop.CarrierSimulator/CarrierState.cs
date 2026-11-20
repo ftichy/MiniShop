@@ -34,13 +34,24 @@ public sealed class Shipment
     /// <summary>Otisk těla požadavku – stejný klíč s jiným obsahem = chyba e-shopu (409).</summary>
     public string RequestHash { get; set; } = "";
 
+    /// <summary>
+    /// Krok 26D: zásilka „nepůjde doručit“ – rozhodne se kostkou už při vzniku (<c>Chaos:UndeliverableRate</c>), takže
+    /// časová osa je od začátku daná a po restartu stejná. Jde cestou <see cref="CarrierStatuses.UndeliverableTimeline"/>.
+    /// </summary>
+    public bool Undeliverable { get; set; }
+
     public List<ShipmentEvent> Events { get; set; } = [];
 
     [JsonIgnore]
     public string Status => Events.Count == 0 ? CarrierStatuses.Created : Events[^1].Status;
 
+    /// <summary>Stavy, kterými tahle zásilka projde (podle <see cref="Undeliverable"/>).</summary>
     [JsonIgnore]
-    public DateTime? DeliveredAtUtc => Events.LastOrDefault(e => e.Status == CarrierStatuses.Delivered)?.OccurredAtUtc;
+    public string[] Timeline => Undeliverable ? CarrierStatuses.UndeliverableTimeline : CarrierStatuses.Timeline;
+
+    /// <summary>Kdy zásilka skončila (doručena, nebo vrácena odesílateli) – od té doby běží lhůta úklidu.</summary>
+    [JsonIgnore]
+    public DateTime? FinishedAtUtc => Events.LastOrDefault(e => CarrierStatuses.IsFinal(e.Status))?.OccurredAtUtc;
 }
 
 public sealed class Recipient
@@ -91,6 +102,21 @@ public static class CarrierStatuses
     public const string OutForDelivery = "out_for_delivery";
     public const string Delivered = "delivered";
 
+    /// <summary>Krok 26D: kurýr příjemce nezastihl.</summary>
+    public const string DeliveryFailed = "delivery_failed";
+
+    /// <summary>Krok 26D: zásilka jede zpět k odesílateli.</summary>
+    public const string Returning = "returning";
+
+    /// <summary>Krok 26D: zásilka je zpět u odesílatele (e-shopu) – konečný stav jako <see cref="Delivered"/>.</summary>
+    public const string ReturnedToSender = "returned_to_sender";
+
     /// <summary>Stavy po vytvoření; k-tý nastane k × <c>StepSeconds</c> po vytvoření zásilky.</summary>
     public static readonly string[] Timeline = [Accepted, InTransit, OutForDelivery, Delivered];
+
+    /// <summary>Krok 26D: dvakrát nezastižen, pak zpět odesílateli.</summary>
+    public static readonly string[] UndeliverableTimeline =
+        [Accepted, InTransit, OutForDelivery, DeliveryFailed, OutForDelivery, DeliveryFailed, Returning, ReturnedToSender];
+
+    public static bool IsFinal(string status) => status is Delivered or ReturnedToSender;
 }

@@ -146,5 +146,8 @@ public enum CreditNoteReason
     Rejected,
 
     /// <summary>Vrácené zboží (vratka, e-shop krok 12).</summary>
-    Returned
+    Returned,
+
+    /// <summary>E-shop krok 26D: dopravce zásilku nedoručil a vrátil ji (zaplaceno kartou, peníze vrací Payments).</summary>
+    ReturnedToSender
 }

@@ -109,13 +109,17 @@ public class Shipment : Entity
 
     /// <summary>Zásilka je u dopravce a ještě nedoručená (čeká na další stavy, případně dohledání).</summary>
     public bool IsOnTheWay => Status is ShipmentStatus.Created or ShipmentStatus.PickedUp or ShipmentStatus.InTransit
-        or ShipmentStatus.OutForDelivery;
+        or ShipmentStatus.OutForDelivery or ShipmentStatus.DeliveryFailed or ShipmentStatus.ReturningToSender;
 
     /// <summary>
     /// Nový stav od dopravce. <paramref name="sequence"/> = pořadí u zásilky (přirozený klíč idempotence):
     /// stejné podruhé = duplicita (nic), nižší než aktuální = jen do historie (stav jen dopředu), vyšší = nový stav;
-    /// doručeno → <see cref="Events.ShipmentDelivered"/>. Vrací, jestli se něco změnilo.
+    /// doručeno → <see cref="Events.ShipmentDelivered"/>, vráceno odesílateli (krok 26D) → <see cref="Events.ShipmentReturned"/>.
+    /// Vrací, jestli se něco změnilo.
     /// </summary>
+    /// <remarks>
+    /// Konečný stav (doručeno / vráceno) už nic nepřepíše – kdyby dopravce poslal vyšší pořadí po konci, jde jen do historie.
+    /// </remarks>
     public bool ApplyTracking(int sequence, ShipmentStatus status, DateTime occurredAtUtc, DateTime receivedAtUtc)
     {
         if (status is ShipmentStatus.Created or ShipmentStatus.Failed)
@@ -133,19 +137,25 @@ public class Shipment : Entity
         UnknownAtCarrier = false;
         Version++;
 
-        if (sequence > LastSequence)
+        if (sequence > LastSequence && !IsFinished)
         {
             LastSequence = sequence;
-            var wasDelivered = Status == ShipmentStatus.Delivered;
             Status = status;
-            if (status == ShipmentStatus.Delivered && !wasDelivered)
+            if (status == ShipmentStatus.Delivered)
             {
                 Raise(new Events.ShipmentDelivered(this, occurredAtUtc));
+            }
+            else if (status == ShipmentStatus.ReturnedToSender)
+            {
+                Raise(new Events.ShipmentReturned(this, occurredAtUtc));
             }
         }
 
         return true;
     }
+
+    /// <summary>Konečný stav – doručeno, nebo vráceno odesílateli (krok 26D).</summary>
+    public bool IsFinished => Status is ShipmentStatus.Delivered or ShipmentStatus.ReturnedToSender;
 
     /// <summary>Dohledání proběhlo (s výsledkem nebo bez) – další až po čase.</summary>
     public void MarkChecked(DateTime checkedAtUtc, bool unknownAtCarrier)
@@ -167,7 +177,16 @@ public enum ShipmentStatus
     PickedUp,
     InTransit,
     OutForDelivery,
-    Delivered
+    Delivered,
+
+    /// <summary>Krok 26D: kurýr příjemce nezastihl (zkusí znovu, nebo vrátí).</summary>
+    DeliveryFailed,
+
+    /// <summary>Krok 26D: zásilka jede zpět k nám.</summary>
+    ReturningToSender,
+
+    /// <summary>Krok 26D: zásilka je zpět u nás – konečný stav.</summary>
+    ReturnedToSender
 }
 
 /// <summary>E-shop krok 26C: jeden stav od dopravce (řádek historie). Unikátní zásilka + <see cref="Sequence"/>.</summary>

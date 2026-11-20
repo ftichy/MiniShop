@@ -116,6 +116,7 @@ public sealed partial class OrderServiceTests : IDisposable
         services.AddDomainEventHandler<OrderPlaced, OrderSagaOrchestrator>();
         services.AddDomainEventHandler<OrderShipped, OrderSagaOrchestrator>();
         services.AddDomainEventHandler<OrderCompleted, OrderSagaOrchestrator>();
+        services.AddDomainEventHandler<OrderReturnedToSender, OrderSagaOrchestrator>();   // e-shop krok 26D
         services.AddDomainEventHandler<OrderCancelled, OrderSagaOrchestrator>();
         services.AddIntegrationMessageHandler<StockReservedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<StockReservationFailedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
@@ -160,6 +161,7 @@ public sealed partial class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<RestockReturnedGoodsV1, RestockReturnedGoodsHandler>(IntegrationModules.Inventory);   // e-shop krok 12
         services.AddIntegrationMessageHandler<RestockReturnedGoodsV2, RestockReturnedGoodsHandler>(IntegrationModules.Inventory);   // e-shop krok 22
         services.AddIntegrationMessageHandler<OrderShippedV1, FulfilReservationHandler>(IntegrationModules.Inventory);
+        services.AddIntegrationMessageHandler<OrderReturnedToSenderV1, RestockReturnedGoodsHandler>(IntegrationModules.Inventory);   // e-shop krok 26D
         services.AddIntegrationMessageHandler<SyncCatalogV1, SyncCatalogHandler>(IntegrationModules.Inventory);
         services.AddScoped<CatalogSyncService>();
 
@@ -181,6 +183,7 @@ public sealed partial class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<ReturnRequestedV2, OrderNotificationsHandler>(IntegrationModules.Notifications);   // e-shop krok 22: vratka po částech
         services.AddIntegrationMessageHandler<ReturnRejectedV2, OrderNotificationsHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<ReturnCompletedV2, OrderNotificationsHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<OrderReturnedToSenderV1, OrderNotificationsHandler>(IntegrationModules.Notifications);   // e-shop krok 26D
 
         // E-shop krok 10: opuštěný košík – služba v Orderingu, připomínka v Notifications, kontakty místo účtů v paměti.
         services.AddSingleton(new CartReminderSettings(CartAbandonedAfter, TimeSpan.FromMinutes(15)));
@@ -211,6 +214,7 @@ public sealed partial class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<RequestPaymentV1, PaymentCommandHandlers>(IntegrationModules.Payments);
         services.AddIntegrationMessageHandler<RefundPaymentV1, PaymentCommandHandlers>(IntegrationModules.Payments);
         services.AddIntegrationMessageHandler<RefundPaymentV2, PaymentCommandHandlers>(IntegrationModules.Payments);   // e-shop krok 22: vratka po částech
+        services.AddIntegrationMessageHandler<OrderReturnedToSenderV1, PaymentCommandHandlers>(IntegrationModules.Payments);   // e-shop krok 26D: refund kartou
 
         // E-shop krok 26B: modul Shipping – jako AddShippingModule + AddShippingInfrastructure ve Webu; dopravce = skutečný
         // simulátor v paměti (CarrierSimulatorFactory) přes HTTP. Pole _carrier čte lambda při každém volání – test si ho
@@ -220,7 +224,9 @@ public sealed partial class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<ShipmentCreatedV1, ShipmentResultHandler>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<ShipmentFailedV1, ShipmentResultHandler>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<ShipmentDeliveredV1, ShipmentResultHandler>(IntegrationModules.Ordering);   // e-shop krok 26C
+        services.AddIntegrationMessageHandler<ShipmentReturnedV1, ShipmentResultHandler>(IntegrationModules.Ordering);   // e-shop krok 26D
         services.AddDomainEventHandler<OrderShipmentRequested, PublishOrderIntegrationEventsHandler>();
+        services.AddDomainEventHandler<OrderReturnedToSender, PublishOrderIntegrationEventsHandler>();   // e-shop krok 26D: → OrderReturnedToSenderV1
         services.AddScoped<ICarrierGateway>(_ => new CarrierApiClient(Carrier.CreateAuthorizedClient(), NullLogger<CarrierApiClient>.Instance));
 
         // E-shop krok 11: modul Reporting (přehled tržeb) – jako AddReportingModule + AddReportingInfrastructure ve Webu,
@@ -238,6 +244,7 @@ public sealed partial class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<ReturnCompletedV2, SalesProjectionHandler>(IntegrationModules.Reporting);   // e-shop krok 22: vratka po částech
         services.AddIntegrationMessageHandler<PaymentRefundedV2, SalesProjectionHandler>(IntegrationModules.Reporting);
         services.AddIntegrationMessageHandler<OrderPartialReturnsSnapshotV1, SalesProjectionHandler>(IntegrationModules.Reporting);   // přestavění
+        services.AddIntegrationMessageHandler<OrderReturnedToSenderV1, SalesProjectionHandler>(IntegrationModules.Reporting);   // e-shop krok 26D
         services.AddIntegrationMessageHandler<RebuildSalesReportV1, RebuildSalesReportHandler>(IntegrationModules.Ordering);
 
         // E-shop krok 14: modul Reviews (kopie nákupů, hodnocení) – jako AddReviewsModule + AddReviewsInfrastructure ve Webu,
@@ -264,6 +271,7 @@ public sealed partial class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<OrderRejectedV1, InvoicingHandler>(IntegrationModules.Invoicing);
         services.AddIntegrationMessageHandler<OrderCancelledV1, InvoicingHandler>(IntegrationModules.Invoicing);
         services.AddIntegrationMessageHandler<ReturnCompletedV1, InvoicingHandler>(IntegrationModules.Invoicing);   // e-shop krok 15B: dobropis
+        services.AddIntegrationMessageHandler<OrderReturnedToSenderV1, InvoicingHandler>(IntegrationModules.Invoicing);   // e-shop krok 26D: dobropis / nefakturovat
         services.AddIntegrationMessageHandler<ReturnCompletedV2, InvoicingHandler>(IntegrationModules.Invoicing);   // e-shop krok 22: dobropis za vratku po částech
         services.AddIntegrationMessageHandler<CustomerAnonymizedV1, InvoicingHandler>(IntegrationModules.Invoicing);
         services.AddScoped<IInvoiceDocuments, InvoiceDocuments>();

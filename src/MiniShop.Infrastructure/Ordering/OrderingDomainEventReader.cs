@@ -37,6 +37,8 @@ public sealed class OrderingDomainEventReader(IOrderRepository orders) : IDomain
                 { EventId = message.Id },
             nameof(OrderShipmentRequested) => new OrderShipmentRequested(await LoadOrderAsync(message, cancellationToken), message.OccurredAtUtc)
                 { EventId = message.Id },   // e-shop krok 26B
+            nameof(OrderReturnedToSender) => new OrderReturnedToSender(await LoadOrderAsync(message, cancellationToken), message.OccurredAtUtc)
+                { EventId = message.Id },   // e-shop krok 26D
             nameof(OrderAwaitingPayment) => new OrderAwaitingPayment(await LoadOrderAsync(message, cancellationToken), message.OccurredAtUtc)
                 { EventId = message.Id },   // e-shop krok 8
             nameof(OrderReturnRequested) => new OrderReturnRequested(await LoadOrderAsync(message, cancellationToken), message.OccurredAtUtc)

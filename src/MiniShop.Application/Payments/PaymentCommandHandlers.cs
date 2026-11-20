@@ -1,4 +1,5 @@
 using MiniShop.Application.Abstractions;
+using MiniShop.Contracts.Orders;
 using MiniShop.Contracts.Payments;
 using MiniShop.Domain.Payments;
 
@@ -15,8 +16,27 @@ public sealed class PaymentCommandHandlers(
     TimeProvider timeProvider) :
     IIntegrationMessageHandler<RequestPaymentV1>,
     IIntegrationMessageHandler<RefundPaymentV1>,
-    IIntegrationMessageHandler<RefundPaymentV2>
+    IIntegrationMessageHandler<RefundPaymentV2>,
+    IIntegrationMessageHandler<OrderReturnedToSenderV1>
 {
+    /// <summary>
+    /// E-shop krok 26D: dopravce vrátil zásilku nedoručenou – UDÁLOST (choreografie): Payments sám rozhodne, že vrátí
+    /// celou zaplacenou částku. Dobírka (nezaplaceno) nebo objednávka bez platby = nic. Stejná cesta jako
+    /// <see cref="RefundPaymentV1"/> → PaymentRefundedV1 (e-mail „vracíme peníze“, tržby); opakovaná zpráva peníze
+    /// podruhé nevrátí (stav platby + idempotency key u brány).
+    /// </summary>
+    public async Task HandleAsync(OrderReturnedToSenderV1 message, CancellationToken cancellationToken)
+    {
+        TraceTags.TagOrder(message.OrderId);
+        if (!message.RefundedByCard
+            || await payments.GetByOrderIdAsync(message.OrderId, cancellationToken) is not { } payment)
+        {
+            return;
+        }
+
+        await RefundAllAsync(payment, cancellationToken);
+    }
+
     /// <summary>Založit platbu a u brány stránku k zaplacení. Výsledek přijde později webhookem.</summary>
     public async Task HandleAsync(RequestPaymentV1 command, CancellationToken cancellationToken)
     {
@@ -53,6 +73,11 @@ public sealed class PaymentCommandHandlers(
         var payment = await payments.GetByOrderIdAsync(command.OrderId, cancellationToken)
             ?? throw new InvalidOperationException($"Platba objednávky {command.OrderId} neexistuje.");
 
+        await RefundAllAsync(payment, cancellationToken);
+    }
+
+    private async Task RefundAllAsync(Payment payment, CancellationToken cancellationToken)
+    {
         if (payment.Status == PaymentStatus.Succeeded)
         {
             await gateway.RefundAsync(payment, cancellationToken);

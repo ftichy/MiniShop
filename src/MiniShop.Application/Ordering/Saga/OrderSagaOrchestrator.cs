@@ -28,6 +28,7 @@ public sealed class OrderSagaOrchestrator(
     IDomainEventHandler<OrderShipped>,
     IDomainEventHandler<OrderCompleted>,
     IDomainEventHandler<OrderCancelled>,
+    IDomainEventHandler<OrderReturnedToSender>,
     IIntegrationMessageHandler<StockReservedV1>,
     IIntegrationMessageHandler<StockReservationFailedV1>,
     IIntegrationMessageHandler<StockReleasedV1>,
@@ -82,6 +83,10 @@ public sealed class OrderSagaOrchestrator(
 
     public Task HandleAsync(OrderCancelled domainEvent, CancellationToken cancellationToken) =>
         StepAsync(domainEvent.Order.Id, saga => saga.OrderCancelled(UtcNow), cancellationToken);
+
+    /// <summary>E-shop krok 26D: dopravce zásilku vrátil – sága jen skončí, kompenzaci dělají moduly samy (choreografie).</summary>
+    public Task HandleAsync(OrderReturnedToSender domainEvent, CancellationToken cancellationToken) =>
+        StepAsync(domainEvent.Order.Id, saga => saga.OrderReturnedToSender(UtcNow), cancellationToken);
 
     /// <summary>
     /// Volá OrderSagaTimeoutWorker pro ságy, které čekají na sklad (nebo od e-shop kroku 8 na platbu) příliš dlouho.

@@ -28,6 +28,7 @@ public static class ReportingModule
         services.AddIntegrationMessageHandler<ReturnCompletedV2, SalesProjectionHandler>(IntegrationModules.Reporting);   // e-shop krok 22: vratka po částech
         services.AddIntegrationMessageHandler<PaymentRefundedV2, SalesProjectionHandler>(IntegrationModules.Reporting);
         services.AddIntegrationMessageHandler<OrderPartialReturnsSnapshotV1, SalesProjectionHandler>(IntegrationModules.Reporting);   // přestavění
+        services.AddIntegrationMessageHandler<OrderReturnedToSenderV1, SalesProjectionHandler>(IntegrationModules.Reporting);   // e-shop krok 26D
         return services;
     }
 }

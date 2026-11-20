@@ -100,6 +100,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddIntegrationMessageHandler<OrderRejectedV1, InvoicingHandler>(IntegrationModules.Invoicing);
         services.AddIntegrationMessageHandler<OrderCancelledV1, InvoicingHandler>(IntegrationModules.Invoicing);
         services.AddIntegrationMessageHandler<ReturnCompletedV1, InvoicingHandler>(IntegrationModules.Invoicing);   // e-shop krok 15B: dobropis
+        services.AddIntegrationMessageHandler<OrderReturnedToSenderV1, InvoicingHandler>(IntegrationModules.Invoicing);   // e-shop krok 26D: dobropis / nefakturovat
         services.AddIntegrationMessageHandler<ReturnCompletedV2, InvoicingHandler>(IntegrationModules.Invoicing);   // e-shop krok 22: dobropis za vratku po částech
         services.AddIntegrationMessageHandler<CustomerAnonymizedV1, InvoicingHandler>(IntegrationModules.Invoicing);
         return services;
@@ -114,6 +115,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddIntegrationMessageHandler<RequestPaymentV1, PaymentCommandHandlers>(IntegrationModules.Payments);
         services.AddIntegrationMessageHandler<RefundPaymentV1, PaymentCommandHandlers>(IntegrationModules.Payments);
         services.AddIntegrationMessageHandler<RefundPaymentV2, PaymentCommandHandlers>(IntegrationModules.Payments);   // e-shop krok 22: vratka po částech
+        services.AddIntegrationMessageHandler<OrderReturnedToSenderV1, PaymentCommandHandlers>(IntegrationModules.Payments);   // e-shop krok 26D: refund kartou
         return services;
     }
 
@@ -128,6 +130,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddIntegrationMessageHandler<ShipmentCreatedV1, ShipmentResultHandler>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<ShipmentFailedV1, ShipmentResultHandler>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<ShipmentDeliveredV1, ShipmentResultHandler>(IntegrationModules.Ordering);   // e-shop krok 26C
+        services.AddIntegrationMessageHandler<ShipmentReturnedV1, ShipmentResultHandler>(IntegrationModules.Ordering);   // e-shop krok 26D
 
         var apiKey = ServiceApiKey.Read(key => configuration[key], ServiceApiKey.CarrierConfigurationKey);
         services.AddHttpClient<ICarrierGateway, CarrierApiClient>(http => http.BaseAddress = new Uri("https+http://carrier-sim"))
@@ -178,6 +181,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddDomainEventHandler<OrderCompleted, PublishOrderIntegrationEventsHandler>();
         services.AddDomainEventHandler<OrderCancelled, PublishOrderIntegrationEventsHandler>();
         services.AddDomainEventHandler<OrderShipmentRequested, PublishOrderIntegrationEventsHandler>();   // e-shop krok 26B: → CreateShipmentV1
+        services.AddDomainEventHandler<OrderReturnedToSender, PublishOrderIntegrationEventsHandler>();   // e-shop krok 26D: → OrderReturnedToSenderV1
 
         // Sága objednávky (krok 9, orchestrace): orchestrátor poslouchá události objednávky (doménové)
         // a odpovědi skladu (integrační).
@@ -187,6 +191,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddDomainEventHandler<OrderPlaced, OrderSagaOrchestrator>();
         services.AddDomainEventHandler<OrderShipped, OrderSagaOrchestrator>();   // e-shop krok 6
         services.AddDomainEventHandler<OrderCompleted, OrderSagaOrchestrator>();
+        services.AddDomainEventHandler<OrderReturnedToSender, OrderSagaOrchestrator>();   // e-shop krok 26D
         services.AddDomainEventHandler<OrderCancelled, OrderSagaOrchestrator>();
         services.AddIntegrationMessageHandler<StockReservedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<StockReservationFailedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);

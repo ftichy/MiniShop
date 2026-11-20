@@ -87,6 +87,42 @@ po 2 minutách ticha) – podrobně v [modulu Shipping](../architektura/moduly/s
 Osobní odběr a ručně odeslané zásilky dál kliká admin: `CompleteAsync` → `order.MarkDelivered()` (jen ze `Shipped`).
 V obou případech sága `Shipped → Completed` a integrační `OrderCompletedV1` (podle ní e-mail „doručeno“ z modulu Notifications).
 
+## Vráceno dopravcem (e-shop krok 26D)
+
+Kurýr příjemce dvakrát nezastihne a dopravce zásilku vrátí. O tom se nerozhoduje – je to **fakt**. Ordering proto
+nespouští ságu (na rozdíl od [vratky od zákazníka](vraceni-zbozi.md), kde rozhoduje člověk), jen oznámí událost
+`OrderReturnedToSenderV1` a každý modul si udělá svoje (**choreografie**):
+
+```mermaid
+sequenceDiagram
+    participant S as Shipping (Web)
+    participant O as Ordering (Web)
+    participant MQ as RabbitMQ (fanout)
+    participant I as Inventory.Api
+    participant P as Payments (Web)
+    participant F as Invoicing (Web)
+    participant N as Notifications.Api
+    participant R as Reporting.Api
+    S->>O: ShipmentReturnedV1 (webhook „returned_to_sender“)
+    O->>O: order.ReturnToSender() – Shipped → ReturnedToSender, sága skončí
+    O->>MQ: OrderReturnedToSenderV1 (položky, RefundedByCard)
+    MQ->>I: naskladnit vydané rezervace
+    MQ->>P: kartou: refund (idempotency key) → PaymentRefundedV1
+    MQ->>F: faktura existuje → dobropis, dobírka → nefakturovat
+    MQ->>N: e-mail „zásilku se nepodařilo doručit“
+    MQ->>R: stav ReturnedToSender – mimo tržbu
+```
+
+- Každý odběratel je **idempotentní** sám o sobě: sklad naskladní jen ještě nevrácené rezervace, Payments nevrátí
+  vrácenou platbu (a brána má idempotency key), Invoicing vystaví k objednávce nejvýš jeden celý dobropis.
+- Uvnitř Orderingu je to doménová událost `OrderReturnedToSender` – zpracuje ji sága (jen skončí ve stavu
+  `ReturnedToSender`, nic neposílá) a překladač, který z ní udělá veřejnou `OrderReturnedToSenderV1`.
+- Pozdní návrat po ručním „Doručeno“ nic nezmění (`ReturnToSender` jen ze `Shipped`).
+- Cena choreografie: nikdo nehlídá, že všichni doběhli. Selhání (např. refund ve Stripu) skončí po 5 pokusech
+  v dead-letter frontě modulu a ozve se alarm `MiniShopDeadLetter`.
+- Přirovnání: zákazník vrací zboží → prodavač rozhoduje a vede ho krok za krokem (orchestrace). Pošta vrátila balík →
+  na nástěnku se pověsí „balík č. 42 se vrátil“ a sklad, účtárna i podpora si každý udělají svou práci (choreografie).
+
 ## Proč událost, a ne příkaz
 
 Rezervaci řídí sága **příkazem** (`ReserveStockV1`) a čeká na odpověď – rezervace může selhat (málo zboží) a sága

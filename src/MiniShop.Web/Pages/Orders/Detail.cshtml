@@ -58,6 +58,14 @@ else if (order.Status == "Returned")
         @(order.PaymentMethod == "Card" ? "Peníze jsme vrátili na kartu." : "Peníze posíláme převodem.")
     </div>
 }
+else if (order.Status == "ReturnedToSender")
+{
+    @* E-shop krok 26D: dopravce zásilku nedoručil – zboží a peníze vrací moduly samy (choreografie). *@
+    <div class="alert alert-warning" data-track="order-returned-to-sender">
+        Zásilku se nepodařilo doručit – kurýr vás opakovaně nezastihl a dopravce ji vrátil. Zboží je zpět na skladu.
+        @(order.PaymentMethod == "Card" ? "Peníze vracíme na kartu." : "Dobírku neplatíte.")
+    </div>
+}
 else if (order.Status == "Completed" && Model.Detail.ReturnRejectionReason is not null)
 {
     <div class="alert alert-secondary">Vrácení nebylo přijato: @Model.Detail.ReturnRejectionReason</div>

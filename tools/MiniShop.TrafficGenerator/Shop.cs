@@ -81,22 +81,32 @@ public static class Shop
     }
 
     /// <summary>Čeká (obnovováním detailu), až bude stav <paramref name="statusText"/>. Vrací, jak dlouho to trvalo.</summary>
-    public static async Task<TimeSpan> WaitForStatusAsync(Session session, int orderId, string statusText, TimeSpan patience)
+    public static async Task<TimeSpan> WaitForStatusAsync(Session session, int orderId, string statusText, TimeSpan patience) =>
+        (await WaitForAnyStatusAsync(session, orderId, patience, statusText)).Elapsed;
+
+    /// <summary>E-shop krok 26D: čeká na kterýkoli ze stavů (doručená / vrácená dopravcem) a vrátí, který nastal.</summary>
+    public static async Task<(string Status, TimeSpan Elapsed)> WaitForAnyStatusAsync(Session session, int orderId, TimeSpan patience,
+        params string[] statusTexts)
     {
         var started = DateTime.UtcNow;
         while (DateTime.UtcNow - started < patience)
         {
             var page = await session.GetAsync($"/Orders/{orderId}");
             // Razor kóduje české znaky („Potvrzen&#xE1;“) – porovnávat až dekódovaný text, jinak se stav nenajde nikdy.
-            if (Regex.IsMatch(WebUtility.HtmlDecode(page.Html), "data-track=\"order-detail-status\"[^>]*>\\s*" + Regex.Escape(statusText)))
+            var html = WebUtility.HtmlDecode(page.Html);
+            foreach (var statusText in statusTexts)
             {
-                return DateTime.UtcNow - started;
+                if (Regex.IsMatch(html, "data-track=\"order-detail-status\"[^>]*>\\s*" + Regex.Escape(statusText)))
+                {
+                    return (statusText, DateTime.UtcNow - started);
+                }
             }
 
             await Task.Delay(1000);
         }
 
-        throw new TimeoutException($"Objednávka {orderId} se do {patience.TotalSeconds:0} s nedostala do stavu „{statusText}“.");
+        throw new TimeoutException(
+            $"Objednávka {orderId} se do {patience.TotalSeconds:0} s nedostala do stavu „{string.Join("“ ani „", statusTexts)}“.");
     }
 
     public static async Task CancelAsync(Session session, int orderId) =>

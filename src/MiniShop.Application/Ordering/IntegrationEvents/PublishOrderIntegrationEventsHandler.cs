@@ -34,7 +34,8 @@ public sealed class PublishOrderIntegrationEventsHandler(
     IDomainEventHandler<OrderPartialReturnRequested>,
     IDomainEventHandler<OrderPartialReturnRejected>,
     IDomainEventHandler<OrderPartialReturnCompleted>,
-    IDomainEventHandler<OrderShipmentRequested>
+    IDomainEventHandler<OrderShipmentRequested>,
+    IDomainEventHandler<OrderReturnedToSender>
 {
     /// <summary>
     /// Vznik objednávky ve dvou verzích (e-shop krok 7, expand → contract): V1 pro stávající odběratele,
@@ -188,6 +189,20 @@ public sealed class PublishOrderIntegrationEventsHandler(
             order.PaymentMethod == PaymentMethod.CashOnDelivery ? order.TotalPrice : null));
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// E-shop krok 26D: zásilka se vrátila nedoručená – UDÁLOST (choreografie), žádný příkaz: Ordering neví, kdo poslouchá.
+    /// Peníze vrací Payments jen u karty (dobírka nebyla zaplacena), zboží sklad podle položek.
+    /// </summary>
+    public Task HandleAsync(OrderReturnedToSender domainEvent, CancellationToken cancellationToken) =>
+        PublishAsync(cancellationToken, new OrderReturnedToSenderV1(
+            Guid.NewGuid(),
+            domainEvent.OccurredAtUtc,
+            domainEvent.Order.Id,
+            domainEvent.Order.CustomerEmail,
+            domainEvent.Order.TotalPrice,
+            RefundedByCard: domainEvent.Order.PaymentMethod == PaymentMethod.Card,
+            ToLines(domainEvent.Order)));
 
     private async Task PublishAsync(CancellationToken cancellationToken, params IIntegrationEvent[] integrationEvents)
     {

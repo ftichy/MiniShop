@@ -49,6 +49,8 @@ try
     builder.Services.AddIntegrationMessageHandler<RestockReturnedGoodsV2, RestockReturnedGoodsHandler>(IntegrationModules.Inventory);   // e-shop krok 22: vratka po částech
     // E-shop krok 6: událost (ne příkaz) – objednávka odešla, rezervace se mění na výdej.
     builder.Services.AddIntegrationMessageHandler<OrderShippedV1, FulfilReservationHandler>(IntegrationModules.Inventory);
+    // E-shop krok 26D: událost – dopravce vrátil zásilku nedoručenou, vydané zboží zpět na sklad.
+    builder.Services.AddIntegrationMessageHandler<OrderReturnedToSenderV1, RestockReturnedGoodsHandler>(IntegrationModules.Inventory);
     builder.Services.AddIntegrationMessageHandler<SyncCatalogV1, SyncCatalogHandler>(IntegrationModules.Inventory);
     builder.Services.AddInfrastructureCore();
     builder.Services.AddInventoryInfrastructure(database);

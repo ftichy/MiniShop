@@ -70,6 +70,9 @@ public sealed class ChaosOptions
     /// <summary>Krok 26B: dopravce na adresu nedoručuje (422 <c>address_not_serviceable</c>) – trvalá chyba, rozhodne člověk.</summary>
     public double RejectRate { get; set; }
 
+    /// <summary>Krok 26D: příjemce není k zastižení – 2× nezastižen, pak zpět odesílateli (e-shop musí kompenzovat).</summary>
+    public double UndeliverableRate { get; set; }
+
     /// <summary>Webhook přijde dvakrát (stejné ID události) – e-shop ho musí zpracovat jen jednou.</summary>
     public double DuplicateRate { get; set; }
 
@@ -88,7 +91,7 @@ public sealed class ChaosOptions
         {
             (nameof(FailureRate), FailureRate), (nameof(LostResponseRate), LostResponseRate),
             (nameof(DuplicateRate), DuplicateRate), (nameof(ReorderRate), ReorderRate), (nameof(DropRate), DropRate),
-            (nameof(RejectRate), RejectRate)
+            (nameof(RejectRate), RejectRate), (nameof(UndeliverableRate), UndeliverableRate)
         })
         {
             if (value is < 0 or > 1)

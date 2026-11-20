@@ -176,6 +176,40 @@ V patičce jde zvolit **Světlý / Tmavý**; volba se pamatuje jen v tomto prohl
   dokumentaci v tmavém tématu Mermaid (přepnutí = stránka se znovu načte), Bootstrap `btn-outline-secondary` čitelný ve tmě.
 - Bez JavaScriptu zůstává světlý vzhled. E2E scénář *Vzhled* ověří automatiku i ruční volbu.
 
+## Částečné obnovení – htmx (vzhled krok F1)
+
+Stránky jsou dál serverové (Razor Pages), jen vybrané akce se pošlou **na pozadí** a vymění se **kousek stránky** –
+bez bliknutí a skoku nahoru. Nástroj: [htmx](https://htmx.org/) (lokálně `wwwroot/lib/htmx`, ~50 kB), do HTML se jen
+přidají atributy. Server dál vrací HTML, jen menší.
+
+```mermaid
+sequenceDiagram
+    participant B as Prohlížeč (výloha)
+    participant W as Web – Cart?handler=Add
+    B->>W: POST formuláře na pozadí (hlavička HX-Request, antiforgery token jako vždy)
+    W->>W: carts.AddItemAsync – pravidla košíku jako dřív
+    W-->>B: 200 – partial _CartAddResult: #cart-badge, #cart-badge-tab, #cart-toast (hx-swap-oob)
+    B->>B: htmx vymění jen tyto tři prvky podle id, cart-add.js ukáže hlášku (Bootstrap toast)
+```
+
+- **„Do košíku“** ([_ProductCard](code:src/MiniShop.Web/Pages/Shared/_ProductCard.cshtml), detail produktu): formulář má
+  `hx-post` (stejná adresa), `hx-swap="none"` (nic se nevkládá na místo formuláře) a `hx-disabled-elt` (tlačítko je během
+  odesílání neaktivní – dvojklik nepřidá dva kusy). Handler [Cart/Index](code:src/MiniShop.Web/Pages/Cart/Index.cshtml.cs)
+  podle hlavičky `HX-Request` vrátí místo přesměrování
+  [_CartAddResult](code:src/MiniShop.Web/Pages/Shared/_CartAddResult.cshtml): odznaky košíku a hlášku – **„out-of-band“
+  výměna** (`hx-swap-oob`): prvky s tímto atributem si htmx najde na stránce podle `id` a nahradí.
+- Obaly s `id` (`#cart-badge` v hlavičce, `#cart-badge-tab` ve spodní liště) mají třídu `htmx-region` = `display: contents`
+  – samy se nevykreslují, rozložení hlavičky ani lišty se nemění.
+- Hláška je **toast dole** (nad spodní lištou na mobilu) – vidět, ať je zákazník na stránce kdekoli; chyba (vyprodáno,
+  víc než 100 kusů) červeně, výpadek sítě nebo serveru ukáže [cart-add.js](code:src/MiniShop.Web/wwwroot/js/cart-add.js).
+- **Bez JavaScriptu** (nebo když htmx selže) je to obyčejný formulář – přesměrování zpět jako dřív (postupné vylepšení).
+- **Vypršené přihlášení:** přesměrování 302 by htmx načetl potichu na pozadí; cookie autentizace u htmx požadavku pošle
+  hlavičku `HX-Redirect` a celá stránka přejde na přihlášení.
+- **Bezpečnost:** `<meta name="htmx-config">` – `allowEval: false` (žádné vyhodnocování výrazů – CSP `script-src 'self'`),
+  `allowScriptTags: false`, `selfRequestsOnly: true` (jen požadavky na vlastní web), bez vkládaných stylů.
+- **E2E** po kliknutí nečekají na adresu (ta se nemění), ale na změnu odznaku košíku a hlášku – a ověří, že se adresa
+  ani pozice stránky nezměnily (`ShopFlow.AddToCartAsync`).
+
 ## Ikony
 
 [Icons.cs](code:src/MiniShop.Web/Ui/Icons.cs) – pár ikon jako inline SVG (tvary z Bootstrap Icons, licence MIT):
@@ -187,6 +221,9 @@ V patičce jde zvolit **Světlý / Tmavý**; volba se pamatuje jen v tomto prohl
 - Soubory z `wwwroot` vždy s `asp-append-version="true"` (jinak prohlížeč po nasazení použije starou verzi z cache).
 - Žádné inline `<script>` ani `onclick=` (CSP, hlídá `HardeningTests`); chování = soubor ve `wwwroot/js`
   nebo atributy Bootstrapu (`data-bs-toggle`).
+- **Akce bez obnovení stránky (vzhled krok F1) = formulář s `hx-post` + odpověď s prvky `hx-swap-oob` (podle `id`); bez
+  JavaScriptu musí fungovat i obyčejný formulář** (handler podle `Request.IsHtmxRequest()` vrátí partial, jinak přesměruje).
+  Žádné `hx-on` ani výrazy v `hx-trigger` (`allowEval: false`).
 - `data-track` a ID polí se nemění – podle nich [sleduje a přehrává](../eda/proud-udalosti.md) průběh pokladny.
 - Ověření na mobilu: DevTools (Ctrl+Shift+M) nebo snímek v headless Edge
   (`msedge --headless=new --window-size=500,1200 --screenshot=… https://localhost:7180/Shop` – menší šířku Edge nedovolí).

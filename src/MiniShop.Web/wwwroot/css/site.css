@@ -607,6 +607,17 @@ a:focus-visible, .btn:focus-visible, summary:focus-visible {
     }
 }
 
+/* ---------- Vzhled krok F1: částečné obnovení (htmx) ---------- */
+
+/* Obal s id, který htmx vymění – sám se nevykresluje, jeho obsah se chová, jako by obal nebyl (flex hlavičky a lišty). */
+.htmx-region { display: contents; }
+
+/* Hláška „je v košíku“ – dole uprostřed, nad spodní lištou na mobilu. */
+.cart-toast-container { bottom: 0; z-index: 1090; }
+@media (max-width: 991.98px) {
+    .cart-toast-container { bottom: calc(var(--ms-tab-bar-height) + env(safe-area-inset-bottom)); }
+}
+
 /* Spuštěno z ikony na ploše (pwa.js přidá třídu is-standalone): není adresní řádek, hlavička může být těsnější
    a odsadí se od výřezu/stavového řádku iPhonu. */
 .is-standalone .site-header { padding-top: env(safe-area-inset-top); }

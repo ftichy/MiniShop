@@ -102,12 +102,31 @@ public static class ShopFlow
         await ReloadUntilAsync(page, "/Shop", page.Locator("[data-track=shop-add-to-cart]").First, "produkty ve výloze");
     }
 
-    /// <summary>Přidá první produkt z výlohy do košíku (výloha → POST /Cart?handler=Add → zpět do výlohy).</summary>
+    /// <summary>
+    /// Přidá první produkt z výlohy do košíku. Vzhled krok F1: na pozadí přes htmx – stránka se nenačte znovu, jen se
+    /// změní počet kusů v odznaku košíku a ukáže hláška; adresa ani pozice stránky se nezmění.
+    /// </summary>
     public static async Task AddFirstProductToCartAsync(IPage page)
     {
         await WaitForProductsAsync(page);
-        await page.Locator("[data-track=shop-add-to-cart]").First.ClickAsync();
-        await page.WaitForURLAsync(new Regex("/Shop"));
+        await page.EvaluateAsync("window.scrollTo(0, 200)");
+        await AddToCartAsync(page, page.Locator("[data-track=shop-add-to-cart]").First, mobile: false);
+    }
+
+    /// <summary>Klik na „Do košíku“ a počkat, až se změní odznak košíku (hlavička, na telefonu spodní lišta) a přijde hláška.</summary>
+    public static async Task AddToCartAsync(IPage page, ILocator button, bool mobile)
+    {
+        var badge = page.Locator(mobile ? "[data-track=tab-cart]" : "[data-track=nav-cart]");
+        var before = await badge.GetAttributeAsync("aria-label");
+        var url = page.Url;
+        var scrollBefore = await page.EvaluateAsync<double>("window.scrollY");
+
+        await button.ClickAsync();
+
+        await Expect(badge).Not.ToHaveAttributeAsync("aria-label", before ?? string.Empty);
+        await Expect(page.Locator("[data-track=cart-toast]")).ToBeVisibleAsync();
+        Assert.Equal(url, page.Url);                                                   // stránka se nenačetla znovu
+        Assert.Equal(scrollBefore, await page.EvaluateAsync<double>("window.scrollY"));  // a neskočila nahoru
     }
 
     /// <summary>Košík → pokladna (tlačítko podle velikosti obrazovky) → formulář → Objednat. Vrací číslo objednávky.</summary>

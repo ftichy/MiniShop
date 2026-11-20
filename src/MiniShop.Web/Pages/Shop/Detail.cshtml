@@ -51,7 +51,9 @@
             </div>
             @if (Model.CanOrder && p.Availability != "OutOfStock")
             {
-                <form method="post" asp-page="/Cart/Index" asp-page-handler="Add">
+                @* Vzhled krok F1: s JavaScriptem na pozadí (htmx) – vymění se jen odznak košíku a hláška, stránka zůstane. *@
+                <form method="post" asp-page="/Cart/Index" asp-page-handler="Add" data-cart-add
+                      hx-post="@Url.Page("/Cart/Index", "Add")" hx-swap="none" hx-disabled-elt="find button">
                     <input type="hidden" name="productId" value="@p.ProductId" />
                     <input type="hidden" name="returnUrl" value="@Model.CurrentUrl" />
                     <button type="submit" class="btn btn-primary btn-lg btn-buy d-inline-flex align-items-center justify-content-center gap-2" data-track="product-add-to-cart">

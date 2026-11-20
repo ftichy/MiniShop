@@ -37,7 +37,7 @@ public sealed class MobilTests : E2ETestBase
             await ShopFlow.WaitForProductsAsync(page);
 
             // Košík a pokladna (spodní lišta „K pokladně“ – na telefonu je jiné tlačítko než na počítači).
-            await page.Locator("[data-track=shop-add-to-cart]").First.ClickAsync();
+            await ShopFlow.AddToCartAsync(page, page.Locator("[data-track=shop-add-to-cart]").First, mobile: true);   // vzhled F1: bez obnovení
             await page.GotoAsync("/Cart");
             await Expect(page.Locator("[data-track=cart-checkout-mobile]")).ToBeVisibleAsync();
             await page.Locator("[data-track=cart-checkout-mobile]").ClickAsync();

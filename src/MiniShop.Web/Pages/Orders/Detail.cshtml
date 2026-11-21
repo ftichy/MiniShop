@@ -289,12 +289,17 @@ else if (order.Status == "Completed" && Model.Detail.ReturnRejectionReason is no
         }
 
         @* Účty krok 12B: odkazy podle oblasti – Expedice sklad, průběh a přehrání podpora. *@
-        @if (Model.CanFulfil || Model.CanSupport)
+        @if (Model.CanFulfil || Model.CanSupport || Model.CanOperate)
         {
             <p class="small mb-0">
                 @if (Model.CanFulfil)
                 {
                     <a asp-page="/Admin/Fulfilment/Index">Expedice</a>
+                }
+                @if (Model.CanOperate)
+                {
+                    @* Proud B1: celá pouť objednávky napříč moduly (zprávy z proudu minishop.events). *@
+                    <a asp-page="/Admin/EventStream/Index" asp-route-order="@order.Id" asp-route-minutes="10080" data-track="order-detail-event-stream">Zprávy v proudu</a>
                 }
                 @if (Model.CanSupport)
                 {

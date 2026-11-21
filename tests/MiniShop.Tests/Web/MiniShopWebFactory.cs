@@ -74,6 +74,9 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
     /// <summary>Mikroservisy M2B: zprávy služby přehledu tržeb.</summary>
     public FakeServiceMessages ReportingMessages { get; } = new("reporting-api", "Reporting", "minishop.reporting");
 
+    /// <summary>Proud B1: podvržený proud zpráv (RabbitMQ v testech Webu neběží – skutečné čtení testuje EventStreamTests).</summary>
+    public FakeEventStreamReader EventStream { get; } = new();
+
     /// <summary>Škálování krok 5: workery, které Web registruje (před odebráním pro testy) – hlídá je <c>WebWorkersTests</c>.</summary>
     public List<Type> RegisteredWorkers { get; private set; } = [];
 
@@ -121,6 +124,8 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
             services.AddSingleton<IServiceMessages>(InventoryMessages);
             services.AddSingleton<IServiceMessages>(ReportingMessages);
             services.AddSingleton<IServiceMessages>(NotificationsMessages);
+            services.RemoveAll<MiniShop.Infrastructure.Integration.RabbitMq.IEventStreamReader>();   // proud B1
+            services.AddSingleton<MiniShop.Infrastructure.Integration.RabbitMq.IEventStreamReader>(EventStream);
 
             // Účty krok 5: e-maily do „schránky“ testů – odkazy z nich testy otevírají.
             services.RemoveAll<IEmailSender>();

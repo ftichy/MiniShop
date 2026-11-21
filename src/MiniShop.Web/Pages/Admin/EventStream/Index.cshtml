@@ -1,0 +1,97 @@
+@page
+@using MiniShop.Infrastructure.Integration.RabbitMq
+@model MiniShop.Web.Pages.Admin.EventStream.IndexModel
+@{
+    ViewData["Title"] = "Proud zpráv";
+}
+<partial name="_AdminHeader" model='new MiniShop.Web.Ui.AdminHeaderModel("Proud zpráv")' />
+<p class="text-muted">
+    Všechny zprávy, které prošly brokerem, v pořadí, jak šly – z proudu <code>@RabbitMqEventStream.StreamName</code>
+    (log, ne fronta: čtením nic nezmizí, nejstarší zprávy maže až retence @RabbitMqEventStream.MaxAge / 1 GB).
+    Zadejte číslo objednávky a uvidíte její celou pouť napříč moduly. Osobní údaje jsou zamaskované (•••).
+    Co čeká nebo selhalo, je na stránce <a asp-page="/Admin/Messages/Index">Zprávy</a>.
+</p>
+
+<form method="get" class="row g-2 align-items-end mb-3" data-track="event-stream-filter">
+    <div class="col-sm-6 col-lg-3">
+        <label for="minutes" class="form-label small mb-0">Od kdy</label>
+        <select id="minutes" name="minutes" class="form-select form-select-sm">
+            @foreach (var (minutes, label) in IndexModel.Ranges)
+            {
+                <option value="@minutes" selected="@(Model.Minutes == minutes)">@label</option>
+            }
+        </select>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <label for="from" class="form-label small mb-0">Zadaný čas (při „od zadaného času“)</label>
+        <input id="from" name="from" type="datetime-local" class="form-control form-control-sm" value="@Model.From?.ToString("yyyy-MM-ddTHH:mm")" />
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <label for="type" class="form-label small mb-0">Typ zprávy</label>
+        <select id="type" name="type" class="form-select form-select-sm">
+            <option value="">všechny</option>
+            @foreach (var type in IndexModel.Types)
+            {
+                <option value="@type" selected="@(Model.Type == type)">@type</option>
+            }
+        </select>
+    </div>
+    <div class="col-sm-4 col-lg-2">
+        <label for="order" class="form-label small mb-0">Objednávka č.</label>
+        <input id="order" name="order" type="number" min="1" class="form-control form-control-sm" value="@Model.OrderId" data-track="event-stream-order" />
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-sm btn-primary" data-track="event-stream-submit">Zobrazit</button>
+    </div>
+</form>
+
+@if (Model.ErrorMessage is not null)
+{
+    <div class="alert alert-warning" data-track="event-stream-unavailable">@Model.ErrorMessage</div>
+}
+else if (Model.Result is { } result)
+{
+    <p class="small text-muted" data-track="event-stream-summary">
+        Od @Model.FromUtc.ToCzechString(): zobrazeno @result.Entries.Count zpráv (prohledáno @result.Scanned).
+        @if (result.Truncated)
+        {
+            <strong>Zpráv je víc – ukázané jsou nejnovější; zužte čas nebo filtr.</strong>
+        }
+    </p>
+    @if (result.Entries.Count == 0)
+    {
+        <p class="text-muted">V tomto čase žádná zpráva neodpovídá filtru.</p>
+    }
+    else
+    {
+        <div class="table-responsive admin-table">
+            <table class="table table-sm align-middle" data-track="event-stream-table">
+                <thead>
+                    <tr><th class="num">Pořadí</th><th>Čas</th><th>Zpráva</th><th>Objednávka</th><th>Obsah</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var entry in result.Entries)
+                    {
+                        <tr>
+                            <td class="num small text-muted">@entry.Offset</td>
+                            <td class="text-nowrap small">@entry.OccurredAtUtc.ToCzechString("d. M. HH:mm:ss.fff")</td>
+                            <td><code>@entry.Type</code></td>
+                            <td>
+                                @if (entry.OrderId is { } orderId)
+                                {
+                                    <a asp-route-order="@orderId" asp-route-minutes="@Model.Minutes" data-track="event-stream-order-link">č. @orderId</a>
+                                }
+                            </td>
+                            <td>
+                                <details>
+                                    <summary class="small">JSON</summary>
+                                    <pre class="small mb-0">@entry.Payload</pre>
+                                </details>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}

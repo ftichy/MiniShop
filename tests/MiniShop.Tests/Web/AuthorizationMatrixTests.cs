@@ -121,6 +121,9 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Anonymous, "/Admin/Messages", Expect.Login },               // EDA krok 13: provoz zpráv
         { Who.User, "/Admin/Messages", Expect.Denied },
         { Who.Admin, "/Admin/Messages", Expect.Allowed },
+        { Who.Anonymous, "/Admin/EventStream", Expect.Login },            // proud B1: proud zpráv
+        { Who.User, "/Admin/EventStream", Expect.Denied },
+        { Who.Admin, "/Admin/EventStream", Expect.Allowed },
         { Who.Anonymous, "/Admin/Reviews", Expect.Login },                // e-shop krok 14: moderace hodnocení
         { Who.User, "/Admin/Reviews", Expect.Denied },
         { Who.Admin, "/Admin/Reviews", Expect.Allowed },

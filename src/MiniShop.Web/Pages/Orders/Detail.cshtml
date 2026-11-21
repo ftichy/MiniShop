@@ -9,7 +9,7 @@
 
 @* Vzhled krok F2: živý výřez – dokud se na něco čeká (sága, platba, vratka, dopravce), htmx ho každé 3 s vymění
    za čerstvý (DetailModel.IsLive); stránka se nenačítá celá a rozepsaný formulář se nepřepíše. *@
-<div id="order-live" live-region="@Model.IsLive">
+<div id="order-live" live-region="@Model.IsLive" live-topic="@MiniShop.Web.LiveUpdates.LiveTopics.Order(Model.Order.Id)">
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <h1 class="mb-0">Objednávka č. @order.Id</h1>
     <span class="badge fs-6 @OrderStatusLabels.Badge(order.Status)" data-track="order-detail-status">@OrderStatusLabels.Text(order.Status, order.ShippingMethod)</span>

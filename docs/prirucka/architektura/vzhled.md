@@ -221,7 +221,7 @@ Teď se obnovuje jen **výřez**:
 ```
 
 - Tag helper [LiveRegionTagHelper](code:src/MiniShop.Web/Ui/LiveRegionTagHelper.cs) při `true` přidá `hx-get` (tatáž
-  adresa i s parametry), `hx-trigger="every 3s"`, `hx-select="#id"` a `hx-swap="outerHTML"` – htmx stáhne na pozadí
+  adresa i s parametry), `hx-trigger` (v F2 `every 3s`, od F3a `live-refresh` – časování v `live-region.js`), `hx-select="#id"` a `hx-swap="outerHTML"` – htmx stáhne na pozadí
   celou stránku, vybere z ní jen výřez a vymění ho. Žádný nový endpoint, výřez se vykresluje stejným kódem jako stránka.
 - **Konec dotazování přijde sám:** když už se na nic nečeká, server výřez vykreslí bez atributů (`IsLive = false`)
   a po výměně se htmx přestane ptát.
@@ -237,7 +237,9 @@ Teď se obnovuje jen **výřez**:
 | Vratky | `#returns-live` (seznam) | je otevřená vratka |
 
 E2E *Nákup kartou* na otevřeném detailu počká na „Potvrzená“ a ověří, že se stránka nenačetla znovu (značka ve `window`).
-Až přijde SignalR (krok F3), nahradí dotazování každé 3 s signálem „změnilo se“ – výřez zůstane stejný.
+**Vzhled krok F3a:** výřez s tématem (`live-topic="order:42"`) se obnoví hned na signál od serveru přes SignalR – dotazování
+zůstává jen jako pojistka (30 s), bez spojení každé 3 s. Jak signál vzniká a proč se rozesílá každé kopii Webu:
+[Živé aktualizace](../eda/zive-aktualizace.md). Tag helper: `hx-trigger="live-refresh"`, kdy obnovit řídí `live-region.js`.
 
 ## Ikony
 

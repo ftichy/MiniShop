@@ -78,7 +78,7 @@ flowchart LR
 9. [Proud událostí](proud-udalosti.md) – ukládat, *co se dělo*, a stav z toho počítat.
 10. [CQRS – přehled tržeb](cqrs.md) – oddělený čtecí model z událostí, který jde kdykoli přestavět.
 11. [Provoz zpráv](provoz-zprav.md) – úklid, backoff a dead-letter fronty: co se stane se zprávou, která selhává.
-12. [Event sourcing košíku](event-sourcing.md) – události jako zdroj pravdy agregátu, tabulky jen projekce.
+. [Živé aktualizace (SignalR)](zive-aktualizace.md) – rozeslání zprávy každé kopii služby a signál „obnov se“ do prohlížeče.
 
 ## Na internetu
 

@@ -675,6 +675,7 @@ public class Order : Entity
         Status = status;
         _statusHistory.Add(new OrderStatusChange(status, changedAtUtc, note));
         Version++;   // e-shop krok 6: souběžná změna stejné objednávky pak při uložení selže
+        Raise(new OrderStatusChanged(this, changedAtUtc));   // vzhled krok F3a: signál otevřeným stránkám (OrderStatusChangedV1)
     }
 
     private void EnsureStatus(OrderStatus expected, string message)

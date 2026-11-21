@@ -99,7 +99,7 @@ public class OrderReturnTests
 
         Assert.Equal(OrderStatus.ReturnRequested, order.Status);
         Assert.Empty(order.Returns);
-        Assert.IsType<OrderReturnRequested>(Assert.Single(order.DomainEvents));
+        Assert.IsType<OrderReturnRequested>(Assert.Single(order.DomainEvents, e => e is not OrderStatusChanged));   // F3a: + obecná změna stavu
     }
 
     [Fact]

@@ -14,6 +14,10 @@ public class OrderDomainEventsTests
 
     private static Order CreateOrder() => new("zakaznik-1", "Jan Novák", "jan@example.com", CreatedAt);
 
+    /// <summary>Události s vlastním významem – bez obecné OrderStatusChanged (vzhled krok F3a), kterou má každá změna stavu.</summary>
+    private static IEnumerable<MiniShop.Domain.Common.IDomainEvent> Business(Order order) =>
+        order.DomainEvents.Where(e => e is not OrderStatusChanged);
+
     private static Order CreateConfirmedOrder()
     {
         var order = CreateOrder();
@@ -27,7 +31,7 @@ public class OrderDomainEventsTests
     {
         var order = CreateOrder();
 
-        var placed = Assert.IsType<OrderPlaced>(Assert.Single(order.DomainEvents));
+        var placed = Assert.IsType<OrderPlaced>(Assert.Single(Business(order)));
         Assert.Same(order, placed.Order);
         Assert.Equal(CreatedAt, placed.OccurredAtUtc);
     }
@@ -40,7 +44,7 @@ public class OrderDomainEventsTests
 
         order.Confirm(Later);
 
-        var confirmed = Assert.IsType<OrderConfirmed>(Assert.Single(order.DomainEvents));
+        var confirmed = Assert.IsType<OrderConfirmed>(Assert.Single(Business(order)));
         Assert.Equal(Later, confirmed.OccurredAtUtc);
     }
 
@@ -52,7 +56,7 @@ public class OrderDomainEventsTests
 
         order.Reject("Nedostatek zboží", Later);
 
-        Assert.IsType<OrderRejected>(Assert.Single(order.DomainEvents));
+        Assert.IsType<OrderRejected>(Assert.Single(Business(order)));
     }
 
     [Fact]
@@ -62,7 +66,7 @@ public class OrderDomainEventsTests
 
         order.Cancel(Later);
 
-        var cancelled = Assert.IsType<OrderCancelled>(Assert.Single(order.DomainEvents));
+        var cancelled = Assert.IsType<OrderCancelled>(Assert.Single(Business(order)));
         Assert.Equal(Later, cancelled.OccurredAtUtc);
     }
 
@@ -77,7 +81,22 @@ public class OrderDomainEventsTests
 
         // E-shop krok 6: doručení dál vyvolá OrderCompleted (kvůli kontraktu OrderCompletedV1).
         Assert.Equal([typeof(OrderPackingStarted), typeof(OrderShipped), typeof(OrderCompleted)],
-            order.DomainEvents.Select(e => e.GetType()));
+            Business(order).Select(e => e.GetType()));
+    }
+
+    /// <summary>Vzhled krok F3a: každá změna stavu (i bez vlastní události – balení) vyvolá i obecnou OrderStatusChanged.</summary>
+    [Fact]
+    public void KazdaZmenaStavu_VyvolaOrderStatusChanged()
+    {
+        var order = CreateOrder();
+        Assert.Single(order.DomainEvents.OfType<OrderStatusChanged>());   // vznik = Pending
+        order.ClearDomainEvents();
+
+        order.Confirm(Later);
+        order.StartPacking(Later);
+
+        Assert.Equal(2, order.DomainEvents.OfType<OrderStatusChanged>().Count());
+        Assert.All(order.DomainEvents.OfType<OrderStatusChanged>(), e => Assert.Same(order, e.Order));
     }
 
     [Fact]

@@ -17,7 +17,7 @@
 
 @* Vzhled krok F2: živý výřez se všemi frontami (objednávka mezi nimi přechází) – dokud se předává dopravci nebo je u něj
    na cestě, htmx ho každé 3 s vymění; zaškrtnuté balení, rozepsané číslo zásilky či rozbalený formulář výměnu odloží. *@
-<div id="fulfilment-live" live-region="@Model.IsLive">
+<div id="fulfilment-live" live-region="@Model.IsLive" live-topic="@MiniShop.Web.LiveUpdates.LiveTopics.Fulfilment">
 @* Fronta 1: potvrzené objednávky – hromadně začít balit (zaškrtnout a jedno tlačítko). *@
 <h2 class="h4 mt-4">K zabalení <span class="badge badge-soft-primary">@Model.ToPack.Count</span></h2>
 @if (Model.ToPack.Count == 0)

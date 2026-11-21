@@ -93,6 +93,7 @@ počítadlo projetých aut vs. pohled na parkoviště, kolik jich právě stojí
 | `minishop_shipment_active` | zásilky na cestě u dopravce (e-shop krok 26E) | `status` |
 | `minishop_shipment_finished` | zásilky ukončené za posledních 24 h – doručeno / vráceno odesílateli | `status` |
 | `minishop_shipment_stale` | zásilky na cestě bez novinky déle než 15 min nebo neznámé u dopravce (alarm `MiniShopShipmentStale`) | – |
+| `minishop_live_connections` | otevřená spojení živých aktualizací (SignalR) na kopii Webu (vzhled krok F3a) | – |
 | `minishop_order_confirmation_duration_seconds` | histogram: od založení objednávky po potvrzení ságou | `payment` (none/card/cashondelivery) |
 
 - Stav zjišťuje [OperationalMetricsWorker](code:src/MiniShop.Infrastructure/Hosting/OperationalMetricsWorker.cs) každých 30 s

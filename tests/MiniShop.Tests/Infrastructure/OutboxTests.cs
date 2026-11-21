@@ -74,7 +74,7 @@ public sealed class OutboxTests : IDisposable
     {
         var orderId = await PlaceOrderAsync(quantity: 3);
 
-        var message = await Db(db => db.OutboxMessages.SingleAsync());
+        var message = await Db(db => db.OutboxMessages.SingleAsync(m => m.Type != nameof(OrderStatusChanged)));
         Assert.Equal("OrderPlaced", message.Type);
         Assert.Equal(Now.UtcDateTime, message.OccurredAtUtc);
 
@@ -91,7 +91,7 @@ public sealed class OutboxTests : IDisposable
     {
         await PlaceOrderAsync(quantity: 1);
 
-        var message = await Db(db => db.OutboxMessages.SingleAsync());
+        var message = await Db(db => db.OutboxMessages.SingleAsync(m => m.Type != nameof(OrderStatusChanged)));
         Assert.Null(message.ProcessedAtUtc);
         Assert.Equal(0, message.Attempts);
         Assert.Empty(_dispatcher.Delivered);
@@ -112,13 +112,13 @@ public sealed class OutboxTests : IDisposable
 
         var processed = await Processor.ProcessPendingAsync();
 
-        Assert.Equal(1, processed);
-        var placed = Assert.IsType<OrderPlaced>(Assert.Single(_dispatcher.Delivered));
+        Assert.Equal(2, processed);   // OrderPlaced + obecná změna stavu (vzhled F3a)
+        var placed = Assert.IsType<OrderPlaced>(Assert.Single(_dispatcher.Delivered, e => e is not OrderStatusChanged));
         Assert.Equal(orderId, placed.Order.Id);
         Assert.Equal(2, placed.Order.Items.Single().Quantity);
         Assert.Equal(Now.UtcDateTime, placed.OccurredAtUtc);
 
-        var message = await Db(db => db.OutboxMessages.SingleAsync());
+        var message = await Db(db => db.OutboxMessages.SingleAsync(m => m.Type != nameof(OrderStatusChanged)));
         Assert.Equal(Now.UtcDateTime, message.ProcessedAtUtc);
         Assert.Null(message.Error);
     }
@@ -132,7 +132,7 @@ public sealed class OutboxTests : IDisposable
         var processedAgain = await Processor.ProcessPendingAsync();
 
         Assert.Equal(0, processedAgain);
-        Assert.Single(_dispatcher.Delivered);
+        Assert.Single(_dispatcher.Delivered, e => e is not OrderStatusChanged);
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public sealed class OutboxTests : IDisposable
 
         await Processor.ProcessPendingAsync();
 
-        var failed = await Db(db => db.OutboxMessages.SingleAsync());
+        var failed = await Db(db => db.OutboxMessages.SingleAsync(m => m.Type != nameof(OrderStatusChanged)));
         Assert.Null(failed.ProcessedAtUtc);
         Assert.Equal(1, failed.Attempts);
         Assert.Contains("Sklad nedostupný", failed.Error);
@@ -157,10 +157,10 @@ public sealed class OutboxTests : IDisposable
         // Sklad je zase dostupný – kolo po termínu zprávu doručí a chybu smaže.
         await Processor.ProcessPendingAsync();
 
-        var retried = await Db(db => db.OutboxMessages.SingleAsync());
+        var retried = await Db(db => db.OutboxMessages.SingleAsync(m => m.Type != nameof(OrderStatusChanged)));
         Assert.NotNull(retried.ProcessedAtUtc);
         Assert.Null(retried.Error);
-        Assert.Single(_dispatcher.Delivered);
+        Assert.Single(_dispatcher.Delivered, e => e is not OrderStatusChanged);
     }
 
     [Fact]
@@ -171,7 +171,7 @@ public sealed class OutboxTests : IDisposable
 
         for (var attempt = 1; attempt <= OutboxProcessor.MaxAttempts; attempt++)
         {
-            Assert.Equal(1, await Processor.ProcessPendingAsync());
+            Assert.Equal(2, await Processor.ProcessPendingAsync());   // OrderPlaced + obecná změna stavu (vzhled F3a)
             _time.Advance(OutboxProcessor.RetryDelay(attempt));   // EDA krok 13: počkat na termín dalšího pokusu
         }
 
@@ -180,7 +180,7 @@ public sealed class OutboxTests : IDisposable
         _time.Advance(TimeSpan.FromDays(1));
         Assert.Equal(0, await Processor.ProcessPendingAsync());
 
-        var message = await Db(db => db.OutboxMessages.SingleAsync());
+        var message = await Db(db => db.OutboxMessages.SingleAsync(m => m.Type != nameof(OrderStatusChanged)));
         Assert.Null(message.ProcessedAtUtc);
         Assert.Equal(OutboxProcessor.MaxAttempts, message.Attempts);
         Assert.Empty(_dispatcher.Delivered);
@@ -203,7 +203,7 @@ public sealed class OutboxTests : IDisposable
 
         await Processor.ProcessPendingAsync();
 
-        var message = await Db(db => db.OutboxMessages.SingleAsync());
+        var message = await Db(db => db.OutboxMessages.SingleAsync(m => m.Type != nameof(OrderStatusChanged)));
         Assert.Equal(1, message.Attempts);
         Assert.Contains("999", message.Error);
     }
@@ -220,7 +220,7 @@ public sealed class OutboxTests : IDisposable
             await Processor.ProcessPendingAsync();
         }
 
-        var waiting = await Db(db => db.OutboxMessages.SingleAsync());
+        var waiting = await Db(db => db.OutboxMessages.SingleAsync(m => m.Type != nameof(OrderStatusChanged)));
         Assert.Null(waiting.ProcessedAtUtc);
         Assert.Equal(0, waiting.Attempts);
         Assert.Contains("Broker neběží", waiting.Error);
@@ -229,7 +229,7 @@ public sealed class OutboxTests : IDisposable
         _bus.FailWith = null;
         await Processor.ProcessPendingAsync();
 
-        var sent = await Db(db => db.OutboxMessages.SingleAsync());
+        var sent = await Db(db => db.OutboxMessages.SingleAsync(m => m.Type != nameof(OrderStatusChanged)));
         Assert.NotNull(sent.ProcessedAtUtc);
         Assert.Null(sent.Error);
         Assert.Single(_bus.Published);
@@ -245,9 +245,9 @@ public sealed class OutboxTests : IDisposable
 
         var processed = await Processor.ProcessPendingAsync();
 
-        // Zkusila se jen první integrační (pak už je jasné, že broker neběží) + doménová.
-        Assert.Equal(2, processed);
-        Assert.Single(_dispatcher.Delivered);
+        // Zkusila se jen první integrační (pak už je jasné, že broker neběží) + doménové (OrderPlaced a obecná změna stavu – F3a).
+        Assert.Equal(3, processed);
+        Assert.Single(_dispatcher.Delivered, e => e is not OrderStatusChanged);
         var integration = await Db(db => db.OutboxMessages
             .Where(m => m.Kind == OutboxMessageKind.Integration).ToListAsync());
         Assert.All(integration, m => Assert.Null(m.ProcessedAtUtc));
@@ -262,7 +262,7 @@ public sealed class OutboxTests : IDisposable
 
         await Processor.ProcessPendingAsync();
 
-        var message = await Db(db => db.OutboxMessages.SingleAsync());
+        var message = await Db(db => db.OutboxMessages.SingleAsync(m => m.Type != nameof(OrderStatusChanged)));
         Assert.Equal(1, message.Attempts);
         Assert.Contains("odmítl", message.Error);
     }
@@ -276,7 +276,7 @@ public sealed class OutboxTests : IDisposable
 
         await PlaceOrderAsync(quantity: 1);
 
-        var message = await Db(db => db.OutboxMessages.SingleAsync());
+        var message = await Db(db => db.OutboxMessages.SingleAsync(m => m.Type != nameof(OrderStatusChanged)));
         Assert.Equal(operation.Id, message.TraceParent);   // 00-{trace id}-{span id}-…
     }
 

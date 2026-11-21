@@ -21,7 +21,7 @@ public sealed class LiveRegionTests(MiniShopWebFactory web)
         var pending = await customer.GetStringAsync($"/Orders/{pendingId}");
         var confirmed = await customer.GetStringAsync($"/Orders/{confirmedId}");
 
-        AssertLive(pending, "order-live", $"/Orders/{pendingId}");
+        AssertLive(pending, "order-live", $"/Orders/{pendingId}", $"order:{pendingId}");
         AssertNotLive(confirmed, "order-live");
         Assert.DoesNotContain("orders-reload.js", pending);
         Assert.DoesNotContain("data-reload-when-idle", pending);
@@ -34,7 +34,7 @@ public sealed class LiveRegionTests(MiniShopWebFactory web)
 
         var page = await customer.GetStringAsync("/Orders?p=1");
 
-        AssertLive(page, "orders-live", "/Orders?p=1");   // stejné parametry (stránkování) i v dotazu výřezu
+        AssertLive(page, "orders-live", "/Orders?p=1", "my-orders");   // stejné parametry (stránkování) i v dotazu výřezu
         var region = page.IndexOf("id=\"orders-live\"", StringComparison.Ordinal);
         Assert.True(page.IndexOf("name=\"order\"", StringComparison.Ordinal) < region, "Hledání má být nad výřezem – jinak by ho výměna přepsala.");
     }
@@ -69,16 +69,21 @@ public sealed class LiveRegionTests(MiniShopWebFactory web)
         var html = await web.CreateBrowser().GetStringAsync("/Shop");
 
         Assert.Matches("src=\"/js/live-region\\.js\\?v=[^\"]+\"", html);
+        Assert.Matches("src=\"/lib/signalr/signalr\\.min\\.js\\?v=[^\"]+\"", html);   // vzhled F3a: klient SignalR lokálně
         Assert.DoesNotContain("orders-reload.js", html);
     }
 
     /// <summary>Výřez s id, který se sám obnovuje: htmx stáhne tutéž adresu a vybere z ní sám sebe.</summary>
-    internal static void AssertLive(string html, string id, string url)
+    internal static void AssertLive(string html, string id, string url, string? topic = null)
     {
         var tag = RegionTag(html, id);
         Assert.Contains("data-live-region", tag);
         Assert.Contains($"hx-get=\"{url}\"", WebUtility.HtmlDecode(tag));
-        Assert.Contains("hx-trigger=\"every 3s\"", tag);
+        Assert.Contains("hx-trigger=\"live-refresh\"", tag);   // vzhled F3a: kdy obnovit, řídí live-region.js (signál, jinak 3 s)
+        if (topic is not null)
+        {
+            Assert.Contains($"data-live-topic=\"{topic}\"", tag);
+        }
         Assert.Contains($"hx-select=\"#{id}\"", tag);
         Assert.Contains("hx-swap=\"outerHTML\"", tag);
     }

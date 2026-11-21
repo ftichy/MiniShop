@@ -35,7 +35,8 @@ public sealed class PublishOrderIntegrationEventsHandler(
     IDomainEventHandler<OrderPartialReturnRejected>,
     IDomainEventHandler<OrderPartialReturnCompleted>,
     IDomainEventHandler<OrderShipmentRequested>,
-    IDomainEventHandler<OrderReturnedToSender>
+    IDomainEventHandler<OrderReturnedToSender>,
+    IDomainEventHandler<OrderStatusChanged>
 {
     /// <summary>
     /// Vznik objednávky ve dvou verzích (e-shop krok 7, expand → contract): V1 pro stávající odběratele,
@@ -203,6 +204,18 @@ public sealed class PublishOrderIntegrationEventsHandler(
             domainEvent.Order.TotalPrice,
             RefundedByCard: domainEvent.Order.PaymentMethod == PaymentMethod.Card,
             ToLines(domainEvent.Order)));
+
+    /// <summary>
+    /// Vzhled krok F3a: každá změna stavu = obecná událost (signál otevřeným stránkám). Stav z načtené objednávky – u víc
+    /// změn v jedné transakci přijde několikrát týž (aktuální) stav; pro signál „obnov se“ to nevadí.
+    /// </summary>
+    public Task HandleAsync(OrderStatusChanged domainEvent, CancellationToken cancellationToken) =>
+        PublishAsync(cancellationToken, new OrderStatusChangedV1(
+            Guid.NewGuid(),
+            domainEvent.OccurredAtUtc,
+            domainEvent.Order.Id,
+            domainEvent.Order.CustomerId,
+            domainEvent.Order.Status.ToString()));
 
     private async Task PublishAsync(CancellationToken cancellationToken, params IIntegrationEvent[] integrationEvents)
     {

@@ -6,27 +6,32 @@ namespace MiniShop.Web.Ui;
 
 /// <summary>
 /// Vzhled krok F2: „živý výřez“ – část stránky, která se sama obnoví bez načtení celé stránky.
-/// <c>&lt;div id="order-live" live-region="@Model.IsLive"&gt;</c>: dokud se na něco čeká (<c>true</c>), htmx každé
-/// <see cref="Interval"/> stáhne na pozadí tutéž stránku, vybere z ní prvek se stejným <c>id</c> a vymění ho
-/// (<c>hx-select</c>). Když server vykreslí výřez s <c>false</c> (hotovo), atributy chybí a dotazování samo skončí.
+/// <c>&lt;div id="order-live" live-region="@Model.IsLive" live-topic="order:42"&gt;</c>: dokud se na něco čeká (<c>true</c>),
+/// htmx na událost <see cref="RefreshEvent"/> stáhne na pozadí tutéž stránku, vybere z ní prvek se stejným <c>id</c>
+/// a vymění ho (<c>hx-select</c>). Když server vykreslí výřez s <c>false</c> (hotovo), atributy chybí a obnovování skončí.
 /// </summary>
 /// <remarks>
-/// Výřez musí mít <c>id</c>. Rozepsaný formulář ve výřezu se nepřepíše – <c>wwwroot/js/live-region.js</c> výměnu odloží.
-/// Nahrazuje celé obnovení stránky (<c>data-reload-when-idle</c> + <c>orders-reload.js</c> do kroku F2).
+/// Kdy obnovit, řídí <c>wwwroot/js/live-region.js</c>: vzhled krok F3a – s tématem (<c>live-topic</c>) a připojeným SignalR
+/// hned na signál od serveru (pojistně jednou za 30 s), jinak (bez tématu, bez spojení) každé 3 s jako v F2.
+/// Výřez musí mít <c>id</c>. Rozepsaný formulář ve výřezu se nepřepíše – live-region.js výměnu odloží.
 /// </remarks>
 [HtmlTargetElement(Attributes = AttributeName)]
 public sealed class LiveRegionTagHelper : TagHelper
 {
     public const string AttributeName = "live-region";
 
-    /// <summary>Jak často se ptát (sága trvá ~5–8 s, krok dopravce 30 s).</summary>
-    public const string Interval = "3s";
+    /// <summary>Událost, na kterou htmx výřez obnoví (vyvolává ji live-region.js).</summary>
+    public const string RefreshEvent = "live-refresh";
 
     /// <summary>Značka výřezu (i neaktivního) – podle ní ho najde live-region.js.</summary>
     public const string MarkerAttribute = "data-live-region";
 
     [HtmlAttributeName(AttributeName)]
     public bool IsLive { get; set; }
+
+    /// <summary>Vzhled krok F3a: téma živých aktualizací (<c>LiveTopics</c>) – signál od serveru obnoví výřez hned.</summary>
+    [HtmlAttributeName("live-topic")]
+    public string? Topic { get; set; }
 
     [HtmlAttributeNotBound]
     [ViewContext]
@@ -48,8 +53,12 @@ public sealed class LiveRegionTagHelper : TagHelper
 
         var request = ViewContext.HttpContext.Request;
         output.Attributes.SetAttribute("hx-get", $"{request.PathBase}{request.Path}{request.QueryString}");
-        output.Attributes.SetAttribute("hx-trigger", $"every {Interval}");
+        output.Attributes.SetAttribute("hx-trigger", RefreshEvent);
         output.Attributes.SetAttribute("hx-select", $"#{id}");
         output.Attributes.SetAttribute("hx-swap", "outerHTML");
+        if (!string.IsNullOrEmpty(Topic))
+        {
+            output.Attributes.SetAttribute("data-live-topic", Topic);
+        }
     }
 }

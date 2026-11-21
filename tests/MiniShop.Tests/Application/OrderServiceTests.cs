@@ -227,6 +227,7 @@ public sealed partial class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<ShipmentReturnedV1, ShipmentResultHandler>(IntegrationModules.Ordering);   // e-shop krok 26D
         services.AddDomainEventHandler<OrderShipmentRequested, PublishOrderIntegrationEventsHandler>();
         services.AddDomainEventHandler<OrderReturnedToSender, PublishOrderIntegrationEventsHandler>();   // e-shop krok 26D: → OrderReturnedToSenderV1
+        services.AddDomainEventHandler<OrderStatusChanged, PublishOrderIntegrationEventsHandler>();   // vzhled krok F3a: → OrderStatusChangedV1
         services.AddScoped<ICarrierGateway>(_ => new CarrierApiClient(Carrier.CreateAuthorizedClient(), NullLogger<CarrierApiClient>.Instance));
 
         // E-shop krok 11: modul Reporting (přehled tržeb) – jako AddReportingModule + AddReportingInfrastructure ve Webu,
@@ -2221,7 +2222,7 @@ public sealed partial class OrderServiceTests : IDisposable
         // 1. kolo: handlery OrderPlaced zapíšou do outboxu integrační událost i příkaz pro sklad – ven ještě neodešly.
         await ProcessOneRoundAsync();
         var integration = await OrderingDb(db => db.OutboxMessages.Where(m => m.Kind == OutboxMessageKind.Integration).ToListAsync());
-        Assert.Equal(new[] { "OrderPlacedV1", "OrderPlacedV2", "ReserveStockV1" }, integration.Select(m => m.Type).Order());   // e-shop krok 7: V2
+        Assert.Equal(new[] { "OrderPlacedV1", "OrderPlacedV2", "OrderStatusChangedV1", "ReserveStockV1" }, integration.Select(m => m.Type).Order());   // e-shop krok 7: V2; vzhled F3a: obecná změna stavu
         Assert.All(integration, m => Assert.Null(m.ProcessedAtUtc));
         Assert.Empty(_bus.Published);
 
@@ -2230,7 +2231,7 @@ public sealed partial class OrderServiceTests : IDisposable
         await ProcessOneRoundAsync();
         Assert.Single(_bus.Published.OfType<OrderPlacedV1>());
         Assert.Single(_bus.Published.OfType<ReserveStockV1>());
-        Assert.Single(_dispatched);
+        Assert.Equal(2, _dispatched.Count);   // OrderPlaced + obecná OrderStatusChanged (vzhled F3a)
     }
 
     [Fact]
@@ -2272,6 +2273,8 @@ public sealed partial class OrderServiceTests : IDisposable
             new[]
             {
                 "OrderCancelled", "OrderCancelledV1", "OrderConfirmed", "OrderConfirmedV1", "OrderPlaced", "OrderPlacedV1", "OrderPlacedV2",
+                "OrderStatusChanged", "OrderStatusChanged", "OrderStatusChanged",           // vzhled F3a: Pending, Confirmed, Cancelled
+                "OrderStatusChangedV1", "OrderStatusChangedV1", "OrderStatusChangedV1",
                 "ReleaseStockV1", "ReserveStockV1"
             },
             ordering.Select(m => m.Type).Order());

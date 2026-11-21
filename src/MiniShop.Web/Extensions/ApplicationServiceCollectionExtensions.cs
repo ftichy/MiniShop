@@ -182,6 +182,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddDomainEventHandler<OrderCancelled, PublishOrderIntegrationEventsHandler>();
         services.AddDomainEventHandler<OrderShipmentRequested, PublishOrderIntegrationEventsHandler>();   // e-shop krok 26B: → CreateShipmentV1
         services.AddDomainEventHandler<OrderReturnedToSender, PublishOrderIntegrationEventsHandler>();   // e-shop krok 26D: → OrderReturnedToSenderV1
+        services.AddDomainEventHandler<OrderStatusChanged, PublishOrderIntegrationEventsHandler>();   // vzhled krok F3a: → OrderStatusChangedV1
 
         // Sága objednávky (krok 9, orchestrace): orchestrátor poslouchá události objednávky (doménové)
         // a odpovědi skladu (integrační).

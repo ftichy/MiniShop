@@ -92,7 +92,8 @@ public static class AccountsServiceCollectionExtensions
     private static Task RespondOrRedirect(RedirectContext<CookieAuthenticationOptions> context, int apiStatusCode,
         string? redirectPath = null)
     {
-        if (context.Request.Path.StartsWithSegments("/api"))
+        // Vzhled krok F3a: i hub živých aktualizací (/hubs/…) – WebSocket ani SignalR klient přesměrování na stránku nezpracují.
+        if (context.Request.Path.StartsWithSegments("/api") || context.Request.Path.StartsWithSegments("/hubs"))
         {
             context.Response.StatusCode = apiStatusCode;
         }

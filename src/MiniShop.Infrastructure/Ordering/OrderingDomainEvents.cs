@@ -25,6 +25,7 @@ public static class OrderingDomainEvents
         OrderShipped e => OutboxMessageFactory.Create(e, ToPayload(e.Order)),
         OrderShipmentRequested e => OutboxMessageFactory.Create(e, ToPayload(e.Order)),   // e-shop krok 26B
         OrderReturnedToSender e => OutboxMessageFactory.Create(e, ToPayload(e.Order)),   // e-shop krok 26D
+        OrderStatusChanged e => OutboxMessageFactory.Create(e, ToPayload(e.Order)),   // vzhled krok F3a
         OrderCompleted e => OutboxMessageFactory.Create(e, ToPayload(e.Order)),
         OrderCancelled e => OutboxMessageFactory.Create(e, ToPayload(e.Order)),
         OrderReturnRequested e => OutboxMessageFactory.Create(e, ToPayload(e.Order)),   // e-shop krok 12

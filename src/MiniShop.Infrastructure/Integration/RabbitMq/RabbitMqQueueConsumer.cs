@@ -32,6 +32,23 @@ public abstract class RabbitMqQueueConsumer(RabbitMqConnection connection, ILogg
     protected abstract Task HandleAsync(IIntegrationMessage message, string payload, bool redelivered,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Jméno fronty pro metriky a trasy. Vzhled krok F3a: dočasné fronty kopií mají v názvu náhodnou část – do metrik
+    /// jde jen společné jméno (jinak by každé nasazení přidalo nové řady v Grafaně).
+    /// </summary>
+    protected virtual string TelemetryQueueName => QueueName;
+
+    /// <summary>
+    /// Založí frontu consumera: trvalou (přežije restart brokeru) a k ní dead-letter frontu (EDA krok 13).
+    /// Vzhled krok F3a: rozesílací consumer si zakládá dočasnou frontu bez dead-letter.
+    /// </summary>
+    protected virtual async Task DeclareQueueAsync(IChannel channel, CancellationToken cancellationToken)
+    {
+        await channel.QueueDeclareAsync(QueueName, durable: true, exclusive: false, autoDelete: false,
+            cancellationToken: cancellationToken);
+        await RabbitMqDeadLetters.DeclareDeadQueueAsync(channel, QueueName, cancellationToken);   // EDA krok 13
+    }
+
     public async Task RunAsync(CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested)
@@ -66,9 +83,7 @@ public abstract class RabbitMqQueueConsumer(RabbitMqConnection connection, ILogg
         await using var channel = await connection.CreateChannelAsync(publisherConfirms: false, cancellationToken);
 
         // Vlastní fronta consumera + napojení na exchange odebíraných kontraktů (binding).
-        await channel.QueueDeclareAsync(QueueName, durable: true, exclusive: false, autoDelete: false,
-            cancellationToken: cancellationToken);
-        await RabbitMqDeadLetters.DeclareDeadQueueAsync(channel, QueueName, cancellationToken);   // EDA krok 13
+        await DeclareQueueAsync(channel, cancellationToken);
         foreach (var contractName in ContractNames)
         {
             await RabbitMqTopology.DeclareExchangeAsync(channel, contractName, cancellationToken);
@@ -100,13 +115,13 @@ public abstract class RabbitMqQueueConsumer(RabbitMqConnection connection, ILogg
     {
         var type = delivery.BasicProperties.Type ?? string.Empty;
         var messageId = delivery.BasicProperties.MessageId;
-        var tags = new TagList { { "message.type", type }, { "queue", QueueName } };
+        var tags = new TagList { { "message.type", type }, { "queue", TelemetryQueueName } };
 
         // Krok 11: span zpracování jako potomek odesílatele (hlavička traceparent) – trasa přeskočí frontu.
         // Uvnitř je Activity.Current = tento span, takže zprávy, které handler uloží do outboxu, pokračují ve stejné trase.
         using var activity = MessagingTelemetry.StartProcessActivity(type,
             Guid.TryParse(messageId, out var id) ? id : Guid.Empty,
-            RabbitMqMessage.ReadTraceParent(delivery.BasicProperties), QueueName);
+            RabbitMqMessage.ReadTraceParent(delivery.BasicProperties), TelemetryQueueName);
 
         IIntegrationMessage message;
         string payload;

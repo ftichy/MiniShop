@@ -93,7 +93,7 @@ else if (Model.NeedsEmailConfirmation)
 
 @* Vzhled krok F2: živý výřez – dokud některá objednávka čeká na sklad (sága), htmx ho každé 3 s vymění za čerstvý;
    formuláře hledání a průběhu nad ním zůstanou, jak jsou. *@
-<div id="orders-live" live-region="@Model.HasPendingOrders">
+<div id="orders-live" live-region="@Model.HasPendingOrders" live-topic="@(Model.IsManagementView ? MiniShop.Web.LiveUpdates.LiveTopics.AllOrders : MiniShop.Web.LiveUpdates.LiveTopics.MyOrders)">
 @if (Model.HasPendingOrders)
 {
     <p class="text-muted small" data-track="orders-waiting">Některé objednávky čekají na ověření skladu, stav se sám aktualizuje…</p>

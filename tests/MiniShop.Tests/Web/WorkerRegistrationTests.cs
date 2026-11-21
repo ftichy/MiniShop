@@ -20,7 +20,8 @@ public sealed class WorkerRegistrationTests(MiniShopWebFactory web)
     {
         _ = web.Services;   // postaví Web (registrace workerů se zachytí před jejich odebráním)
 
-        AssertLeaderOnly(web.RegisteredWorkers, "OrderSagaTimeoutWorker", "CartReminderWorker", "ShipmentReconciliationWorker", "CatalogSyncOnStartupWorker",
+        // Vzhled krok F3a: Web má navíc rozeslání živých aktualizací – v každé kopii (každá má své připojené prohlížeče).
+        AssertLeaderOnly(web.RegisteredWorkers, [.. AllInstances, typeof(RabbitMqBroadcastWorker)], "OrderSagaTimeoutWorker", "CartReminderWorker", "ShipmentReconciliationWorker", "CatalogSyncOnStartupWorker",
             "PurchasesSyncOnStartupWorker", "OutboxWorker", "MessageRetentionWorker", "LoginAttemptRetentionWorker",
             "OperationalMetricsWorker");
     }
@@ -32,7 +33,7 @@ public sealed class WorkerRegistrationTests(MiniShopWebFactory web)
         using var api = new MiniShop.Tests.NotificationsApi.NotificationsApiFactory();
         _ = api.Services;
 
-        AssertLeaderOnly(api.RegisteredWorkers, "OutboxWorker", "MessageRetentionWorker", "OperationalMetricsWorker");
+        AssertLeaderOnly(api.RegisteredWorkers, AllInstances, "OutboxWorker", "MessageRetentionWorker", "OperationalMetricsWorker");
     }
 
     /// <summary>Mikroservisy M1: přestavění prázdného přehledu po startu se přestěhovalo z Webu do služby přehledu.</summary>
@@ -42,7 +43,7 @@ public sealed class WorkerRegistrationTests(MiniShopWebFactory web)
         using var api = new ReportingApiFactory();
         _ = api.Services;
 
-        AssertLeaderOnly(api.RegisteredWorkers, "SalesReportOnStartupWorker", "OutboxWorker", "MessageRetentionWorker",
+        AssertLeaderOnly(api.RegisteredWorkers, AllInstances, "SalesReportOnStartupWorker", "OutboxWorker", "MessageRetentionWorker",
             "OperationalMetricsWorker");
     }
 
@@ -52,12 +53,12 @@ public sealed class WorkerRegistrationTests(MiniShopWebFactory web)
         using var api = new InventoryApiFactory();
         _ = api.Services;
 
-        AssertLeaderOnly(api.RegisteredWorkers, "OutboxWorker", "MessageRetentionWorker", "OperationalMetricsWorker");
+        AssertLeaderOnly(api.RegisteredWorkers, AllInstances, "OutboxWorker", "MessageRetentionWorker", "OperationalMetricsWorker");
     }
 
-    private static void AssertLeaderOnly(List<Type> registered, params string[] expectedLeaderOnly)
+    private static void AssertLeaderOnly(List<Type> registered, Type[] allInstances, params string[] expectedLeaderOnly)
     {
-        Assert.Equivalent(AllInstances, registered.Where(t => !t.IsGenericType).ToList(), strict: true);
+        Assert.Equivalent(allInstances, registered.Where(t => !t.IsGenericType).ToList(), strict: true);
 
         var leaderOnly = registered.Where(t => t.IsGenericType).ToList();
         Assert.All(leaderOnly, t => Assert.Equal(typeof(LeaderOnlyHostedService<>), t.GetGenericTypeDefinition()));

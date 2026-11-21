@@ -192,6 +192,9 @@ public static class ShopFlow
     public static async Task PayByCardAsync(IPage page, int orderId)
     {
         await ReloadUntilAsync(page, $"/Orders/{orderId}", page.Locator("[data-track=order-pay]"), "odkaz Zaplatit (sága rezervuje zboží)");
+        // Vzhled krok F3a: detail čeká na platbu (živý výřez s tématem) – prohlížeč se připojí k /hubs/live (SignalR přes WebSocket).
+        await page.WaitForFunctionAsync("() => window.minishopLive && window.minishopLive.connected === true",
+            null, new() { Timeout = 20_000 });
         await page.Locator("[data-track=order-pay]").ClickAsync();
         await page.WaitForURLAsync(new Regex("/Pay/"));
         await ReloadUntilAsync(page, page.Url, page.Locator("[data-track=pay-confirm]"), "tlačítko platby na bráně");

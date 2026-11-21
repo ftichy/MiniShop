@@ -276,10 +276,15 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
         HandleCookies = true
     });
 
-    /// <summary>Přihlášení přes skutečný formulář /Account/Login.</summary>
-    public async Task<HttpClient> LoginAsync(string email, string password)
+    /// <summary>
+    /// Přihlášení přes skutečný formulář /Account/Login. Vzhled krok F3a: s <paramref name="cookies"/> zůstanou cookies
+    /// přihlášení v kontejneru – použije je i jiný klient (SignalR v <c>LiveUpdatesHubTests</c>).
+    /// </summary>
+    public async Task<HttpClient> LoginAsync(string email, string password, System.Net.CookieContainer? cookies = null)
     {
-        var client = CreateBrowser();
+        var client = cookies is null
+            ? CreateBrowser()
+            : CreateDefaultClient(new Uri("https://localhost"), new Microsoft.AspNetCore.Mvc.Testing.Handlers.CookieContainerHandler(cookies));
         var response = await client.PostAsync("/Account/Login", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = await GetAntiforgeryTokenAsync(client, "/Account/Login"),

@@ -227,6 +227,8 @@
     <script src="~/lib/htmx/htmx.min.js" asp-append-version="true"></script>
     <script src="~/js/cart-add.js" asp-append-version="true"></script>
     @* Vzhled krok F2: živé výřezy (tag helper live-region) – pojistka, ať výměna nesmaže rozepsaný formulář. *@
+    @* Vzhled krok F3a: SignalR klient (lokálně) – živé výřezy se obnoví hned na signál od serveru. *@
+    <script src="~/lib/signalr/signalr.min.js" asp-append-version="true"></script>
     <script src="~/js/live-region.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>

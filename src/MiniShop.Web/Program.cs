@@ -112,6 +112,9 @@ try
 
     // Kroky 5 a 8: outbox worker + RabbitMQ (fronty minishop.ordering a minishop.audit), viz sekce "Messaging".
     builder.Services.AddMessaging(builder.Configuration);
+    // Vzhled krok F3a: živé aktualizace – SignalR hub + rozeslání vybraných zpráv každé kopii Webu (dočasná fronta v RabbitMQ).
+    builder.Services.AddSignalR();
+    builder.Services.AddBroadcastConsumer<MiniShop.Web.LiveUpdates.LiveUpdatesNotifier>(MiniShop.Web.LiveUpdates.LiveUpdatesNotifier.Contracts);
 
     // Cloud krok 1: klíče, kterými ASP.NET podepisuje antiforgery token formulářů. V kontejneru se jinak
     // drží jen v paměti → po restartu (každém nasazení) by otevřený formulář objednávky skončil chybou 400.
@@ -219,6 +222,7 @@ try
 
     app.MapControllers();
     app.MapRazorPages();
+    app.MapHub<MiniShop.Web.LiveUpdates.LiveUpdatesHub>(MiniShop.Web.LiveUpdates.LiveUpdatesHub.Path);   // vzhled krok F3a
     app.MapProductImages();   // e-shop krok 2B: /media/products/{soubor} – obrázky ze skladu, veřejně a s cache
     app.MapDefaultEndpoints();
 

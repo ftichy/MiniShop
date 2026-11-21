@@ -349,6 +349,10 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         // E-shop krok 26C: webhook dopravce – bez přihlášení, chrání ho podpis Carrier-Signature s časem: bez něj 401.
         { Who.Anonymous, "POST", "/api/shipping/carrier-webhook", Expect.Unauthorized },
         { Who.User, "POST", "/api/shipping/carrier-webhook", Expect.Unauthorized },
+        // Vzhled krok F3a: hub živých aktualizací jen přihlášeným (odběr témat hlídá hub sám – LiveUpdatesHubTests).
+        { Who.Anonymous, "POST", "/hubs/live/negotiate?negotiateVersion=1", Expect.Unauthorized },
+        { Who.User, "POST", "/hubs/live/negotiate?negotiateVersion=1", Expect.Allowed },
+        { Who.Admin, "POST", "/hubs/live/negotiate?negotiateVersion=1", Expect.Allowed },
     };
 
     [Theory]

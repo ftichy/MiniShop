@@ -53,7 +53,7 @@ public sealed class FulfilmentPageTests(MiniShopWebFactory web)
         var page = Decode(raw);
         Assert.Contains($"Objednávka č. {orderId} se předává dopravci", page);
         Assert.Contains("data-track=\"fulfilment-handing-over\"", page);
-        LiveRegionTests.AssertLive(raw, "fulfilment-live", "/Admin/Fulfilment");   // vzhled F2: čeká na číslo zásilky – výřez se obnovuje
+        LiveRegionTests.AssertLive(raw, "fulfilment-live", "/Admin/Fulfilment", "staff:fulfilment");   // vzhled F2: čeká na číslo zásilky – výřez se obnovuje
         Assert.DoesNotContain("Zrušit objednávku", await DetailAsync(customer, orderId));
 
         await PostAsync(admin, $"/Admin/Fulfilment?handler=HandOver&id={orderId}");   // dvojklik

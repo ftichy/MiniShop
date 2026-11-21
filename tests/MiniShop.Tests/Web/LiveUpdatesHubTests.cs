@@ -96,6 +96,12 @@ public sealed class LiveUpdatesHubTests(MiniShopWebFactory web)
 
         var refund = LiveUpdatesNotifier.Targets(new PaymentRefundedV1(Guid.NewGuid(), DateTime.UtcNow, 42, 100m));
         Assert.Equal([("order:42", "order:42"), (LiveTopics.Returns, LiveTopics.Returns)], refund);
+
+        // Vzhled krok F3b: krok dopravce – detail objednávky a Expedice (seznam zákazníka zásilku neukazuje).
+        var shipment = LiveUpdatesNotifier.Targets(new MiniShop.Contracts.Shipping.ShipmentStatusChangedV1(
+            Guid.NewGuid(), DateTime.UtcNow, 42, "CS123", "InTransit", DateTime.UtcNow));
+        Assert.Equal([("order:42", "order:42"), (LiveTopics.Fulfilment, LiveTopics.Fulfilment)], shipment);
+        Assert.Contains(typeof(MiniShop.Contracts.Shipping.ShipmentStatusChangedV1), LiveUpdatesNotifier.Contracts);
     }
 
     private async Task<HubConnection> ConnectAsync(string email, string password)

@@ -105,6 +105,9 @@ public sealed partial class OrderServiceTests
         var tracking = await TrackingAsync(order.Id);
         Assert.Equal(["PickedUp", "InTransit", "OutForDelivery", "Delivered"], tracking.Steps.Select(s => s.Status));
         Assert.Single(_bus.Published.OfType<ShipmentDeliveredV1>());
+        // Vzhled krok F3b: každý krok dopravce = jeden signál pro otevřené stránky.
+        Assert.Equal(["PickedUp", "InTransit", "OutForDelivery", "Delivered"],
+            _bus.Published.OfType<ShipmentStatusChangedV1>().Select(m => m.Status));
         Assert.Single(_bus.Published.OfType<OrderCompletedV1>(), c => c.OrderId == order.Id);   // e-mail „doručeno“, faktura u dobírky …
     }
 
@@ -121,6 +124,10 @@ public sealed partial class OrderServiceTests
         Assert.Equal("Delivered", tracking.Status);   // „doručuje se“ přišlo po „doručeno“ – stav zůstal
         Assert.Equal(4, tracking.Steps.Count);         // duplicity se do historie nezapsaly
         Assert.Single(_bus.Published.OfType<ShipmentDeliveredV1>());
+        // Vzhled krok F3b: duplicity ani pozdní zprávy signál nepošlou – každý stav nejvýš jednou, konec „doručeno“.
+        var signals = _bus.Published.OfType<ShipmentStatusChangedV1>().Select(m => m.Status).ToList();
+        Assert.Equal(signals.Distinct(), signals);
+        Assert.Equal("Delivered", signals[^1]);
     }
 
     [Fact]
@@ -188,6 +195,7 @@ public sealed partial class OrderServiceTests
         Assert.Equal(["PickedUp", "InTransit", "OutForDelivery", "Delivered"], (await TrackingAsync(order.Id)).Steps.Select(s => s.Status));
         Assert.Equal("Delivered", (await TrackingAsync(order.Id)).Status);
         Assert.Single(_bus.Published.OfType<ShipmentDeliveredV1>());   // doplnění historie nic dalšího neoznámí
+        Assert.DoesNotContain(_bus.Published.OfType<ShipmentStatusChangedV1>(), m => m.Status == "InTransit");   // doplněný mezikrok signál nepošle (F3b)
 
         Assert.Equal(0, await ReconcileAfterAsync(TimeSpan.FromMinutes(3)));   // jen jednou
     }

@@ -49,13 +49,16 @@ sequenceDiagram
   dotazování stránky. Do metrik jde jen jméno `minishop.live` (bez náhodné části – limit řad v Grafaně).
 - **Komu** – [LiveUpdatesNotifier](code:src/MiniShop.Web/LiveUpdates/LiveUpdatesNotifier.cs): zpráva → skupiny SignalR.
   Změna stavu → objednávka, seznam zákazníka, přehled všech objednávek, Expedice, Vratky; vratky po částech a jejich sága
-  (naskladněno, peníze vráceny) → objednávka a Vratky; odmítnutí dopravcem → objednávka a Expedice.
+  (naskladněno, peníze vráceny) → objednávka a Vratky; odmítnutí dopravcem a **krok zásilky u dopravce**
+  (`ShipmentStatusChangedV1`, vzhled krok F3b – převzato, na cestě, nezastižen…; stav objednávky se přitom nemění)
+  → objednávka a Expedice. Platba (`/Pay`) signál nemá – ptá se 3 s jen pár sekund, než se platba založí (záměrně,
+  kvůli tomu nový kontrakt v Payments nedává smysl).
 - **Hub** – [LiveUpdatesHub](code:src/MiniShop.Web/LiveUpdates/LiveUpdatesHub.cs) (`/hubs/live`, jen přihlášení):
   prohlížeč se přihlásí k **tématu** (`order:42`, `my-orders`, `staff:fulfilment`, `staff:returns`, `staff:orders`) – se
   **stejnými oprávněními jako stránka** (cizí objednávku ne, Expedici jen sklad). „Moje objednávky“ = skupina podle ID účtu
   z přihlášení, ne od prohlížeče. Bez práva = chyba odběru a stránka zůstane u dotazování.
 - **Prohlížeč** – [live-region.js](code:src/MiniShop.Web/wwwroot/js/live-region.js) + klient `@microsoft/signalr` lokálně:
-  výřez s `live-topic` se přihlásí; signál → obnovit hned, pojistně jednou za 30 s. Bez spojení (výpadek, starý prohlížeč)
+  výřez s `live-topic` se přihlásí; signál → obnovit hned, pojistně jednou za 60 s (do kroku F3b 30 s). Bez spojení (výpadek, starý prohlížeč)
   každé 3 s jako dřív. Připojení **rovnou přes WebSocket** bez úvodního vyjednávání – vyjednávání a spojení by jinak
   u dvou kopií za Caddy mohly trefit různé kopie.
 - Signál **nenese data** – co se změnilo, si stránka stáhne sama, se svými oprávněními (bezpečnější a jednodušší).

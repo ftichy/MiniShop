@@ -1,7 +1,7 @@
 // Živé výřezy (tag helper live-region): část stránky, kterou htmx obnoví na událost „live-refresh“ – stáhne tutéž
 // stránku na pozadí a vymění jen výřez. Tenhle soubor rozhoduje, KDY obnovit:
 //  - vzhled krok F3a: výřez s tématem (data-live-topic) a připojený SignalR (/hubs/live) → hned na signál od serveru
-//    „changed(téma)“, pojistně jednou za 30 s (signál se mohl ztratit);
+//    „changed(téma)“, pojistně jednou za 60 s (signál se mohl ztratit);
 //  - bez tématu, bez spojení nebo bez práva na téma → každé 3 s (jako vzhled krok F2).
 // A pojistka (vzhled krok F2): výměnu odloží, dokud ve výřezu uživatel něco mění (zaškrtnutí, text, rozbalený formulář).
 (function () {
@@ -12,7 +12,7 @@
     }
 
     const FALLBACK_MS = 3000;       // bez signálu – jako F2
-    const SIGNALED_MS = 30000;      // se signálem – jen pojistka
+    const SIGNALED_MS = 60000;      // se signálem – jen pojistka (vzhled F3b: signál chodí i pro kroky zásilky)
     const RECONNECT_MS = 15000;     // nové spojení po úplném odpojení
     const HUB_URL = '/hubs/live';
 

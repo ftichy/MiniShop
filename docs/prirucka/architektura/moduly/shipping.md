@@ -127,6 +127,10 @@ sequenceDiagram
   (2 min po konci, aby stihly dorazit i opožděné webhooky) a chybějící stavy doplní jen do historie – stav, objednávka
   ani zprávy se nemění. Seznamy stavů „na cestě“ a „ukončeno“ jsou jen v doméně (`Shipment.OnTheWayStatuses`,
   `FinishedStatuses`) – v 26D je repozitář měl zvlášť a dohledání nové stavy neznalo.
+- **Živě na stránkách (vzhled krok F3b).** Každá skutečná změna stavu zásilky (vyšší pořadí, jiný stav) vyvolá doménovou
+  `ShipmentStatusChanged` → `ShipmentStatusChangedV1` ve stejné transakci; Web ji dostane rozesláním každé kopii a pošle
+  signál detailu objednávky a Expedici ([živé aktualizace](../../eda/zive-aktualizace.md)). Duplicity, pozdní zprávy
+  a doplnění historie signál neposílají (ukáže je pojistka stránky).
 - **Grafana (26E).** [ShipmentStatusSource](code:src/MiniShop.Infrastructure/Shipping/ShipmentStatusSource.cs): zásilky na cestě
   podle stavu, ukončené za 24 h a zaseknuté (15 min bez novinky) → alarm `MiniShopShipmentStale`, řádek Dopravce
   v dashboardu – viz [observabilita](../../eda/observabilita.md).

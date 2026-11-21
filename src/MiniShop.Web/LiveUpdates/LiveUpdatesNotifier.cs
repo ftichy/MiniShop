@@ -22,6 +22,7 @@ public sealed class LiveUpdatesNotifier(IHubContext<LiveUpdatesHub> hub) : IBroa
     [
         typeof(OrderStatusChangedV1),         // každá změna stavu objednávky
         typeof(ShipmentFailedV1),             // dopravce odmítl – hláška v Expedici a na detailu
+        typeof(ShipmentStatusChangedV1),      // vzhled F3b: krok dopravce (převzato, na cestě, nezastižen…) – průběh zásilky
         typeof(ReturnRequestedV2), typeof(ReturnRejectedV2), typeof(ReturnCompletedV2),   // vratky po částech (stav objednávky se nemění)
         typeof(ReturnedGoodsRestockedV1), typeof(ReturnedGoodsRestockedV2),               // sága vratky: naskladněno
         typeof(PaymentRefundedV1), typeof(PaymentRefundedV2)                              // sága vratky: peníze vráceny
@@ -42,6 +43,7 @@ public sealed class LiveUpdatesNotifier(IHubContext<LiveUpdatesHub> hub) : IBroa
         {
             OrderStatusChangedV1 m => m.OrderId,
             ShipmentFailedV1 m => m.OrderId,
+            ShipmentStatusChangedV1 m => m.OrderId,
             ReturnRequestedV2 m => m.OrderId,
             ReturnRejectedV2 m => m.OrderId,
             ReturnCompletedV2 m => m.OrderId,
@@ -71,7 +73,7 @@ public sealed class LiveUpdatesNotifier(IHubContext<LiveUpdatesHub> hub) : IBroa
             targets.Add((LiveTopics.Fulfilment, LiveTopics.Fulfilment));
             targets.Add((LiveTopics.Returns, LiveTopics.Returns));
         }
-        else if (message is ShipmentFailedV1)
+        else if (message is ShipmentFailedV1 or ShipmentStatusChangedV1)
         {
             targets.Add((LiveTopics.Fulfilment, LiveTopics.Fulfilment));
         }

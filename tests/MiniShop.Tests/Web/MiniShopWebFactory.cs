@@ -119,6 +119,8 @@ public sealed partial class MiniShopWebFactory : WebApplicationFactory<MiniShop.
             services.AddSingleton<IProductImageService, StubProductImageService>();
             services.RemoveAll<ISalesReportApi>();
             services.AddSingleton<ISalesReportApi>(SalesReports);
+            services.RemoveAll<ILeadTimeApi>();   // proud B2
+            services.AddSingleton<ILeadTimeApi>(SalesReports);
             services.RemoveAll<IServiceMessages>();   // mikroservisy M2B: Web v procesu, ostatní služby podvržené
             services.AddScoped<IServiceMessages, LocalServiceMessages>();
             services.AddSingleton<IServiceMessages>(InventoryMessages);

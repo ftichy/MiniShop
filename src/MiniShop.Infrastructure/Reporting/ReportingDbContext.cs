@@ -19,6 +19,12 @@ public sealed class ReportingDbContext(DbContextOptions<ReportingDbContext> opti
 
     public DbSet<SalesOrder> SalesOrders => Set<SalesOrder>();
 
+    /// <summary>Proud B2: časy objednávek pro přehled Rychlost vyřízení (plní jen přehrávání proudu).</summary>
+    public DbSet<OrderLeadTime> OrderLeadTimes => Set<OrderLeadTime>();
+
+    /// <summary>Proud B2: záložky čtenářů proudu – ukládají se ve stejné transakci jako data projekce.</summary>
+    public DbSet<StreamCheckpoint> StreamCheckpoints => Set<StreamCheckpoint>();
+
     // Reporting nemá doménové události – kdyby nějaká vznikla, chyba se ukáže hned.
     protected override IEnumerable<OutboxMessage> ToOutboxMessages(IDomainEvent domainEvent) =>
         throw new InvalidOperationException($"Modul Reporting nemá doménové události ({domainEvent.GetType().Name}).");

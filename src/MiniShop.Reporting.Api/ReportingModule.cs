@@ -17,6 +17,7 @@ public static class ReportingModule
     public static IServiceCollection AddReportingModule(this IServiceCollection services)
     {
         services.AddScoped<SalesReportService>();
+        services.AddScoped<LeadTimeReportService>();   // proud B2: Rychlost vyřízení (plní LeadTimeProjectionWorker z proudu)
         services.AddIntegrationMessageHandler<OrderPlacedV2, SalesProjectionHandler>(IntegrationModules.Reporting);
         services.AddIntegrationMessageHandler<OrderConfirmedV1, SalesProjectionHandler>(IntegrationModules.Reporting);
         services.AddIntegrationMessageHandler<OrderRejectedV1, SalesProjectionHandler>(IntegrationModules.Reporting);

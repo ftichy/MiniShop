@@ -66,10 +66,35 @@ flowchart LR
 - **Do zálohy nepatří** – je to kopie, data jsou v databázích modulů.
 - Historie začíná nasazením kroku B1; přehrát jde nejvýš 14 dní zpět.
 
-## Kudy dál
+## Trvalý čtenář se záložkou – projekce přehráním (krok B2)
 
-- **Krok B2:** nový čtecí model postavený **jen přehráním proudu** (vlastní záložka v databázi modulu, „přestavět“ =
-  záložka na začátek) – srovnání s přestavěním přes snímky v [CQRS](cqrs.md).
+Stránka Proud zpráv si proud jen **prohlédne** (přečte od času a odpojí se). Krok B2 přidal **trvalého čtenáře**: poslouchá
+proud pořád a staví čtecí model **Rychlost vyřízení** (jak dlouho trvá potvrzení, expedice a doručení) – jen ze zpráv
+v proudu, Ordering o něm neví.
+
+```mermaid
+sequenceDiagram
+    participant S as proud minishop.events
+    participant W as LeadTimeProjectionWorker (Reporting.Api)
+    participant DB as schéma reporting
+    W->>DB: záložka? (StreamCheckpoints: offset 41, generace 2)
+    W->>S: číst od offsetu 42 (x-stream-offset = 42, bez záložky „first“)
+    S-->>W: zprávy 42…141 (OrderStatusChangedV1, ShipmentStatusChangedV1, ostatní přeskočí)
+    W->>DB: JEDNA transakce: OrderLeadTimes + záložka = 141 (generace musí být pořád 2)
+    Note over W,DB: pád mezi dávkami → po startu znovu od 142 – nic dvakrát, nic vynechané
+```
+
+- **Záložka ve stejné transakci jako data** (`StreamCheckpoints` vedle `OrderLeadTimes`) – efekt „přesně jednou“ bez
+  inboxu. Dávky po 100 zprávách nebo 1 s.
+- **Přestavění = přetočit záložku:** v jedné transakci smazat data, záložku na začátek a zvýšit **generaci**. Běžící čtenář
+  u další dávky uvidí jinou generaci, rozpracované zahodí a čte od `first`. Dávka uložená zrovna v tu chvíli neprojde –
+  záložka má concurrency token (`Version`). Ordering se na nic neptá – srovnání s přestavěním přes snímky v [CQRS](cqrs.md).
+- **Limit:** přehraje se jen to, co proud drží (14 dní). Proto proud nenahrazuje snímky – doplňuje je.
+- **Nečitelná zpráva:** proud nemá dead-letter frontu – čtenář ji zaloguje, přeskočí a záložka jde dál.
+
+Kód: [LeadTimeProjectionWorker](code:src/MiniShop.Infrastructure/Reporting/LeadTimeProjectionWorker.cs),
+[LeadTimeReportService](code:src/MiniShop.Application/Reporting/LeadTimeReportService.cs),
+[OrderLeadTime a StreamCheckpoint](code:src/MiniShop.Domain/Reporting/OrderLeadTime.cs); stránka `/Admin/LeadTimes`.
 
 ## Na internetu
 

@@ -20,6 +20,7 @@ public static class ReportingInfrastructure
         services.AddScoped<IReportingUnitOfWork>(sp => sp.GetRequiredService<ReportingDbContext>());
         services.AddScoped<IReportingMessagePublisher, ReportingMessagePublisher>();
         services.AddScoped<ISalesOrderRepository, SalesOrderRepository>();
+        services.AddScoped<ILeadTimeRepository, LeadTimeRepository>();   // proud B2
 
         services.AddSingleton<IOutboxProcessor, OutboxProcessor<ReportingDbContext>>();
         services.AddHealthChecks().AddCheck<OutboxHealthCheck<ReportingDbContext>>("outbox-reporting");

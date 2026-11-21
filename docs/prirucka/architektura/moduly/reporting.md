@@ -66,3 +66,12 @@ flowchart LR
   Přestavění je dostane ve snímku `OrderPartialReturnsSnapshotV1` (Ordering ho pošle vedle `OrderSnapshotV1`, jen u objednávek s vratkou).
 - **Vráceno** – součet `PaymentRefundedV1` za 30 dní (po přestavění 0 – platby zná jen Payments).
 - **Počty podle stavu** – zjednodušené stavy: čeká, potvrzená (i balená a odeslaná), doručená, zamítnutá, zrušená.
+
+## Rychlost vyřízení (proud krok B2)
+
+Druhý čtecí model ve stejné službě – ale **ne z fronty `minishop.reporting`, nýbrž z proudu** `minishop.events`
+([Proud zpráv](../../eda/proud-zprav.md)): [LeadTimeProjectionWorker](code:src/MiniShop.Infrastructure/Reporting/LeadTimeProjectionWorker.cs)
+(vedoucí kopie) čte `OrderStatusChangedV1` a `ShipmentStatusChangedV1`, plní `OrderLeadTimes` a záložku `StreamCheckpoints`
+v jedné transakci. API `/api/lead-times` (+ `/rebuild`), stránka Webu `/Admin/LeadTimes` (sklad, podpora, účetní).
+Doby: potvrzení (vznik → potvrzení), expedice (potvrzení → odeslání), doručení (odeslání → doručení, jen dopravce);
+p50/p95 po dnech v českém čase podle dne, kdy krok skončil, 14 dní.

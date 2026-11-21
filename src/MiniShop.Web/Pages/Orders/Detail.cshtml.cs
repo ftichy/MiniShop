@@ -44,6 +44,9 @@ public sealed class DetailModel(
     /// <summary>Účty krok 12B: odkaz na Expedici – sklad.</summary>
     public bool CanFulfil { get; private set; }
 
+    /// <summary>Proud B1: odkaz na zprávy objednávky v proudu – provoz.</summary>
+    public bool CanOperate { get; private set; }
+
     /// <summary>
     /// Účty krok 12A: vlastní objednávka přihlášeného zákazníka – vratku a platbu nabízí jen tady (zaměstnanec, který je
     /// i zákazník, je u cizích objednávek jen správa).
@@ -134,6 +137,7 @@ public sealed class DetailModel(
         CanManageOrders = (await authorization.AuthorizeAsync(User, AuthorizationPolicies.RequireOrderOverview)).Succeeded;   // účty krok 12B
         CanSupport = (await authorization.AuthorizeAsync(User, AuthorizationPolicies.RequireSupport)).Succeeded;
         CanFulfil = (await authorization.AuthorizeAsync(User, AuthorizationPolicies.RequireFulfilment)).Succeeded;
+        CanOperate = (await authorization.AuthorizeAsync(User, AuthorizationPolicies.RequireOperations)).Succeeded;   // proud B1
         Shipment = Detail.Order.ShippedByCarrier ? await shipments.GetByOrderIdAsync(id, cancellationToken) : null;   // e-shop krok 26C
         IsOwnOrder = Detail.CustomerId == User.FindFirstValue(ClaimTypes.NameIdentifier);
         IsOwnCustomerOrder = IsOwnOrder

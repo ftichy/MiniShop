@@ -115,6 +115,8 @@ try
     // Vzhled krok F3a: živé aktualizace – SignalR hub + rozeslání vybraných zpráv každé kopii Webu (dočasná fronta v RabbitMQ).
     builder.Services.AddSignalR();
     builder.Services.AddBroadcastConsumer<MiniShop.Web.LiveUpdates.LiveUpdatesNotifier>(MiniShop.Web.LiveUpdates.LiveUpdatesNotifier.Contracts);
+    // Proud B1: proud zpráv minishop.events (log, ne fronta) – založení na vedoucí kopii a čtení pro stránku Proud zpráv.
+    builder.Services.AddEventStream();
 
     // Cloud krok 1: klíče, kterými ASP.NET podepisuje antiforgery token formulářů. V kontejneru se jinak
     // drží jen v paměti → po restartu (každém nasazení) by otevřený formulář objednávky skončil chybou 400.

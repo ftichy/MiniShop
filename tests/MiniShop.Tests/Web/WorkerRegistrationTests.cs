@@ -21,7 +21,7 @@ public sealed class WorkerRegistrationTests(MiniShopWebFactory web)
         _ = web.Services;   // postaví Web (registrace workerů se zachytí před jejich odebráním)
 
         // Vzhled krok F3a: Web má navíc rozeslání živých aktualizací – v každé kopii (každá má své připojené prohlížeče).
-        AssertLeaderOnly(web.RegisteredWorkers, [.. AllInstances, typeof(RabbitMqBroadcastWorker)], "OrderSagaTimeoutWorker", "CartReminderWorker", "ShipmentReconciliationWorker", "CatalogSyncOnStartupWorker",
+        AssertLeaderOnly(web.RegisteredWorkers, [.. AllInstances, typeof(RabbitMqBroadcastWorker)], "OrderSagaTimeoutWorker", "CartReminderWorker", "ShipmentReconciliationWorker", "CatalogSyncOnStartupWorker", "EventStreamSetupWorker",
             "PurchasesSyncOnStartupWorker", "OutboxWorker", "MessageRetentionWorker", "LoginAttemptRetentionWorker",
             "OperationalMetricsWorker");
     }

@@ -59,6 +59,7 @@ public sealed class StaffAreaTests(MiniShopWebFactory web)
         ("GET", "/Admin/Sales", [Accounting]),
 
         ("GET", "/Admin/Messages", [Operations]),
+        ("GET", "/Admin/EventStream", [Operations]),   // proud B1
         ("POST", "/Admin/Messages?handler=Requeue&queue=minishop.ordering", [Operations]),
     ];
 

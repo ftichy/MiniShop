@@ -136,6 +136,9 @@ public sealed class AuthorizationMatrixTests(MiniShopWebFactory web)
         { Who.Anonymous, "/Admin/Sales", Expect.Login },                  // e-shop krok 11: přehled tržeb (CQRS)
         { Who.User, "/Admin/Sales", Expect.Denied },
         { Who.Admin, "/Admin/Sales", Expect.Allowed },
+        { Who.Anonymous, "/Admin/LeadTimes", Expect.Login },              // proud B2: Rychlost vyřízení
+        { Who.User, "/Admin/LeadTimes", Expect.Denied },
+        { Who.Admin, "/Admin/LeadTimes", Expect.Allowed },
         { Who.Anonymous, "/Products", Expect.Login },
         { Who.User, "/Products", Expect.Denied },
         { Who.Admin, "/Products", Expect.Allowed },

@@ -30,6 +30,10 @@ public static class RabbitMqEventStream
     /// <summary>Segmenty po 50 MB – retence maže celé segmenty, menší = jemnější mazání (výchozí 500 MB).</summary>
     public const long SegmentBytes = 50_000_000;
 
+    /// <summary>Pořadí zprávy v proudu (offset) – broker ho přidá do hlavičky <c>x-stream-offset</c> každé doručené zprávy.</summary>
+    public static long OffsetOf(IReadOnlyBasicProperties properties) =>
+        properties.Headers?.TryGetValue("x-stream-offset", out var value) == true && value is long number ? number : -1;
+
     /// <summary>Založí proud (idempotentně – stejné argumenty podruhé nic nezmění) a naváže ho na exchange všech kontraktů.</summary>
     public static async Task SetupAsync(RabbitMqConnection connection, CancellationToken cancellationToken)
     {
@@ -173,7 +177,7 @@ public sealed class RabbitMqEventStreamReader(RabbitMqConnection connection, ILo
     private static EventStreamEntry ToEntry(BasicDeliverEventArgs delivery)
     {
         var properties = delivery.BasicProperties;
-        var offset = properties.Headers?.TryGetValue("x-stream-offset", out var value) == true && value is long number ? number : -1;
+        var offset = RabbitMqEventStream.OffsetOf(properties);
         var payload = Encoding.UTF8.GetString(delivery.Body.Span);
         DateTime occurredAt = DateTimeOffset.FromUnixTimeSeconds(properties.Timestamp.UnixTime).UtcDateTime;
         int? orderId = null;

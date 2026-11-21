@@ -21,7 +21,7 @@
         || allowed.Contains(AuthorizationPolicies.RequireReturns) || allowed.Contains(AuthorizationPolicies.RequireMarketing)
         || allowed.Contains(AuthorizationPolicies.RequireSupport);
     var canReportsMenu = allowed.Contains(AuthorizationPolicies.RequireAccounting) || allowed.Contains(AuthorizationPolicies.RequireInvoices)
-        || allowed.Contains(AuthorizationPolicies.RequireMarketing);
+        || allowed.Contains(AuthorizationPolicies.RequireMarketing) || allowed.Contains(AuthorizationPolicies.RequireOrderOverview);   // proud B2: Rychlost vyřízení
     var canOperationsMenu = allowed.Contains(AuthorizationPolicies.RequireUserAdmin) || allowed.Contains(AuthorizationPolicies.RequireOperations);
     var isSignedIn = User.Identity?.IsAuthenticated == true;
     // Účty krok 12C: zaměstnanec bez dvoufázového ověření – správa je zamčená, ukážeme cestu k nastavení.
@@ -118,6 +118,10 @@
                                         @if (allowed.Contains(AuthorizationPolicies.RequireAccounting))
                                         {
                                             <li><a class="dropdown-item" asp-page="/Admin/Sales/Index" data-track="nav-sales">Tržby</a></li>   @* e-shop krok 11 *@
+                                        }
+                                        @if (allowed.Contains(AuthorizationPolicies.RequireOrderOverview))
+                                        {
+                                            <li><a class="dropdown-item" asp-page="/Admin/LeadTimes/Index" data-track="nav-lead-times">Rychlost vyřízení</a></li>   @* proud B2 *@
                                         }
                                         @if (allowed.Contains(AuthorizationPolicies.RequireInvoices))
                                         {

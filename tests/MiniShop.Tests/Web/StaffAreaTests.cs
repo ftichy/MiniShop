@@ -57,6 +57,8 @@ public sealed class StaffAreaTests(MiniShopWebFactory web)
 
         ("GET", "/Admin/Invoices", [Accounting, Support]),
         ("GET", "/Admin/Sales", [Accounting]),
+        ("GET", "/Admin/LeadTimes", [Warehouse, Support, Accounting]),   // proud B2: přehled objednávek
+        ("POST", "/Admin/LeadTimes?handler=Rebuild", [Warehouse, Support, Accounting]),
 
         ("GET", "/Admin/Messages", [Operations]),
         ("GET", "/Admin/EventStream", [Operations]),   // proud B1

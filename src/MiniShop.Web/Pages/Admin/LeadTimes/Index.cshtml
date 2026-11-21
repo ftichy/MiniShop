@@ -1,0 +1,74 @@
+@page
+@model MiniShop.Web.Pages.Admin.LeadTimes.IndexModel
+@{
+    ViewData["Title"] = "Rychlost vyřízení";
+}
+<partial name="_AdminHeader" model='new MiniShop.Web.Ui.AdminHeaderModel("Rychlost vyřízení")' />
+<p class="text-muted">
+    Jak dlouho trvá <strong>potvrzení</strong> (od objednání po potvrzení skladem, u karty i zaplacením),
+    <strong>expedice</strong> (od potvrzení po odeslání) a <strong>doručení</strong> (od předání po doručení – jen zásilky
+    dopravce). Medián (p50) a p95 po dnech, podle dne, kdy krok skončil. Data staví služba přehledů
+    <strong>jen přehráváním proudu zpráv</strong> – Ordering se na nic neptá; proud drží 14 dní.
+</p>
+
+<partial name="_StatusMessage" model="Model.StatusMessage" />
+
+@if (Model.ErrorMessage is not null)
+{
+    <div class="alert alert-warning" data-track="lead-times-unavailable">@Model.ErrorMessage</div>
+}
+else if (Model.Report is { } report)
+{
+    <div class="row g-3 mb-4" data-track="lead-times-summary">
+        @foreach (var (label, stats) in new[] { ("Potvrzení", report.Confirmation), ("Expedice", report.Expedition), ("Doručení", report.Delivery) })
+        {
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="small text-muted">@label – 14 dní</div>
+                        <div class="fs-4 fw-bold">@IndexModel.Format(stats.P50Seconds)</div>
+                        <div class="small text-muted">p95 @IndexModel.Format(stats.P95Seconds) · @stats.Count objednávek</div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="table-responsive admin-table">
+        <table class="table table-sm align-middle" data-track="lead-times-table">
+            <thead>
+                <tr>
+                    <th>Den</th>
+                    <th class="num">Potvrzení p50</th><th class="num">p95</th><th class="num">počet</th>
+                    <th class="num">Expedice p50</th><th class="num">p95</th><th class="num">počet</th>
+                    <th class="num">Doručení p50</th><th class="num">p95</th><th class="num">počet</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var day in report.Days)
+                {
+                    <tr>
+                        <td class="text-nowrap">@day.Day.ToString("d. M.")</td>
+                        <td class="num">@IndexModel.Format(day.Confirmation.P50Seconds)</td><td class="num">@IndexModel.Format(day.Confirmation.P95Seconds)</td><td class="num">@day.Confirmation.Count</td>
+                        <td class="num">@IndexModel.Format(day.Expedition.P50Seconds)</td><td class="num">@IndexModel.Format(day.Expedition.P95Seconds)</td><td class="num">@day.Expedition.Count</td>
+                        <td class="num">@IndexModel.Format(day.Delivery.P50Seconds)</td><td class="num">@IndexModel.Format(day.Delivery.P95Seconds)</td><td class="num">@day.Delivery.Count</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="d-flex flex-wrap align-items-center gap-3 mt-3">
+        <p class="small text-muted mb-0" data-track="lead-times-checkpoint">
+            Záložka v proudu: @(report.Offset is { } offset ? $"zpráva č. {offset}" : "zatím nic (čte se od začátku)")
+            @if (report.LastMessageAtUtc is { } last)
+            {
+                <text>· poslední zpráva @last.ToCzechString()</text>
+            }
+            · přestavěno @(report.Generation)×
+        </p>
+        <form method="post" asp-page-handler="Rebuild">
+            <button type="submit" class="btn btn-sm btn-outline-secondary" data-track="lead-times-rebuild">Přestavět z proudu</button>
+        </form>
+    </div>
+}

@@ -663,10 +663,12 @@ přes stejnou frontu + inbox, UI ve Webu (služby REST API se servisním klíče
 Proud `minishop.events` (RabbitMQ stream, AMQP) vedle front – zprávy se čtením nemažou, retence 14 dní / 1 GB. Souhrny do `docs/kroky-proud/`.
 - **Proud zakládá Web** (`EventStreamSetupWorker`, vedoucí kopie, vazby na všechny kontrakty z `IntegrationMessageReader.ContractNames`) – nový kontrakt se naváže sám. Čtení jen přes `IEventStreamReader` (v testech Webu `FakeEventStreamReader`, skutečný RabbitMQ `EventStreamTests` – Testcontainers).
 - **Osobní údaje ze zpráv na stránce jen přes `PersonalDataMask`** – nové pole s osobním údajem v kontraktu = doplnit `PersonalDataMask.Fields` (hlídá `PersonalDataMaskTests`).
+- **Projekce z proudu = záložka `StreamCheckpoint` ve stejné transakci jako data** (dávky, generace pro přestavění, `Version` proti souběhu); přeskočit offset ≤ záložka; nečitelnou zprávu jen zalogovat (proud nemá dead-letter).
 
 | Krok | Stav | Souhrn |
 | --- | --- | --- |
-| B1. Proud zpráv (stream `minishop.events` navázaný na všechny kontrakty; čtečka od času přes `x-stream-offset`; stránka Proud zpráv `/Admin/EventStream` pro Provoz – pouť objednávky napříč moduly; maskování osobních údajů; testy nad skutečným RabbitMQ) | hotovo v PR | `docs/kroky-proud/krok-b1-proud-zprav.md` |
+| B1. Proud zpráv (stream `minishop.events` navázaný na všechny kontrakty; čtečka od času přes `x-stream-offset`; stránka Proud zpráv `/Admin/EventStream` pro Provoz – pouť objednávky napříč moduly; maskování osobních údajů; testy nad skutečným RabbitMQ) | hotovo (nasazeno 21. 11. 2026 jako `sha-4d02863`; ověřeno uživatelem: pouť objednávky 287 v proudu, osobní údaje zamaskované) | `docs/kroky-proud/krok-b1-proud-zprav.md` |
+| B2. Projekce přehráním (Reporting.Api: `LeadTimeProjectionWorker` – trvalý čtenář proudu, `OrderStatusChangedV1` + `ShipmentStatusChangedV1` → `OrderLeadTimes`, záložka `StreamCheckpoints` ve stejné transakci, přestavění = generace + záložka na začátek; stránka Rychlost vyřízení `/Admin/LeadTimes` – p50/p95 potvrzení, expedice, doručení) | hotovo v PR | `docs/kroky-proud/krok-b2-projekce-prehranim.md` |
 
 ## Stav observability (viz `docs/Observabilita-roadmap.md`)
 Historie telemetrie, dashboard zpráv a ság, alarmy – Grafana Cloud Free (stack `patientjaguar2071`, region EU Germany, 0 Kč).

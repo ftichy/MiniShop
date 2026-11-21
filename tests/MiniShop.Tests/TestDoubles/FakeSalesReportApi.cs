@@ -7,8 +7,29 @@ namespace MiniShop.Tests.TestDoubles;
 /// Mikroservisy M1: služba přehledu tržeb v testech Webu – Reporting.Api neběží. Vrací pevný přehled, počítá žádosti
 /// o přestavění a umí „spadnout“ (<see cref="Available"/>), aby šlo ověřit, že stránka výpadek ustojí.
 /// </summary>
-public sealed class FakeSalesReportApi : ISalesReportApi
+public sealed class FakeSalesReportApi : ISalesReportApi, ILeadTimeApi
 {
+    private int _leadTimeRebuilds;
+
+    /// <summary>Proud B2: kolikrát stránka Rychlost vyřízení požádala o přestavění z proudu.</summary>
+    public int LeadTimeRebuildRequests => _leadTimeRebuilds;
+
+    public Task<LeadTimeReportDto> GetLeadTimesAsync(CancellationToken cancellationToken = default)
+    {
+        ThrowIfUnavailable();
+        var stats = new LeadTimeStatsDto(3, 6.5, 12.0);
+        var none = new LeadTimeStatsDto(0, null, null);
+        return Task.FromResult(new LeadTimeReportDto([new LeadTimeDayDto(new DateOnly(2026, 11, 21), stats, none, none)],
+            stats, none, none, Offset: 41, LastMessageAtUtc: new DateTime(2026, 11, 21, 12, 0, 0, DateTimeKind.Utc), Generation: 2));
+    }
+
+    public Task RebuildLeadTimesAsync(CancellationToken cancellationToken = default)
+    {
+        ThrowIfUnavailable();
+        Interlocked.Increment(ref _leadTimeRebuilds);
+        return Task.CompletedTask;
+    }
+
     private int _rebuildRequests;
 
     public bool Available { get; set; } = true;

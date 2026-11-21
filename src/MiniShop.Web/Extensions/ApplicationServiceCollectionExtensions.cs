@@ -295,6 +295,8 @@ public static class ApplicationServiceCollectionExtensions
         services.AddHttpClient<ISalesReportApi, ReportingApiClient>(http =>
                 http.BaseAddress = new Uri("https+http://reporting-api"))
             .AddHttpMessageHandler(() => new ServiceApiKeyHandler(apiKey));
+        // Proud B2: Rychlost vyřízení – tentýž klient služby (typed client je registrovaný pod ISalesReportApi).
+        services.AddTransient<ILeadTimeApi>(sp => (ReportingApiClient)sp.GetRequiredService<ISalesReportApi>());
 
         return services;
     }

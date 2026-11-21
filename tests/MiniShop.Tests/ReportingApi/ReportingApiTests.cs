@@ -30,6 +30,8 @@ public sealed class ReportingApiTests : IClassFixture<ReportingApiFactory>
     [Theory]
     [InlineData("GET", "/api/sales")]
     [InlineData("POST", "/api/sales/rebuild")]
+    [InlineData("GET", "/api/lead-times")]            // proud B2
+    [InlineData("POST", "/api/lead-times/rebuild")]
     [InlineData("GET", "/api/messages")]   // mikroservisy M2B
     public async Task BezKliceNeboSeSpatnym_401(string method, string url)
     {
@@ -71,6 +73,22 @@ public sealed class ReportingApiTests : IClassFixture<ReportingApiFactory>
 
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
         Assert.Equal(before + 1, await RebuildRequestsAsync());
+    }
+
+    /// <summary>Proud B2: Rychlost vyřízení – prázdná projekce = 14 dní nul; přestavění zvýší generaci záložky.</summary>
+    [Fact]
+    public async Task RychlostVyrizeni_PrestaveniZvysiGeneraci()
+    {
+        var client = _api.CreateAuthorizedClient();
+        var before = await client.GetFromJsonAsync<LeadTimeReportDto>("/api/lead-times");
+
+        using var response = await client.PostAsync("/api/lead-times/rebuild", content: null);
+        var after = await client.GetFromJsonAsync<LeadTimeReportDto>("/api/lead-times");
+
+        Assert.Equal(LeadTimeReportService.Days, before!.Days.Count);
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        Assert.Equal(before.Generation + 1, after!.Generation);
+        Assert.Null(after.Offset);
     }
 
     /// <summary>Mikroservisy M2B: provoz zpráv služby pro /Admin/Messages – jen její modul a jen její fronty.</summary>

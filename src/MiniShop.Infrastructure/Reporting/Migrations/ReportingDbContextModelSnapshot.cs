@@ -18,10 +18,41 @@ namespace MiniShop.Infrastructure.Reporting.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("reporting")
-                .HasAnnotation("ProductVersion", "10.0.14")
+                .HasAnnotation("ProductVersion", "10.0.15")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("MiniShop.Domain.Reporting.OrderLeadTime", b =>
+                {
+                    b.Property<int>("OrderId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("ByCarrier")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("ConfirmedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeliveredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("PlacedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ShippedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("OrderId");
+
+                    b.HasIndex("ConfirmedAtUtc");
+
+                    b.HasIndex("DeliveredAtUtc");
+
+                    b.HasIndex("ShippedAtUtc");
+
+                    b.ToTable("OrderLeadTimes", "reporting");
+                });
 
             modelBuilder.Entity("MiniShop.Domain.Reporting.SalesOrder", b =>
                 {
@@ -56,6 +87,33 @@ namespace MiniShop.Infrastructure.Reporting.Migrations
                     b.HasIndex("PlacedAtUtc");
 
                     b.ToTable("SalesOrders", "reporting");
+                });
+
+            modelBuilder.Entity("MiniShop.Domain.Reporting.StreamCheckpoint", b =>
+                {
+                    b.Property<string>("Name")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("Generation")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("LastMessageAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long?>("Offset")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.HasKey("Name");
+
+                    b.ToTable("StreamCheckpoints", "reporting");
                 });
 
             modelBuilder.Entity("MiniShop.Infrastructure.Inbox.ProcessedMessage", b =>

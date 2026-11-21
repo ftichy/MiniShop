@@ -45,6 +45,8 @@ try
 
     // Outbox worker + RabbitMQ (fronta minishop.reporting).
     builder.Services.AddMessaging(builder.Configuration);
+    // Proud B2: trvalý čtenář proudu minishop.events – přehled Rychlost vyřízení (záložka v DB, jen vedoucí kopie).
+    builder.Services.AddLeaderOnlyHostedService<MiniShop.Infrastructure.Reporting.LeadTimeProjectionWorker>();
 
     // Zero trust: /api jen se servisním klíčem Webu (ReportingApi:ApiKey, secret REPORTING_API_KEY); bez klíče se služba nespustí.
     builder.Services.AddServiceApiKeyAuthentication(

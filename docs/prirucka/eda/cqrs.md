@@ -74,6 +74,10 @@ Kdyby Ordering při přestavění poslal znovu `OrderPlacedV2`, modul Notificati
 „přijali jsme“ o starých objednávkách. Snímek je jiný fakt („takhle objednávka vypadá teď“) a poslouchá ho jen Reporting.
 Stejný vzor jako [obnova kopie katalogu](kopie-katalogu.md) (`SyncCatalogV1`).
 
+**Jiná cesta: přehrát proud (proud krok B2).** Přehled *Rychlost vyřízení* ve stejné službě se přestavuje bez Orderingu –
+přetočí si záložku na začátek [proudu zpráv](proud-zprav.md) a historii přehraje sám. Cena: přehraje jen to, co proud
+ještě drží (14 dní); snímky umí celou historii. Skutečné systémy proto často kombinují obojí – snímek a proud od něj dál.
+
 ## Na co si dát pozor
 
 - **Vrácené platby se přestavěním neobnoví** – zná je modul Payments, ne Ordering. Do tržby se stejně nepočítají

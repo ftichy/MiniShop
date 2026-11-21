@@ -238,7 +238,7 @@ Teď se obnovuje jen **výřez**:
 
 E2E *Nákup kartou* na otevřeném detailu počká na „Potvrzená“ a ověří, že se stránka nenačetla znovu (značka ve `window`).
 **Vzhled krok F3a:** výřez s tématem (`live-topic="order:42"`) se obnoví hned na signál od serveru přes SignalR – dotazování
-zůstává jen jako pojistka (30 s), bez spojení každé 3 s. Jak signál vzniká a proč se rozesílá každé kopii Webu:
+zůstává jen jako pojistka (60 s, v F3a 30 s), bez spojení každé 3 s. Jak signál vzniká a proč se rozesílá každé kopii Webu:
 [Živé aktualizace](../eda/zive-aktualizace.md). Tag helper: `hx-trigger="live-refresh"`, kdy obnovit řídí `live-region.js`.
 
 ## Ikony

@@ -158,7 +158,15 @@ public class Shipment : Entity
         if (sequence > LastSequence && !IsFinished)
         {
             LastSequence = sequence;
+            var previous = Status;
             Status = status;
+            if (status != previous)
+            {
+                // Vzhled krok F3b: signál otevřeným stránkám (detail objednávky, Expedice) – jen skutečná změna stavu,
+                // ne duplicita ani pozdní zpráva (ty sem nedojdou – pořadí nebo konečný stav).
+                Raise(new Events.ShipmentStatusChanged(this, status, occurredAtUtc));
+            }
+
             if (status == ShipmentStatus.Delivered)
             {
                 Raise(new Events.ShipmentDelivered(this, occurredAtUtc));

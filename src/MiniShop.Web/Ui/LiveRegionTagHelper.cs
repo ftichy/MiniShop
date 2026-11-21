@@ -12,7 +12,7 @@ namespace MiniShop.Web.Ui;
 /// </summary>
 /// <remarks>
 /// Kdy obnovit, řídí <c>wwwroot/js/live-region.js</c>: vzhled krok F3a – s tématem (<c>live-topic</c>) a připojeným SignalR
-/// hned na signál od serveru (pojistně jednou za 30 s), jinak (bez tématu, bez spojení) každé 3 s jako v F2.
+/// hned na signál od serveru (pojistně jednou za 60 s – vzhled F3b), jinak (bez tématu, bez spojení) každé 3 s jako v F2.
 /// Výřez musí mít <c>id</c>. Rozepsaný formulář ve výřezu se nepřepíše – live-region.js výměnu odloží.
 /// </remarks>
 [HtmlTargetElement(Attributes = AttributeName)]

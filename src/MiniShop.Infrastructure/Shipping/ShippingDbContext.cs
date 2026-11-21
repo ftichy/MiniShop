@@ -29,6 +29,8 @@ public sealed class ShippingDbContext(DbContextOptions<ShippingDbContext> option
             e.EventId, e.OccurredAtUtc, e.Shipment.OrderId, e.Shipment.FailureReason!))],
         ShipmentDelivered e => [OutboxMessageFactory.Create(new ShipmentDeliveredV1(   // e-shop krok 26C
             e.EventId, e.OccurredAtUtc, e.Shipment.OrderId, e.Shipment.TrackingNumber!, e.OccurredAtUtc))],
+        ShipmentStatusChanged e => [OutboxMessageFactory.Create(new ShipmentStatusChangedV1(   // vzhled krok F3b
+            e.EventId, e.OccurredAtUtc, e.Shipment.OrderId, e.Shipment.TrackingNumber!, e.Status.ToString(), e.OccurredAtUtc))],
         ShipmentReturned e => [OutboxMessageFactory.Create(new ShipmentReturnedV1(     // e-shop krok 26D
             e.EventId, e.OccurredAtUtc, e.Shipment.OrderId, e.Shipment.TrackingNumber!, e.OccurredAtUtc))],
         _ => throw new InvalidOperationException(

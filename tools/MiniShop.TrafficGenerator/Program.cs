@@ -13,6 +13,13 @@ Console.WriteLine(options.Duration is { } duration
     ? $"Cíl {options.BaseUrl}, zákazníků {options.Customers}, délka {duration.TotalMinutes:0.#} min, pauza ~{options.PauseSeconds:0.#} s"
     : $"Cíl {options.BaseUrl}, zákazníků {options.Customers}, kol {options.Rounds}, pauza ~{options.PauseSeconds:0.#} s");
 
+// PC se během běhu nesmí uspat – bez sítě by generátor hlásil chyby, které nezpůsobil MiniShop.
+using var keepAwake = new KeepAwake();
+if (keepAwake.IsActive)
+{
+    Console.WriteLine("PC se během běhu neuspí (obrazovka zůstane svítit); víko nezavírejte.");
+}
+
 // Konec běhu s --duration: po něm už žádný nový scénář (rozpracovaný se dokončí).
 var startedAt = DateTime.UtcNow;
 DateTime? deadline = options.Duration is { } length ? startedAt + length : null;

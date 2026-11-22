@@ -48,7 +48,7 @@ public static class Shop
 
         if (page.Url.StartsWith("/Account/Login", StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException($"Přihlášení {email} selhalo – existuje účet (create-loadtest-users) a sedí heslo?");
+            throw new InvalidOperationException($"Přihlášení {email} selhalo – existuje účet a sedí heslo? Příkaz create-loadtest-users --count N účty doplní a všem nastaví zadané heslo.");
         }
     }
 

@@ -28,7 +28,9 @@ z issue #155; před prvním během proto ruční záloha `sudo systemctl start m
 
 1. **Na serveru založ účty** (heslo se píše do terminálu, nikam se neukládá):
    `docker compose exec web dotnet MiniShop.Web.dll create-loadtest-users --count 4`.
-   Vypíše e-maily a **klíč 2FA skladníka**. Příkaz je idempotentní – existující účty přeskočí.
+   Vypíše e-maily a **klíč 2FA skladníka**. Příkaz je idempotentní – chybějící účty založí, **existujícím testovacím
+   účtům nastaví zadané heslo** a zruší blokaci (klíč 2FA skladníka se nemění). Po každém spuštění tak mají všechny
+   účty stejné heslo – i když jste se napoprvé přepsali. Heslo, které nesplní pravidla (min. 10 znaků), nezaloží nic.
 2. **Na svém PC spusť generátor** (heslo a klíč jen proměnnými prostředí, ne v příkazu):
 
    ```powershell
@@ -49,7 +51,8 @@ Lokálně stačí `--url https://localhost:7180`.
 dotnet run --project tools/MiniShop.TrafficGenerator -- --url https://minishop-tichy.cz --customers 20 --duration 90 --pause 5
 ```
 
-- Účty: `create-loadtest-users --count 20`. Před během ruční záloha a **dost zboží skladem** – 20 zákazníků za 90 min
+- Účty: `create-loadtest-users --count 20`. Účty z dřívějšího běhu (např. 1–4) dostanou stejné heslo jako nové –
+  22. 11. 2026 se jinak zákazníci 5–20 nepřihlásili. Před během ruční záloha a **dost zboží skladem** – 20 zákazníků za 90 min
   udělá řádově stovky objednávek; zrušení a vratky zboží vrátí, doručené ne.
 - **Přihlášení se rozloží** (~8 za minutu, zákazník 20 začne po 2,5 min) – formuláře účtu mají limit 10 za minutu z jedné IP.
   Když přesto přijde 429, generátor počká 65 s a zkusí to znovu (nejvýš 3×).
@@ -58,6 +61,8 @@ dotnet run --project tools/MiniShop.TrafficGenerator -- --url https://minishop-t
 - **Ctrl+C** jednou = žádné nové scénáře, rozpracované se dokončí a vypíše se souhrn; podruhé = konec hned.
 - Na konci tabulka, počty scénářů podle výsledku a **doba potvrzení p50/p95** (srovnejte se stránkou Rychlost vyřízení
   a s dashboardem v Grafaně).
+- **PC se během běhu neuspí** (Windows, obrazovka zůstane svítit) – uspání odpojí síť a generátor by hlásil chyby
+  („An error occurred while sending the request“, „nedostala do stavu“), které nezpůsobil MiniShop. Víko nezavírat.
 - Skladník je jeden a vyřizuje objednávky po jedné – u 20 zákazníků se před ním tvoří fronta (delší doba expedice je očekávaná).
 
 ## Scénáře
@@ -79,4 +84,5 @@ Na konci je tabulka: kdo, jaký scénář, číslo objednávky, **čas do potvrz
 - Výloha musí mít produkty skladem; generátor nic neobsazuje ani nezakládá.
 - Generátor nezná prohlížeč – HTML formuláře čte jednoduchým rozborem. Změna názvu pole formuláře (pokladna, expedice) ho
   rozbije; hlásí to jako chybu scénáře.
-- Účty se nemažou (po práci je zablokuj v `/Admin/Users` nebo je nech na další běh).
+- Účty se nemažou (po práci je zablokuj v `/Admin/Users` nebo je nech na další běh); další `create-loadtest-users`
+  blokaci zase zruší.

@@ -6,6 +6,7 @@ namespace MiniShop.Web.Accounts;
 /// Generátor provozu (issue #155): jednorázový příkaz, který založí testovací účty (zákazníci + skladník s 2FA):
 /// <code>dotnet MiniShop.Web.dll create-loadtest-users [--count 4]</code>
 /// V cloudu v běžícím kontejneru (<c>docker compose exec web …</c>). Heslo se píše do terminálu, klíč 2FA skladníka se vypíše.
+/// Existujícím testovacím účtům nastaví zadané heslo a zruší blokaci (po spuštění mají všechny stejné heslo).
 /// </summary>
 public static class CreateLoadTestUsersCommand
 {
@@ -41,7 +42,8 @@ public static class CreateLoadTestUsersCommand
         Console.WriteLine($"Zákazníci: {string.Join(", ", result.CustomerEmails)}");
         Console.WriteLine($"Skladník: {result.StaffEmail}");
         Console.WriteLine($"Klíč 2FA skladníka (do LOADTEST_STAFF_TOTP_KEY): {result.StaffTotpKey}");
-        Console.WriteLine($"Nově založeno účtů: {result.Created}. E-maily na doménu .invalid se nikdy neodesílají.");
+        Console.WriteLine($"Nově založeno účtů: {result.Created}, existujícím nastaveno zadané heslo (a zrušena blokace): {result.Reset}.");
+        Console.WriteLine($"E-maily na doménu .invalid se nikdy neodesílají.");
         return 0;
     }
 }

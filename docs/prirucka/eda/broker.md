@@ -22,7 +22,7 @@ flowchart LR
         x3{{"… exchange pro<br/>každý kontrakt"}}
         q1[["fronta minishop.inventory"]]
         q2[["fronta minishop.ordering"]]
-        q3[["fronta minishop.audit"]]
+        q3[["proud minishop.events<br/>(stream, od B1)"]]
     end
 
     web1 --> x1
@@ -34,15 +34,21 @@ flowchart LR
     x3 -.-> q3
     q1 --> inv2[Inventory.Api – consumer]
     q2 --> web2[Web – consumer]
-    q3 --> audit[Web – auditní log]
+    q3 --> audit[Proud zpráv, Rychlost vyřízení]
 ```
 
 - **Exchange = jméno kontraktu** (`OrderPlacedV1`, `ReserveStockV1`…), typ *fanout* – každá navázaná fronta
   dostane kopii. Kód: [RabbitMqTopology](code:src/MiniShop.Infrastructure/Integration/RabbitMq/RabbitMqTopology.cs).
 - **Fronta = modul** (`minishop.ordering`, `minishop.inventory`) navázaná jen na kontrakty, které modul odebírá.
   Kód: [RabbitMqModuleConsumer](code:src/MiniShop.Infrastructure/Integration/RabbitMq/RabbitMqModuleConsumer.cs).
-- **Auditní fronta** `minishop.audit` je navázaná na všechno a jen loguje – „odposlech“ (*wire tap*), v logu je vidět
-  celý průběh ságy. Poslouchá ji jen Web. Kód: [RabbitMqAuditConsumer](code:src/MiniShop.Infrastructure/Integration/RabbitMq/RabbitMqAuditConsumer.cs).
+- **Odposlech všech zpráv** (*wire tap*) = [proud zpráv](proud-zprav.md) `minishop.events`, navázaný na všechny
+  exchange. Zprávy drží 14 dní, čtením nemizí, na stránce Proud zpráv jsou osobní údaje zamaskované.
+- **Dřív auditní fronta (EDA krok 8 – proud B3 ji zrušil).** Fronta `minishop.audit` byla navázaná na všechno a každou
+  zprávu celou zapsala do logu – i se jménem, e-mailem a adresou zákazníka z `OrderPlacedV2`, a logy jdou do Grafana
+  Cloud. Poučení: **obsah zprávy nikdy do logu, jen typ a ID** (hlídá `MessageLoggingConventionTests`).
+  Frontu nestačilo přestat poslouchat – trvalá fronta navázaná na exchange by bez posluchače rostla donekonečna. Web ji
+  proto smaže s podmínkou *ifUnused* (jen když ji už žádná stará kopie neposlouchá, jinak to za minutu zkusí znovu).
+  Kód: [RabbitMqObsoleteQueues](code:src/MiniShop.Infrastructure/Integration/RabbitMq/RabbitMqObsoleteQueues.cs).
 
 > **Přirovnání:** Exchange je třídírna podle druhu zásilky, fronta je poštovní přihrádka oddělení. Oddělení, které
 > je zrovna na dovolené, najde po návratu všechno v přihrádce.

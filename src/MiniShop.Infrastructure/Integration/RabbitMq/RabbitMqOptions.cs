@@ -16,10 +16,4 @@ public sealed class RabbitMqOptions
 
     /// <summary>Jméno spojení v management UI – podle něj poznáte, která služba je připojená.</summary>
     public string ClientName { get; set; } = "MiniShop";
-
-    /// <summary>
-    /// Fronta ukázkového consumeru, navázaná na všechny integrační události.
-    /// Prázdná hodnota = služba auditní frontu neposlouchá (krok 10B: poslouchá jen Web).
-    /// </summary>
-    public string? AuditQueue { get; set; } = "minishop.audit";
 }

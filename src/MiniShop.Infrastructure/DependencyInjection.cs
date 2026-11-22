@@ -58,7 +58,7 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// Krok 8: integrační zprávy odcházejí do RabbitMQ. Přidá i consumery – auditní frontu a frontu pro každý modul
+    /// Krok 8: integrační zprávy odcházejí do RabbitMQ. Přidá i consumery – frontu pro každý modul
     /// (krok 9); spouští je RabbitMqConsumersWorker ve Webu.
     /// </summary>
     public static IServiceCollection AddRabbitMq(this IServiceCollection services, RabbitMqOptions options)
@@ -66,7 +66,6 @@ public static class DependencyInjection
         services.AddSingleton(options);
         services.AddSingleton<RabbitMqConnection>();
         services.Replace(ServiceDescriptor.Singleton<IIntegrationBus, RabbitMqIntegrationBus>());
-        services.AddSingleton<RabbitMqAuditConsumer>();
         services.AddSingleton<RabbitMqConsumers>();
 
         // EDA krok 13: dead-letter fronty – přehled, vrácení zpět, health check (zpráva v dead-letter = Degraded).

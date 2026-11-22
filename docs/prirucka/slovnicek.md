@@ -55,7 +55,7 @@ order: 80
 | **traceparent** | standardní hlavička W3C nesoucí ID trasy mezi procesy | [Observabilita](eda/observabilita.md) |
 | **Path traversal** | útok podvrženou cestou k souboru (`../../appsettings.json`) – brání se mu jen jména podle přesného vzoru | [Inventory](architektura/moduly/inventory.md) |
 | **Výloha (/Shop)** | veřejná nabídka s hledáním a filtry nad kopií katalogu – read model tvarovaný pro čtení (CQRS) | [Kopie katalogu](eda/kopie-katalogu.md) |
-| **Wire tap** | „odposlech“ – fronta, která dostává kopii všech zpráv (audit) | [Broker](eda/broker.md) |
+| **Wire tap** | „odposlech“ – kopie všech zpráv na jednom místě; v MiniShopu proud `minishop.events` (dřív auditní fronta) | [Proud zpráv](eda/proud-zprav.md) |
 
 ## Účty a zabezpečení
 

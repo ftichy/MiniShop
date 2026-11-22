@@ -47,6 +47,8 @@ try
     builder.Services.AddMessaging(builder.Configuration);
     // Proud B2: trvalý čtenář proudu minishop.events – přehled Rychlost vyřízení (záložka v DB, jen vedoucí kopie).
     builder.Services.AddLeaderOnlyHostedService<MiniShop.Infrastructure.Reporting.LeadTimeProjectionWorker>();
+    // E-shop krok 27A: dávka „Zákazníci také koupili“ každých 5 minut (jen vedoucí kopie).
+    builder.Services.AddLeaderOnlyHostedService<ProductRecommendationsWorker>();
 
     // Zero trust: /api jen se servisním klíčem Webu (ReportingApi:ApiKey, secret REPORTING_API_KEY); bez klíče se služba nespustí.
     builder.Services.AddServiceApiKeyAuthentication(

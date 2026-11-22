@@ -21,6 +21,7 @@ public static class ReportingInfrastructure
         services.AddScoped<IReportingMessagePublisher, ReportingMessagePublisher>();
         services.AddScoped<ISalesOrderRepository, SalesOrderRepository>();
         services.AddScoped<ILeadTimeRepository, LeadTimeRepository>();   // proud B2
+        services.AddScoped<IProductRecommendationRepository, ProductRecommendationRepository>();   // e-shop krok 27A
 
         services.AddSingleton<IOutboxProcessor, OutboxProcessor<ReportingDbContext>>();
         services.AddHealthChecks().AddCheck<OutboxHealthCheck<ReportingDbContext>>("outbox-reporting");

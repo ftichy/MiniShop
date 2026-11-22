@@ -31,6 +31,8 @@ public static class ReportingModule
         services.AddIntegrationMessageHandler<PaymentRefundedV2, SalesProjectionHandler>(IntegrationModules.Reporting);
         services.AddIntegrationMessageHandler<OrderPartialReturnsSnapshotV1, SalesProjectionHandler>(IntegrationModules.Reporting);   // přestavění
         services.AddIntegrationMessageHandler<OrderReturnedToSenderV1, SalesProjectionHandler>(IntegrationModules.Reporting);   // e-shop krok 26D
+        // E-shop krok 27B: Ordering si po startu řekne o doporučení, když je kopie katalogu nemá.
+        services.AddIntegrationMessageHandler<SyncProductRecommendationsV1, SyncProductRecommendationsHandler>(IntegrationModules.Reporting);
         return services;
     }
 }

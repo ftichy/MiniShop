@@ -232,6 +232,8 @@ public static class ApplicationServiceCollectionExtensions
         // E-shop krok 14: snímky nákupů pro modul Reviews a souhrn hodnocení do kopie katalogu (výloha).
         services.AddIntegrationMessageHandler<SyncPurchasesV1, SyncPurchasesHandler>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<ProductRatingChangedV1, CatalogProjectionHandler>(IntegrationModules.Ordering);
+        // E-shop krok 27B: „Zákazníci také koupili“ z Reporting.Api do kopie katalogu (detail produktu).
+        services.AddIntegrationMessageHandler<ProductRecommendationsChangedV1, CatalogProjectionHandler>(IntegrationModules.Ordering);
 
         // Obnova kopie katalogu (příkaz SyncCatalogV1 pro sklad): po startu, když je prázdná/neúplná, nebo tlačítkem v UI.
         services.AddScoped<CatalogSyncService>();

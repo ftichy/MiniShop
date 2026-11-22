@@ -1,4 +1,5 @@
 using MiniShop.Contracts.Inventory;
+using MiniShop.Contracts.Reporting;
 
 namespace MiniShop.Application.Ordering.Catalog;
 
@@ -29,6 +30,30 @@ public sealed class CatalogSyncService(
         }
 
         await RequestAsync(cancellationToken);
+        return true;
+    }
+
+    /// <summary>
+    /// E-shop krok 27B: po startu vedoucí kopie – požádá Reporting o všechna doporučení (<see cref="SyncProductRecommendationsV1"/>),
+    /// když kopie katalogu má produkty. Doplní, co kopie zmeškala (první nasazení 27B – zprávy z 27A nikdo neposlouchal).
+    /// </summary>
+    /// <remarks>
+    /// <para>Žádá Ordering, ne Reporting po svém startu: služba se nasazuje dřív než Web, takže by zprávy poslala, když je
+    /// ještě nikdo neposlouchá.</para>
+    /// <para>Pokaždé, ne jen když doporučení chybí: při postupném nasazení může odpověď vyzvednout stará kopie Webu bez
+    /// handleru (zprávu potvrdí a zahodí) – příští start to doplní. Stojí to desítky zpráv; stejný čas výpočtu = beze změny.
+    /// Prázdná kopie katalogu (nová databáze) se doplní napřed, doporučení při dalším startu.</para>
+    /// </remarks>
+    /// <returns>true, když o doporučení požádala.</returns>
+    public async Task<bool> RequestRecommendationsAsync(CancellationToken cancellationToken = default)
+    {
+        if (!await catalog.AnyAsync(cancellationToken))
+        {
+            return false;
+        }
+
+        publisher.Send(new SyncProductRecommendationsV1(Guid.NewGuid(), timeProvider.GetUtcNow().UtcDateTime));
+        await unitOfWork.SaveChangesAsync(cancellationToken);
         return true;
     }
 

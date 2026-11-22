@@ -56,7 +56,8 @@ flowchart LR
 | --- | --- |
 | poslouchá (fronta `minishop.reporting`) | `OrderPlacedV2`, `OrderConfirmedV1`, `OrderRejectedV1`, `OrderCancelledV1`, `OrderCompletedV1`, `PaymentRefundedV1`, `OrderSnapshotV1`, `ReturnCompletedV1` (e-shop krok 12 – vrácená se do tržby nepočítá), `ReturnCompletedV2` + `PaymentRefundedV2` + `OrderPartialReturnsSnapshotV1` (e-shop krok 22 – vratka po částech) |
 | posílá (příkaz pro Ordering) | `RebuildSalesReportV1` → Ordering odpoví `OrderSnapshotV1` pro každou objednávku |
-| posílá (událost, e-shop krok 27A) | `ProductRecommendationsChangedV1` – „Zákazníci také koupili“, jen při změně; v kroku 27A ji zatím nikdo neposlouchá (Ordering od kroku 27B) |
+| posílá (událost, e-shop krok 27A) | `ProductRecommendationsChangedV1` – „Zákazníci také koupili“, jen při změně; od kroku 27B ji poslouchá Ordering (kopie katalogu → detail produktu) |
+| poslouchá (příkaz, e-shop krok 27B) | `SyncProductRecommendationsV1` od Orderingu (po startu vedoucí kopie Webu) → pošle znovu všechna uložená doporučení (`SyncProductRecommendationsHandler`) |
 
 ## Co přehled počítá
 
@@ -98,3 +99,11 @@ má (`SalesOrder`). Přirovnání: prodavač, který si pamatuje, že kdo kupuje
   přicházejí) se doporučení může na jedno kolo změnit a další kolo to srovná.
 - **Testovací objednávky** generátoru provozu se počítají taky (rozhodnutí 22. 11. 2026) – Reporting zákazníky nezná, časem je
   přebije skutečný provoz (okno 180 dní).
+- **Na webu (e-shop krok 27B):** Ordering zprávy ukládá do kopie katalogu (`CatalogProduct.ApplyRecommendations`, starší výpočet
+  novější nepřepíše) a detail produktu `/Shop/{id}` ukáže oddíl „Zákazníci také koupili“ (`_ProductCard`, stažené produkty
+  vynechá, vyprodané se štítkem). Výloha se Reporting.Api za běhu neptá – jeho výpadek doporučení nevypne, jen přestanou
+  přibývat.
+- **Doplnění kopie:** zprávy z doby, kdy je nikdo neposlouchal (krok 27A), nebo pro novou databázi si **řekne Ordering**
+  (`SyncProductRecommendationsV1` po startu vedoucí kopie Webu – `CatalogSyncOnStartupWorker`). Ne Reporting po svém startu:
+  služba se nasazuje dřív než Web, takže by zprávy poslala, když je ještě nikdo neposlouchá. Žádá se po každém startu
+  (desítky zpráv) – odpověď, kterou při postupném nasazení vyzvedne stará kopie Webu bez handleru, doplní příští start.

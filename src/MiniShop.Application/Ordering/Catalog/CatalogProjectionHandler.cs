@@ -1,5 +1,6 @@
 using MiniShop.Application.Abstractions;
 using MiniShop.Contracts.Inventory;
+using MiniShop.Contracts.Reporting;
 using MiniShop.Contracts.Reviews;
 using MiniShop.Domain.Orders;
 
@@ -19,7 +20,8 @@ public sealed class CatalogProjectionHandler(ICatalogProductRepository catalog, 
     IIntegrationMessageHandler<ProductUpdatedV2>,
     IIntegrationMessageHandler<StockAvailabilityChangedV1>,
     IIntegrationMessageHandler<ProductRemovedV1>,
-    IIntegrationMessageHandler<ProductRatingChangedV1>
+    IIntegrationMessageHandler<ProductRatingChangedV1>,
+    IIntegrationMessageHandler<ProductRecommendationsChangedV1>
 {
     public async Task HandleAsync(ProductUpdatedV1 message, CancellationToken cancellationToken)
     {
@@ -91,6 +93,23 @@ public sealed class CatalogProjectionHandler(ICatalogProductRepository catalog, 
 
         product.ApplyRating(message.AverageRating, message.RatingCount, message.OccurredAtUtc);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// E-shop krok 27B: „Zákazníci také koupili“ z Reportingu – detail produktu je pak ukáže bez dotazu do Reporting.Api
+    /// (jako hvězdičky). Produkt, který kopie nezná, se přeskočí.
+    /// </summary>
+    public async Task HandleAsync(ProductRecommendationsChangedV1 message, CancellationToken cancellationToken)
+    {
+        if (await catalog.GetByIdAsync(message.ProductId, cancellationToken) is not { } product)
+        {
+            return;
+        }
+
+        if (product.ApplyRecommendations(message.RecommendedProductIds, message.ComputedAtUtc))
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
     }
 
     /// <summary>Text kontraktu → výčet Orderingu. Neznámá hodnota (novější sklad) = Unknown, ne pád.</summary>

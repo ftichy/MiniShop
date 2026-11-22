@@ -104,22 +104,20 @@ public sealed class RabbitMqTests
         await Assert.ThrowsAsync<IntegrationBusUnavailableException>(() => bus.PublishAsync(Placed));
     }
 
-    /// <summary>Krok 10B: každá služba poslouchá jen fronty svých modulů; auditní frontu jen ta, která ji má zapnutou.</summary>
-    [Theory]
-    [InlineData("minishop.audit", new[] { "minishop.audit", "minishop.inventory" })]
-    [InlineData("", new[] { "minishop.inventory" })]
-    public async Task Consumery_JenFrontyModuluSluzbyAVolitelneAudit(string auditQueue, string[] expectedQueues)
+    /// <summary>Krok 10B: každá služba poslouchá jen fronty svých modulů (proud B3: auditní fronta zrušena).</summary>
+    [Fact]
+    public async Task Consumery_JenFrontyModuluSluzby()
     {
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddInfrastructureCore();
         services.AddIntegrationModule<InventoryDbContext>(IntegrationModules.Inventory);
         services.AddIntegrationMessageHandler<ReserveStockV1, ReserveStockHandler>(IntegrationModules.Inventory);
-        services.AddRabbitMq(new RabbitMqOptions { AuditQueue = auditQueue });
+        services.AddRabbitMq(new RabbitMqOptions());
         await using var provider = services.BuildServiceProvider();
 
         var queues = provider.GetRequiredService<RabbitMqConsumers>().CreateAll().Select(c => c.QueueName);
 
-        Assert.Equal(expectedQueues, queues);
+        Assert.Equal(["minishop.inventory"], queues);
     }
 }

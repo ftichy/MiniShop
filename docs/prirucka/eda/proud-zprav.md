@@ -100,6 +100,12 @@ Stránka se obnovuje sama ([živý výřez](../architektura/vzhled.md)): signál
 objednávky, výřez počká 2 s (projekce v Reporting.Api je o dávku pozadu) a vymění čísla. Přestavění žádný signál nepošle –
 po kliknutí se proto výřez 30 s dotazuje každé 3 s (čas kliknutí nese adresa `?rebuilt=…`).
 
+## Proud nahradil auditní frontu (krok B3)
+
+Auditní fronta `minishop.audit` (EDA krok 8) dělala totéž co proud – dostávala kopii všech zpráv – jen horší cestou:
+zprávu po přečtení smazala a **celý obsah zapsala do logu**, i s osobními údaji. Krok B3 ji odstranil (podrobně
+v [Brokeru](broker.md)): kód posluchače zmizel a vedoucí kopie Webu frontu smaže, až ji žádná stará kopie neposlouchá.
+
 ## Na internetu
 
 - [RabbitMQ Streams](https://www.rabbitmq.com/docs/streams) – typ fronty, retence, `x-stream-offset`

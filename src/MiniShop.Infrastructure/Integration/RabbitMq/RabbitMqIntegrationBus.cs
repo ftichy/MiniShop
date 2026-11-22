@@ -12,7 +12,7 @@ namespace MiniShop.Infrastructure.Integration.RabbitMq;
 /// <remarks>
 /// Události i příkazy (krok 9) jdou stejnou cestou – do exchange pojmenované podle kontraktu. Rozdíl je v tom, kdo
 /// se na exchange naváže: na událost libovolně mnoho front, na příkaz jen fronta modulu, který ho vlastní
-/// (hlídá to IntegrationMessageRouting) a auditní "odposlech".
+/// (hlídá to IntegrationMessageRouting) a proud minishop.events (proud B1, odposlech všech zpráv).
 /// Kanál má zapnuté publisher confirms: PublishAsync skončí, až broker potvrdí, že zprávu převzal.
 /// Teprve potom worker označí řádek v outboxu jako zpracovaný – zpráva se tak nemůže ztratit cestou.
 /// Když broker neběží, vyhodí <see cref="IntegrationBusUnavailableException"/> a zpráva v outboxu počká.

@@ -101,9 +101,9 @@ Klikněte na první řádek (*Trace ID*) – otevře se **vodopád** (waterfall)
 
 Jména zákazníka, adresa ani e-mail na trase nejsou (data jdou do Grafana Cloud) – ty jsou v detailu objednávky v MiniShopu.
 
-**Pozor na auditní kopie:** každá zpráva má ve vodopádu i krátký span `process …` (pár ms, **bez potomků**) s atributem
-`messaging.consumer.group.name = minishop.audit` – to je auditní posluchač ve Webu, který jen zapisuje všechny zprávy do logu.
-Business údaje nese **skutečné zpracování**: span se stejným jménem, který má pod sebou dotazy `postgres` nebo další kroky
+**Starší trasy (do 22. 11. 2026):** zprávy mají ve vodopádu i krátký span `process …` (pár ms, **bez potomků**) s atributem
+`messaging.consumer.group.name = minishop.audit` – auditní posluchač, kterého proud B3 zrušil. Business údaje nese
+**skutečné zpracování**: span se stejným jménem, který má pod sebou dotazy `postgres` nebo další kroky
 (`dispatch …`, `publish …`), u skladu s předponou služby `inventory-api`.
 
 **Krok 5 – logy k trase.** Ve vodopádu klikněte na span a v jeho detailu vpravo nahoře na černé tlačítko

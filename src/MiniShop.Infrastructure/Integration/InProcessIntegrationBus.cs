@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MiniShop.Contracts;
@@ -23,11 +22,10 @@ public sealed class InProcessIntegrationBus(
     {
         var modules = routing.ModulesFor(message.GetType());
 
-        logger.LogInformation("[Integrační zpráva] {Type} {MessageId} → {Modules}: {Payload}",
+        logger.LogInformation("[Integrační zpráva] {Type} {MessageId} → {Modules}",   // proud B3: obsah zprávy nikdy do logu (osobní údaje)
             message.GetType().Name,
             message.MessageId,
-            modules.Count == 0 ? "nikdo neodebírá" : string.Join(", ", modules),
-            JsonSerializer.Serialize(message, message.GetType()));
+            modules.Count == 0 ? "nikdo neodebírá" : string.Join(", ", modules));
 
         foreach (var module in modules)
         {

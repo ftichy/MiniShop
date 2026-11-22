@@ -110,7 +110,7 @@ try
     // E-shop krok 14: prázdná kopie nákupů po startu (nové schéma reviews) → požádat Ordering o snímky objednávek.
     builder.Services.AddLeaderOnlyHostedService<PurchasesSyncOnStartupWorker>();
 
-    // Kroky 5 a 8: outbox worker + RabbitMQ (fronty minishop.ordering a minishop.audit), viz sekce "Messaging".
+    // Kroky 5 a 8: outbox worker + RabbitMQ (fronta minishop.ordering; auditní fronta zrušena v proudu B3), viz sekce "Messaging".
     builder.Services.AddMessaging(builder.Configuration);
     // Vzhled krok F3a: živé aktualizace – SignalR hub + rozeslání vybraných zpráv každé kopii Webu (dočasná fronta v RabbitMQ).
     builder.Services.AddSignalR();

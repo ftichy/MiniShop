@@ -34,15 +34,11 @@ public sealed class RabbitMqModuleConsumer(
 }
 
 /// <summary>
-/// Vyrobí všechny consumery služby: auditní (je-li zapnutý) + jeden pro každý modul, který v této službě něco odebírá.
+/// Vyrobí všechny consumery služby: jeden pro každý modul, který v této službě něco odebírá.
+/// (Auditní frontu z EDA kroku 8 nahradil proud B1 a zrušil proud B3 – <see cref="RabbitMqObsoleteQueues"/>.)
 /// </summary>
-public sealed class RabbitMqConsumers(IServiceProvider services, IntegrationMessageRouting routing, RabbitMqOptions options)
+public sealed class RabbitMqConsumers(IServiceProvider services, IntegrationMessageRouting routing)
 {
     public IReadOnlyList<RabbitMqQueueConsumer> CreateAll() =>
-    [
-        .. string.IsNullOrWhiteSpace(options.AuditQueue)
-            ? Array.Empty<RabbitMqQueueConsumer>()
-            : [services.GetRequiredService<RabbitMqAuditConsumer>()],
-        .. routing.Modules.Select(module => ActivatorUtilities.CreateInstance<RabbitMqModuleConsumer>(services, module))
-    ];
+        routing.Modules.Select(module => ActivatorUtilities.CreateInstance<RabbitMqModuleConsumer>(services, module)).ToList();
 }

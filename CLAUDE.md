@@ -76,7 +76,7 @@ docs/                        EDA-roadmap.md, kroky/ (souhrny hotových kroků), 
   `https` adresa má přednost a v kontejneru by přebila `http`); business tok jde jen přes zprávy.
   Výloha, košík i pokladna berou nabídku a dostupnost z kopie katalogu (`ICatalogQueryService`, `ICatalogProductRepository`).
   Web nesmí referencovat `Domain/Infrastructure.Inventory`, Inventory.Api nic z Orderingu (testy architektury).
-  Auditní frontu poslouchá jen Web (`AuditQueue` prázdná v Inventory.Api). RabbitMQ adresu dává Aspire v `ConnectionStrings:messaging`.
+  Auditní fronta zrušena (proud B3 – nahradil ji proud `minishop.events`); **obsah zprávy nikdy do logu, jen typ a ID** (`MessageLoggingConventionTests`), zrušenou frontu smazat přes `RabbitMqObsoleteQueues` (ifUnused). RabbitMQ adresu dává Aspire v `ConnectionStrings:messaging`.
   **Mikroservisy M1:** totéž pro `MiniShop.Reporting.Api` (Web nesmí na `Domain/Infrastructure.Reporting`). **Nová služba =**
   vlastní servisní klíč (`ServiceApiKey.Read(…, klíč)` + `AddServiceApiKeyAuthentication`, Web `ServiceApiKeyHandler`), zámek vedoucí
   `minishop.<služba>`, Dockerfile, AppHost, `compose.yaml` (+ `compose.grafana.yaml`, bez `depends_on` Webu, když bez ní Web běží),
@@ -668,7 +668,8 @@ Proud `minishop.events` (RabbitMQ stream, AMQP) vedle front – zprávy se čten
 | Krok | Stav | Souhrn |
 | --- | --- | --- |
 | B1. Proud zpráv (stream `minishop.events` navázaný na všechny kontrakty; čtečka od času přes `x-stream-offset`; stránka Proud zpráv `/Admin/EventStream` pro Provoz – pouť objednávky napříč moduly; maskování osobních údajů; testy nad skutečným RabbitMQ) | hotovo (nasazeno 21. 11. 2026 jako `sha-4d02863`; ověřeno uživatelem: pouť objednávky 287 v proudu, osobní údaje zamaskované) | `docs/kroky-proud/krok-b1-proud-zprav.md` |
-| B2. Projekce přehráním (Reporting.Api: `LeadTimeProjectionWorker` – trvalý čtenář proudu, `OrderStatusChangedV1` + `ShipmentStatusChangedV1` → `OrderLeadTimes`, záložka `StreamCheckpoints` ve stejné transakci, přestavění = generace + záložka na začátek; stránka Rychlost vyřízení `/Admin/LeadTimes` – p50/p95 potvrzení, expedice, doručení; živý výřez na signál `staff:orders` s `live-delay` 2 s, po přestavění 30 s dotazování) | hotovo (nasazeno 21. 11. 2026 jako `sha-ebfc272`, ověřeno uživatelem; obnovení bez F5 doplněno 22. 11.) | `docs/kroky-proud/krok-b2-projekce-prehranim.md` |
+| B2. Projekce přehráním (Reporting.Api: `LeadTimeProjectionWorker` – trvalý čtenář proudu, `OrderStatusChangedV1` + `ShipmentStatusChangedV1` → `OrderLeadTimes`, záložka `StreamCheckpoints` ve stejné transakci, přestavění = generace + záložka na začátek; stránka Rychlost vyřízení `/Admin/LeadTimes` – p50/p95 potvrzení, expedice, doručení; živý výřez na signál `staff:orders` s `live-delay` 2 s, po přestavění 30 s dotazování) | hotovo (nasazeno 21. 11. 2026 jako `sha-ebfc272`, ověřeno uživatelem; obnovení bez F5 doplněno a ověřeno 22. 11. – `sha-b787a8a`) | `docs/kroky-proud/krok-b2-projekce-prehranim.md` |
+| B3. Bez auditní fronty (posluchač `minishop.audit` odstraněn – logoval celé zprávy i s osobními údaji; Web frontu + `.dead` smaže přes `RabbitMqObsoleteQueues` s *ifUnused*, každou minutu, dokud ji poslouchá stará kopie; `MessageLoggingConventionTests` – `{Payload}` v logu zakázán) | hotovo v PR | `docs/kroky-proud/krok-b3-bez-auditni-fronty.md` |
 
 ## Stav observability (viz `docs/Observabilita-roadmap.md`)
 Historie telemetrie, dashboard zpráv a ság, alarmy – Grafana Cloud Free (stack `patientjaguar2071`, region EU Germany, 0 Kč).

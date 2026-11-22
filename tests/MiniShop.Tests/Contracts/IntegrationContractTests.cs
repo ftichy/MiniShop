@@ -224,6 +224,19 @@ public sealed class IntegrationContractTests
             json);
     }
 
+    /// <summary>E-shop krok 27A: doporučení „Zákazníci také koupili“ – pořadí ID je význam, čas výpočtu proti přepsání starším.</summary>
+    [Fact]
+    public void ProductRecommendationsChangedV1_TvarJsonuSeNezmenil()
+    {
+        var changed = new MiniShop.Contracts.Reporting.ProductRecommendationsChangedV1(EventId, OccurredAtUtc, 7, [12, 3], OccurredAtUtc);
+
+        var json = OutboxMessageFactory.Create(changed).Payload;
+
+        Assert.Equal(
+            """{"EventId":"11111111-2222-3333-4444-555555555555","OccurredAtUtc":"2026-01-15T10:00:00Z","ProductId":7,"RecommendedProductIds":[12,3],"ComputedAtUtc":"2026-01-15T10:00:00Z"}""",
+            json);
+    }
+
     [Fact]
     public void StockReservationFailedV1_TvarJsonuSeNezmenil()
     {

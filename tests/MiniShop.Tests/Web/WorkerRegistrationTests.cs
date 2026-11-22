@@ -43,7 +43,7 @@ public sealed class WorkerRegistrationTests(MiniShopWebFactory web)
         using var api = new ReportingApiFactory();
         _ = api.Services;
 
-        AssertLeaderOnly(api.RegisteredWorkers, AllInstances, "SalesReportOnStartupWorker", "LeadTimeProjectionWorker", "OutboxWorker", "MessageRetentionWorker",
+        AssertLeaderOnly(api.RegisteredWorkers, AllInstances, "SalesReportOnStartupWorker", "LeadTimeProjectionWorker", "ProductRecommendationsWorker", "OutboxWorker", "MessageRetentionWorker",
             "OperationalMetricsWorker");
     }
 

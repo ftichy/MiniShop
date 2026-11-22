@@ -18,6 +18,7 @@ public static class ReportingModule
     {
         services.AddScoped<SalesReportService>();
         services.AddScoped<LeadTimeReportService>();   // proud B2: Rychlost vyřízení (plní LeadTimeProjectionWorker z proudu)
+        services.AddScoped<ProductRecommendationService>();   // e-shop krok 27A: „Zákazníci také koupili“ (dávka ProductRecommendationsWorker)
         services.AddIntegrationMessageHandler<OrderPlacedV2, SalesProjectionHandler>(IntegrationModules.Reporting);
         services.AddIntegrationMessageHandler<OrderConfirmedV1, SalesProjectionHandler>(IntegrationModules.Reporting);
         services.AddIntegrationMessageHandler<OrderRejectedV1, SalesProjectionHandler>(IntegrationModules.Reporting);

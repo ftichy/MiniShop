@@ -25,6 +25,9 @@ public sealed class ReportingDbContext(DbContextOptions<ReportingDbContext> opti
     /// <summary>Proud B2: záložky čtenářů proudu – ukládají se ve stejné transakci jako data projekce.</summary>
     public DbSet<StreamCheckpoint> StreamCheckpoints => Set<StreamCheckpoint>();
 
+    /// <summary>E-shop krok 27A: naposledy odeslaná doporučení „Zákazníci také koupili“.</summary>
+    public DbSet<ProductRecommendation> ProductRecommendations => Set<ProductRecommendation>();
+
     // Reporting nemá doménové události – kdyby nějaká vznikla, chyba se ukáže hned.
     protected override IEnumerable<OutboxMessage> ToOutboxMessages(IDomainEvent domainEvent) =>
         throw new InvalidOperationException($"Modul Reporting nemá doménové události ({domainEvent.GetType().Name}).");

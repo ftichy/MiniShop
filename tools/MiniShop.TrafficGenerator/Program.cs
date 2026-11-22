@@ -9,13 +9,38 @@ if (options is null)
     return 2;
 }
 
-Console.WriteLine($"Cíl {options.BaseUrl}, zákazníků {options.Customers}, kol {options.Rounds}, pauza ~{options.PauseSeconds:0.#} s");
+Console.WriteLine(options.Duration is { } duration
+    ? $"Cíl {options.BaseUrl}, zákazníků {options.Customers}, délka {duration.TotalMinutes:0.#} min, pauza ~{options.PauseSeconds:0.#} s"
+    : $"Cíl {options.BaseUrl}, zákazníků {options.Customers}, kol {options.Rounds}, pauza ~{options.PauseSeconds:0.#} s");
+
+// Konec běhu s --duration: po něm už žádný nový scénář (rozpracovaný se dokončí).
+var startedAt = DateTime.UtcNow;
+DateTime? deadline = options.Duration is { } length ? startedAt + length : null;
+
+// První Ctrl+C = konec běhu bez nových scénářů (rozpracované se dokončí a vypíše se souhrn); druhé ukončí hned.
+var stopRequested = false;
+Console.CancelKeyPress += (_, e) =>
+{
+    if (stopRequested)
+    {
+        return;
+    }
+
+    stopRequested = true;
+    deadline = DateTime.UtcNow;
+    e.Cancel = true;
+    Console.WriteLine("Ctrl+C: žádné nové scénáře, rozpracované se dokončí (další Ctrl+C = konec hned).");
+};
+
+// Přihlášení rozložená v čase: formuláře účtu mají limit 10 za minutu z jedné IP (na kopii Webu) – ~8 za minutu
+// se vejde i se skladníkem (2 formuláře) a i kdyby Caddy poslal všechny na jednu kopii.
+var loginGap = TimeSpan.FromSeconds(7.5);
 
 var results = new ConcurrentBag<ScenarioResult>();
 using var staffSession = new Session(options.BaseUrl);
 try
 {
-    await Shop.LoginStaffAsync(staffSession, options.Password, options.StaffTotpKey);
+    await Shop.WithRateLimitRetryAsync("Skladník", () => Shop.LoginStaffAsync(staffSession, options.Password, options.StaffTotpKey));
 }
 catch (Exception ex)
 {
@@ -43,7 +68,8 @@ async Task RunCustomerAsync(int number)
     using var session = new Session(options.BaseUrl);
     try
     {
-        await Shop.LoginAsync(session, Shop.CustomerEmail(number), options.Password);
+        await Task.Delay(loginGap * number);   // zákazník 1 po 7,5 s (skladník už je přihlášený), 20 po 2,5 min
+        await Shop.WithRateLimitRetryAsync($"Zákazník {number}", () => Shop.LoginAsync(session, Shop.CustomerEmail(number), options.Password));
     }
     catch (Exception ex)
     {
@@ -54,12 +80,13 @@ async Task RunCustomerAsync(int number)
     // Zákazníci nezačínají všichni ve stejnou vteřinu.
     await Pause(random);
 
-    for (var round = 0; round < options.Rounds; round++)
+    for (var round = 0; deadline is { } end ? DateTime.UtcNow < end : round < options.Rounds; round++)
     {
         // Střídání: doručená, zrušená, vrácená (zákazník 1 začíná doručenou, 2 zrušenou, 3 vrácenou …).
         var scenario = ((number + round) % 3) switch { 0 => "doručená", 1 => "zrušená", _ => "vrácená" };
         int? orderId = null;
         TimeSpan? confirmTime = null;
+        ScenarioResult result;
         try
         {
             await Shop.AddRandomProductsAsync(session, random);
@@ -95,11 +122,20 @@ async Task RunCustomerAsync(int number)
                     break;
             }
 
-            results.Add(new(number, scenario, orderId, true, confirmTime, null));
+            result = new(number, scenario, orderId, true, confirmTime, null);
         }
         catch (Exception ex)
         {
-            results.Add(new(number, scenario, orderId, false, confirmTime, ex.Message));
+            result = new(number, scenario, orderId, false, confirmTime, ex.Message);
+        }
+
+        results.Add(result);
+
+        // Dlouhý běh: průběžně, ať je vidět, že generátor žije (tabulka je až na konci).
+        if (deadline is not null)
+        {
+            Console.WriteLine($"[{DateTime.UtcNow - startedAt:hh\\:mm\\:ss}] zákazník {number}: {scenario} {orderId?.ToString() ?? "-"} – " +
+                              $"{(result.Ok ? "OK" : "CHYBA: " + result.Error)} (celkem {results.Count} scénářů)");
         }
 
         await Pause(random);
@@ -116,7 +152,20 @@ foreach (var r in results.OrderBy(r => r.Customer).ThenBy(r => r.OrderId))
 }
 
 var failed = results.Count(r => !r.Ok);
-Console.WriteLine($"\nHotovo: {results.Count - failed} z {results.Count} scénářů prošlo.");
+Console.WriteLine($"\nHotovo za {DateTime.UtcNow - startedAt:hh\\:mm\\:ss}: {results.Count - failed} z {results.Count} scénářů prošlo.");
+
+// Souhrn pro dlouhý běh: scénáře podle výsledku a doba potvrzení (p50/p95 – stejně jako stránka Rychlost vyřízení).
+foreach (var group in results.GroupBy(r => r.Ok ? r.Scenario : "CHYBA").OrderBy(g => g.Key))
+{
+    Console.WriteLine($"  {group.Key}: {group.Count()}");
+}
+
+var confirmations = results.Where(r => r.ConfirmTime is not null).Select(r => r.ConfirmTime!.Value.TotalSeconds).Order().ToList();
+if (confirmations.Count > 0)
+{
+    double Percentile(double p) => confirmations[Math.Max(0, (int)Math.Ceiling(p * confirmations.Count) - 1)];
+    Console.WriteLine($"  Potvrzení: p50 {Percentile(0.5):0.0} s, p95 {Percentile(0.95):0.0} s, nejdéle {confirmations[^1]:0.0} s ({confirmations.Count} objednávek)");
+}
 return failed == 0 ? 0 : 1;
 
 internal sealed record ScenarioResult(int Customer, string Scenario, int? OrderId, bool Ok, TimeSpan? ConfirmTime, string? Error);

@@ -12,6 +12,32 @@ public static class Shop
 
     public static string StaffEmail => $"loadtest-sklad@{EmailDomain}";
 
+    /// <summary>Kolik pokusů přihlášení při limitu 429 a jak dlouho mezi nimi čekat (okno limitu je minuta).</summary>
+    public const int RateLimitAttempts = 4;
+
+    public static readonly TimeSpan RateLimitWait = TimeSpan.FromSeconds(65);
+
+    /// <summary>
+    /// Přihlášení, které přečká limit formulářů účtu (429): počká <see cref="RateLimitWait"/> a zkusí to znovu.
+    /// Generátor přihlášení navíc rozkládá v čase (Program.cs), takže sem se dostane jen výjimečně.
+    /// </summary>
+    public static async Task WithRateLimitRetryAsync(string who, Func<Task> login)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                await login();
+                return;
+            }
+            catch (RateLimitedException) when (attempt < RateLimitAttempts)
+            {
+                Console.WriteLine($"{who}: limit přihlášení (429), další pokus za {RateLimitWait.TotalSeconds:0} s ({attempt}/{RateLimitAttempts - 1})");
+                await Task.Delay(RateLimitWait);
+            }
+        }
+    }
+
     public static async Task LoginAsync(Session session, string email, string password)
     {
         var page = await session.PostAsync("/Account/Login", "/Account/Login", ("Input.Email", email), ("Input.Password", password));

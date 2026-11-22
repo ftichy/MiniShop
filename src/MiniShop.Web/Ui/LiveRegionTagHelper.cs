@@ -33,6 +33,14 @@ public sealed class LiveRegionTagHelper : TagHelper
     [HtmlAttributeName("live-topic")]
     public string? Topic { get; set; }
 
+    /// <summary>
+    /// Proud B2: o kolik milisekund po signálu obnovit. Pro výřez, jehož data počítá jiná služba ze stejné zprávy
+    /// (Rychlost vyřízení – Reporting.Api čte proud po dávkách) – obnovení hned by často ukázalo ještě stará čísla.
+    /// Víc signálů během čekání = jedno obnovení.
+    /// </summary>
+    [HtmlAttributeName("live-delay")]
+    public int? DelayMs { get; set; }
+
     [HtmlAttributeNotBound]
     [ViewContext]
     public ViewContext ViewContext { get; set; } = null!;
@@ -59,6 +67,11 @@ public sealed class LiveRegionTagHelper : TagHelper
         if (!string.IsNullOrEmpty(Topic))
         {
             output.Attributes.SetAttribute("data-live-topic", Topic);
+        }
+
+        if (DelayMs is > 0)
+        {
+            output.Attributes.SetAttribute("data-live-delay", DelayMs.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
         }
     }
 }

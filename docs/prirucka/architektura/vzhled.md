@@ -235,11 +235,15 @@ Teď se obnovuje jen **výřez**:
 | Platba `/Pay` | `#pay-live` (karta platby) | platba se zakládá; se Stripem pak server pošle `HX-Redirect` na bránu (přesměrování na cizí doménu by htmx na pozadí neprovedl) |
 | Expedice | `#fulfilment-live` (všechny tři fronty) | zásilka se předává dopravci nebo je u něj na cestě |
 | Vratky | `#returns-live` (seznam) | je otevřená vratka |
+| Rychlost vyřízení | `#lead-times-live` (souhrn, tabulka, záložka) | vždy – na signál `staff:orders` se zpožděním 2 s (`live-delay`), po „Přestavět z proudu“ 30 s každé 3 s |
 
 E2E *Nákup kartou* na otevřeném detailu počká na „Potvrzená“ a ověří, že se stránka nenačetla znovu (značka ve `window`).
 **Vzhled krok F3a:** výřez s tématem (`live-topic="order:42"`) se obnoví hned na signál od serveru přes SignalR – dotazování
 zůstává jen jako pojistka (60 s, v F3a 30 s), bez spojení každé 3 s. Jak signál vzniká a proč se rozesílá každé kopii Webu:
 [Živé aktualizace](../eda/zive-aktualizace.md). Tag helper: `hx-trigger="live-refresh"`, kdy obnovit řídí `live-region.js`.
+**Proud B2:** `live-delay="2000"` = obnovit až 2 s po signálu (víc signálů během čekání = jedno obnovení) – pro výřez, jehož
+data počítá jiná služba ze stejné zprávy (Rychlost vyřízení: Reporting.Api čte proud po dávkách, obnovení hned by ukázalo
+stará čísla).
 
 ## Ikony
 

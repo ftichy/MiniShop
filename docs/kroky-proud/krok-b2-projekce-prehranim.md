@@ -44,6 +44,11 @@ Web /Admin/LeadTimes (sklad, podpora, účetní) ──HTTP + servisní klíč�
 - **Přestavění přes generaci + concurrency token** – bez restartu služby, i během čtení.
 - **Stránka pro role s přehledem objednávek** (sklad, podpora, účetní), v menu Přehledy.
 - **Statistika podle dne konce kroku**, p50/p95 metodou nejbližšího pořadí, 14 dní.
+- **Doplněk po ověření – stránka bez F5:** živý výřez `#lead-times-live` s tématem `staff:orders` (signál už existoval
+  z vzhledu F3a, stejná politika jako stránka) a novým atributem `live-delay="2000"` – signál dostane Web hned, projekce
+  v Reporting.Api je o dávku (~1 s) pozadu. Po „Přestavět z proudu“ (žádný signál) redirect s `?rebuilt=<unix čas>` →
+  30 s dotazování každé 3 s, pak zase signál. Soubory: `LiveRegionTagHelper`, `live-region.js`, `Pages/Admin/LeadTimes`,
+  `LeadTimesPageTests`.
 
 ## Známá omezení
 

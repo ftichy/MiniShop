@@ -96,6 +96,10 @@ Kód: [LeadTimeProjectionWorker](code:src/MiniShop.Infrastructure/Reporting/Lead
 [LeadTimeReportService](code:src/MiniShop.Application/Reporting/LeadTimeReportService.cs),
 [OrderLeadTime a StreamCheckpoint](code:src/MiniShop.Domain/Reporting/OrderLeadTime.cs); stránka `/Admin/LeadTimes`.
 
+Stránka se obnovuje sama ([živý výřez](../architektura/vzhled.md)): signál `staff:orders` přijde s každou změnou stavu
+objednávky, výřez počká 2 s (projekce v Reporting.Api je o dávku pozadu) a vymění čísla. Přestavění žádný signál nepošle –
+po kliknutí se proto výřez 30 s dotazuje každé 3 s (čas kliknutí nese adresa `?rebuilt=…`).
+
 ## Na internetu
 
 - [RabbitMQ Streams](https://www.rabbitmq.com/docs/streams) – typ fronty, retence, `x-stream-offset`

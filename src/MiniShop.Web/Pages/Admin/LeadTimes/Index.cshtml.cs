@@ -13,9 +13,26 @@ namespace MiniShop.Web.Pages.Admin.LeadTimes;
 /// na začátek. Pro role s přehledem objednávek (sklad, podpora, účetní).
 /// </summary>
 [Authorize(Policy = AuthorizationPolicies.RequireOrderOverview)]
-public sealed class IndexModel(ILeadTimeApi leadTimes, ILogger<IndexModel> logger) : PageModel
+public sealed class IndexModel(ILeadTimeApi leadTimes, TimeProvider timeProvider, ILogger<IndexModel> logger) : PageModel
 {
+    /// <summary>Jak dlouho po „Přestavět z proudu“ se výřez dotazuje každé 3 s (přestavění samo žádný signál nepošle).</summary>
+    public static readonly TimeSpan RebuildPollingWindow = TimeSpan.FromSeconds(30);
+
     public LeadTimeReportDto? Report { get; private set; }
+
+    /// <summary>Čas kliknutí na Přestavět (unixové sekundy) – zůstává v adrese, takže ho nese i obnovení výřezu.</summary>
+    [BindProperty(SupportsGet = true, Name = "rebuilt")]
+    public long? RebuiltAtUnixSeconds { get; set; }
+
+    /// <summary>
+    /// Téma živého výřezu: běžně signál <c>staff:orders</c> (každá změna stavu objednávky); krátce po přestavění žádné
+    /// – výřez se pak dotazuje každé 3 s, a až okno skončí, vykreslí se zase s tématem.
+    /// </summary>
+    public string? LiveTopic => IsRebuilding ? null : LiveUpdates.LiveTopics.AllOrders;
+
+    public bool IsRebuilding => RebuiltAtUnixSeconds is { } rebuilt
+        && timeProvider.GetUtcNow() - DateTimeOffset.FromUnixTimeSeconds(rebuilt) is var elapsed
+        && elapsed >= TimeSpan.Zero && elapsed < RebuildPollingWindow;
 
     public string? ErrorMessage { get; private set; }
 
@@ -40,7 +57,8 @@ public sealed class IndexModel(ILeadTimeApi leadTimes, ILogger<IndexModel> logge
         try
         {
             await leadTimes.RebuildLeadTimesAsync(cancellationToken);
-            StatusMessage = "Přehled se přestavuje z proudu zpráv – za pár sekund bude zase kompletní (jen historie, kterou proud ještě drží).";
+            StatusMessage = "Přehled se přestavuje z proudu zpráv – čísla se během pár sekund doplní sama (jen historie, kterou proud ještě drží).";
+            return RedirectToPage(new { rebuilt = timeProvider.GetUtcNow().ToUnixTimeSeconds() });
         }
         catch (SalesReportUnavailableException ex)
         {

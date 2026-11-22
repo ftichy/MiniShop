@@ -99,7 +99,19 @@ async Task RunCustomerAsync(int number)
             await Shop.AddRandomProductsAsync(session, random);
             await Pause(random);
             orderId = await Shop.CheckoutCashOnDeliveryAsync(session);
-            confirmTime = await Shop.WaitForStatusAsync(session, orderId.Value, "Potvrzená", options.Patience);
+            // Eventual consistency: kopie katalogu mohla ještě ukazovat „skladem“, ale sklad poslední kusy mezitím
+            // rezervoval jinému – sága objednávku zamítne. Platný konec, ne chyba MiniShopu.
+            var (decision, decisionTime) = await Shop.WaitForAnyStatusAsync(session, orderId.Value, options.Patience, Shop.Confirmed, Shop.Rejected);
+            if (decision == Shop.Rejected)
+            {
+                scenario += " → zamítnuto (sklad nestačil)";
+                results.Add(result = new(number, scenario, orderId, true, null, null));
+                Report(number, result);
+                await Pause(random);
+                continue;
+            }
+
+            confirmTime = decisionTime;
             await Pause(random);
 
             switch (scenario)
@@ -131,21 +143,29 @@ async Task RunCustomerAsync(int number)
 
             result = new(number, scenario, orderId, true, confirmTime, null);
         }
+        catch (SoldOutException)
+        {
+            // Pokladna odmítla vyprodané zboží – došlo zboží, ne chyba MiniShopu (košík se příště vyprázdní).
+            result = new(number, scenario + " → vyprodáno v pokladně", orderId, true, null, null);
+        }
         catch (Exception ex)
         {
             result = new(number, scenario, orderId, false, confirmTime, ex.Message);
         }
 
         results.Add(result);
-
-        // Dlouhý běh: průběžně, ať je vidět, že generátor žije (tabulka je až na konci).
-        if (deadline is not null)
-        {
-            Console.WriteLine($"[{DateTime.UtcNow - startedAt:hh\\:mm\\:ss}] zákazník {number}: {scenario} {orderId?.ToString() ?? "-"} – " +
-                              $"{(result.Ok ? "OK" : "CHYBA: " + result.Error)} (celkem {results.Count} scénářů)");
-        }
-
+        Report(number, result);
         await Pause(random);
+    }
+}
+
+// Dlouhý běh: průběžně, ať je vidět, že generátor žije (tabulka je až na konci).
+void Report(int number, ScenarioResult result)
+{
+    if (deadline is not null)
+    {
+        Console.WriteLine($"[{DateTime.UtcNow - startedAt:hh\\:mm\\:ss}] zákazník {number}: {result.Scenario} {result.OrderId?.ToString() ?? "-"} – " +
+                          $"{(result.Ok ? "OK" : "CHYBA: " + result.Error)} (celkem {results.Count} scénářů)");
     }
 }
 

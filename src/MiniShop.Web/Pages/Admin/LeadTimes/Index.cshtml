@@ -19,6 +19,9 @@
 }
 else if (Model.Report is { } report)
 {
+    @* Živý výřez: obnoví se sám po změně stavu kterékoli objednávky (signál staff:orders, 2 s počkat na projekci
+       v Reporting.Api), po „Přestavět z proudu“ 30 s každé 3 s. *@
+    <div id="lead-times-live" live-region="true" live-topic="@Model.LiveTopic" live-delay="2000">
     <div class="row g-3 mb-4" data-track="lead-times-summary">
         @foreach (var (label, stats) in new[] { ("Potvrzení", report.Confirmation), ("Expedice", report.Expedition), ("Doručení", report.Delivery) })
         {
@@ -58,17 +61,17 @@ else if (Model.Report is { } report)
         </table>
     </div>
 
-    <div class="d-flex flex-wrap align-items-center gap-3 mt-3">
-        <p class="small text-muted mb-0" data-track="lead-times-checkpoint">
+    <p class="small text-muted mt-3 mb-2" data-track="lead-times-checkpoint">
             Záložka v proudu: @(report.Offset is { } offset ? $"zpráva č. {offset}" : "zatím nic (čte se od začátku)")
             @if (report.LastMessageAtUtc is { } last)
             {
                 <text>· poslední zpráva @last.ToCzechString()</text>
             }
             · přestavěno @(report.Generation)×
-        </p>
-        <form method="post" asp-page-handler="Rebuild">
-            <button type="submit" class="btn btn-sm btn-outline-secondary" data-track="lead-times-rebuild">Přestavět z proudu</button>
-        </form>
+    </p>
     </div>
+
+    <form method="post" asp-page-handler="Rebuild">
+        <button type="submit" class="btn btn-sm btn-outline-secondary" data-track="lead-times-rebuild">Přestavět z proudu</button>
+    </form>
 }

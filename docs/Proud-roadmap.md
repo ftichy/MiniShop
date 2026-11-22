@@ -7,7 +7,7 @@ Teorie: příručka [Proud zpráv](prirucka/eda/proud-zprav.md). Souhrny kroků 
 | Krok | Co | Stav |
 | --- | --- | --- |
 | B1. Proud zpráv | stream `minishop.events` (14 dní / 1 GB, segmenty 50 MB) navázaný na všechny kontrakty, založení Webem (vedoucí kopie); čtečka od času; stránka **Proud zpráv** (`/Admin/EventStream`, Provoz) – pouť objednávky napříč moduly; maskování osobních údajů; testy nad skutečným RabbitMQ (Testcontainers). Souhrn [krok-b1](kroky-proud/krok-b1-proud-zprav.md). | hotovo (21. 11. 2026, ověřeno) |
-| B2. Projekce přehráním | ve službě Reporting.Api čtecí model **Rychlost vyřízení** (doba potvrzení, předání dopravci, doručení – p50/p95 po dnech) jen z proudu; záložka (offset) v tabulce modulu ve stejné transakci jako data; „Přestavět z proudu“ = záložka na začátek. Srovnání s přestavěním přes snímky (krok 11). Souhrn [krok-b2](kroky-proud/krok-b2-projekce-prehranim.md). | v PR |
+| B2. Projekce přehráním | ve službě Reporting.Api čtecí model **Rychlost vyřízení** (doba potvrzení, předání dopravci, doručení – p50/p95 po dnech) jen z proudu; záložka (offset) v tabulce modulu ve stejné transakci jako data; „Přestavět z proudu“ = záložka na začátek. Srovnání s přestavěním přes snímky (krok 11). Souhrn [krok-b2](kroky-proud/krok-b2-projekce-prehranim.md). | hotovo (21. 11. 2026, ověřeno; 22. 11. obnovení stránky bez F5) |
 | B3. (volitelně) Bez auditní fronty | `minishop.audit` je s proudem zbytečná – odstranit (expand → contract). | plán |
 
 ## Rozhodnutí

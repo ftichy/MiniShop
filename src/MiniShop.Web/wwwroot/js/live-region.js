@@ -2,7 +2,8 @@
 // stránku na pozadí a vymění jen výřez. Tenhle soubor rozhoduje, KDY obnovit:
 //  - vzhled krok F3a: výřez s tématem (data-live-topic) a připojený SignalR (/hubs/live) → hned na signál od serveru
 //    „changed(téma)“, pojistně jednou za 60 s (signál se mohl ztratit);
-//  - bez tématu, bez spojení nebo bez práva na téma → každé 3 s (jako vzhled krok F2).
+//  - bez tématu, bez spojení nebo bez práva na téma → každé 3 s (jako vzhled krok F2);
+//  - proud B2: data-live-delay (ms) = obnovit až chvíli po signálu (data počítá jiná služba), víc signálů = jedno obnovení.
 // A pojistka (vzhled krok F2): výměnu odloží, dokud ve výřezu uživatel něco mění (zaškrtnutí, text, rozbalený formulář).
 (function () {
     'use strict';
@@ -34,6 +35,30 @@
     function refresh(region) {
         region.dataset.liveLast = String(Date.now());
         htmx.trigger(region, 'live-refresh');
+    }
+
+    // Proud B2: se zpožděním (data-live-delay) – během čekání další signál nic nepřidá.
+    const delayedIds = new Set();
+    function refreshAfterSignal(region) {
+        const delay = Number(region.dataset.liveDelay || 0);
+        if (!delay || !region.id) {
+            refresh(region);
+            return;
+        }
+
+        if (delayedIds.has(region.id)) {
+            return;
+        }
+
+        delayedIds.add(region.id);
+        setTimeout(function () {
+            delayedIds.delete(region.id);
+            // htmx mezitím mohl výřez vyměnit – obnovit ten, který je na stránce teď.
+            const current = document.getElementById(region.id);
+            if (current && current.hasAttribute('hx-get')) {
+                refresh(current);
+            }
+        }, delay);
     }
 
     function intervalFor(region) {
@@ -85,7 +110,7 @@
         connection.on('changed', function (topic) {
             for (const region of regions()) {
                 if (region.dataset.liveTopic === topic) {
-                    refresh(region);
+                    refreshAfterSignal(region);
                 }
             }
         });

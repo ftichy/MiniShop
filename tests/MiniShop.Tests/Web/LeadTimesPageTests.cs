@@ -28,6 +28,35 @@ public sealed class LeadTimesPageTests(MiniShopWebFactory web)
     }
 
     [Fact]
+    public async Task ZivyVyrez_SignalZmenyObjednavek_PoPrestaveniDotazovani()
+    {
+        var client = await WarehouseAsync("rychlost-zive@example.com");
+
+        var normal = await client.GetStringAsync("/Admin/LeadTimes");
+        var response = await client.PostAsync("/Admin/LeadTimes?handler=Rebuild", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = await MiniShopWebFactory.GetAntiforgeryTokenAsync(client, "/Admin/LeadTimes")
+        }));
+        var location = response.Headers.Location!.OriginalString;
+        var rebuilding = await client.GetStringAsync(location);
+        var longAgo = DateTimeOffset.UtcNow.AddMinutes(-5).ToUnixTimeSeconds();
+        var afterWindow = await client.GetStringAsync($"/Admin/LeadTimes?rebuilt={longAgo}");
+
+        // Běžně: signál při každé změně stavu objednávky, obnovení 2 s po něm (projekci počítá Reporting.Api).
+        Assert.Contains("id=\"lead-times-live\"", normal);
+        Assert.Contains("data-live-topic=\"staff:orders\"", normal);
+        Assert.Contains("data-live-delay=\"2000\"", normal);
+
+        // Po přestavění: adresa nese čas kliknutí, výřez bez tématu = dotazování každé 3 s (i obnovení výřezu má tutéž adresu).
+        Assert.Contains("rebuilt=", location);
+        Assert.Contains("hx-get=\"/Admin/LeadTimes?rebuilt=", rebuilding);
+        Assert.DoesNotContain("data-live-topic", rebuilding);
+
+        // Po 30 s zase signál.
+        Assert.Contains("data-live-topic=\"staff:orders\"", afterWindow);
+    }
+
+    [Fact]
     public async Task VypadekSluzby_Upozorneni()
     {
         web.SalesReports.Available = false;

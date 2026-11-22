@@ -26,5 +26,11 @@ internal sealed class CatalogProductConfiguration : IEntityTypeConfiguration<Cat
         builder.HasIndex(p => p.SearchText).HasMethod("gin").HasOperators("gin_trgm_ops");
         builder.Ignore(p => p.IsOrderable);
         builder.Property(p => p.RatingAverage).HasPrecision(3, 1);   // e-shop krok 14: hodnocení z modulu Reviews
+
+        // E-shop krok 27B: „Zákazníci také koupili“ – pole integer[] (pořadí = význam). Výchozí prázdné pole v DB:
+        // starší verze Webu při postupném nasazení sloupec nezná a při vložení produktu ho nevyplní.
+        builder.Ignore(p => p.RecommendedProductIds);
+        builder.Property<List<int>>("_recommendedProductIds").HasColumnName("RecommendedProductIds")
+            .IsRequired().HasDefaultValueSql("'{}'::integer[]");
     }
 }

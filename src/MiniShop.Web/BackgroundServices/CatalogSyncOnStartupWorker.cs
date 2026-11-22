@@ -20,9 +20,16 @@ public sealed class CatalogSyncOnStartupWorker(
         try
         {
             await using var scope = scopeFactory.CreateAsyncScope();
-            if (await scope.ServiceProvider.GetRequiredService<CatalogSyncService>().RequestIfEmptyOrIncompleteAsync(stoppingToken))
+            var sync = scope.ServiceProvider.GetRequiredService<CatalogSyncService>();
+            if (await sync.RequestIfEmptyOrIncompleteAsync(stoppingToken))
             {
                 logger.LogInformation("[Katalog] Kopie katalogu je prázdná nebo neúplná – žádám sklad o celý katalog (SyncCatalogV1)");
+            }
+
+            // E-shop krok 27B: doporučení „Zákazníci také koupili“ – požádat Reporting o všechna (doplní, co kopie zmeškala).
+            if (await sync.RequestRecommendationsAsync(stoppingToken))
+            {
+                logger.LogInformation("[Katalog] Žádám Reporting o doporučení „Zákazníci také koupili“ (SyncProductRecommendationsV1)");
             }
         }
         catch (Exception ex) when (!stoppingToken.IsCancellationRequested)

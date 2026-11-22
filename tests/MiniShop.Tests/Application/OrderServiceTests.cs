@@ -246,6 +246,10 @@ public sealed partial class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<PaymentRefundedV2, SalesProjectionHandler>(IntegrationModules.Reporting);
         services.AddIntegrationMessageHandler<OrderPartialReturnsSnapshotV1, SalesProjectionHandler>(IntegrationModules.Reporting);   // přestavění
         services.AddIntegrationMessageHandler<OrderReturnedToSenderV1, SalesProjectionHandler>(IntegrationModules.Reporting);   // e-shop krok 26D
+        // E-shop krok 27: „Zákazníci také koupili“ – dávka v Reportingu, doplnění na žádost Orderingu, kopie v katalogu.
+        services.AddScoped<ProductRecommendationService>();
+        services.AddIntegrationMessageHandler<SyncProductRecommendationsV1, SyncProductRecommendationsHandler>(IntegrationModules.Reporting);
+        services.AddIntegrationMessageHandler<ProductRecommendationsChangedV1, CatalogProjectionHandler>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<RebuildSalesReportV1, RebuildSalesReportHandler>(IntegrationModules.Ordering);
 
         // E-shop krok 14: modul Reviews (kopie nákupů, hodnocení) – jako AddReviewsModule + AddReviewsInfrastructure ve Webu,

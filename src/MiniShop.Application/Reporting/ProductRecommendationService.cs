@@ -83,6 +83,30 @@ public sealed class ProductRecommendationService(
         return changed;
     }
 
+    /// <summary>
+    /// E-shop krok 27B: pošle znovu všechna uložená doporučení (s původním časem výpočtu) – na příkaz
+    /// <see cref="SyncProductRecommendationsV1"/> od Orderingu. Odběratel, který zprávy zmeškal (v 27A je ještě nikdo
+    /// neposlouchal, nová kopie katalogu), si kopii doplní; ostatním neuškodí (stejný čas = stejný obsah).
+    /// </summary>
+    /// <returns>Kolik zpráv odešlo.</returns>
+    public async Task<int> RepublishAllAsync(CancellationToken cancellationToken = default)
+    {
+        var all = await recommendations.GetAllAsync(cancellationToken);
+        var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
+        foreach (var recommendation in all)
+        {
+            publisher.Publish(new ProductRecommendationsChangedV1(Guid.NewGuid(), nowUtc, recommendation.ProductId,
+                recommendation.RecommendedProductIds, recommendation.ComputedAtUtc));
+        }
+
+        if (all.Count > 0)
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
+        return all.Count;
+    }
+
     private void Publish(int productId, IReadOnlyList<int> recommended, DateTime nowUtc) =>
         publisher.Publish(new ProductRecommendationsChangedV1(Guid.NewGuid(), nowUtc, productId, recommended, nowUtc));
 }

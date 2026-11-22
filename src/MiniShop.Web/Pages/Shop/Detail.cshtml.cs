@@ -9,6 +9,7 @@ using MiniShop.Application.Reviews;
 using MiniShop.Domain.Exceptions;
 using MiniShop.Domain.Reviews;
 using MiniShop.Web.Accounts;
+using MiniShop.Web.Catalog;
 using MiniShop.Web.Notifications;
 
 namespace MiniShop.Web.Pages.Shop;
@@ -24,6 +25,11 @@ public sealed class DetailModel(ICatalogQueryService catalog, ReviewService revi
     public CatalogItemDto Product { get; private set; } = null!;
 
     public ProductReviewsDto Reviews { get; private set; } = null!;
+
+    /// <summary>E-shop krok 27B: „Zákazníci také koupili“ z kopie katalogu (spočítal Reporting) – prázdné = oddíl se neukáže.</summary>
+    public IReadOnlyList<CatalogItemDto> Recommendations { get; private set; } = [];
+
+    public ProductCardModel Card(CatalogItemDto product) => new(product, CanOrder, IsAnonymous, CurrentUrl);
 
     public bool CanOrder { get; private set; }
 
@@ -143,6 +149,7 @@ public sealed class DetailModel(ICatalogQueryService catalog, ReviewService revi
         Product = product;
         CanOrder = (await authorization.AuthorizeAsync(User, AuthorizationPolicies.RequireCustomer)).Succeeded;
         Reviews = await reviews.GetForProductAsync(id, CanOrder ? User.ToCustomerId() : null, cancellationToken);
+        Recommendations = await catalog.GetRecommendationsAsync(id, cancellationToken);
         IsWatching = CanOrder && await IsWatchingAsync(id, cancellationToken);
         return true;
     }

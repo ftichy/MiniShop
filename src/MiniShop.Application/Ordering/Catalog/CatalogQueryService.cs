@@ -101,6 +101,18 @@ public sealed class CatalogQueryService(ICatalogProductRepository catalog) : ICa
     public async Task<CatalogItemDto?> GetProductAsync(int productId, CancellationToken cancellationToken = default) =>
         await catalog.GetByIdAsync(productId, cancellationToken) is { IsRemoved: false } product ? product.ToCatalogItemDto() : null;
 
+    public async Task<IReadOnlyList<CatalogItemDto>> GetRecommendationsAsync(int productId, CancellationToken cancellationToken = default)
+    {
+        if (await catalog.GetByIdAsync(productId, cancellationToken) is not { IsRemoved: false, RecommendedProductIds.Count: > 0 } product)
+        {
+            return [];
+        }
+
+        var ids = product.RecommendedProductIds;
+        var available = (await catalog.GetAvailableByIdsAsync(ids, cancellationToken)).ToDictionary(p => p.Id);
+        return [.. ids.Where(available.ContainsKey).Select(id => available[id].ToCatalogItemDto())];
+    }
+
     /// <summary>
     /// Přesné hledání; když nic nenajde, podobná slova. Vrací i body relevance (přesné: <see cref="CatalogRelevance"/>,
     /// podobné: podobnost z databáze).

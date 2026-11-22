@@ -90,6 +90,20 @@
     </div>
 </div>
 
+@* E-shop krok 27B: „Zákazníci také koupili“ – spočítal Reporting, Ordering má kopii v katalogu (výloha se Reportingu neptá). *@
+@if (Model.Recommendations.Count > 0)
+{
+    <section class="mt-5" data-track="product-recommendations" aria-labelledby="recommendations-title">
+        <h2 class="h4" id="recommendations-title">Zákazníci také koupili</h2>
+        <div class="row row-cols-2 row-cols-md-4 g-3">
+            @foreach (var recommended in Model.Recommendations)
+            {
+                <div class="col"><partial name="_ProductCard" model="Model.Card(recommended)" /></div>
+            }
+        </div>
+    </section>
+}
+
 @* E-shop krok 14: hodnocení z modulu Reviews – hodnotit smí jen ten, kdo produkt koupil a dostal (kopie nákupů z událostí). *@
 <h2 class="h4 mt-5">Hodnocení zákazníků</h2>
 

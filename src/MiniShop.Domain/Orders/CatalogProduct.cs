@@ -133,6 +133,30 @@ public sealed class CatalogProduct
         return true;
     }
 
+    private List<int> _recommendedProductIds = [];
+
+    /// <summary>E-shop krok 27B: „Zákazníci také koupili“ z Reportingu – ID produktů, nejčastější první (nejvýš 4).</summary>
+    public IReadOnlyList<int> RecommendedProductIds => _recommendedProductIds.AsReadOnly();
+
+    /// <summary>Kdy Reporting doporučení spočítal – starší výpočet přes novější nepřepíše.</summary>
+    public DateTime? RecommendationsComputedAtUtc { get; private set; }
+
+    /// <summary>
+    /// E-shop krok 27B: ProductRecommendationsChangedV1 (prázdný seznam = nic nedoporučovat). Vrací false, když je výpočet
+    /// starší než to, co kopie zná. Stejně starý se přijme – Reporting po startu posílá doporučení znovu (doplnění kopie).
+    /// </summary>
+    public bool ApplyRecommendations(IReadOnlyList<int> productIds, DateTime computedAtUtc)
+    {
+        if (RecommendationsComputedAtUtc is { } known && computedAtUtc < known)
+        {
+            return false;
+        }
+
+        _recommendedProductIds = [.. productIds.Where(id => id != Id).Distinct()];
+        RecommendationsComputedAtUtc = computedAtUtc;
+        return true;
+    }
+
     public bool MarkRemoved(DateTime removedAtUtc)
     {
         if (removedAtUtc < ChangedAtUtc)

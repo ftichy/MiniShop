@@ -48,6 +48,8 @@ flowchart LR
     end
     o1 -->|"OrderPlacedV2, OrderConfirmedV1, …, OrderSnapshotV1"| r1
     r1 -->|RebuildSalesReportV1| o1
+    r1 -->|ProductRecommendationsChangedV1| o3
+    o3 -->|SyncProductRecommendationsV1| r1
     subgraph rev["Reviews (služba Web)"]
         v1[Hodnocení + kopie nákupů]
     end

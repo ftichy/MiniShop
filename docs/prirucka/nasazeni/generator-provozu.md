@@ -39,8 +39,26 @@ z issue #155; před prvním během proto ruční záloha `sudo systemctl start m
 3. **Sleduj Grafanu** (dashboard *MiniShop – zprávy a ságy*, trasy podle `enduser.id` nebo `minishop.order.id`,
    viz [tutoriál Grafany](grafana-tutorial.md)).
 
-Parametry: `--customers` (1–20), `--rounds` (kolik scénářů každý zákazník projde), `--pause` (průměrná pauza mezi kroky v s;
-pauzy jsou náhodné ±50 %, aby provoz nevypadal jako špička). Lokálně stačí `--url https://localhost:7180`.
+Parametry: `--customers` (1–20), `--rounds` (kolik scénářů každý zákazník projde), `--duration` (místo kol délka běhu
+v minutách), `--pause` (průměrná pauza mezi kroky v s; pauzy jsou náhodné ±50 %, aby provoz nevypadal jako špička).
+Lokálně stačí `--url https://localhost:7180`.
+
+## Dlouhý test (1–2 hodiny, 10–20 zákazníků)
+
+```powershell
+dotnet run --project tools/MiniShop.TrafficGenerator -- --url https://minishop-tichy.cz --customers 20 --duration 90 --pause 5
+```
+
+- Účty: `create-loadtest-users --count 20`. Před během ruční záloha a **dost zboží skladem** – 20 zákazníků za 90 min
+  udělá řádově stovky objednávek; zrušení a vratky zboží vrátí, doručené ne.
+- **Přihlášení se rozloží** (~8 za minutu, zákazník 20 začne po 2,5 min) – formuláře účtu mají limit 10 za minutu z jedné IP.
+  Když přesto přijde 429, generátor počká 65 s a zkusí to znovu (nejvýš 3×).
+- S `--duration` zákazník spouští další scénáře, dokud čas neuplyne; rozpracovaný dokončí (konec tedy o pár minut později).
+  Po každém scénáři vypíše řádek `[čas] zákazník N: scénář objednávka – OK`.
+- **Ctrl+C** jednou = žádné nové scénáře, rozpracované se dokončí a vypíše se souhrn; podruhé = konec hned.
+- Na konci tabulka, počty scénářů podle výsledku a **doba potvrzení p50/p95** (srovnejte se stránkou Rychlost vyřízení
+  a s dashboardem v Grafaně).
+- Skladník je jeden a vyřizuje objednávky po jedné – u 20 zákazníků se před ním tvoří fronta (delší doba expedice je očekávaná).
 
 ## Scénáře
 
@@ -56,8 +74,8 @@ Na konci je tabulka: kdo, jaký scénář, číslo objednávky, **čas do potvrz
 
 ## Omezení
 
-- Formuláře účtu mají limit 10 odeslání za minutu z jedné IP (`RateLimiting:AccountForms`); jedno spuštění přihlásí
-  zákazníky + skladníka jen jednou, ale opakované spuštění hned za sebou může dostat 429.
+- Formuláře účtu mají limit 10 odeslání za minutu z jedné IP (`RateLimiting:AccountForms`); generátor přihlášení
+  rozkládá a 429 přečká, opakované spuštění hned za sebou ale jen zpomalí start.
 - Výloha musí mít produkty skladem; generátor nic neobsazuje ani nezakládá.
 - Generátor nezná prohlížeč – HTML formuláře čte jednoduchým rozborem. Změna názvu pole formuláře (pokladna, expedice) ho
   rozbije; hlásí to jako chybu scénáře.

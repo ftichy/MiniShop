@@ -46,7 +46,7 @@ public sealed class Session : IDisposable
         var html = await response.Content.ReadAsStringAsync();
         if (response.StatusCode == HttpStatusCode.TooManyRequests)
         {
-            throw new HttpRequestException("429 – limit požadavků (RateLimiting). Zpomalte generátor nebo počkejte minutu.");
+            throw new RateLimitedException();
         }
 
         var url = response.RequestMessage?.RequestUri?.PathAndQuery ?? string.Empty;
@@ -62,3 +62,6 @@ public sealed record Page(string Url, int Status, string Html)
 
     public int? OrderId => Regex.Match(Url, @"^/Orders/(\d+)") is { Success: true } match ? int.Parse(match.Groups[1].Value) : null;
 }
+
+/// <summary>429 – limit požadavků (RateLimiting, formuláře účtu 10 za minutu z jedné IP na kopii Webu). Přihlášení ho zkusí přečkat.</summary>
+public sealed class RateLimitedException() : HttpRequestException("429 – limit požadavků (RateLimiting). Zpomalte generátor nebo počkejte minutu.");

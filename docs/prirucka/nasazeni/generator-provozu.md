@@ -53,7 +53,8 @@ dotnet run --project tools/MiniShop.TrafficGenerator -- --url https://minishop-t
 
 - Účty: `create-loadtest-users --count 20`. Účty z dřívějšího běhu (např. 1–4) dostanou stejné heslo jako nové –
   22. 11. 2026 se jinak zákazníci 5–20 nepřihlásili. Před během ruční záloha a **dost zboží skladem** – 20 zákazníků za 90 min
-  udělá řádově stovky objednávek; zrušení a vratky zboží vrátí, doručené ne.
+  udělá ~1 000 scénářů (~300 doručených objednávek); zrušení a vratky zboží vrátí, doručené ne. Počítej **~100 kusů na produkt**
+  (50 kusů 22. 11. 2026 nestačilo).
 - **Přihlášení se rozloží** (~8 za minutu, zákazník 20 začne po 2,5 min) – formuláře účtu mají limit 10 za minutu z jedné IP.
   Když přesto přijde 429, generátor počká 65 s a zkusí to znovu (nejvýš 3×).
 - S `--duration` zákazník spouští další scénáře, dokud čas neuplyne; rozpracovaný dokončí (konec tedy o pár minut později).
@@ -73,6 +74,19 @@ Zákazníci jedou paralelně, scénáře se střídají podle čísla zákazník
   předá dopravci (číslo zásilky přidělí simulovaný dopravce – e-shop krok 26B), doručení ohlásí dopravce sám (26C, ~2 min) – asi každou desátou zásilku dopravce nedoručí a vrátí (26D, ~4 min), pak má scénář ve výsledku „→ vráceno dopravcem“;
 - **zrušená** – totéž až po potvrzení, pak zákazník objednávku zruší (uvolnění rezervace, dobropis nevzniká – nic nebylo zaplaceno);
 - **vrácená** – doručená + žádost o vrácení + skladník vratku převezme (zboží zpět na sklad, dobropis).
+
+Každý scénář začíná **vyprázdněním košíku** – košík se ukládá, takže by v něm jinak zůstal produkt z minulé nepovedené pokladny.
+
+### Když dojde zboží – dva očekávané konce (eventual consistency)
+
+| Výsledek | Co se stalo |
+| --- | --- |
+| `→ vyprodáno v pokladně` | Kopie katalogu v Orderingu už ví, že je produkt vyprodaný (zpráva `StockAvailabilityChangedV1`), a pokladna objednávku nepustí. |
+| `→ zamítnuto (sklad nestačil)` | Kopie katalogu ještě ukazovala „skladem“, ale sklad poslední kusy mezitím rezervoval jinému zákazníkovi. Objednávka vznikla a **sága ji zamítla** (`Zamítnutá`) – nic se nerezervovalo ani nezaplatilo, takže není co vracet. |
+
+Druhý případ je ukázka **eventual consistency**: kopie dat v jiném modulu chvíli zaostává, proto pravidlo „neprodat víc, než je
+skladem“ hlídá jen sklad (pravda o zásobách) a rozpor dořeší sága – přeprodání nenastane. Oba výsledky se počítají jako OK,
+v souhrnu mají vlastní řádek; doba potvrzení p50/p95 je jen z potvrzených objednávek.
 
 Skladník je jedna relace a dělá jednu věc po druhé (jako člověk), takže se objednávky zákazníků na skladníka řadí.
 Na konci je tabulka: kdo, jaký scénář, číslo objednávky, **čas do potvrzení** (sága ~4–8 s) a výsledek. Chyba = návratový kód 1.

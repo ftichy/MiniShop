@@ -68,9 +68,23 @@ public static class Shop
         }
     }
 
-    /// <summary>Vybere náhodné 1–2 produkty z výlohy (jen ty, co mají „Do košíku“) a přidá je do košíku.</summary>
+    /// <summary>
+    /// Odebere z košíku všechny řádky (tlačítko „Odebrat“). Košík se ukládá – bez toho by vyprodaný produkt z nepovedené
+    /// pokladny zůstal v košíku a pokazil každý další scénář zákazníka (dlouhý test 22. 11. 2026: 125 chyb).
+    /// </summary>
+    public static async Task EmptyCartAsync(Session session)
+    {
+        var cart = await session.GetAsync("/Cart");
+        foreach (var id in HtmlForms.ProductIds(cart.Html))
+        {
+            await session.PostAsync(cart, "/Cart?handler=Remove", [("productId", id.ToString())]);
+        }
+    }
+
+    /// <summary>Vyprázdní košík, vybere náhodné 1–2 produkty z výlohy (jen ty, co mají „Do košíku“) a přidá je do košíku.</summary>
     public static async Task AddRandomProductsAsync(Session session, Random random)
     {
+        await EmptyCartAsync(session);
         var shop = await session.GetAsync("/Shop");
         var ids = HtmlForms.ProductIds(shop.Html);
         if (ids.Count == 0)
@@ -102,9 +116,22 @@ public static class Shop
             ("Input.PostalCode", "11000")
         ]);
         var result = await session.PostAsync(checkout, "/Checkout", fields);
-        return result.OrderId ?? throw new InvalidOperationException(
-            "Objednávka nevznikla: " + Regex.Replace(WebUtility.HtmlDecode(Regex.Match(result.Html, "validation-summary[^>]*>(.*?)</div>", RegexOptions.Singleline).Groups[1].Value), "<[^>]+>", " ").Trim());
+        if (result.OrderId is { } orderId)
+        {
+            return orderId;
+        }
+
+        var message = Regex.Replace(WebUtility.HtmlDecode(Regex.Match(result.Html, "validation-summary[^>]*>(.*?)</div>", RegexOptions.Singleline).Groups[1].Value), "<[^>]+>", " ").Trim();
+        // Pokladna správně odmítla vyprodané zboží (kopie katalogu už o vyprodání ví) – očekávaný výsledek, ne chyba MiniShopu.
+        throw message.Contains("vyprodan", StringComparison.OrdinalIgnoreCase)
+            ? new SoldOutException(message)
+            : new InvalidOperationException("Objednávka nevznikla: " + message);
     }
+
+    /// <summary>Stavy, kterými může skončit čekání na rozhodnutí ságy.</summary>
+    public const string Confirmed = "Potvrzená";
+
+    public const string Rejected = "Zamítnutá";
 
     /// <summary>Čeká (obnovováním detailu), až bude stav <paramref name="statusText"/>. Vrací, jak dlouho to trvalo.</summary>
     public static async Task<TimeSpan> WaitForStatusAsync(Session session, int orderId, string statusText, TimeSpan patience) =>
@@ -141,3 +168,6 @@ public static class Shop
     public static async Task RequestReturnAsync(Session session, int orderId) =>
         await session.PostAsync($"/Orders/{orderId}", $"/Orders/{orderId}?handler=Return", ("reason", "Generátor provozu: zboží nevyhovuje"));
 }
+
+/// <summary>Pokladna odmítla vyprodaný produkt – při dlouhém testu očekávané (dojde zboží), počítá se zvlášť.</summary>
+public sealed class SoldOutException(string message) : Exception(message);

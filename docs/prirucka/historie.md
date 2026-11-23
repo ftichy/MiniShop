@@ -118,6 +118,7 @@ Plán (výloha, košík, pokladna, expedice, platba, notifikace): [docs/Eshop-ro
 | 26E | Provoz dopravce – ztracené mezikroky v historii zásilky se po konci doplní dohledáním, dohledání zná i stavy nedoručitelné zásilky, Grafana ukazuje zásilky podle stavu a hlídá zaseknuté (alarm `MiniShopShipmentStale`) – [modul Shipping](architektura/moduly/shipping.md) | [krok-26e](code:docs/kroky-eshop/krok-26e-provoz-dopravce.md) |
 | 27A | Zákazníci také koupili – výpočet: dávka v Reporting.Api každých 5 minut z přehledu tržeb (jen objednávky, které si zákazník nechal), dvojice až od 2 objednávek, `ProductRecommendationsChangedV1` jen při změně – [modul Reporting](architektura/moduly/reporting.md) | [krok-27a](code:docs/kroky-eshop/krok-27a-doporuceni-vypocet.md) |
 | 27B | Zákazníci také koupili – na webu: Ordering si doporučení ukládá do kopie katalogu, detail produktu je ukáže; chybějící si po startu vyžádá příkazem `SyncProductRecommendationsV1` | [krok-27b](code:docs/kroky-eshop/krok-27b-doporuceni-na-webu.md) |
+| 28A | Víc skladů – Praha a Brno: zásoba po skladech, naskladnění do vybraného skladu, rezervace z jednoho skladu, když to jde, jinak rozdělená; vrácení do skladu původu (zákazník nic nepozná) – [modul Inventory](architektura/moduly/inventory.md) | [krok-28a](code:docs/kroky-eshop/krok-28a-sklady.md) |
 
 ## Vzhled
 

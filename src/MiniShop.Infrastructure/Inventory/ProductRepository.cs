@@ -24,6 +24,9 @@ public sealed class ProductRepository(InventoryDbContext db) : IProductRepositor
     public async Task<IReadOnlyList<Product>> GetByCategoryAsync(int categoryId, CancellationToken cancellationToken = default) =>
         await Products.Where(p => p.CategoryId == categoryId).ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<Warehouse>> GetWarehousesAsync(CancellationToken cancellationToken = default) =>
+        await db.Warehouses.AsNoTracking().OrderBy(w => w.Id).ToListAsync(cancellationToken);
+
     public void Add(Product product) => db.Products.Add(product);
 
     public void Remove(Product product) => db.Products.Remove(product);

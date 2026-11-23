@@ -16,7 +16,7 @@ public class ProductTests
     {
         var product = Mouse();
 
-        product.RemoveStock(3, Now);
+        product.RemoveStock(Warehouse.DefaultId, 3, Now);
 
         Assert.Equal(7, product.StockQuantity);
     }
@@ -26,7 +26,7 @@ public class ProductTests
     {
         var product = Mouse(stock: 2);
 
-        var ex = Assert.Throws<InsufficientStockException>(() => product.RemoveStock(3, Now));
+        var ex = Assert.Throws<InsufficientStockException>(() => product.RemoveStock(Warehouse.DefaultId, 3, Now));
 
         Assert.Equal(2, ex.Available);
         Assert.Equal(2, product.StockQuantity);
@@ -67,7 +67,7 @@ public class ProductTests
         Assert.Equal(Now, product.ChangedAtUtc);
 
         product.Update("Myš Pro", null, 600m, Peripherals, Now.AddMinutes(1));
-        product.AddStock(5, Now.AddMinutes(2));   // změna zásoby není změna katalogu
+        product.AddStock(Warehouse.DefaultId, 5, Now.AddMinutes(2));   // změna zásoby není změna katalogu
 
         Assert.Equal(Now.AddMinutes(1), product.ChangedAtUtc);
     }
@@ -137,8 +137,8 @@ public class ProductTests
         var product = Mouse(stock: 20);
         product.ClearDomainEvents();
 
-        product.AddStock(5, Now);
-        product.RemoveStock(10, Now);   // 15 ks – pořád „Skladem“
+        product.AddStock(Warehouse.DefaultId, 5, Now);
+        product.RemoveStock(Warehouse.DefaultId, 10, Now);   // 15 ks – pořád „Skladem“
 
         Assert.Empty(product.DomainEvents);   // přesný počet kusů výlohu nezajímá
     }
@@ -149,7 +149,7 @@ public class ProductTests
         var product = Mouse(stock: 7);
         product.ClearDomainEvents();
 
-        product.RemoveStock(3, Now.AddMinutes(1));   // 4 ks → „Poslední kusy“
+        product.RemoveStock(Warehouse.DefaultId, 3, Now.AddMinutes(1));   // 4 ks → „Poslední kusy“
 
         var changed = Assert.IsType<StockAvailabilityChanged>(Assert.Single(product.DomainEvents));
         Assert.Equal(StockAvailability.LowStock, changed.Availability);
@@ -162,8 +162,8 @@ public class ProductTests
         var product = Mouse(stock: 6);
         product.ClearDomainEvents();
 
-        product.RemoveStock(2, Now);                  // 4 → LowStock
-        product.RemoveStock(4, Now.AddMinutes(1));    // 0 → OutOfStock
+        product.RemoveStock(Warehouse.DefaultId, 2, Now);                  // 4 → LowStock
+        product.RemoveStock(Warehouse.DefaultId, 4, Now.AddMinutes(1));    // 0 → OutOfStock
 
         var changed = Assert.IsType<StockAvailabilityChanged>(Assert.Single(product.DomainEvents));
         Assert.Equal(StockAvailability.OutOfStock, changed.Availability);
@@ -200,7 +200,7 @@ public class ProductTests
     {
         var product = Mouse(stock: 6);
         product.ClearDomainEvents();
-        product.RemoveStock(6, Now);
+        product.RemoveStock(Warehouse.DefaultId, 6, Now);
 
         product.MarkRemoved(Now);
 

@@ -49,13 +49,23 @@ public sealed class ProductService(
         return product.ToDto();
     }
 
-    public async Task<ProductDto> AddStockAsync(int id, int quantity, CancellationToken cancellationToken = default)
+    /// <param name="warehouseId">E-shop krok 28A: do kterého skladu; null = výchozí (Praha) – tak volá i starší verze Webu.</param>
+    public async Task<ProductDto> AddStockAsync(int id, int quantity, int? warehouseId = null, CancellationToken cancellationToken = default)
     {
         var product = await GetProductAsync(id, cancellationToken);
-        product.AddStock(quantity, UtcNow);
+        var warehouse = warehouseId ?? Warehouse.DefaultId;
+        if ((await products.GetWarehousesAsync(cancellationToken)).All(w => w.Id != warehouse))
+        {
+            throw new DomainException($"Sklad {warehouse} neexistuje.");
+        }
+
+        product.AddStock(warehouse, quantity, UtcNow);
         await unitOfWork.SaveChangesAsync(cancellationToken);   // zpráva jen při změně pásma dostupnosti (StockAvailabilityChangedV1)
         return product.ToDto();
     }
+
+    public async Task<IReadOnlyList<WarehouseDto>> GetWarehousesAsync(CancellationToken cancellationToken = default) =>
+        [.. (await products.GetWarehousesAsync(cancellationToken)).Select(w => new WarehouseDto(w.Id, w.Code, w.Name))];
 
     public async Task DeleteAsync(int id, CancellationToken cancellationToken = default)
     {

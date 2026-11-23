@@ -30,10 +30,28 @@
                 <td>@p.CategoryName</td>
                 <td class="text-muted">@p.Description</td>
                 <td class="num">@p.Price.ToString("N2") Kč</td>
-                <td class="num">@p.StockQuantity ks</td>
+                <td class="num">
+                    @p.StockQuantity ks
+                    @* E-shop krok 28A: kolik je v kterém skladu. *@
+                    @if (Model.Warehouses.Count > 1)
+                    {
+                        <div class="small text-muted text-nowrap" data-track="product-stock-warehouses">
+                            @string.Join(" · ", Model.Warehouses.Select(w => $"{w.Code} {IndexModel.StockIn(p, w.Id)}"))
+                        </div>
+                    }
+                </td>
                 <td>
                     <form method="post" asp-page-handler="AddStock" asp-route-id="@p.Id" asp-route-p="@Model.PageNumber" asp-route-size="@Model.PageSize" class="d-flex gap-1">
                         <input type="number" name="quantity" value="10" min="1" class="form-control form-control-sm" style="width: 6rem" />
+                        @if (Model.Warehouses.Count > 1)
+                        {
+                            <select name="warehouseId" class="form-select form-select-sm" style="width: 7rem" aria-label="Sklad" data-track="product-stock-warehouse">
+                                @foreach (var w in Model.Warehouses)
+                                {
+                                    <option value="@w.Id">@w.Name</option>
+                                }
+                            </select>
+                        }
                         <button type="submit" class="btn btn-sm btn-outline-primary">+</button>
                     </form>
                 </td>

@@ -11,6 +11,9 @@ public interface IProductRepository
     /// <summary>E-shop krok 2: produkty jedné kategorie (přejmenování kategorie, kontrola před smazáním).</summary>
     Task<IReadOnlyList<Product>> GetByCategoryAsync(int categoryId, CancellationToken cancellationToken = default);
 
+    /// <summary>E-shop krok 28A: sklady seřazené podle ID (zakládá je migrace).</summary>
+    Task<IReadOnlyList<Warehouse>> GetWarehousesAsync(CancellationToken cancellationToken = default);
+
     void Add(Product product);
     void Remove(Product product);
 }

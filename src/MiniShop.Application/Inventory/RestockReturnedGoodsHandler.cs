@@ -76,7 +76,7 @@ public sealed class RestockReturnedGoodsHandler(
                 reservation.Return(part, now);
                 if (productsById.TryGetValue(reservation.ProductId, out var product))
                 {
-                    product.AddStock(part, now);   // → změna dostupnosti → výloha
+                    product.AddStock(reservation.WarehouseId, part, now);   // → změna dostupnosti → výloha; do skladu původu (28A)
                     quantity += part;
                 }
 
@@ -124,7 +124,7 @@ public sealed class RestockReturnedGoodsHandler(
             var returned = reservation.MarkReturned(now);   // zbytek po případných částečných vratkách
             if (productsById.TryGetValue(reservation.ProductId, out var product))
             {
-                product.AddStock(returned, now);   // → změna dostupnosti → výloha (StockAvailabilityChangedV1)
+                product.AddStock(reservation.WarehouseId, returned, now);   // do skladu původu (28A) → změna dostupnosti → výloha (StockAvailabilityChangedV1)
                 quantity += returned;
             }
         }

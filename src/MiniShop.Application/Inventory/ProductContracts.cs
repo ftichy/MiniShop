@@ -10,7 +10,14 @@ public sealed record ProductDto(
     int StockQuantity,
     int CategoryId,
     string CategoryName,
-    string? ImageFileName = null);
+    string? ImageFileName = null,
+    IReadOnlyList<WarehouseStockDto>? Stocks = null);
+
+/// <summary>E-shop krok 28A: zásoba v jednom skladu (v DTO produktu; sklad bez kusů chybí).</summary>
+public sealed record WarehouseStockDto(int WarehouseId, int Quantity);
+
+/// <summary>E-shop krok 28A: sklad pro administraci.</summary>
+public sealed record WarehouseDto(int Id, string Code, string Name);
 
 public sealed class CreateProductRequest
 {
@@ -61,6 +68,9 @@ public sealed class AddStockRequest
 {
     [Range(1, 100_000)]
     public int Quantity { get; set; }
+
+    /// <summary>E-shop krok 28A: do kterého skladu; chybí = výchozí (Praha) – tak posílá i starší verze Webu.</summary>
+    public int? WarehouseId { get; set; }
 }
 
 /// <summary>E-shop krok 2: kategorie pro administraci, s počtem produktů (smazat jde jen prázdnou).</summary>

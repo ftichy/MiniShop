@@ -21,6 +21,17 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         // Pásmo dostupnosti se počítá ze zásoby, ukládá se jen čas jeho poslední změny.
         builder.Ignore(p => p.Availability);
 
+        // E-shop krok 28A: zásoba po skladech – vlastní tabulka (produkt × sklad), načítá se vždy s produktem.
+        // StockQuantity zůstává = součet (starší verze skladu při postupném nasazení mění jen ho – viz Product.StockIn).
+        builder.OwnsMany(p => p.Stocks, stock =>
+        {
+            stock.ToTable("WarehouseStocks");
+            stock.WithOwner().HasForeignKey("ProductId");
+            stock.HasKey("ProductId", nameof(WarehouseStock.WarehouseId));
+            stock.HasOne<Warehouse>().WithMany().HasForeignKey(s => s.WarehouseId).OnDelete(DeleteBehavior.Restrict);
+        });
+        builder.Navigation(p => p.Stocks).UsePropertyAccessMode(PropertyAccessMode.Field);
+
         // Doménové události se neukládají jako sloupce – InventoryDbContext je převede na zprávy v outboxu.
         builder.Ignore(p => p.DomainEvents);
     }

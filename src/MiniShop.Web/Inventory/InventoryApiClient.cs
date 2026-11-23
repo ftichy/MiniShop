@@ -37,11 +37,15 @@ public sealed class InventoryApiClient(HttpClient http) : IProductService, ICate
         SendAsync<ProductDto>(new HttpRequestMessage(HttpMethod.Put, $"{Products}/{id}") { Content = JsonContent.Create(request) },
             cancellationToken);
 
-    public Task<ProductDto> AddStockAsync(int id, int quantity, CancellationToken cancellationToken = default) =>
+    public Task<ProductDto> AddStockAsync(int id, int quantity, int? warehouseId = null, CancellationToken cancellationToken = default) =>
         SendAsync<ProductDto>(new HttpRequestMessage(HttpMethod.Post, $"{Products}/{id}/stock")
         {
-            Content = JsonContent.Create(new AddStockRequest { Quantity = quantity })
+            Content = JsonContent.Create(new AddStockRequest { Quantity = quantity, WarehouseId = warehouseId })
         }, cancellationToken);
+
+    /// <summary>E-shop krok 28A: sklady pro volbu při naskladnění.</summary>
+    public Task<IReadOnlyList<WarehouseDto>> GetWarehousesAsync(CancellationToken cancellationToken = default) =>
+        SendAsync<IReadOnlyList<WarehouseDto>>(new HttpRequestMessage(HttpMethod.Get, "api/warehouses"), cancellationToken);
 
     public async Task DeleteAsync(int id, CancellationToken cancellationToken = default)
     {

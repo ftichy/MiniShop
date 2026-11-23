@@ -16,7 +16,7 @@ public sealed class StockReservation
     {
     }
 
-    public StockReservation(int orderId, int productId, int quantity, DateTime reservedAtUtc)
+    public StockReservation(int orderId, int productId, int quantity, DateTime reservedAtUtc, int warehouseId = Warehouse.DefaultId)
     {
         if (quantity <= 0)
         {
@@ -24,6 +24,7 @@ public sealed class StockReservation
         }
 
         OrderId = orderId;
+        WarehouseId = warehouseId;
         ProductId = productId;
         Quantity = quantity;
         ReservedAtUtc = reservedAtUtc;
@@ -31,6 +32,12 @@ public sealed class StockReservation
 
     public int Id { get; private set; }
     public int OrderId { get; private set; }
+
+    /// <summary>
+    /// E-shop krok 28A: ze kterého skladu se zboží vzalo – sem se vrací při uvolnění i vratce. Rezervace z doby před sklady
+    /// (a ze starší verze kódu při postupném nasazení) mají výchozí sklad.
+    /// </summary>
+    public int WarehouseId { get; private set; } = Warehouse.DefaultId;
     public int ProductId { get; private set; }
     public int Quantity { get; private set; }
     public DateTime ReservedAtUtc { get; private set; }

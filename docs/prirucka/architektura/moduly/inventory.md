@@ -109,6 +109,25 @@ flowchart TB
   přímo při uložení – nemá žádné vlastní doménové handlery, tak nemusí čekat na další kolo workeru.
   Obě varianty jsou popsané v [Integračních zprávách](../../eda/integracni-zpravy.md).
 
+## Sklady (e-shop krok 28A, směr C)
+
+E-shop má dva sklady – **Praha** (výchozí, sem patří všechny zásoby z doby před sklady) a **Brno** (začíná prázdný). Plán celého
+směru: [Sklady-roadmap](code:docs/Sklady-roadmap.md).
+
+- **Zásoba po skladech** ([Warehouse.cs](code:src/MiniShop.Domain/Inventory/Warehouse.cs)): `WarehouseStock` je část agregátu
+  `Product` (tabulka `WarehouseStocks`, produkt × sklad). `Product.StockQuantity` zůstává = součet, takže pásma dostupnosti, výloha
+  i zprávy se nemění – zákazník o skladech neví. Naskladnit jde do vybraného skladu (stránka Produkty, `AddStockRequest.WarehouseId`,
+  bez skladu = Praha), seznam skladů `/api/warehouses`.
+- **Přidělení zásob** ([StockAllocator.cs](code:src/MiniShop.Domain/Inventory/StockAllocator.cs)): odkud se zboží vezme, rozhoduje
+  sklad. **Jeden sklad, když to jde** (méně balíků), jinak postupně sklad, který pokryje nejvíc zbývajících kusů (při shodě nižší ID);
+  řádek se smí rozdělit. Přirovnání: skladník nejdřív hledá regál, kde je všechno; když takový není, začne tím nejplnějším.
+- **Rezervace si pamatuje sklad** (`StockReservation.WarehouseId`) – uvolnění, vratka i vrácení dopravcem naskladní kusy
+  **tam, odkud odešly**.
+- **Postupné nasazení:** starší verze skladu chvíli běží vedle nové a mění jen celkovou zásobu. Rozdíl mezi `StockQuantity`
+  a součtem skladů proto patří Praze (`Product.StockIn`) a při další změně se do ní zapíše. Rezervace starší verze dostane Prahu
+  výchozí hodnotou sloupce. Migrace `Warehouses` dnešní zásoby přepsala do Prahy (ruční SQL).
+- **Ordering se zatím nic nedozví** – od kroku 28B pošle sklad rozdělení jako balíky (`StockReservedV2`).
+
 ## Jaké zprávy modul posílá a přijímá
 
 | Směr | Zprávy |

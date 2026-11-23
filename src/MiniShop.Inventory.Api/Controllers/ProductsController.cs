@@ -60,7 +60,7 @@ public sealed class ProductsController(IProductService productService, IProductI
 
     [HttpPost("{id:int}/stock")]
     public async Task<ActionResult<ProductDto>> AddStock(int id, AddStockRequest request, CancellationToken cancellationToken) =>
-        Ok(await productService.AddStockAsync(id, request.Quantity, cancellationToken));
+        Ok(await productService.AddStockAsync(id, request.Quantity, request.WarehouseId, cancellationToken));
 
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)

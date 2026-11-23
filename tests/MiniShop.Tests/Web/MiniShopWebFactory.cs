@@ -367,8 +367,12 @@ public sealed class StubProductService : IProductService
     public Task<ProductDto> UpdateAsync(int id, UpdateProductRequest request, CancellationToken cancellationToken = default) =>
         Task.FromResult(Product);
 
-    public Task<ProductDto> AddStockAsync(int id, int quantity, CancellationToken cancellationToken = default) =>
+    public Task<ProductDto> AddStockAsync(int id, int quantity, int? warehouseId = null, CancellationToken cancellationToken = default) =>
         Task.FromResult(Product);
+
+    /// <summary>E-shop krok 28A: dva sklady jako v produkci.</summary>
+    public Task<IReadOnlyList<WarehouseDto>> GetWarehousesAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<WarehouseDto>>([new(1, "PRG", "Praha"), new(2, "BRQ", "Brno")]);
 
     public Task DeleteAsync(int id, CancellationToken cancellationToken = default) => Task.CompletedTask;
 }

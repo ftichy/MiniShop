@@ -56,11 +56,17 @@ public sealed class ReserveStockHandler(
         }
         else
         {
-            foreach (var (productId, quantity) in lines)
+            // E-shop krok 28A: odkud se zboží vezme (jeden sklad, když to jde) – rozhoduje sklad, Ordering se nic nemění.
+            var allocations = StockAllocator.Allocate([.. lines.Select(l => (productsById[l.ProductId], l.Quantity))])
+                ?? throw new InvalidOperationException("Přidělení selhalo, přestože celková zásoba stačí.");
+            foreach (var allocation in allocations)
             {
-                productsById[productId].RemoveStock(quantity, now);   // e-shop krok 2: změna pásma → StockAvailabilityChangedV1
-                reservations.Add(new StockReservation(command.OrderId, productId, quantity, now));
+                // e-shop krok 2: změna pásma → StockAvailabilityChangedV1
+                productsById[allocation.ProductId].RemoveStock(allocation.WarehouseId, allocation.Quantity, now);
+                reservations.Add(new StockReservation(command.OrderId, allocation.ProductId, allocation.Quantity, now, allocation.WarehouseId));
             }
+
+            TraceTags.Tag("minishop.stock.warehouses", allocations.Select(a => a.WarehouseId).Distinct().Count());
 
             publisher.Publish(new StockReservedV1(Guid.NewGuid(), now, command.OrderId));
         }

@@ -31,6 +31,9 @@ public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> opti
 
     public DbSet<Category> Categories => Set<Category>();
 
+    /// <summary>E-shop krok 28A: sklady (Praha, Brno).</summary>
+    public DbSet<Warehouse> Warehouses => Set<Warehouse>();
+
     // EventId integrační zprávy = EventId doménové události – při opakovaném uložení stejné události se nezmění.
     protected override IEnumerable<OutboxMessage> ToOutboxMessages(IDomainEvent domainEvent) => domainEvent switch
     {

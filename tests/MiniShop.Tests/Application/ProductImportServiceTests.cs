@@ -126,7 +126,8 @@ public sealed class ProductImportServiceTests : IDisposable
 
         public Task<ProductDto> GetByIdAsync(int id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<ProductDto> UpdateAsync(int id, UpdateProductRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<ProductDto> AddStockAsync(int id, int quantity, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ProductDto> AddStockAsync(int id, int quantity, int? warehouseId = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<WarehouseDto>> GetWarehousesAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task DeleteAsync(int id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<CategoryDto> RenameAsync(int id, CategoryRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         Task ICategoryService.DeleteAsync(int id, CancellationToken cancellationToken) => throw new NotSupportedException();

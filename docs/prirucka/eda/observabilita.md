@@ -63,7 +63,7 @@ požadavků se nezaznamenávají vůbec – konkrétní data jsou v MiniShopu (d
 | krok ságy objednávky | `minishop.saga.state_before`, `.state`, `.action`, `minishop.order.status`, `.rejection_reason` |
 | sága vratky | `minishop.return_saga.state_before`, `.state`, `.action` |
 | změna stavu (expedice, zrušení, vratka) | `minishop.order.status` |
-| sklad | `minishop.stock.result` (reserved / failed / released / fulfilled / returned / returned_to_sender), `minishop.stock.lines`, `minishop.stock.quantity` (naskladněné kusy vratky), `minishop.stock.missing` (vratka chtěla víc kusů, než bylo vydáno) |
+| sklad | `minishop.stock.result` (reserved / failed / released / fulfilled / returned / returned_to_sender), `minishop.stock.lines`, `minishop.stock.quantity` (naskladněné kusy vratky), `minishop.stock.missing` (vratka chtěla víc kusů, než bylo vydáno), `minishop.stock.warehouses` (z kolika skladů je rezervace – e-shop krok 28A) |
 | platba | `minishop.payment.result` (requested / succeeded / failed / refunded / partly_refunded), `.amount`, `.gateway`, `.failure_reason` |
 | zásilka (e-shop krok 26B, 26C, 26D) | `minishop.shipment.result` (created / failed) – předání dopravci; `minishop.shipment.status` (PickedUp / InTransit / OutForDelivery / Delivered / DeliveryFailed / ReturningToSender / ReturnedToSender) – po webhooku; `minishop.shipment.reconciled` – kolik zásilek dohledání zkontrolovalo; číslo objednávky `minishop.order.id`, adresa nikdy |
 | doporučení (e-shop krok 27A) | `minishop.recommendations.changed` – kolika produktům dávka „Zákazníci také koupili“ změnila doporučení (span `product recommendations` v Reporting.Api) |

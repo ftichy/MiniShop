@@ -33,6 +33,13 @@ public sealed class IndexModel(IProductService productService, ICategoryService 
     [BindProperty(SupportsGet = true, Name = PagerModel.SizeParameter)]
     public int? PageSize { get; set; }
 
+    /// <summary>E-shop krok 28A: sklady – sloupec zásob po skladech a volba skladu při naskladnění.</summary>
+    public IReadOnlyList<WarehouseDto> Warehouses { get; private set; } = [];
+
+    /// <summary>Kolik kusů produktu je ve skladu (sklad bez kusů v DTO chybí).</summary>
+    public static int StockIn(ProductDto product, int warehouseId) =>
+        product.Stocks?.FirstOrDefault(s => s.WarehouseId == warehouseId)?.Quantity ?? 0;
+
     public IReadOnlyList<CategoryDto> Categories { get; private set; } = [];
 
     public IReadOnlyList<SelectListItem> CategoryOptions =>
@@ -65,13 +72,16 @@ public sealed class IndexModel(IProductService productService, ICategoryService 
         }, cancellationToken);
     }
 
-    public Task<IActionResult> OnPostAddStockAsync(int id, int quantity, CancellationToken cancellationToken)
+    /// <param name="warehouseId">E-shop krok 28A: do kterého skladu (chybí = výchozí Praha).</param>
+    public Task<IActionResult> OnPostAddStockAsync(int id, int quantity, int? warehouseId, CancellationToken cancellationToken)
     {
         ModelState.Clear(); // formulář NewProduct se tu neodesílá
         return ExecuteAsync(async () =>
         {
-            var product = await productService.AddStockAsync(id, quantity, cancellationToken);
-            StatusMessage = $"Naskladněno {quantity} ks produktu '{product.Name}'.";
+            var product = await productService.AddStockAsync(id, quantity, warehouseId, cancellationToken);
+            var warehouse = warehouseId is null ? null
+                : (await productService.GetWarehousesAsync(cancellationToken)).FirstOrDefault(w => w.Id == warehouseId)?.Name;
+            StatusMessage = $"Naskladněno {quantity} ks produktu '{product.Name}'" + (warehouse is null ? "." : $" do skladu {warehouse}.");
         }, cancellationToken);
     }
 
@@ -195,12 +205,14 @@ public sealed class IndexModel(IProductService productService, ICategoryService 
             // Produkty jdou ze skladu přes API celé (jsou jich desítky) – stránka se vybere tady, API se nemění.
             ProductPage = (await productService.GetAllAsync(cancellationToken)).ToPagedList(PageRequest.Of(PageNumber, PageSize));
             Categories = await categoryService.GetAllAsync(cancellationToken);
+            Warehouses = await productService.GetWarehousesAsync(cancellationToken);
         }
         catch (InventoryUnavailableException ex)
         {
             // Sklad neběží – stránka se ukáže s hláškou místo chyby 500.
             ProductPage = new([], 1, PageRequest.DefaultSize, 0);
             Categories = [];
+            Warehouses = [];
             var alreadyShown = ModelState[string.Empty]?.Errors.Any(e => e.ErrorMessage == ex.Message) ?? false;
             if (!alreadyShown)
             {

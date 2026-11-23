@@ -18,7 +18,7 @@ namespace MiniShop.Infrastructure.Inventory.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("inventory")
-                .HasAnnotation("ProductVersion", "10.0.14")
+                .HasAnnotation("ProductVersion", "10.0.15")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -120,6 +120,11 @@ namespace MiniShop.Infrastructure.Inventory.Migrations
                     b.Property<int>("ReturnedQuantity")
                         .HasColumnType("integer");
 
+                    b.Property<int>("WarehouseId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
+
                     b.HasKey("Id");
 
                     b.HasIndex("OrderId");
@@ -153,6 +158,43 @@ namespace MiniShop.Infrastructure.Inventory.Migrations
                         .IsUnique();
 
                     b.ToTable("StockReturns", "inventory");
+                });
+
+            modelBuilder.Entity("MiniShop.Domain.Inventory.Warehouse", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("Warehouses", "inventory");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Code = "PRG",
+                            Name = "Praha"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Code = "BRQ",
+                            Name = "Brno"
+                        });
                 });
 
             modelBuilder.Entity("MiniShop.Infrastructure.Inbox.ProcessedMessage", b =>
@@ -229,7 +271,36 @@ namespace MiniShop.Infrastructure.Inventory.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.OwnsMany("MiniShop.Domain.Inventory.WarehouseStock", "Stocks", b1 =>
+                        {
+                            b1.Property<int>("ProductId")
+                                .HasColumnType("integer");
+
+                            b1.Property<int>("WarehouseId")
+                                .HasColumnType("integer");
+
+                            b1.Property<int>("Quantity")
+                                .HasColumnType("integer");
+
+                            b1.HasKey("ProductId", "WarehouseId");
+
+                            b1.HasIndex("WarehouseId");
+
+                            b1.ToTable("WarehouseStocks", "inventory");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ProductId");
+
+                            b1.HasOne("MiniShop.Domain.Inventory.Warehouse", null)
+                                .WithMany()
+                                .HasForeignKey("WarehouseId")
+                                .OnDelete(DeleteBehavior.Restrict)
+                                .IsRequired();
+                        });
+
                     b.Navigation("Category");
+
+                    b.Navigation("Stocks");
                 });
 #pragma warning restore 612, 618
         }

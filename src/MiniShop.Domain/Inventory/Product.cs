@@ -29,7 +29,13 @@ public class Product : Entity
         }
 
         // Zásoba dřív než Update – ProductChanged (zpráva s dostupností) se sestaví až při uložení, ale ať je stav úplný.
+        // E-shop krok 28A: nový produkt má zásobu ve výchozím skladu (Praha).
         StockQuantity = stockQuantity;
+        if (stockQuantity > 0)
+        {
+            _stocks.Add(new WarehouseStock(Warehouse.DefaultId, stockQuantity));
+        }
+
         AvailabilityChangedAtUtc = createdAtUtc;
         Update(name, description, price, category, createdAtUtc);
     }
@@ -38,7 +44,23 @@ public class Product : Entity
     public string Name { get; private set; } = string.Empty;
     public string? Description { get; private set; }
     public decimal Price { get; private set; }
+    /// <summary>Celkem kusů ve všech skladech (e-shop krok 28A = součet <see cref="Stocks"/>) – z něj se počítá dostupnost ve výloze.</summary>
     public int StockQuantity { get; private set; }
+
+    private readonly List<WarehouseStock> _stocks = [];
+
+    /// <summary>E-shop krok 28A: zásoba po skladech (sklad bez kusů tu nemusí být).</summary>
+    public IReadOnlyCollection<WarehouseStock> Stocks => _stocks.AsReadOnly();
+
+    /// <summary>
+    /// Kolik kusů je v daném skladu. Výchozí sklad (Praha) dostane i rozdíl mezi <see cref="StockQuantity"/> a součtem
+    /// skladů – vznikne, když při postupném nasazení chvíli běží starší verze skladu, která zná jen celkovou zásobu.
+    /// </summary>
+    public int StockIn(int warehouseId) =>
+        (_stocks.FirstOrDefault(s => s.WarehouseId == warehouseId)?.Quantity ?? 0)
+        + (warehouseId == Warehouse.DefaultId ? LegacyDifference : 0);
+
+    private int LegacyDifference => StockQuantity - _stocks.Sum(s => s.Quantity);
 
     /// <summary>E-shop krok 2: každý produkt patří do jedné kategorie.</summary>
     public int CategoryId { get; private set; }
@@ -120,29 +142,65 @@ public class Product : Entity
         Raise(new ProductRemoved(Id, removedAtUtc));
     }
 
-    public void AddStock(int quantity, DateTime changedAtUtc)
+    /// <summary>Naskladnit do skladu (e-shop krok 28A; vrácené zboží jde do skladu, odkud odešlo).</summary>
+    public void AddStock(int warehouseId, int quantity, DateTime changedAtUtc)
     {
         if (quantity <= 0)
         {
             throw new DomainException("Množství pro naskladnění musí být větší než nula.");
         }
 
+        SetStockIn(warehouseId, StockIn(warehouseId) + quantity);
         ChangeStock(StockQuantity + quantity, changedAtUtc);
     }
 
-    public void RemoveStock(int quantity, DateTime changedAtUtc)
+    /// <summary>Vyskladnit ze skladu (rezervace) – jen tolik, kolik v tom skladu je.</summary>
+    public void RemoveStock(int warehouseId, int quantity, DateTime changedAtUtc)
     {
         if (quantity <= 0)
         {
             throw new DomainException("Množství pro vyskladnění musí být větší než nula.");
         }
 
-        if (quantity > StockQuantity)
+        var inWarehouse = StockIn(warehouseId);
+        if (quantity > inWarehouse)
         {
-            throw new InsufficientStockException(Name, quantity, StockQuantity);
+            throw new InsufficientStockException(Name, quantity, inWarehouse);
         }
 
+        SetStockIn(warehouseId, inWarehouse - quantity);
         ChangeStock(StockQuantity - quantity, changedAtUtc);
+    }
+
+    /// <summary>Nový počet kusů ve skladu; rozdíl ze starší verze (<see cref="LegacyDifference"/>) se tím zapíše výchozímu skladu.</summary>
+    private void SetStockIn(int warehouseId, int quantity)
+    {
+        if (warehouseId <= 0)
+        {
+            throw new DomainException("Neznámý sklad.");
+        }
+
+        var difference = LegacyDifference;
+        if (difference != 0)
+        {
+            var main = _stocks.FirstOrDefault(s => s.WarehouseId == Warehouse.DefaultId);
+            if (main is null)
+            {
+                _stocks.Add(main = new WarehouseStock(Warehouse.DefaultId, 0));
+            }
+
+            main.Quantity = Math.Max(0, main.Quantity + difference);
+        }
+
+        var stock = _stocks.FirstOrDefault(s => s.WarehouseId == warehouseId);
+        if (stock is null)
+        {
+            _stocks.Add(new WarehouseStock(warehouseId, quantity));
+        }
+        else
+        {
+            stock.Quantity = quantity;
+        }
     }
 
     private void MarkChanged(DateTime changedAtUtc)

@@ -81,11 +81,18 @@ namespace MiniShop.Infrastructure.Inventory.Migrations
                     b.Property<int>("StockQuantity")
                         .HasColumnType("integer");
 
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CategoryId");
 
-                    b.ToTable("Products", "inventory");
+                    b.ToTable("Products", "inventory", t =>
+                        {
+                            t.HasCheckConstraint("CK_Products_StockQuantity_NonNegative", "\"StockQuantity\" >= 0");
+                        });
                 });
 
             modelBuilder.Entity("MiniShop.Domain.Inventory.StockReservation", b =>
@@ -286,7 +293,10 @@ namespace MiniShop.Infrastructure.Inventory.Migrations
 
                             b1.HasIndex("WarehouseId");
 
-                            b1.ToTable("WarehouseStocks", "inventory");
+                            b1.ToTable("WarehouseStocks", "inventory", t =>
+                                {
+                                    t.HasCheckConstraint("CK_WarehouseStocks_Quantity_NonNegative", "\"Quantity\" >= 0");
+                                });
 
                             b1.WithOwner()
                                 .HasForeignKey("ProductId");

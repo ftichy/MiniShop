@@ -640,6 +640,30 @@ public sealed partial class OrderServiceTests : IDisposable
     }
 
     /// <summary>
+    /// Review #185: naskladnění (API) a rezervace (consumer) načtou tentýž produkt. Uloží se jen první změna zásoby,
+    /// druhá skončí ConcurrencyConflictException – bez toho by pozdější uložení potichu přepsalo dřívější (lost update).
+    /// </summary>
+    [Fact]
+    public async Task Soubeh_NaskladneniARezervaceZaroven_ProhranaZmenaSeNeprepise()
+    {
+        var product = await AddProductAsync(price: 100m, stock: 5);
+
+        await using var stockerScope = _services.CreateAsyncScope();
+        await using var reserverScope = _services.CreateAsyncScope();
+        var stockerDb = stockerScope.ServiceProvider.GetRequiredService<InventoryDbContext>();
+        var reserverDb = reserverScope.ServiceProvider.GetRequiredService<InventoryDbContext>();
+        var forStocker = await stockerDb.Products.SingleAsync(p => p.Id == product.Id);
+        var forReserver = await reserverDb.Products.SingleAsync(p => p.Id == product.Id);
+
+        forReserver.RemoveStock(MiniShop.Domain.Inventory.Warehouse.DefaultId, 2, Now.UtcDateTime);
+        await reserverDb.SaveChangesAsync();                                           // rezervace byla rychlejší
+        forStocker.AddStock(MiniShop.Domain.Inventory.Warehouse.DefaultId, 10, Now.UtcDateTime);
+
+        await Assert.ThrowsAsync<ConcurrencyConflictException>(() => stockerDb.SaveChangesAsync());
+        Assert.Equal(3, await StockAsync());                                           // naskladnění nepřepsalo rezervaci
+    }
+
+    /// <summary>
     /// E-shop krok 6: souběh – admin a zákazník načtou stejnou objednávku, oba ji změní. Uloží se jen první změna,
     /// druhá skončí ConcurrencyConflictException (Version už nesedí) a nic nepřepíše.
     /// </summary>

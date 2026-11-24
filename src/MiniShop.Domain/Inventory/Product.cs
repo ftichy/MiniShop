@@ -47,6 +47,12 @@ public class Product : Entity
     /// <summary>Celkem kusů ve všech skladech (e-shop krok 28A = součet <see cref="Stocks"/>) – z něj se počítá dostupnost ve výloze.</summary>
     public int StockQuantity { get; private set; }
 
+    /// <summary>
+    /// Concurrency token zásoby (review #185): zvyšuje se při každé změně zásoby. Zásobu mění souběžně API (naskladnění)
+    /// a handlery zpráv (rezervace, vrácení) – bez tokenu by pozdější uložení potichu přepsalo dřívější („lost update“).
+    /// </summary>
+    public int Version { get; private set; }
+
     private readonly List<WarehouseStock> _stocks = [];
 
     /// <summary>E-shop krok 28A: zásoba po skladech (sklad bez kusů tu nemusí být).</summary>
@@ -217,6 +223,7 @@ public class Product : Entity
     {
         var before = Availability;
         StockQuantity = newQuantity;
+        Version++;
         if (Availability == before)
         {
             return;   // pořád stejné pásmo – výlohu to nezajímá, žádná zpráva

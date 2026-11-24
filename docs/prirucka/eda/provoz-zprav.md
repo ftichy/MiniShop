@@ -34,6 +34,14 @@ flowchart LR
 | **Outbox** (odeslání z modulu) | 5 pokusů, pauza 5, 10, 20, 40 s; nedostupný broker se nepočítá | poison zpráva v tabulce (`Attempts` = 5) | stránka Zprávy, health check outboxu (stará nezpracovaná zpráva = Degraded) |
 | **Fronta** (zpracování v modulu) | 5 pokusů, pauza 2, 4, 8, 16 s (počet v hlavičce `x-minishop-attempt`) | `minishop.{modul}.dead` s chybou v `x-minishop-error` | stránka Zprávy, health check `dead-letters` (Degraded → UptimeRobot) |
 
+**Kdo drží pauzu?** Broker, ne consumer. Selhaná zpráva jde jako kopie do čekací fronty `minishop.{modul}.retry`
+(zprávě se nastaví TTL = pauza); po jeho uplynutí ji RabbitMQ přes dead-letter exchange sám vrátí do fronty modulu.
+Consumer tím hned pokračuje dalšími zprávami – jedna vadná zpráva nezdrží frontu (dřív se čekalo `Task.Delay`
+přímo v obsluze zprávy). Přirovnání: pokladní pošle zákazníka s chybějící peněženkou na lavičku a obsluhuje dál.
+Drobnost: RabbitMQ kontroluje TTL jen u zprávy na začátku fronty, takže delší pauza vpředu krátce zdrží kratší za ní.
+Kopii navíc potvrzuje broker (**publisher confirms** na kanálu consumera): originál se potvrdí až po potvrzení kopie,
+jinak se vrátí do fronty (`nack + requeue`) – pád brokeru v nešťastné chvíli zprávu neztratí.
+
 **Proč kopie a ne „nack + requeue“?** RabbitMQ u vrácené zprávy nemění hlavičky, takže by nešlo počítat pokusy.
 Consumer proto publikuje kopii s vyšším číslem a originál potvrdí. Spadne-li mezi tím, přijde zpráva dvakrát –
 to zachytí [inbox](inbox.md). Existující fronty se nemění (RabbitMQ by změnu argumentů existující fronty odmítl),

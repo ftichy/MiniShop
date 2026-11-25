@@ -518,6 +518,49 @@ public class Order : Entity
     /// <summary>E-shop krok 22: vratky po částech v pořadí, jak vznikaly (číslo 1, 2, …).</summary>
     public IReadOnlyCollection<OrderReturn> Returns => _returns.AsReadOnly();
 
+    private readonly List<OrderParcel> _parcels = new();
+
+    /// <summary>E-shop krok 28B: balíky podle skladů, jak je poslal sklad (<c>StockReservedV2</c>); prázdné = ještě nedorazily / starší objednávka.</summary>
+    public IReadOnlyCollection<OrderParcel> Parcels => _parcels.AsReadOnly();
+
+    /// <summary>
+    /// E-shop krok 28B: rozdělení do balíků od skladu. Jen jednou – opakovaná zpráva (nový pokus rezervace odpoví znovu) nic
+    /// nemění. Mění jen to, co sklad o objednávce ví; stav, verze ani sága se nemění.
+    /// </summary>
+    /// <returns>false, když balíky už objednávka má.</returns>
+    public bool SetParcels(IReadOnlyList<ParcelPlan> parcels)
+    {
+        if (_parcels.Count > 0)
+        {
+            return false;
+        }
+
+        if (parcels.Count == 0)
+        {
+            throw new DomainException("Rozdělení do balíků musí mít aspoň jeden balík.");
+        }
+
+        var number = 1;
+        foreach (var parcel in parcels.OrderBy(p => p.WarehouseCode, StringComparer.Ordinal))
+        {
+            _parcels.Add(new OrderParcel(number++, parcel.WarehouseCode, parcel.WarehouseName, parcel.Lines));
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// E-shop krok 28B: balíky pro zobrazení – objednávka bez rozdělení (z doby před sklady nebo zpráva ještě nedorazila)
+    /// je jeden balík z výchozího skladu se všemi položkami.
+    /// </summary>
+    public IReadOnlyList<OrderParcel> EffectiveParcels() =>
+        _parcels.Count > 0
+            ? [.. _parcels.OrderBy(p => p.Number)]
+            : _items.Count == 0
+                ? []   // objednávka bez položek (jen v testech) nemá co balit
+                : [new OrderParcel(1, OrderParcel.DefaultWarehouseCode, OrderParcel.DefaultWarehouseName,
+                _items.GroupBy(i => i.ProductId).Select(g => new OrderParcelLine(g.Key, g.Sum(i => i.Quantity))))];
+
     /// <summary>E-shop krok 22: rozpracovaná vratka po částech (nejvýš jedna najednou), nebo null.</summary>
     public OrderReturn? OpenReturn => _returns.FirstOrDefault(r => r.IsOpen);
 

@@ -126,14 +126,14 @@ směru: [Sklady-roadmap](code:docs/Sklady-roadmap.md).
 - **Postupné nasazení:** starší verze skladu chvíli běží vedle nové a mění jen celkovou zásobu. Rozdíl mezi `StockQuantity`
   a součtem skladů proto patří Praze (`Product.StockIn`) a při další změně se do ní zapíše. Rezervace starší verze dostane Prahu
   výchozí hodnotou sloupce. Migrace `Warehouses` dnešní zásoby přepsala do Prahy (ruční SQL).
-- **Ordering se zatím nic nedozví** – od kroku 28B pošle sklad rozdělení jako balíky (`StockReservedV2`).
+- **Balíky pro Ordering (e-shop krok 28B):** vedle `StockReservedV1` (na něj čeká sága) posílá sklad `StockReservedV2` – jeden balík (`StockParcelV1`: kód a název skladu, položky) za každý sklad. I opakovaná odpověď (idempotentní větev) ho sestaví z uložených rezervací.
 
 ## Jaké zprávy modul posílá a přijímá
 
 | Směr | Zprávy |
 | --- | --- |
 | přijímá (fronta `minishop.inventory`) | `ReserveStockV1`, `ReleaseStockV1`, `SyncCatalogV1`, `RestockReturnedGoodsV1` (příkazy – poslední e-shop krok 12), `RestockReturnedGoodsV2` (e-shop krok 22), `OrderShippedV1` (událost – e-shop krok 6) |
-| posílá | `StockReservedV1`, `StockReservationFailedV1`, `StockReleasedV1`, `ReturnedGoodsRestockedV1` (e-shop krok 12), `ReturnedGoodsRestockedV2` (e-shop krok 22), `ProductUpdatedV1`, `ProductUpdatedV2`, `StockAvailabilityChangedV1`, `ProductRemovedV1` |
+| posílá | `StockReservedV1`, `StockReservedV2` (e-shop krok 28B – balíky podle skladů), `StockReservationFailedV1`, `StockReleasedV1`, `ReturnedGoodsRestockedV1` (e-shop krok 12), `ReturnedGoodsRestockedV2` (e-shop krok 22), `ProductUpdatedV1`, `ProductUpdatedV2`, `StockAvailabilityChangedV1`, `ProductRemovedV1` |
 
 ## Dál
 

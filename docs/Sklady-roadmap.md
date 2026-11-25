@@ -27,8 +27,8 @@ a „doručeno“ je až po té druhé.
 
 | Krok | Obsah | Stav |
 | --- | --- | --- |
-| C1 | Sklady v Inventory: `Warehouse`, zásoba po skladech (`WarehouseStock`), migrace dnešních zásob do Prahy, `StockQuantity` = součet (výloha beze změny), naskladnění do vybraného skladu, rezervace s `WarehouseId` (přidělení), vrácení do skladu původu. Zákazník nic nepozná. | v PR |
-| C2 | Balíky v objednávce (expand): `StockReservedV2` s rozdělením → `OrderParcel` v Orderingu, Expedice po skladech; předání zatím za celou objednávku. | plán |
+| C1 | Sklady v Inventory: `Warehouse`, zásoba po skladech (`WarehouseStock`), migrace dnešních zásob do Prahy, `StockQuantity` = součet (výloha beze změny), naskladnění do vybraného skladu, rezervace s `WarehouseId` (přidělení), vrácení do skladu původu. Zákazník nic nepozná. | hotovo (23. 11. 2026, ověřeno v produkci) |
+| C2 | Balíky v objednávce (expand): `StockReservedV2` s rozdělením → `OrderParcel` v Orderingu, Expedice po skladech; předání zatím za celou objednávku. | v PR |
 | C3 | Dělené zásilky: předání po balících `CreateShipmentV2`, `Shipment` podle `OrderId + ParcelNumber`, odesláno = poslední balík odešel, doručeno = dorazily všechny; detail s balíky, e-mail a push za balík. | plán |
 | C4 | Výjimky a úklid: vrácený balík `ParcelReturnedToSenderV1` (naskladnit, refund a dobropis jen jeho část), zrušení jen před prvním balíkem, contract starých cest, generátor provozu, příručka a sekvenční diagram. | plán |
 

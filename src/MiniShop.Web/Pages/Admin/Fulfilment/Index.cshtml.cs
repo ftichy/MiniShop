@@ -55,9 +55,27 @@ public sealed class IndexModel(IOrderService orderService, ShipmentQueryService 
     [TempData]
     public string? ErrorMessage { get; set; }
 
+    /// <summary>
+    /// E-shop krok 28B: filtr „můj sklad“ – kód skladu (PRG, BRQ) z adresy (<c>?warehouse=</c>); null = všechny. Objednávka se
+    /// ukáže, když má balík z toho skladu. Akce na stránce filtr zachovají.
+    /// </summary>
+    [BindProperty(SupportsGet = true, Name = "warehouse")]
+    public string? Warehouse { get; set; }
+
+    /// <summary>Sklady k filtru – z balíků objednávek ve frontách (Ordering sklady nezná, ví jen to, co poslal sklad).</summary>
+    public IReadOnlyList<(string Code, string Name)> Warehouses { get; private set; } = [];
+
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
-        var queue = await orderService.GetFulfilmentQueueAsync(cancellationToken);
+        var all = await orderService.GetFulfilmentQueueAsync(cancellationToken);
+        Warehouses = all.SelectMany(o => o.Parcels ?? []).Select(p => (p.WarehouseCode, p.WarehouseName))
+            .Append((MiniShop.Domain.Orders.OrderParcel.DefaultWarehouseCode, MiniShop.Domain.Orders.OrderParcel.DefaultWarehouseName))
+            .Distinct().OrderBy(w => w.Item1, StringComparer.Ordinal).ToList();
+        var queue = string.IsNullOrEmpty(Warehouse)
+            ? all
+            : all.Where(o => o.Parcels is { Count: > 0 } parcels
+                ? parcels.Any(p => p.WarehouseCode == Warehouse)
+                : Warehouse == MiniShop.Domain.Orders.OrderParcel.DefaultWarehouseCode).ToList();   // bez balíků = výchozí sklad
         ToPack = queue.Where(o => o.Status == "Confirmed").ToList();
         ToShip = queue.Where(o => o.Status == "Packing").ToList();
         InTransit = queue.Where(o => o.Status == "Shipped").ToList();
@@ -70,7 +88,7 @@ public sealed class IndexModel(IOrderService orderService, ShipmentQueryService 
         if (ids.Length == 0)
         {
             ErrorMessage = "Vyberte objednávky, které chcete začít balit.";
-            return RedirectToPage();
+            return RedirectToPage(new { warehouse = Warehouse });
         }
 
         var packed = new List<int>();
@@ -85,7 +103,7 @@ public sealed class IndexModel(IOrderService orderService, ShipmentQueryService 
 
         StatusMessage = packed.Count > 0 ? $"Balíme: {string.Join(", ", packed.Select(id => $"č. {id}"))}." : null;
         ErrorMessage = errors.Count > 0 ? string.Join(" ", errors) : null;
-        return RedirectToPage();
+        return RedirectToPage(new { warehouse = Warehouse });
     }
 
     public async Task<IActionResult> OnPostShipAsync(int id, string? carrier, string? trackingNumber, CancellationToken cancellationToken)
@@ -97,7 +115,7 @@ public sealed class IndexModel(IOrderService orderService, ShipmentQueryService 
         }
 
         ErrorMessage = errors.FirstOrDefault();
-        return RedirectToPage();
+        return RedirectToPage(new { warehouse = Warehouse });
     }
 
     /// <summary>
@@ -113,7 +131,7 @@ public sealed class IndexModel(IOrderService orderService, ShipmentQueryService 
         }
 
         ErrorMessage = errors.FirstOrDefault();
-        return RedirectToPage();
+        return RedirectToPage(new { warehouse = Warehouse });
     }
 
     /// <summary>Simulace dopravce: zásilka doručena (osobní odběr: vyzvednuta).</summary>
@@ -126,7 +144,7 @@ public sealed class IndexModel(IOrderService orderService, ShipmentQueryService 
         }
 
         ErrorMessage = errors.FirstOrDefault();
-        return RedirectToPage();
+        return RedirectToPage(new { warehouse = Warehouse });
     }
 
     private static async Task<bool> TryAsync(int id, Func<Task> action, List<string> errors)

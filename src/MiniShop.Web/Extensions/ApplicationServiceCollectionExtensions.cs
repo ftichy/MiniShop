@@ -195,6 +195,8 @@ public static class ApplicationServiceCollectionExtensions
         services.AddDomainEventHandler<OrderReturnedToSender, OrderSagaOrchestrator>();   // e-shop krok 26D
         services.AddDomainEventHandler<OrderCancelled, OrderSagaOrchestrator>();
         services.AddIntegrationMessageHandler<StockReservedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
+        // E-shop krok 28B: odkud sklad zboží vzal – balíky objednávky (sága na to nečeká).
+        services.AddIntegrationMessageHandler<StockReservedV2, OrderParcelsHandler>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<StockReservationFailedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<StockReleasedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
         // E-shop krok 8: výsledek platby z modulu Payments (druhý účastník ságy).

@@ -35,7 +35,15 @@ public sealed record OrderDto(
     decimal CouponDiscount = 0m,
     bool AwaitingShipment = false,
     string? ShipmentError = null,
-    bool ShippedByCarrier = false);
+    bool ShippedByCarrier = false,
+    IReadOnlyList<OrderParcelDto>? Parcels = null);
+
+/// <summary>
+/// E-shop krok 28B: balík objednávky (sklad + položky). Objednávka bez rozdělení od skladu má jeden balík z výchozího skladu.
+/// </summary>
+public sealed record OrderParcelDto(int Number, string WarehouseCode, string WarehouseName, IReadOnlyList<OrderParcelLineDto> Lines);
+
+public sealed record OrderParcelLineDto(int ProductId, string ProductName, int Quantity);
 
 /// <summary>E-shop krok 5: jeden řádek historie stavů. <paramref name="ChangedAtUtc"/> = null u objednávek starších než krok 5.</summary>
 public sealed record OrderStatusChangeDto(string Status, DateTime? ChangedAtUtc, string? Note);

@@ -73,6 +73,35 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(o => o.Returns).UsePropertyAccessMode(PropertyAccessMode.Field).AutoInclude();
         builder.Ignore(o => o.OpenReturn);
+
+        // E-shop krok 28B: balíky podle skladů – vlastní tabulka, načítají se vždy (Expedice, detail; jsou 1–2).
+        builder.HasMany(o => o.Parcels)
+            .WithOne()
+            .HasForeignKey(p => p.OrderId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(o => o.Parcels).UsePropertyAccessMode(PropertyAccessMode.Field).AutoInclude();
+    }
+}
+
+/// <summary>E-shop krok 28B: balík objednávky – unikátní objednávka + číslo, položky ve vlastní tabulce.</summary>
+internal sealed class OrderParcelConfiguration : IEntityTypeConfiguration<OrderParcel>
+{
+    public void Configure(EntityTypeBuilder<OrderParcel> builder)
+    {
+        builder.ToTable("OrderParcels");
+        builder.HasKey(p => p.Id);
+        builder.HasIndex(p => new { p.OrderId, p.Number }).IsUnique();
+        builder.Property(p => p.WarehouseCode).IsRequired().HasMaxLength(10);
+        builder.Property(p => p.WarehouseName).IsRequired().HasMaxLength(50);
+
+        builder.OwnsMany(p => p.Lines, line =>
+        {
+            line.ToTable("OrderParcelLines");
+            line.WithOwner().HasForeignKey("OrderParcelId");
+            line.Property<int>("Id");
+            line.HasKey("Id");
+        });
+        builder.Navigation(p => p.Lines).UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }
 

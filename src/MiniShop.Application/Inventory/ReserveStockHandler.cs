@@ -6,7 +6,7 @@ namespace MiniShop.Application.Inventory;
 
 /// <summary>
 /// Modul Inventory (krok 9): vyřídí příkaz <see cref="ReserveStockV1"/> – zarezervuje všechno, nebo nic.
-/// Odpoví událostí <see cref="StockReservedV1"/> / <see cref="StockReservationFailedV1"/>.
+/// Odpoví událostí <see cref="StockReservedV1"/> (+ od e-shop kroku 28B <see cref="StockReservedV2"/> s balíky) / <see cref="StockReservationFailedV1"/>.
 /// </summary>
 /// <remarks>
 /// Nezná objednávky – pracuje jen s daty z příkazu (OrderId, položky). Odečtení skladu, záznam rezervace a odpověď
@@ -25,9 +25,11 @@ public sealed class ReserveStockHandler(
         var now = timeProvider.GetUtcNow().UtcDateTime;
 
         // Pro tuhle objednávku už rezervace je (stejný příkaz s jiným ID) – jen odpovědět znovu.
-        if ((await reservations.GetActiveByOrderIdAsync(command.OrderId, cancellationToken)).Count > 0)
+        var existing = await reservations.GetActiveByOrderIdAsync(command.OrderId, cancellationToken);
+        if (existing.Count > 0)
         {
-            publisher.Publish(new StockReservedV1(Guid.NewGuid(), now, command.OrderId));
+            await PublishReservedAsync(command.OrderId, [.. existing.Select(r => new StockAllocation(r.WarehouseId, r.ProductId, r.Quantity))],
+                now, cancellationToken);
             await unitOfWork.SaveChangesAsync(cancellationToken);
             return;
         }
@@ -56,7 +58,7 @@ public sealed class ReserveStockHandler(
         }
         else
         {
-            // E-shop krok 28A: odkud se zboží vezme (jeden sklad, když to jde) – rozhoduje sklad, Ordering se nic nemění.
+            // E-shop krok 28A: odkud se zboží vezme (jeden sklad, když to jde) – rozhoduje sklad.
             var allocations = StockAllocator.Allocate([.. lines.Select(l => (productsById[l.ProductId], l.Quantity))])
                 ?? throw new InvalidOperationException("Přidělení selhalo, přestože celková zásoba stačí.");
             foreach (var allocation in allocations)
@@ -67,10 +69,30 @@ public sealed class ReserveStockHandler(
             }
 
             TraceTags.Tag("minishop.stock.warehouses", allocations.Select(a => a.WarehouseId).Distinct().Count());
-
-            publisher.Publish(new StockReservedV1(Guid.NewGuid(), now, command.OrderId));
+            await PublishReservedAsync(command.OrderId, allocations, now, cancellationToken);
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Odpověď „zarezervováno“: V1 pro ságu a od e-shop kroku 28B i V2 s balíky – jeden za každý sklad (expand → contract).
+    /// Sklad bez názvu v DB (nemělo by nastat) se pošle pod kódem.
+    /// </summary>
+    private async Task PublishReservedAsync(int orderId, IReadOnlyList<StockAllocation> allocations, DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var warehouses = (await products.GetWarehousesAsync(cancellationToken)).ToDictionary(w => w.Id);
+        var parcels = allocations
+            .GroupBy(a => a.WarehouseId)
+            .OrderBy(g => g.Key)
+            .Select(g => new StockParcelV1(
+                warehouses.TryGetValue(g.Key, out var w) ? w.Code : g.Key.ToString(),
+                warehouses.TryGetValue(g.Key, out var named) ? named.Name : g.Key.ToString(),
+                [.. g.GroupBy(a => a.ProductId).Select(p => new StockLineV1(p.Key, p.Sum(a => a.Quantity)))]))
+            .ToList();
+
+        publisher.Publish(new StockReservedV1(Guid.NewGuid(), now, orderId));
+        publisher.Publish(new StockReservedV2(Guid.NewGuid(), now, orderId, parcels));
     }
 }

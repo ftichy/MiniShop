@@ -55,7 +55,7 @@ public sealed class PersonalDataMaskTests
     public void KazdePoleSOsobnimUdajem_MaskaZna()
     {
         string[] suspicious = ["Name", "Email", "Address", "Phone", "Street", "City", "PostalCode", "Reason"];
-        string[] allowed = ["ProductName", "Name", "CategoryName", "ImageFileName", "Carrier"];   // produkty a kategorie – nejsou osobní údaje
+        string[] allowed = ["ProductName", "Name", "CategoryName", "ImageFileName", "Carrier", "WarehouseName"];   // produkty, kategorie, sklady – nejsou osobní údaje
 
         var unknown = typeof(IIntegrationMessage).Assembly.GetTypes()
             .Where(t => typeof(IIntegrationMessage).IsAssignableFrom(t) || t.Namespace?.StartsWith("MiniShop.Contracts", StringComparison.Ordinal) == true)

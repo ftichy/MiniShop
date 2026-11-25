@@ -237,6 +237,19 @@ public sealed class IntegrationContractTests
             json);
     }
 
+    /// <summary>E-shop krok 28B: rezervace s balíky – sklad (kód a název) a položky.</summary>
+    [Fact]
+    public void StockReservedV2_TvarJsonuSeNezmenil()
+    {
+        var reserved = new StockReservedV2(EventId, OccurredAtUtc, 42, [new StockParcelV1("BRQ", "Brno", [new StockLineV1(7, 3)])]);
+
+        var json = OutboxMessageFactory.Create(reserved).Payload;
+
+        Assert.Equal(
+            """{"EventId":"11111111-2222-3333-4444-555555555555","OccurredAtUtc":"2026-01-15T10:00:00Z","OrderId":42,"Parcels":[{"WarehouseCode":"BRQ","WarehouseName":"Brno","Lines":[{"ProductId":7,"Quantity":3}]}]}""",
+            json);
+    }
+
     [Fact]
     public void StockReservationFailedV1_TvarJsonuSeNezmenil()
     {

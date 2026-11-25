@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.Extensions.DependencyInjection;
 using MiniShop.Domain.Orders;
 
 namespace MiniShop.Tests.Web;
@@ -87,6 +88,38 @@ public sealed class FulfilmentPageTests(MiniShopWebFactory web)
 
         Assert.Contains($"Č. {orderId}: Odeslat lze jen zabalenou objednávku.", Decode(await admin.GetStringAsync("/Admin/Fulfilment")));
         Assert.Contains("Objednávka zrušena", await DetailAsync(customer, orderId));
+    }
+
+    /// <summary>
+    /// E-shop krok 28B: filtr „můj sklad“ – jen objednávky s balíkem z vybraného skladu; objednávka bez rozdělení od skladu
+    /// patří Praze. Akce filtr zachová (přesměrování zpět s <c>?warehouse=</c>).
+    /// </summary>
+    [Fact]
+    public async Task FiltrSkladu_JenObjednavkySBalikemZeSkladu_AkceHoZachova()
+    {
+        var (_, brno) = await CustomerWithOrderAsync("expedice-brno@example.com", ShippingMethod.Courier);
+        var (_, prague) = await CustomerWithOrderAsync("expedice-praha@example.com", ShippingMethod.Courier);
+        await using (var scope = web.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MiniShop.Infrastructure.Ordering.OrderingDbContext>();
+            var order = (await db.Orders.FindAsync(brno))!;
+            order.SetParcels([new ParcelPlan("BRQ", "Brno", [new OrderParcelLine(1, 2)])]);
+            await db.SaveChangesAsync();
+        }
+
+        var admin = await web.LoginAsync(MiniShopWebFactory.AdminEmail, MiniShopWebFactory.AdminPassword);
+        var brnoPage = Decode(await admin.GetStringAsync("/Admin/Fulfilment?warehouse=BRQ"));
+
+        Assert.Contains($"value=\"{brno}\"", brnoPage);
+        Assert.DoesNotContain($"value=\"{prague}\"", brnoPage);
+        Assert.Contains("Brno · 2 ks", brnoPage);
+        Assert.Contains($"value=\"{prague}\"", await admin.GetStringAsync("/Admin/Fulfilment?warehouse=PRG"));   // bez rozdělení = Praha
+
+        var token = await MiniShopWebFactory.GetAntiforgeryTokenAsync(admin, "/Admin/Fulfilment?warehouse=BRQ");
+        var response = await admin.PostAsync("/Admin/Fulfilment?handler=StartPacking&warehouse=BRQ", new FormUrlEncodedContent(
+            new Dictionary<string, string> { ["__RequestVerificationToken"] = token, ["ids"] = brno.ToString() }));
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains("warehouse=BRQ", response.Headers.Location!.ToString());
     }
 
     private async Task<(HttpClient Customer, int OrderId)> CustomerWithOrderAsync(string email, ShippingMethod shipping)

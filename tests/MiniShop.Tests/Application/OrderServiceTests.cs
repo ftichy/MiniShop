@@ -119,6 +119,7 @@ public sealed partial class OrderServiceTests : IDisposable
         services.AddDomainEventHandler<OrderReturnedToSender, OrderSagaOrchestrator>();   // e-shop krok 26D
         services.AddDomainEventHandler<OrderCancelled, OrderSagaOrchestrator>();
         services.AddIntegrationMessageHandler<StockReservedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
+        services.AddIntegrationMessageHandler<StockReservedV2, OrderParcelsHandler>(IntegrationModules.Ordering);   // e-shop krok 28B
         services.AddIntegrationMessageHandler<StockReservationFailedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<StockReleasedV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<PaymentSucceededV1, OrderSagaOrchestrator>(IntegrationModules.Ordering);   // e-shop krok 8
@@ -2309,7 +2310,7 @@ public sealed partial class OrderServiceTests : IDisposable
 
         var inventory = await InventoryDb(db => db.OutboxMessages.ToListAsync());
         Assert.All(inventory, m => Assert.Equal(Now.UtcDateTime, m.ProcessedAtUtc));
-        Assert.Equal(new[] { "ProductUpdatedV1", "ProductUpdatedV2", "StockReleasedV1", "StockReservedV1" },
+        Assert.Equal(new[] { "ProductUpdatedV1", "ProductUpdatedV2", "StockReleasedV1", "StockReservedV1", "StockReservedV2" },
             inventory.Select(m => m.Type).Order());
     }
 

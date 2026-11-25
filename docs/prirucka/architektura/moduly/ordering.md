@@ -120,7 +120,7 @@ později, v jiném scope, případně i opakovaně.
 | --- | --- |
 | posílá (příkazy) | skladu `ReserveStockV1`, `ReleaseStockV1`, `SyncCatalogV1`; od e-shop kroku 27B Reportingu `SyncProductRecommendationsV1` (po startu – doplnit doporučení); od e-shop kroku 8 modulu [Payments](payments.md) `RequestPaymentV1`, `RefundPaymentV1`; od e-shop kroku 22 `RestockReturnedGoodsV2`, `RefundPaymentV2` (vratka po částech) |
 | posílá (události pro kohokoli) | `OrderPlacedV1`, `OrderPlacedV2`, `OrderConfirmedV1`, `OrderRejectedV1` (e-shop krok 7), `OrderShippedV1` (e-shop krok 6), `OrderCompletedV1` (= doručeno), `OrderCancelledV1`, `CustomerAnonymizedV1` (e-shop krok 7), `ReturnRequestedV1`, `ReturnRejectedV1`, `ReturnCompletedV1` (e-shop krok 12), `ReturnRequestedV2`, `ReturnRejectedV2`, `ReturnCompletedV2` (e-shop krok 22 – vratka po částech), `OrderSnapshotV1`/`V2` + `OrderPartialReturnsSnapshotV1` s `PartialReturnSnapshotV1` (snímky na žádost Reportingu a Reviews), `CartAbandonedV1` (e-shop krok 10 – [opuštěný košík](../../toky/opusteny-kosik.md)) |
-| přijímá (fronta `minishop.ordering`) | `StockReservedV1`, `StockReservationFailedV1`, `StockReleasedV1`, `PaymentSucceededV1`, `PaymentFailedV1` (e-shop krok 8), `ProductUpdatedV1`, `ProductUpdatedV2`, `StockAvailabilityChangedV1`, `ProductRemovedV1`, `ReturnedGoodsRestockedV1`/`V2`, `PaymentRefundedV1`/`V2` (sága vratky), `ProductRatingChangedV1` (e-shop krok 14), `ProductRecommendationsChangedV1` (e-shop krok 27B – „Zákazníci také koupili“ do kopie katalogu) |
+| přijímá (fronta `minishop.ordering`) | `StockReservedV1`, `StockReservationFailedV1`, `StockReleasedV1`, `PaymentSucceededV1`, `PaymentFailedV1` (e-shop krok 8), `ProductUpdatedV1`, `ProductUpdatedV2`, `StockAvailabilityChangedV1`, `ProductRemovedV1`, `ReturnedGoodsRestockedV1`/`V2`, `PaymentRefundedV1`/`V2` (sága vratky), `StockReservedV2` (e-shop krok 28B – balíky objednávky, `OrderParcelsHandler`), `ProductRatingChangedV1` (e-shop krok 14), `ProductRecommendationsChangedV1` (e-shop krok 27B – „Zákazníci také koupili“ do kopie katalogu) |
 
 ## Rozhraní navenek
 
@@ -139,6 +139,20 @@ později, v jiném scope, případně i opakovaně.
   (`Order.Anonymize`, jméno „Smazaný zákazník“), položky a ceny zůstanou. S nevyřízenou objednávkou (Pending,
   Confirmed) se nezmění nic. Volá ho jen Web před smazáním účtu. E-shop krok 7: ve stejné transakci pošle `CustomerAnonymizedV1` – modul [Notifications](notifications.md) pak zapomene jméno, e-mail a adresu.
   E-shop krok 3: ve stejné transakci smaže i košík zákazníka. E-shop krok 4: smaže i doručovací adresy.
+
+## Balíky objednávky (e-shop krok 28B, směr C)
+
+Odkud se zboží vezme, rozhoduje sklad ([Inventory – Sklady](inventory.md)). Ordering se výsledek dozví zprávou `StockReservedV2`
+a uloží si ho jako **balíky** objednávky ([OrderParcel.cs](code:src/MiniShop.Domain/Orders/OrderParcel.cs)) – jeden balík
+za každý sklad (číslo, kód a název skladu jako text ze zprávy, položky). Plán: [Sklady-roadmap](code:docs/Sklady-roadmap.md).
+
+- **Balík patří do agregátu `Order`** (tabulky `OrderParcels`, `OrderParcelLines`): od kroku 28C bude objednávka hlídat
+  „odesláno / doručeno až po všech balících“. `Order.SetParcels` jen jednou – opakovaná zpráva nic nemění.
+- **Sága na balíky nečeká** – potvrzení dál řídí `StockReservedV1`. Balíky jsou popis, ne podmínka (zpráva smí přijít i později).
+- **Objednávka bez balíků** (z doby před krokem 28B, nebo zpráva ještě nedorazila) = jeden balík z Prahy se všemi položkami
+  (`Order.EffectiveParcels`) – do kroku 28A byly všechny zásoby v Praze.
+- **Expedice** (`/Admin/Fulfilment`) ukazuje u objednávky štítky balíků (`Balík 1: Brno · 3 ks`) a má filtr **Sklad**
+  (`?warehouse=BRQ`, akce ho zachovají). Předání dopravci je zatím za celou objednávku (balíky po zásilkách = krok 28C).
 
 ## Proč je košík v Orderingu (a ne ve vlastním modulu)
 

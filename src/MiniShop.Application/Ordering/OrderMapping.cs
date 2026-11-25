@@ -29,7 +29,10 @@ public static class OrderMapping
             order.CouponDiscount,
             order.IsAwaitingShipment,   // e-shop krok 26B: předává se dopravci
             order.ShipmentError,
-            order.IsShippedByCarrier);   // e-shop krok 26C: doručení hlásí dopravce
+            order.IsShippedByCarrier,   // e-shop krok 26C: doručení hlásí dopravce
+            [.. order.EffectiveParcels().Select(p => new OrderParcelDto(p.Number, p.WarehouseCode, p.WarehouseName,
+                [.. p.Lines.Select(l => new OrderParcelLineDto(l.ProductId,
+                    order.Items.FirstOrDefault(i => i.ProductId == l.ProductId)?.ProductName ?? $"Produkt {l.ProductId}", l.Quantity))]))]);   // e-shop krok 28B
 
     /// <summary>E-shop krok 5: objednávka s historií stavů v pořadí, jak nastaly (podle Id – pořadí zápisu).</summary>
     public static OrderDetailDto ToDetailDto(this Order order) =>

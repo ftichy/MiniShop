@@ -1,0 +1,16 @@
+@model MiniShop.Application.Ordering.OrderDto
+@* E-shop krok 28B: balíky objednávky podle skladů – odkud se balí. Jeden balík = jen štítek skladu. *@
+@{
+    var parcels = Model.Parcels ?? [];
+}
+@if (parcels.Count > 0)
+{
+    <div class="d-flex flex-wrap gap-1 mt-1" data-track="fulfilment-parcels">
+        @foreach (var parcel in parcels)
+        {
+            <span class="badge badge-soft-secondary" title="@string.Join(", ", parcel.Lines.Select(l => $"{l.Quantity}× {l.ProductName}"))">
+                @(parcels.Count > 1 ? $"Balík {parcel.Number}: " : "")@parcel.WarehouseName · @parcel.Lines.Sum(l => l.Quantity) ks
+            </span>
+        }
+    </div>
+}

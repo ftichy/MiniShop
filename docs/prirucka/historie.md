@@ -119,6 +119,7 @@ Plán (výloha, košík, pokladna, expedice, platba, notifikace): [docs/Eshop-ro
 | 27A | Zákazníci také koupili – výpočet: dávka v Reporting.Api každých 5 minut z přehledu tržeb (jen objednávky, které si zákazník nechal), dvojice až od 2 objednávek, `ProductRecommendationsChangedV1` jen při změně – [modul Reporting](architektura/moduly/reporting.md) | [krok-27a](code:docs/kroky-eshop/krok-27a-doporuceni-vypocet.md) |
 | 27B | Zákazníci také koupili – na webu: Ordering si doporučení ukládá do kopie katalogu, detail produktu je ukáže; chybějící si po startu vyžádá příkazem `SyncProductRecommendationsV1` | [krok-27b](code:docs/kroky-eshop/krok-27b-doporuceni-na-webu.md) |
 | 28A | Víc skladů – Praha a Brno: zásoba po skladech, naskladnění do vybraného skladu, rezervace z jednoho skladu, když to jde, jinak rozdělená; vrácení do skladu původu (zákazník nic nepozná) – [modul Inventory](architektura/moduly/inventory.md) | [krok-28a](code:docs/kroky-eshop/krok-28a-sklady.md) |
+| 28B | Balíky v objednávce: sklad posílá `StockReservedV2` s rozdělením podle skladů, Ordering ho uloží jako balíky objednávky, Expedice ukazuje balíky a filtr skladu – [modul Ordering](architektura/moduly/ordering.md) | [krok-28b](code:docs/kroky-eshop/krok-28b-baliky.md) |
 
 ## Vzhled
 

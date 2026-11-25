@@ -9,6 +9,19 @@
     dokud se nepředává dopravci. Číslo zásilky přidělí dopravce (pár sekund), pak sklad vydá zboží a zákazník dostane e-mail.
 </p>
 
+@* E-shop krok 28B: filtr „můj sklad“ – objednávky s balíkem z vybraného skladu (GET formulář, bez JS). *@
+<form method="get" class="d-flex flex-wrap align-items-center gap-2 mb-3" data-track="fulfilment-warehouse-filter">
+    <label for="warehouse" class="form-label mb-0">Sklad</label>
+    <select id="warehouse" name="warehouse" class="form-select form-select-sm w-auto" data-track="fulfilment-warehouse">
+        <option value="">Všechny</option>
+        @foreach (var (code, name) in Model.Warehouses)
+        {
+            <option value="@code" selected="@(code == Model.Warehouse)">@name</option>
+        }
+    </select>
+    <button type="submit" class="btn btn-sm btn-outline-secondary">Zobrazit</button>
+</form>
+
 <partial name="_StatusMessage" model="Model.StatusMessage" />
 @if (Model.ErrorMessage is not null)
 {
@@ -26,7 +39,7 @@
 }
 else
 {
-    <form method="post" asp-page-handler="StartPacking">
+    <form method="post" asp-page-handler="StartPacking" asp-route-warehouse="@Model.Warehouse">
         <div class="table-responsive admin-table"><table class="table table-sm align-middle">
             <thead>
                 <tr><th></th><th>Objednávka</th><th>Zákazník</th><th>Doprava</th><th>Položky</th><th class="num">Celkem</th></tr>
@@ -39,7 +52,7 @@ else
                         <td><a asp-page="/Orders/Detail" asp-route-id="@order.Id">č. @order.Id</a><partial name="_OwnOrderBadge" model="Model.IsOwn(order)" /></td>
                         <td>@order.CustomerName</td>
                         <td>@ShippingText(order)</td>
-                        <td class="small">@string.Join(", ", order.Items.Select(i => $"{i.Quantity}× {i.ProductName}"))</td>
+                        <td class="small">@string.Join(", ", order.Items.Select(i => $"{i.Quantity}× {i.ProductName}"))<partial name="_Parcels" model="order" /></td>
                         <td class="num">@order.TotalPrice.ToString("N2") Kč</td>
                     </tr>
                 }
@@ -65,10 +78,11 @@ else
     @foreach (var order in Model.ToShip)
     {
         <div class="list-group-item">
-            <form method="post" asp-page-handler="Ship" asp-route-id="@order.Id" class="row g-2 align-items-end">
+            <form method="post" asp-page-handler="Ship" asp-route-warehouse="@Model.Warehouse" asp-route-id="@order.Id" class="row g-2 align-items-end">
                 <div class="col-md-4">
                     <a asp-page="/Orders/Detail" asp-route-id="@order.Id" class="fw-bold">č. @order.Id</a> – @order.CustomerName <partial name="_OwnOrderBadge" model="Model.IsOwn(order)" />
                     <div class="small text-muted">@ShippingText(order)</div>
+                    <partial name="_Parcels" model="order" />
                 </div>
                 @if (order.ShippingMethod == "Pickup")
                 {
@@ -86,7 +100,7 @@ else
                         }
                         else
                         {
-                            <button type="submit" formaction="?handler=HandOver&amp;id=@order.Id" class="btn btn-success btn-sm"
+                            <button type="submit" formaction="?handler=HandOver&amp;id=@order.Id&amp;warehouse=@Model.Warehouse" class="btn btn-success btn-sm"
                                     data-track="fulfilment-hand-over" disabled="@Model.IsOwn(order)">
                                 @(order.ShipmentError is null ? "Předat dopravci" : "Zkusit znovu")
                             </button>
@@ -157,10 +171,11 @@ else
                 <div>
                     <a asp-page="/Orders/Detail" asp-route-id="@order.Id" class="fw-bold">č. @order.Id</a> – @order.CustomerName <partial name="_OwnOrderBadge" model="Model.IsOwn(order)" />
                     <div class="small text-muted">@(order.ShippingMethod == "Pickup" ? "čeká na vyzvednutí" : $"{order.Carrier} {order.TrackingNumber}".Trim())</div>
+                    <partial name="_Parcels" model="order" />
                 </div>
                 @if (Model.CanMarkDelivered(order))
                 {
-                    <form method="post" asp-page-handler="Deliver" asp-route-id="@order.Id">
+                    <form method="post" asp-page-handler="Deliver" asp-route-warehouse="@Model.Warehouse" asp-route-id="@order.Id">
                         <button type="submit" class="btn btn-outline-success btn-sm" data-track="fulfilment-deliver" disabled="@Model.IsOwn(order)">
                             @(order.ShippingMethod == "Pickup" ? "Vyzvednuto" : "Doručeno")
                         </button>

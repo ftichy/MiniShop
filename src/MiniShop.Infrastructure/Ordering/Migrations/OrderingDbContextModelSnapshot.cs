@@ -361,6 +361,38 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
                     b.ToTable("OrderItems", "ordering");
                 });
 
+            modelBuilder.Entity("MiniShop.Domain.Orders.OrderParcel", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Number")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("OrderId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("WarehouseCode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("WarehouseName")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId", "Number")
+                        .IsUnique();
+
+                    b.ToTable("OrderParcels", "ordering");
+                });
+
             modelBuilder.Entity("MiniShop.Domain.Orders.OrderReturn", b =>
                 {
                     b.Property<int>("Id")
@@ -672,6 +704,44 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("MiniShop.Domain.Orders.OrderParcel", b =>
+                {
+                    b.HasOne("MiniShop.Domain.Orders.Order", null)
+                        .WithMany("Parcels")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.OwnsMany("MiniShop.Domain.Orders.OrderParcelLine", "Lines", b1 =>
+                        {
+                            b1.Property<int>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer");
+
+                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+
+                            b1.Property<int>("OrderParcelId")
+                                .HasColumnType("integer");
+
+                            b1.Property<int>("ProductId")
+                                .HasColumnType("integer");
+
+                            b1.Property<int>("Quantity")
+                                .HasColumnType("integer");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("OrderParcelId");
+
+                            b1.ToTable("OrderParcelLines", "ordering");
+
+                            b1.WithOwner()
+                                .HasForeignKey("OrderParcelId");
+                        });
+
+                    b.Navigation("Lines");
+                });
+
             modelBuilder.Entity("MiniShop.Domain.Orders.OrderReturn", b =>
                 {
                     b.HasOne("MiniShop.Domain.Orders.Order", null)
@@ -751,6 +821,8 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
             modelBuilder.Entity("MiniShop.Domain.Orders.Order", b =>
                 {
                     b.Navigation("Items");
+
+                    b.Navigation("Parcels");
 
                     b.Navigation("Returns");
 

@@ -51,6 +51,11 @@ namespace MiniShop.Infrastructure.Shipping.Migrations
                     b.Property<int>("OrderId")
                         .HasColumnType("integer");
 
+                    b.Property<int>("ParcelNumber")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
+
                     b.Property<DateTime>("RequestedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -75,11 +80,11 @@ namespace MiniShop.Infrastructure.Shipping.Migrations
                     b.HasIndex("CommandId")
                         .IsUnique();
 
-                    b.HasIndex("OrderId")
+                    b.HasIndex("TrackingNumber");
+
+                    b.HasIndex("OrderId", "ParcelNumber")
                         .IsUnique()
                         .HasFilter("\"Status\" = 'Created'");
-
-                    b.HasIndex("TrackingNumber");
 
                     b.ToTable("Shipments", "shipping");
                 });

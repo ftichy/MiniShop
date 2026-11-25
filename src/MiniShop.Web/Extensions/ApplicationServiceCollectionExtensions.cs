@@ -127,8 +127,11 @@ public static class ApplicationServiceCollectionExtensions
     public static IServiceCollection AddShippingModule(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddIntegrationMessageHandler<CreateShipmentV1, CreateShipmentHandler>(IntegrationModules.Shipping);
+        services.AddIntegrationMessageHandler<CreateShipmentV2, CreateShipmentHandler>(IntegrationModules.Shipping);   // e-shop krok 28C: po balících
         services.AddIntegrationMessageHandler<ShipmentCreatedV1, ShipmentResultHandler>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<ShipmentFailedV1, ShipmentResultHandler>(IntegrationModules.Ordering);
+        services.AddIntegrationMessageHandler<ShipmentCreatedV2, ShipmentResultHandler>(IntegrationModules.Ordering);   // e-shop krok 28C: po balících
+        services.AddIntegrationMessageHandler<ShipmentFailedV2, ShipmentResultHandler>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<ShipmentDeliveredV1, ShipmentResultHandler>(IntegrationModules.Ordering);   // e-shop krok 26C
         services.AddIntegrationMessageHandler<ShipmentReturnedV1, ShipmentResultHandler>(IntegrationModules.Ordering);   // e-shop krok 26D
 
@@ -181,6 +184,8 @@ public static class ApplicationServiceCollectionExtensions
         services.AddDomainEventHandler<OrderCompleted, PublishOrderIntegrationEventsHandler>();
         services.AddDomainEventHandler<OrderCancelled, PublishOrderIntegrationEventsHandler>();
         services.AddDomainEventHandler<OrderShipmentRequested, PublishOrderIntegrationEventsHandler>();   // e-shop krok 26B: → CreateShipmentV1
+        services.AddDomainEventHandler<OrderParcelShipmentRequested, PublishOrderIntegrationEventsHandler>();   // e-shop krok 28C: → CreateShipmentV2
+        services.AddDomainEventHandler<OrderParcelShipped, PublishOrderIntegrationEventsHandler>();             // → ParcelShippedV1
         services.AddDomainEventHandler<OrderReturnedToSender, PublishOrderIntegrationEventsHandler>();   // e-shop krok 26D: → OrderReturnedToSenderV1
         services.AddDomainEventHandler<OrderStatusChanged, PublishOrderIntegrationEventsHandler>();   // vzhled krok F3a: → OrderStatusChangedV1
 

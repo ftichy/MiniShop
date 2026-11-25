@@ -28,6 +28,7 @@ public static class NotificationsModule
         services.AddIntegrationMessageHandler<OrderConfirmedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<OrderRejectedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<OrderShippedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<ParcelShippedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);   // e-shop krok 28C
         services.AddIntegrationMessageHandler<OrderCompletedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<OrderCancelledV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<CustomerAnonymizedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
@@ -99,6 +100,7 @@ public static class NotificationsModule
         services.AddIntegrationMessageHandler<OrderConfirmedV1, OrderPushHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<OrderRejectedV1, OrderPushHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<OrderShippedV1, OrderPushHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<ParcelShippedV1, OrderPushHandler>(IntegrationModules.Notifications);   // e-shop krok 28C
         services.AddIntegrationMessageHandler<OrderCompletedV1, OrderPushHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<OrderCancelledV1, OrderPushHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<ReturnRejectedV1, OrderPushHandler>(IntegrationModules.Notifications);

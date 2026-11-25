@@ -51,6 +51,15 @@ public sealed class OrderEmailTemplates(NotificationSettings settings)
                     ? "objednávka odešla."
                     : $"objednávku jsme předali dopravci {carrier}" + (trackingNumber is null ? "." : $", číslo zásilky {trackingNumber}."));
 
+    /// <summary>
+    /// E-shop krok 28C: jeden balík rozdělené objednávky je na cestě (ParcelShippedV1) – zbytek dorazí zvlášť.
+    /// </summary>
+    public EmailMessage ParcelShipped(OrderMailRecipient to, int parcelNumber, int parcelCount, string warehouseName, string carrier,
+        string trackingNumber) =>
+        Build(to, $"Balík {parcelNumber} z {parcelCount} objednávky č. {to.OrderId} je na cestě",
+            $"objednávka přijde ve {parcelCount} balících. Balík {parcelNumber} ze skladu {warehouseName} jsme předali dopravci {carrier}, " +
+            $"číslo zásilky {trackingNumber}. Ostatní balíky dorazí zvlášť.");
+
     /// <summary>Doručeno (osobní odběr: vyzvednuto) – OrderCompletedV1.</summary>
     public EmailMessage Delivered(OrderMailRecipient to) =>
         to.Order?.IsPickup == true

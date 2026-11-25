@@ -23,10 +23,23 @@ public sealed class ShippingDbContext(DbContextOptions<ShippingDbContext> option
 
     protected override IEnumerable<OutboxMessage> ToOutboxMessages(IDomainEvent domainEvent) => domainEvent switch
     {
-        ShipmentCreated e => [OutboxMessageFactory.Create(new ShipmentCreatedV1(
-            e.EventId, e.OccurredAtUtc, e.Shipment.OrderId, e.Shipment.Carrier!, e.Shipment.TrackingNumber!))],
-        ShipmentFailed e => [OutboxMessageFactory.Create(new ShipmentFailedV1(
-            e.EventId, e.OccurredAtUtc, e.Shipment.OrderId, e.Shipment.FailureReason!))],
+        // E-shop krok 28C: V1 i V2 s číslem balíku (expand → contract); druhá zpráva má odvozené ID – inbox by stejné zahodil.
+        ShipmentCreated e =>
+        [
+            OutboxMessageFactory.Create(new ShipmentCreatedV1(
+                e.EventId, e.OccurredAtUtc, e.Shipment.OrderId, e.Shipment.Carrier!, e.Shipment.TrackingNumber!)),
+            OutboxMessageFactory.Create(new ShipmentCreatedV2(
+                MessageIds.Derive(e.EventId, nameof(ShipmentCreatedV2)), e.OccurredAtUtc, e.Shipment.OrderId, e.Shipment.ParcelNumber,
+                e.Shipment.Carrier!, e.Shipment.TrackingNumber!))
+        ],
+        ShipmentFailed e =>
+        [
+            OutboxMessageFactory.Create(new ShipmentFailedV1(
+                e.EventId, e.OccurredAtUtc, e.Shipment.OrderId, e.Shipment.FailureReason!)),
+            OutboxMessageFactory.Create(new ShipmentFailedV2(
+                MessageIds.Derive(e.EventId, nameof(ShipmentFailedV2)), e.OccurredAtUtc, e.Shipment.OrderId, e.Shipment.ParcelNumber,
+                e.Shipment.FailureReason!))
+        ],
         ShipmentDelivered e => [OutboxMessageFactory.Create(new ShipmentDeliveredV1(   // e-shop krok 26C
             e.EventId, e.OccurredAtUtc, e.Shipment.OrderId, e.Shipment.TrackingNumber!, e.OccurredAtUtc))],
         ShipmentStatusChanged e => [OutboxMessageFactory.Create(new ShipmentStatusChangedV1(   // vzhled krok F3b

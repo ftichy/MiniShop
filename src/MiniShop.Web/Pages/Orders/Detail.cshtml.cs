@@ -33,6 +33,12 @@ public sealed class DetailModel(
     /// <summary>E-shop krok 26C: průběh zásilky od dopravce (jen objednávky předané dopravci), jinak null.</summary>
     public ShipmentTrackingDto? Shipment { get; private set; }
 
+    /// <summary>E-shop krok 28C: zásilky rozdělené objednávky (jedna za každý balík, podle čísla balíku); jinak prázdné.</summary>
+    public IReadOnlyList<ShipmentTrackingDto> ParcelShipments { get; private set; } = [];
+
+    /// <summary>Objednávka přijde ve víc balících (z víc skladů).</summary>
+    public bool IsSplit => (Order.Parcels?.Count ?? 0) > 1;
+
     public OrderDto Order => Detail.Order;
 
     /// <summary>Admin: vyřízení a odkazy na průběh zadání (Journeys).</summary>
@@ -67,6 +73,7 @@ public sealed class DetailModel(
         Order.Status is "Pending" or "AwaitingPayment" or "ReturnRequested"
         || Order.AwaitingShipment
         || (Order.Status == "Shipped" && Order.ShippedByCarrier)
+        || (Order.Status == "Packing" && Order.Parcels?.Any(p => p.Status == "Shipped") == true)   // e-shop krok 28C: část balíků už jede
         || Detail.Returns?.Any(r => r.Status == "Requested") == true;
 
     /// <summary>E-shop krok 15/15B: číslo faktury (null = zatím není) a dobropisy (krok 22: i víc – vratky po částech).</summary>
@@ -139,6 +146,7 @@ public sealed class DetailModel(
         CanFulfil = (await authorization.AuthorizeAsync(User, AuthorizationPolicies.RequireFulfilment)).Succeeded;
         CanOperate = (await authorization.AuthorizeAsync(User, AuthorizationPolicies.RequireOperations)).Succeeded;   // proud B1
         Shipment = Detail.Order.ShippedByCarrier ? await shipments.GetByOrderIdAsync(id, cancellationToken) : null;   // e-shop krok 26C
+        ParcelShipments = (Detail.Order.Parcels?.Count ?? 0) > 1 ? await shipments.GetAllByOrderIdAsync(id, cancellationToken) : [];   // e-shop krok 28C
         IsOwnOrder = Detail.CustomerId == User.FindFirstValue(ClaimTypes.NameIdentifier);
         IsOwnCustomerOrder = IsOwnOrder
             && (await authorization.AuthorizeAsync(User, AuthorizationPolicies.RequireCustomer)).Succeeded;

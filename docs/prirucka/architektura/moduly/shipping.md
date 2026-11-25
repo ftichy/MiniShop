@@ -53,6 +53,29 @@ flowchart TB
    (dál beze změny: sklad vydá rezervaci, zákazník dostane e-mail s číslem); `ShipmentFailedV1` → `Order.FailShipment` →
    zpět do „K odeslání“ s hláškou a tlačítkem **Zkusit znovu** (nový příkaz = nová zásilka).
 
+## Zásilka za každý balík (e-shop krok 28C, směr C)
+
+Objednávka z víc skladů má víc **balíků** ([Ordering – Balíky](ordering.md)) a každý jede vlastní zásilkou. Plán:
+[Sklady-roadmap](code:docs/Sklady-roadmap.md).
+
+1. Skladník předá dopravci svůj balík (Expedice, tlačítko u balíku) → `Order.RequestParcelShipment` → doménová událost
+   `OrderParcelShipmentRequested` → překladač pošle **`CreateShipmentV2`** (navíc číslo balíku a sklad-odesílatel; dobírka
+   = hodnota položek balíku, první balík i dopravu). „Předat dopravci“ bez čísla balíku (jeden balík, generátor provozu)
+   předá všechny čekající (`Order.RequestPendingParcelShipments`). Dnes se tak předává **každá** objednávka – jednobalíková
+   má jeden balík.
+2. `CreateShipmentHandler` zakládá `Shipment` s `ParcelNumber` – vlastní příkaz = vlastní **Idempotency-Key** = vlastní zásilka.
+   Unikátní je teď vytvořená zásilka na **balík** (`OrderId + ParcelNumber`). Starší příkaz `CreateShipmentV1` = balík 1.
+3. Shipping oznamuje výsledek **ve dvou verzích** (expand → contract): `ShipmentCreatedV1`/`ShipmentFailedV1` jako dřív a
+   `ShipmentCreatedV2`/`ShipmentFailedV2` s číslem balíku (druhá zpráva má odvozené ID `MessageIds.Derive`). Ordering
+   předávání po balících řídí V2; V1 vyřídí jen starší předání celé objednávky (`Order.HasParcelShipments` = false).
+4. Ordering: `ShipmentCreatedV2` → `Order.ConfirmParcelShipment` → `OrderParcelShipped` → **`ParcelShippedV1`** (e-mail a push
+   „balík 1 ze 2 je na cestě“ – jen u víc balíků). Odešel-li **poslední** balík, objednávka je odeslaná (`OrderShipped` →
+   `OrderShippedV1` jednou, beze změny – sklad vydá rezervace).
+5. Doručení a vrácení hlásí dopravce **číslem zásilky** (`ShipmentDeliveredV1`, `ShipmentReturnedV1` – bez nových verzí):
+   Ordering najde balík (`Order.ParcelByTrackingNumber`). Doručená je objednávka, až skončí **všechny** balíky – aspoň jeden
+   doručený = doručeno, všechny vrácené = vráceno dopravcem (jako krok 26D). Vrácený jeden z víc balíků se zatím jen označí –
+   kompenzaci jeho části dělá krok 28D.
+
 ## Proč Idempotency-Key, když máme inbox
 
 Inbox chrání **naši** stranu: stejnou zprávu zpracujeme jen jednou. Nepomůže ale v situaci, kdy dopravce zásilku

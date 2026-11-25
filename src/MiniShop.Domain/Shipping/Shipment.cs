@@ -22,7 +22,7 @@ public class Shipment : Entity
     {
     }
 
-    private Shipment(Guid commandId, int orderId, DateTime atUtc)
+    private Shipment(Guid commandId, int orderId, DateTime atUtc, int parcelNumber = 1)
     {
         if (orderId <= 0)
         {
@@ -32,6 +32,7 @@ public class Shipment : Entity
         Id = Guid.NewGuid();
         CommandId = commandId;
         OrderId = orderId;
+        ParcelNumber = parcelNumber < 1 ? 1 : parcelNumber;
         RequestedAtUtc = atUtc;
     }
 
@@ -41,6 +42,12 @@ public class Shipment : Entity
     public Guid CommandId { get; private set; }
 
     public int OrderId { get; private set; }
+
+    /// <summary>
+    /// E-shop krok 28C: číslo balíku objednávky (1, 2, …). Zásilky z doby před balíky a ze starší verze kódu mají 1 (výchozí
+    /// hodnota sloupce). Vytvořená zásilka je na balík nejvýš jedna.
+    /// </summary>
+    public int ParcelNumber { get; private set; } = 1;
 
     public ShipmentStatus Status { get; private set; }
 
@@ -54,7 +61,7 @@ public class Shipment : Entity
     public DateTime RequestedAtUtc { get; private set; }
 
     /// <summary>Dopravce zásilku přijal a přidělil číslo → ShipmentCreated (→ ShipmentCreatedV1).</summary>
-    public static Shipment Created(Guid commandId, int orderId, string carrier, string trackingNumber, DateTime atUtc)
+    public static Shipment Created(Guid commandId, int orderId, string carrier, string trackingNumber, DateTime atUtc, int parcelNumber = 1)
     {
         if (string.IsNullOrWhiteSpace(carrier) || string.IsNullOrWhiteSpace(trackingNumber)
             || carrier.Length > CarrierMaxLength || trackingNumber.Length > TrackingNumberMaxLength)
@@ -62,7 +69,7 @@ public class Shipment : Entity
             throw new DomainException("Dopravce vrátil neplatné číslo zásilky.");
         }
 
-        var shipment = new Shipment(commandId, orderId, atUtc)
+        var shipment = new Shipment(commandId, orderId, atUtc, parcelNumber)
         {
             Status = ShipmentStatus.Created,
             Carrier = carrier,
@@ -73,10 +80,10 @@ public class Shipment : Entity
     }
 
     /// <summary>Dopravce zásilku odmítl (trvalá chyba) → ShipmentFailed (→ ShipmentFailedV1).</summary>
-    public static Shipment Failed(Guid commandId, int orderId, string reason, DateTime atUtc)
+    public static Shipment Failed(Guid commandId, int orderId, string reason, DateTime atUtc, int parcelNumber = 1)
     {
         var trimmed = string.IsNullOrWhiteSpace(reason) ? "Dopravce zásilku odmítl." : reason.Trim();
-        var shipment = new Shipment(commandId, orderId, atUtc)
+        var shipment = new Shipment(commandId, orderId, atUtc, parcelNumber)
         {
             Status = ShipmentStatus.Failed,
             FailureReason = trimmed.Length > FailureMaxLength ? trimmed[..FailureMaxLength] : trimmed

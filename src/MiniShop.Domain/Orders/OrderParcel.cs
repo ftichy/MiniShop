@@ -49,6 +49,98 @@ public sealed class OrderParcel
     public string WarehouseName { get; private set; } = string.Empty;
 
     public IReadOnlyCollection<OrderParcelLine> Lines => _lines.AsReadOnly();
+
+    // ---- E-shop krok 28C: vlastní zásilka balíku u dopravce ----
+
+    /// <summary>Kdy skladník balík předal dopravci (čeká se na číslo zásilky); null = nepředán nebo odmítnut.</summary>
+    public DateTime? ShipmentRequestedAtUtc { get; private set; }
+
+    public string? Carrier { get; private set; }
+
+    public string? TrackingNumber { get; private set; }
+
+    /// <summary>Kdy dopravce balík převzal (přidělil číslo zásilky).</summary>
+    public DateTime? ShippedAtUtc { get; private set; }
+
+    public DateTime? DeliveredAtUtc { get; private set; }
+
+    /// <summary>Dopravce balík nedoručil a vrátil ho (kompenzace jen jeho části = krok 28D).</summary>
+    public DateTime? ReturnedToSenderAtUtc { get; private set; }
+
+    /// <summary>Proč dopravce balík naposledy odmítl, nebo null.</summary>
+    public string? ShipmentError { get; private set; }
+
+    /// <summary>Předán dopravci a ještě nepřišlo číslo zásilky ani odmítnutí.</summary>
+    public bool IsAwaitingShipment => ShipmentRequestedAtUtc is not null && ShippedAtUtc is null;
+
+    public bool IsShipped => ShippedAtUtc is not null;
+
+    /// <summary>Konečný stav balíku – doručen, nebo vrácen dopravcem.</summary>
+    public bool IsFinished => DeliveredAtUtc is not null || ReturnedToSenderAtUtc is not null;
+
+    internal void RequestShipment(DateTime requestedAtUtc)
+    {
+        if (IsShipped)
+        {
+            throw new DomainException($"Balík {Number} už je u dopravce.");
+        }
+
+        if (IsAwaitingShipment)
+        {
+            throw new DomainException($"Balík {Number} se už dopravci předává.");
+        }
+
+        ShipmentRequestedAtUtc = requestedAtUtc;
+        ShipmentError = null;
+    }
+
+    internal bool ConfirmShipment(string carrier, string trackingNumber, DateTime shippedAtUtc)
+    {
+        if (!IsAwaitingShipment)
+        {
+            return false;   // opožděná nebo opakovaná odpověď
+        }
+
+        Carrier = carrier;
+        TrackingNumber = trackingNumber;
+        ShippedAtUtc = shippedAtUtc;
+        ShipmentError = null;
+        return true;
+    }
+
+    internal bool FailShipment(string reason)
+    {
+        if (!IsAwaitingShipment)
+        {
+            return false;
+        }
+
+        ShipmentRequestedAtUtc = null;
+        ShipmentError = reason.Length > Order.ShipmentErrorMaxLength ? reason[..Order.ShipmentErrorMaxLength] : reason;
+        return true;
+    }
+
+    internal bool MarkDelivered(DateTime deliveredAtUtc)
+    {
+        if (!IsShipped || IsFinished)
+        {
+            return false;
+        }
+
+        DeliveredAtUtc = deliveredAtUtc;
+        return true;
+    }
+
+    internal bool MarkReturnedToSender(DateTime returnedAtUtc)
+    {
+        if (!IsShipped || IsFinished)
+        {
+            return false;
+        }
+
+        ReturnedToSenderAtUtc = returnedAtUtc;
+        return true;
+    }
 }
 
 /// <summary>Kolik kusů produktu je v balíku.</summary>

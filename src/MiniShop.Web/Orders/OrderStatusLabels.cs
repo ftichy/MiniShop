@@ -6,6 +6,16 @@ namespace MiniShop.Web.Orders;
 /// </summary>
 public static class OrderStatusLabels
 {
+    /// <summary>E-shop krok 28C: stav balíku rozdělené objednávky (<c>OrderParcelDto.Status</c>).</summary>
+    public static string ParcelLabel(string status) => status switch
+    {
+        "HandingOver" => "Předává se dopravci",
+        "Shipped" => "Na cestě",
+        "Delivered" => "Doručen",
+        "ReturnedToSender" => "Vrácen dopravcem",
+        _ => "Připravujeme"
+    };
+
     public static string Badge(string status) => status switch
     {
         "Pending" => "badge-soft-warning",   // vzhled B: jemné barvy (site.css)

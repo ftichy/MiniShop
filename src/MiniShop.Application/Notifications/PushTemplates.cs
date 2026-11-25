@@ -23,6 +23,11 @@ public static class PushTemplates
             : Order(orderId, "shipped", $"Objednávka č. {orderId} je na cestě",
                 carrier is null ? "Objednávka odešla." : $"Předali jsme ji dopravci {carrier}.");
 
+    /// <summary>E-shop krok 28C: jeden balík rozdělené objednávky je na cestě – bez osobních údajů (číslo balíku a dopravce).</summary>
+    public static PushMessage ParcelShipped(int orderId, int parcelNumber, int parcelCount, string carrier) =>
+        Order(orderId, "parcel-shipped", $"Balík {parcelNumber} z {parcelCount} je na cestě",
+            $"Objednávka č. {orderId}: balík jsme předali dopravci {carrier}, ostatní dorazí zvlášť.");
+
     public static PushMessage Delivered(int orderId, bool pickup) =>
         Order(orderId, "delivered", pickup ? $"Objednávka č. {orderId} je vyzvednutá" : $"Objednávka č. {orderId} je doručená",
             "Děkujeme za nákup!");

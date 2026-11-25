@@ -41,7 +41,9 @@ public sealed record OrderDto(
 /// <summary>
 /// E-shop krok 28B: balík objednávky (sklad + položky). Objednávka bez rozdělení od skladu má jeden balík z výchozího skladu.
 /// </summary>
-public sealed record OrderParcelDto(int Number, string WarehouseCode, string WarehouseName, IReadOnlyList<OrderParcelLineDto> Lines);
+/// <param name="Status">E-shop krok 28C: <c>Waiting</c> (u nás), <c>HandingOver</c> (předává se dopravci), <c>Shipped</c>, <c>Delivered</c>, <c>ReturnedToSender</c>.</param>
+public sealed record OrderParcelDto(int Number, string WarehouseCode, string WarehouseName, IReadOnlyList<OrderParcelLineDto> Lines,
+    string Status = "Waiting", string? Carrier = null, string? TrackingNumber = null, string? ShipmentError = null);
 
 public sealed record OrderParcelLineDto(int ProductId, string ProductName, int Quantity);
 

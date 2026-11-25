@@ -39,6 +39,9 @@ public interface IOrderService
     /// <summary>E-shop krok 26B: předat zabalenou objednávku (kurýr) dopravci – číslo zásilky přijde zprávou. Jen sklad.</summary>
     Task<OrderDto> RequestShipmentAsync(int id, string? actingUserId = null, CancellationToken cancellationToken = default);
 
+    /// <summary>E-shop krok 28C: předat dopravci jeden balík objednávky (sklad předává svůj balík). Bez čísla = všechny čekající.</summary>
+    Task<OrderDto> RequestParcelShipmentAsync(int id, int parcelNumber, string? actingUserId = null, CancellationToken cancellationToken = default);
+
     /// <summary>Doručeno (Shipped → Completed). E-shop krok 6: dřív „vyřídit“ rovnou z Confirmed. Jen admin.</summary>
     Task<OrderDto> CompleteAsync(int id, string? actingUserId = null, CancellationToken cancellationToken = default);
     Task<OrderDto> CancelAsync(int id, OrderAccess access, CancellationToken cancellationToken = default);

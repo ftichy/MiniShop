@@ -20,6 +20,7 @@ public sealed class OrderPushHandler(
     IIntegrationMessageHandler<OrderConfirmedV1>,
     IIntegrationMessageHandler<OrderRejectedV1>,
     IIntegrationMessageHandler<OrderShippedV1>,
+    IIntegrationMessageHandler<ParcelShippedV1>,   // e-shop krok 28C
     IIntegrationMessageHandler<OrderCompletedV1>,
     IIntegrationMessageHandler<OrderCancelledV1>,
     IIntegrationMessageHandler<ReturnRejectedV1>,
@@ -36,6 +37,13 @@ public sealed class OrderPushHandler(
     public Task HandleAsync(OrderShippedV1 message, CancellationToken cancellationToken) =>
         SendAsync(message.OrderId, waitSinceUtc: null,
             pickup => PushTemplates.Shipped(message.OrderId, pickup, message.Carrier), cancellationToken);
+
+    /// <summary>E-shop krok 28C: balík rozdělené objednávky (u jednoho balíku stačí oznámení o odeslání objednávky).</summary>
+    public Task HandleAsync(ParcelShippedV1 message, CancellationToken cancellationToken) =>
+        message.ParcelCount < 2
+            ? Task.CompletedTask
+            : SendAsync(message.OrderId, waitSinceUtc: null,
+                _ => PushTemplates.ParcelShipped(message.OrderId, message.ParcelNumber, message.ParcelCount, message.Carrier), cancellationToken);
 
     public Task HandleAsync(OrderCompletedV1 message, CancellationToken cancellationToken) =>
         SendAsync(message.OrderId, waitSinceUtc: null, pickup => PushTemplates.Delivered(message.OrderId, pickup), cancellationToken);

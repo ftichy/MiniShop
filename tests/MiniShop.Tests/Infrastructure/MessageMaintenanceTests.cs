@@ -130,6 +130,12 @@ public sealed class MessageMaintenanceTests : IDisposable
         var requeued = RabbitMqDeadLetters.CopyProperties(dead, attempts: 0);   // admin vrátil do fronty
         Assert.False(requeued.Headers!.ContainsKey(RabbitMqDeadLetters.ErrorHeader));
         Assert.Equal("minishop.ordering.dead", RabbitMqDeadLetters.DeadQueueFor("minishop.ordering"));
+        Assert.Equal("minishop.ordering.retry", RabbitMqDeadLetters.RetryQueueFor("minishop.ordering"));
+
+        // Review #185: pauza před opakováním = TTL zprávy v čekací frontě (v ms); jinde zpráva TTL nemá.
+        var delayed = RabbitMqDeadLetters.CopyProperties(original, attempts: 1, delay: TimeSpan.FromSeconds(4));
+        Assert.Equal("4000", delayed.Expiration);
+        Assert.Null(retry.Expiration);
     }
 
     private static OutboxMessage Message(int? processedDaysAgo, int attempts = 0) => new()

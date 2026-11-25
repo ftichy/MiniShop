@@ -18,6 +18,8 @@ namespace MiniShop.Infrastructure.Integration.RabbitMq;
 /// Když broker neběží nebo spojení spadne, za 5 s se připojí znovu. Zprávy mezitím čekají ve frontě.
 /// Chyba při čtení (neznámý kontrakt, rozbitý JSON) = rovnou do dead-letter fronty (EDA krok 13) – opakování nepomůže.
 /// Chyba handleru = po rostoucí pauze znovu (nejvýš 5×, pak dead-letter fronta); duplicitě zabrání inbox.
+/// Pauzu drží broker (čekací fronta <c>{fronta}.retry</c> s TTL), ne consumer – ostatní zprávy se zpracovávají dál.
+/// Kanál má publisher confirms: kopii zprávy (opakování, dead-letter) musí broker potvrdit dřív, než se potvrdí originál.
 /// </remarks>
 public abstract class RabbitMqQueueConsumer(RabbitMqConnection connection, ILogger logger)
 {
@@ -47,6 +49,7 @@ public abstract class RabbitMqQueueConsumer(RabbitMqConnection connection, ILogg
         await channel.QueueDeclareAsync(QueueName, durable: true, exclusive: false, autoDelete: false,
             cancellationToken: cancellationToken);
         await RabbitMqDeadLetters.DeclareDeadQueueAsync(channel, QueueName, cancellationToken);   // EDA krok 13
+        await RabbitMqDeadLetters.DeclareRetryQueueAsync(channel, QueueName, cancellationToken);  // review #185
     }
 
     public async Task RunAsync(CancellationToken cancellationToken)
@@ -80,7 +83,7 @@ public abstract class RabbitMqQueueConsumer(RabbitMqConnection connection, ILogg
 
     private async Task ConsumeUntilDisconnectedAsync(CancellationToken cancellationToken)
     {
-        await using var channel = await connection.CreateChannelAsync(publisherConfirms: false, cancellationToken);
+        await using var channel = await connection.CreateChannelAsync(publisherConfirms: true, cancellationToken);
 
         // Vlastní fronta consumera + napojení na exchange odebíraných kontraktů (binding).
         await DeclareQueueAsync(channel, cancellationToken);
@@ -164,24 +167,53 @@ public abstract class RabbitMqQueueConsumer(RabbitMqConnection connection, ILogg
                 return;
             }
 
-            // Chyba handleru (např. zamčená DB) – po rostoucí pauze kopie zpět do fronty s počtem pokusů, originál potvrdit.
+            // Chyba handleru (např. zamčená DB) – kopie s počtem pokusů do čekací fronty (TTL = pauza), odkud ji broker sám
+            // vrátí do fronty modulu; originál se potvrdí až po potvrzení kopie brokerem (publisher confirms).
+            // Nepotvrzená kopie = výjimka, originál zůstane nepotvrzený a broker ho doručí znovu.
             // (Spadne-li služba mezi publikováním a potvrzením, přijde zpráva dvakrát – zachytí to inbox.)
             var delay = RabbitMqDeadLetters.RetryDelay(attempts);
             logger.LogWarning("Zprávu {MessageId} ({Type}) z fronty {Queue} se nepodařilo zpracovat ({Attempts}/{Max}), za {Delay} s znovu: {Error}",
                 messageId, type, QueueName, attempts, RabbitMqDeadLetters.MaxDeliveryAttempts, delay.TotalSeconds, ex.Message);
-            await Task.Delay(delay, cancellationToken);
-            await channel.BasicPublishAsync(string.Empty, QueueName, mandatory: false,
-                RabbitMqDeadLetters.CopyProperties(delivery.BasicProperties, attempts), delivery.Body, cancellationToken);
-            await channel.BasicAckAsync(delivery.DeliveryTag, multiple: false, cancellationToken);
+            await MoveAsync(channel, delivery, RabbitMqDeadLetters.RetryQueueFor(QueueName),
+                RabbitMqDeadLetters.CopyProperties(delivery.BasicProperties, attempts, delay: delay), cancellationToken);
         }
     }
 
     /// <summary>EDA krok 13: zprávu do <c>{fronta}.dead</c> (s chybou v hlavičce) a originál potvrdit.</summary>
-    private async Task DeadLetterAsync(IChannel channel, BasicDeliverEventArgs delivery, int attempts, string error,
-        CancellationToken cancellationToken)
+    private Task DeadLetterAsync(IChannel channel, BasicDeliverEventArgs delivery, int attempts, string error,
+        CancellationToken cancellationToken) =>
+        MoveAsync(channel, delivery, RabbitMqDeadLetters.DeadQueueFor(QueueName),
+            RabbitMqDeadLetters.CopyProperties(delivery.BasicProperties, attempts, error), cancellationToken);
+
+    /// <summary>
+    /// Review #185: kopie zprávy do jiné fronty (publisher confirms – <c>BasicPublishAsync</c> počká na potvrzení brokeru)
+    /// a až potom ack originálu. Nepotvrzená kopie = originál se vrátí do fronty (nack + requeue), nic se neztratí;
+    /// případnou duplicitu zachytí inbox.
+    /// </summary>
+    private async Task MoveAsync(IChannel channel, BasicDeliverEventArgs delivery, string targetQueue,
+        BasicProperties properties, CancellationToken cancellationToken)
     {
-        await channel.BasicPublishAsync(string.Empty, RabbitMqDeadLetters.DeadQueueFor(QueueName), mandatory: false,
-            RabbitMqDeadLetters.CopyProperties(delivery.BasicProperties, attempts, error), delivery.Body, cancellationToken);
+        try
+        {
+            await channel.BasicPublishAsync(string.Empty, targetQueue, mandatory: false, properties, delivery.Body,
+                cancellationToken);
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning("Kopii zprávy {MessageId} do fronty {TargetQueue} broker nepotvrdil, originál se vrací do fronty {Queue}: {Error}",
+                delivery.BasicProperties.MessageId, targetQueue, QueueName, ex.Message);
+            try
+            {
+                await channel.BasicNackAsync(delivery.DeliveryTag, multiple: false, requeue: true, cancellationToken);
+            }
+            catch (Exception)
+            {
+                // Spojení je pryč – nepotvrzenou zprávu broker po jeho zániku doručí znovu.
+            }
+
+            return;
+        }
+
         await channel.BasicAckAsync(delivery.DeliveryTag, multiple: false, cancellationToken);
     }
 }

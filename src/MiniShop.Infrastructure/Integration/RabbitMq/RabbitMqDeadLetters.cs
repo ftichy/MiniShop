@@ -26,6 +26,9 @@ public static class RabbitMqDeadLetters
 
     public static string DeadQueueFor(string queue) => $"{queue}.dead";
 
+    /// <summary>Čekací fronta pro opakování (review #185): zpráva v ní počká na TTL a broker ji sám vrátí do <paramref name="queue"/>.</summary>
+    public static string RetryQueueFor(string queue) => $"{queue}.retry";
+
     /// <summary>Kolikrát už handler zprávu nezvládl (0 = první doručení).</summary>
     public static int ReadAttempts(IReadOnlyBasicProperties properties) =>
         properties.Headers?.TryGetValue(AttemptHeader, out var value) == true
@@ -41,8 +44,12 @@ public static class RabbitMqDeadLetters
     /// <summary>Pauza před dalším pokusem: 2, 4, 8, 16 s (exponenciální backoff).</summary>
     public static TimeSpan RetryDelay(int attempts) => BaseRetryDelay * Math.Pow(2, Math.Max(0, attempts - 1));
 
-    /// <summary>Kopie vlastností přijaté zprávy (typ, ID, trasa…) s novým počtem pokusů, případně s chybou.</summary>
-    public static BasicProperties CopyProperties(IReadOnlyBasicProperties source, int attempts, string? error = null)
+    /// <summary>
+    /// Kopie vlastností přijaté zprávy (typ, ID, trasa…) s novým počtem pokusů, případně s chybou.
+    /// <paramref name="delay"/> = TTL zprávy v čekací frontě (po jeho uplynutí ji broker vrátí do původní fronty).
+    /// </summary>
+    public static BasicProperties CopyProperties(IReadOnlyBasicProperties source, int attempts, string? error = null,
+        TimeSpan? delay = null)
     {
         var headers = source.Headers is null
             ? new Dictionary<string, object?>()
@@ -69,9 +76,25 @@ public static class RabbitMqDeadLetters
             DeliveryMode = DeliveryModes.Persistent,
             Timestamp = source.Timestamp,
             AppId = source.AppId,
-            Headers = headers
+            Headers = headers,
+            Expiration = delay is { } ttl ? ((long)ttl.TotalMilliseconds).ToString(System.Globalization.CultureInfo.InvariantCulture) : null
         };
     }
+
+    /// <summary>
+    /// Čekací fronta (review #185): nová fronta (existujícím se argumenty neměnit). Zprávě vyprší TTL → broker ji přes výchozí
+    /// exchange a <c>x-dead-letter-routing-key</c> vrátí do <paramref name="queue"/>. Consumer tak při chybě hned pokračuje
+    /// dalšími zprávami a nestojí v <c>Task.Delay</c>. Pozor: TTL se kontroluje jen na začátku fronty – delší pauza vpředu
+    /// krátce zdrží kratší za ní (jen opakování, nikdy ne běžné zprávy).
+    /// </summary>
+    public static Task DeclareRetryQueueAsync(IChannel channel, string queue, CancellationToken cancellationToken) =>
+        channel.QueueDeclareAsync(RetryQueueFor(queue), durable: true, exclusive: false, autoDelete: false,
+            arguments: new Dictionary<string, object?>
+            {
+                ["x-dead-letter-exchange"] = string.Empty,
+                ["x-dead-letter-routing-key"] = queue
+            },
+            cancellationToken: cancellationToken);
 
     public static Task DeclareDeadQueueAsync(IChannel channel, string queue, CancellationToken cancellationToken) =>
         channel.QueueDeclareAsync(DeadQueueFor(queue), durable: true, exclusive: false, autoDelete: false,

@@ -14,7 +14,10 @@ internal sealed class ShipmentConfiguration : IEntityTypeConfiguration<Shipment>
 
         // Jeden příkaz = jedna zásilka; vytvořená zásilka nejvýš jedna na objednávku (odmítnutých může být víc).
         builder.HasIndex(s => s.CommandId).IsUnique();
-        builder.HasIndex(s => s.OrderId).IsUnique().HasFilter("\"Status\" = 'Created'");
+        // E-shop krok 28C: vytvořená zásilka nejvýš jedna na BALÍK (dřív na objednávku). Výchozí balík 1 – starší verze kódu
+        // sloupec nezná a při postupném nasazení zakládá zásilky bez něj.
+        builder.HasIndex(s => new { s.OrderId, s.ParcelNumber }).IsUnique().HasFilter("\"Status\" = 'Created'");
+        builder.Property(s => s.ParcelNumber).HasDefaultValue(1);
         builder.Property(s => s.Status).HasConversion<string>().HasMaxLength(20);
         builder.Property(s => s.Carrier).HasMaxLength(Shipment.CarrierMaxLength);
         builder.Property(s => s.TrackingNumber).HasMaxLength(Shipment.TrackingNumberMaxLength);

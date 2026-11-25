@@ -174,6 +174,7 @@ public sealed partial class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<OrderConfirmedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<OrderRejectedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<OrderShippedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
+        services.AddIntegrationMessageHandler<ParcelShippedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);   // e-shop krok 28C
         services.AddIntegrationMessageHandler<OrderCompletedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<OrderCancelledV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
         services.AddIntegrationMessageHandler<CustomerAnonymizedV1, OrderNotificationsHandler>(IntegrationModules.Notifications);
@@ -222,11 +223,16 @@ public sealed partial class OrderServiceTests : IDisposable
         // může vyměnit za simulátor se „zlobením“ (UseCarrier).
         services.AddShippingInfrastructure(_databases.Shipping, MiniShop.Tests.CarrierSimulator.CarrierSimulatorFactory.WebhookSecret);
         services.AddIntegrationMessageHandler<CreateShipmentV1, CreateShipmentHandler>(IntegrationModules.Shipping);
+        services.AddIntegrationMessageHandler<CreateShipmentV2, CreateShipmentHandler>(IntegrationModules.Shipping);   // e-shop krok 28C
         services.AddIntegrationMessageHandler<ShipmentCreatedV1, ShipmentResultHandler>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<ShipmentFailedV1, ShipmentResultHandler>(IntegrationModules.Ordering);
+        services.AddIntegrationMessageHandler<ShipmentCreatedV2, ShipmentResultHandler>(IntegrationModules.Ordering);   // e-shop krok 28C: po balících
+        services.AddIntegrationMessageHandler<ShipmentFailedV2, ShipmentResultHandler>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<ShipmentDeliveredV1, ShipmentResultHandler>(IntegrationModules.Ordering);   // e-shop krok 26C
         services.AddIntegrationMessageHandler<ShipmentReturnedV1, ShipmentResultHandler>(IntegrationModules.Ordering);   // e-shop krok 26D
         services.AddDomainEventHandler<OrderShipmentRequested, PublishOrderIntegrationEventsHandler>();
+        services.AddDomainEventHandler<OrderParcelShipmentRequested, PublishOrderIntegrationEventsHandler>();   // e-shop krok 28C: → CreateShipmentV2
+        services.AddDomainEventHandler<OrderParcelShipped, PublishOrderIntegrationEventsHandler>();             // → ParcelShippedV1
         services.AddDomainEventHandler<OrderReturnedToSender, PublishOrderIntegrationEventsHandler>();   // e-shop krok 26D: → OrderReturnedToSenderV1
         services.AddDomainEventHandler<OrderStatusChanged, PublishOrderIntegrationEventsHandler>();   // vzhled krok F3a: → OrderStatusChangedV1
         services.AddScoped<ICarrierGateway>(_ => new CarrierApiClient(Carrier.CreateAuthorizedClient(), NullLogger<CarrierApiClient>.Instance));

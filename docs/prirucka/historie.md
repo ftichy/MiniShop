@@ -120,6 +120,7 @@ Plán (výloha, košík, pokladna, expedice, platba, notifikace): [docs/Eshop-ro
 | 27B | Zákazníci také koupili – na webu: Ordering si doporučení ukládá do kopie katalogu, detail produktu je ukáže; chybějící si po startu vyžádá příkazem `SyncProductRecommendationsV1` | [krok-27b](code:docs/kroky-eshop/krok-27b-doporuceni-na-webu.md) |
 | 28A | Víc skladů – Praha a Brno: zásoba po skladech, naskladnění do vybraného skladu, rezervace z jednoho skladu, když to jde, jinak rozdělená; vrácení do skladu původu (zákazník nic nepozná) – [modul Inventory](architektura/moduly/inventory.md) | [krok-28a](code:docs/kroky-eshop/krok-28a-sklady.md) |
 | 28B | Balíky v objednávce: sklad posílá `StockReservedV2` s rozdělením podle skladů, Ordering ho uloží jako balíky objednávky, Expedice ukazuje balíky a filtr skladu – [modul Ordering](architektura/moduly/ordering.md) | [krok-28b](code:docs/kroky-eshop/krok-28b-baliky.md) |
+| 28C | Zásilka za každý balík: každý sklad předá svůj balík (`CreateShipmentV2`), balík má vlastní číslo zásilky, objednávka je odeslaná s posledním a doručená po všech balících; e-mail a push „balík 1 ze 2“, detail objednávky s balíky – [modul Shipping](architektura/moduly/shipping.md) | [krok-28c](code:docs/kroky-eshop/krok-28c-zasilky-po-balicich.md) |
 
 ## Vzhled
 

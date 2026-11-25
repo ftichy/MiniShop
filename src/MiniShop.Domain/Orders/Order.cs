@@ -120,7 +120,11 @@ public class Order : Entity
     public const int ShipmentErrorMaxLength = 300;
 
     /// <summary>E-shop krok 26B: předává se dopravci a ještě nepřišlo číslo zásilky ani odmítnutí.</summary>
-    public bool IsAwaitingShipment => Status == OrderStatus.Packing && ShipmentRequestedAtUtc is not null;
+    public bool IsAwaitingShipment => Status == OrderStatus.Packing
+        && (ShipmentRequestedAtUtc is not null || _parcels.Any(p => p.IsAwaitingShipment));   // e-shop krok 28C: i jeden balík
+
+    /// <summary>E-shop krok 28C: aspoň jeden balík šel k dopravci (předává se, nebo už je na cestě).</summary>
+    public bool HasParcelShipments => _parcels.Any(p => p.ShipmentRequestedAtUtc is not null || p.IsShipped);
 
     /// <summary>
     /// E-shop krok 6: pojistka proti souběhu (concurrency token) – každá změna stavu ji zvýší. Admin odesílá a zákazník
@@ -307,6 +311,11 @@ public class Order : Entity
             throw new DomainException("Zásilka se předává dopravci – počkejte na číslo zásilky.");
         }
 
+        if (HasParcelShipments)
+        {
+            throw new DomainException("Balíky objednávky převzal dopravce – odeslání ohlásí on.");
+        }
+
         ShipNow(carrier, trackingNumber, shippedAtUtc);
     }
 
@@ -364,7 +373,7 @@ public class Order : Entity
     }
 
     /// <summary>E-shop krok 26C: zásilku předal dopravce (číslo zásilky od něj) – doručení pak hlásí on, ne skladník.</summary>
-    public bool IsShippedByCarrier => ShipmentRequestedAtUtc is not null && Status != OrderStatus.Packing;
+    public bool IsShippedByCarrier => (ShipmentRequestedAtUtc is not null || _parcels.Any(p => p.IsShipped)) && Status != OrderStatus.Packing;
 
     /// <summary>
     /// E-shop krok 26C: dopravce ohlásil doručení (ShipmentDeliveredV1). Už doručená (ručně „Doručeno“ dřív) nebo jiný
@@ -444,7 +453,8 @@ public class Order : Entity
         }
 
         // E-shop krok 26B: zásilka už může u dopravce existovat a simulátor storno neumí (krok 26D).
-        if (IsAwaitingShipment)
+        // E-shop krok 28C: zrušit jen dokud žádný balík nešel k dopravci.
+        if (IsAwaitingShipment || HasParcelShipments)
         {
             throw new DomainException("Objednávka se předává dopravci – zrušit už nejde.");
         }
@@ -547,6 +557,157 @@ public class Order : Entity
         }
 
         return true;
+    }
+
+    // ---- E-shop krok 28C: zásilka za každý balík (scatter-gather v jednom agregátu) ----
+
+    /// <summary>
+    /// Skladník předává dopravci jeden balík. Objednávka bez rozdělení od skladu dostane uložený výchozí balík (jeden z Prahy).
+    /// Odpověď přijde zprávou: <see cref="ConfirmParcelShipment"/> / <see cref="FailParcelShipment"/>.
+    /// </summary>
+    public void RequestParcelShipment(int parcelNumber, DateTime requestedAtUtc)
+    {
+        EnsureStatus(OrderStatus.Packing, "Dopravci lze předat jen zabalenou objednávku.");
+        if (ShippingMethod != ShippingMethod.Courier || DeliveryAddress is null)
+        {
+            throw new DomainException("Dopravci se předává jen zásilka kurýrem s doručovací adresou.");
+        }
+
+        if (ShipmentRequestedAtUtc is not null)
+        {
+            throw new DomainException("Zásilka se už dopravci předává.");   // starší předání celé objednávky (z doby před balíky)
+        }
+
+        if (_parcels.Count == 0)
+        {
+            _parcels.AddRange(EffectiveParcels());   // od teď má i starší objednávka balík uložený (zásilka k němu patří)
+        }
+
+        var parcel = _parcels.FirstOrDefault(p => p.Number == parcelNumber)
+            ?? throw new DomainException($"Objednávka nemá balík {parcelNumber}.");
+        parcel.RequestShipment(requestedAtUtc);
+        Version++;   // bez změny stavu – souběh (dvojklik, zákazník ruší) ale zastavit musí
+        Raise(new OrderParcelShipmentRequested(this, parcelNumber, requestedAtUtc));
+    }
+
+    /// <summary>
+    /// „Předat dopravci“ bez volby balíku = všechny balíky, které ještě u dopravce nejsou (objednávka z jednoho skladu má
+    /// jeden). Nic k předání (dvojklik) = chyba se stejnou hláškou jako dřív.
+    /// </summary>
+    public void RequestPendingParcelShipments(DateTime requestedAtUtc)
+    {
+        EnsureStatus(OrderStatus.Packing, "Dopravci lze předat jen zabalenou objednávku.");
+        if (_parcels.Count == 0 && _items.Count == 0)
+        {
+            RequestShipment(requestedAtUtc);   // objednávka bez položek (jen v testech) nemá balík – předat celou jako dřív
+            return;
+        }
+
+        var pending = (_parcels.Count > 0 ? _parcels : EffectiveParcels())
+            .Where(p => !p.IsShipped && !p.IsAwaitingShipment).Select(p => p.Number).ToList();
+        if (pending.Count == 0 || ShipmentRequestedAtUtc is not null)
+        {
+            throw new DomainException("Zásilka se už dopravci předává.");
+        }
+
+        foreach (var number in pending)
+        {
+            RequestParcelShipment(number, requestedAtUtc);
+        }
+    }
+
+    /// <summary>
+    /// Dopravce balík převzal (ShipmentCreatedV2). Odešel-li tím <b>poslední</b> balík, je objednávka odeslaná (OrderShipped –
+    /// dopravce a číslo zásilky z prvního balíku). Opožděná / opakovaná zpráva = false.
+    /// </summary>
+    public bool ConfirmParcelShipment(int parcelNumber, string carrier, string trackingNumber, DateTime shippedAtUtc)
+    {
+        var parcel = _parcels.FirstOrDefault(p => p.Number == parcelNumber);
+        if (Status != OrderStatus.Packing || parcel is null || !parcel.ConfirmShipment(carrier, trackingNumber, shippedAtUtc))
+        {
+            return false;
+        }
+
+        Version++;
+        Raise(new OrderParcelShipped(this, parcelNumber, shippedAtUtc));
+        if (_parcels.All(p => p.IsShipped))
+        {
+            var first = _parcels.OrderBy(p => p.Number).First();
+            ShipNow(first.Carrier, first.TrackingNumber, shippedAtUtc);
+            CompleteIfAllParcelsFinished(shippedAtUtc);   // balík mohl být doručen dřív, než odešel poslední
+        }
+
+        return true;
+    }
+
+    /// <summary>Dopravce balík odmítl (ShipmentFailedV2) – balík zpět do „K odeslání“ s hláškou.</summary>
+    public bool FailParcelShipment(int parcelNumber, string reason)
+    {
+        var parcel = _parcels.FirstOrDefault(p => p.Number == parcelNumber);
+        if (parcel is null || !parcel.FailShipment(reason))
+        {
+            return false;
+        }
+
+        Version++;
+        return true;
+    }
+
+    /// <summary>Balík podle čísla zásilky (doručení a vrácení hlásí dopravce číslem zásilky), nebo null.</summary>
+    public OrderParcel? ParcelByTrackingNumber(string trackingNumber) =>
+        _parcels.FirstOrDefault(p => p.TrackingNumber == trackingNumber);
+
+    /// <summary>
+    /// Dopravce doručil balík (ShipmentDeliveredV1 s jeho číslem zásilky). Doručená je objednávka, až skončí všechny balíky.
+    /// Opakovaná zpráva = false.
+    /// </summary>
+    public bool MarkParcelDelivered(string trackingNumber, DateTime deliveredAtUtc)
+    {
+        if (ParcelByTrackingNumber(trackingNumber) is not { } parcel || !parcel.MarkDelivered(deliveredAtUtc))
+        {
+            return false;
+        }
+
+        Version++;
+        CompleteIfAllParcelsFinished(deliveredAtUtc);
+        return true;
+    }
+
+    /// <summary>
+    /// Dopravce balík vrátil nedoručený (ShipmentReturnedV1). Jediný balík = celá objednávka vrácená (jako krok 26D);
+    /// u víc balíků se vrácený jen označí – kompenzaci jeho části řeší krok 28D. Opakovaná zpráva = false.
+    /// </summary>
+    public bool ReturnParcelToSender(string trackingNumber, DateTime returnedAtUtc)
+    {
+        if (ParcelByTrackingNumber(trackingNumber) is not { } parcel || !parcel.MarkReturnedToSender(returnedAtUtc))
+        {
+            return false;
+        }
+
+        Version++;
+        CompleteIfAllParcelsFinished(returnedAtUtc);
+        return true;
+    }
+
+    /// <summary>
+    /// Všechny balíky skončily: aspoň jeden doručen = objednávka doručená (OrderCompleted); všechny vrácené = vráceno dopravcem
+    /// (OrderReturnedToSender – peníze i zboží zpět jako v kroku 26D).
+    /// </summary>
+    private void CompleteIfAllParcelsFinished(DateTime atUtc)
+    {
+        if (Status != OrderStatus.Shipped || !_parcels.All(p => p.IsFinished))
+        {
+            return;
+        }
+
+        if (_parcels.Any(p => p.DeliveredAtUtc is not null))
+        {
+            MarkDelivered(atUtc);
+        }
+        else
+        {
+            ReturnToSender(atUtc);
+        }
     }
 
     /// <summary>

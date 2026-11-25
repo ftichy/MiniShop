@@ -35,6 +35,7 @@ public sealed class OrderNotificationsHandler(
     IIntegrationMessageHandler<OrderConfirmedV1>,
     IIntegrationMessageHandler<OrderRejectedV1>,
     IIntegrationMessageHandler<OrderShippedV1>,
+    IIntegrationMessageHandler<ParcelShippedV1>,   // e-shop krok 28C
     IIntegrationMessageHandler<OrderCompletedV1>,
     IIntegrationMessageHandler<OrderCancelledV1>,
     IIntegrationMessageHandler<CustomerAnonymizedV1>,
@@ -90,6 +91,23 @@ public sealed class OrderNotificationsHandler(
     {
         var to = await RecipientOrFallbackAsync(message.OrderId, message.CustomerEmail, cancellationToken);
         await SendAsync(to, recipient => templates.Shipped(recipient, message.Carrier, message.TrackingNumber), cancellationToken);
+    }
+
+    /// <summary>
+    /// E-shop krok 28C: balík rozdělené objednávky je na cestě. Objednávce z jednoho balíku stačí e-mail o odeslání objednávky
+    /// (OrderShippedV1) – dva e-maily o tomtéž by mátly.
+    /// </summary>
+    public async Task HandleAsync(ParcelShippedV1 message, CancellationToken cancellationToken)
+    {
+        TraceTags.TagOrder(message.OrderId);
+        if (message.ParcelCount < 2)
+        {
+            return;
+        }
+
+        var to = await RecipientOrFallbackAsync(message.OrderId, message.CustomerEmail, cancellationToken);
+        await SendAsync(to, recipient => templates.ParcelShipped(recipient, message.ParcelNumber, message.ParcelCount,
+            message.WarehouseName, message.Carrier, message.TrackingNumber), cancellationToken);
     }
 
     public async Task HandleAsync(OrderCompletedV1 message, CancellationToken cancellationToken) =>

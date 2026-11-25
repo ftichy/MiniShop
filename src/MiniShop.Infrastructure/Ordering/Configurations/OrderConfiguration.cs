@@ -93,6 +93,13 @@ internal sealed class OrderParcelConfiguration : IEntityTypeConfiguration<OrderP
         builder.HasIndex(p => new { p.OrderId, p.Number }).IsUnique();
         builder.Property(p => p.WarehouseCode).IsRequired().HasMaxLength(10);
         builder.Property(p => p.WarehouseName).IsRequired().HasMaxLength(50);
+        // E-shop krok 28C: zásilka balíku u dopravce (doručení a vrácení hlásí dopravce číslem zásilky).
+        builder.Property(p => p.Carrier).HasMaxLength(50);
+        builder.Property(p => p.TrackingNumber).HasMaxLength(50);
+        builder.Property(p => p.ShipmentError).HasMaxLength(Order.ShipmentErrorMaxLength);
+        builder.Ignore(p => p.IsAwaitingShipment);
+        builder.Ignore(p => p.IsShipped);
+        builder.Ignore(p => p.IsFinished);
 
         builder.OwnsMany(p => p.Lines, line =>
         {

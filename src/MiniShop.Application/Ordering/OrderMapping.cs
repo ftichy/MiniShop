@@ -28,11 +28,22 @@ public static class OrderMapping
             order.CouponCode,          // e-shop krok 13
             order.CouponDiscount,
             order.IsAwaitingShipment,   // e-shop krok 26B: předává se dopravci
-            order.ShipmentError,
+            order.ShipmentError ?? order.Parcels.OrderBy(p => p.Number).Select(p => p.ShipmentError).FirstOrDefault(e => e is not null),   // 28C: hláška u balíku
             order.IsShippedByCarrier,   // e-shop krok 26C: doručení hlásí dopravce
             [.. order.EffectiveParcels().Select(p => new OrderParcelDto(p.Number, p.WarehouseCode, p.WarehouseName,
                 [.. p.Lines.Select(l => new OrderParcelLineDto(l.ProductId,
-                    order.Items.FirstOrDefault(i => i.ProductId == l.ProductId)?.ProductName ?? $"Produkt {l.ProductId}", l.Quantity))]))]);   // e-shop krok 28B
+                    order.Items.FirstOrDefault(i => i.ProductId == l.ProductId)?.ProductName ?? $"Produkt {l.ProductId}", l.Quantity))],
+                ParcelStatus(p), p.Carrier, p.TrackingNumber, p.ShipmentError))]);   // e-shop krok 28B, stav balíku 28C
+
+    /// <summary>E-shop krok 28C: stav balíku pro obrazovky (texty dělá Web).</summary>
+    private static string ParcelStatus(OrderParcel parcel) => parcel switch
+    {
+        { ReturnedToSenderAtUtc: not null } => "ReturnedToSender",
+        { DeliveredAtUtc: not null } => "Delivered",
+        { IsShipped: true } => "Shipped",
+        { IsAwaitingShipment: true } => "HandingOver",
+        _ => "Waiting"
+    };
 
     /// <summary>E-shop krok 5: objednávka s historií stavů v pořadí, jak nastaly (podle Id – pořadí zápisu).</summary>
     public static OrderDetailDto ToDetailDto(this Order order) =>

@@ -369,11 +369,35 @@ namespace MiniShop.Infrastructure.Ordering.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("Carrier")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime?>("DeliveredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<int>("Number")
                         .HasColumnType("integer");
 
                     b.Property<int>("OrderId")
                         .HasColumnType("integer");
+
+                    b.Property<DateTime?>("ReturnedToSenderAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ShipmentError")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTime?>("ShipmentRequestedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ShippedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TrackingNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
 
                     b.Property<string>("WarehouseCode")
                         .IsRequired()

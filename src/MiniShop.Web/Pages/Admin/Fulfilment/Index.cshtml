@@ -92,6 +92,43 @@ else
                 }
                 else if (order.ShippingMethod == "Courier")
                 {
+                    var parcels = order.Parcels ?? [];
+                    @* E-shop krok 28C: rozdělená objednávka – každý balík předá jeho sklad zvlášť (vlastní zásilka a číslo). *@
+                    @if (parcels.Count > 1)
+                    {
+                        <div class="col-md-8">
+                            <ul class="list-unstyled mb-0" data-track="fulfilment-parcel-list">
+                                @foreach (var parcel in parcels)
+                                {
+                                    var mine = string.IsNullOrEmpty(Model.Warehouse) || parcel.WarehouseCode == Model.Warehouse;
+                                    <li class="d-flex flex-wrap justify-content-md-end align-items-center gap-2 py-1">
+                                        <span class="small">Balík @parcel.Number · @parcel.WarehouseName</span>
+                                        @switch (parcel.Status)
+                                        {
+                                            case "HandingOver":
+                                                <span class="badge badge-soft-info" data-track="fulfilment-parcel-handing-over">Předává se dopravci…</span>
+                                                break;
+                                            case "Waiting":
+                                                <button type="submit" formaction="?handler=HandOver&amp;id=@order.Id&amp;parcel=@parcel.Number&amp;warehouse=@Model.Warehouse"
+                                                        class="btn btn-success btn-sm" data-track="fulfilment-hand-over-parcel" disabled="@(Model.IsOwn(order) || !mine)">
+                                                    @(parcel.ShipmentError is null ? "Předat dopravci" : "Zkusit znovu")
+                                                </button>
+                                                break;
+                                            default:
+                                                <span class="badge badge-soft-success" data-track="fulfilment-parcel-shipped">@parcel.Carrier @parcel.TrackingNumber</span>
+                                                break;
+                                        }
+                                        @if (parcel.ShipmentError is not null && parcel.Status == "Waiting")
+                                        {
+                                            <div class="w-100 alert alert-warning small mb-0 py-1" data-track="fulfilment-shipment-error">@parcel.ShipmentError</div>
+                                        }
+                                    </li>
+                                }
+                            </ul>
+                        </div>
+                    }
+                    else
+                    {
                     @* E-shop krok 26B: kurýr = předat dopravci; číslo zásilky přidělí on (zprávou za pár sekund). *@
                     <div class="col-md-8 text-md-end">
                         @if (order.AwaitingShipment)
@@ -133,6 +170,7 @@ else
                                 </div>
                             </details>
                         </div>
+                    }
                     }
                 }
                 else

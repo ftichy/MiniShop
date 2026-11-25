@@ -16,9 +16,14 @@ public sealed class ShipmentQueryService(IShipmentRepository shipments)
             return new Dictionary<int, ShipmentTrackingDto>();
         }
 
+        // E-shop krok 28C: objednávka může mít víc zásilek (balíky) – tady první balík (Expedice, starší stránky).
         var found = await shipments.GetCreatedByOrderIdsAsync(orderIds, cancellationToken);
-        return found.ToDictionary(s => s.OrderId, ToDto);
+        return found.GroupBy(s => s.OrderId).ToDictionary(g => g.Key, g => ToDto(g.OrderBy(s => s.ParcelNumber).First()));
     }
+
+    /// <summary>E-shop krok 28C: všechny zásilky objednávky (jedna za každý balík) podle čísla balíku – detail objednávky.</summary>
+    public async Task<IReadOnlyList<ShipmentTrackingDto>> GetAllByOrderIdAsync(int orderId, CancellationToken cancellationToken = default) =>
+        [.. (await shipments.GetCreatedByOrderIdsAsync([orderId], cancellationToken)).OrderBy(s => s.ParcelNumber).Select(ToDto)];
 
     public async Task<ShipmentTrackingDto?> GetByOrderIdAsync(int orderId, CancellationToken cancellationToken = default) =>
         (await GetByOrderIdsAsync([orderId], cancellationToken)).GetValueOrDefault(orderId);
@@ -29,7 +34,8 @@ public sealed class ShipmentQueryService(IShipmentRepository shipments)
         s.Status.ToString(),
         s.LastCarrierUpdateAtUtc,
         s.UnknownAtCarrier,
-        s.Tracking.OrderBy(t => t.Sequence).Select(t => new ShipmentTrackingStepDto(t.Status.ToString(), t.OccurredAtUtc)).ToList());
+        s.Tracking.OrderBy(t => t.Sequence).Select(t => new ShipmentTrackingStepDto(t.Status.ToString(), t.OccurredAtUtc)).ToList(),
+        s.ParcelNumber);
 }
 
 /// <summary>
@@ -42,6 +48,7 @@ public sealed record ShipmentTrackingDto(
     string Status,
     DateTime? LastUpdateAtUtc,
     bool UnknownAtCarrier,
-    IReadOnlyList<ShipmentTrackingStepDto> Steps);
+    IReadOnlyList<ShipmentTrackingStepDto> Steps,
+    int ParcelNumber = 1);
 
 public sealed record ShipmentTrackingStepDto(string Status, DateTime OccurredAtUtc);

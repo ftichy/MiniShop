@@ -161,7 +161,42 @@ else if (order.Status == "Completed" && Model.Detail.ReturnRejectionReason is no
                             <div>@(order.DeliveryAddress ?? "adresa byla smazána")</div>
                         </div>
                     }
-                    @if (order.Carrier is not null)
+                    @if (Model.IsSplit)
+                    {
+                        @* E-shop krok 28C: objednávka z víc skladů – každý balík má vlastní zásilku a průběh. *@
+                        <div class="col-12" data-track="order-detail-parcels">
+                            <h2 class="h6 text-muted mb-1">Balíky (@order.Parcels!.Count)</h2>
+                            <ul class="list-unstyled mb-0">
+                                @foreach (var parcel in order.Parcels!)
+                                {
+                                    var tracking = Model.ParcelShipments.FirstOrDefault(s => s.ParcelNumber == parcel.Number);
+                                    <li class="mb-2" data-track="order-detail-parcel">
+                                        <div>
+                                            <strong>Balík @parcel.Number</strong> ze skladu @parcel.WarehouseName ·
+                                            <span class="text-muted small">@string.Join(", ", parcel.Lines.Select(l => $"{l.Quantity}× {l.ProductName}"))</span>
+                                        </div>
+                                        <div class="small">
+                                            @MiniShop.Web.Orders.OrderStatusLabels.ParcelLabel(parcel.Status)
+                                            @if (parcel.TrackingNumber is not null)
+                                            {
+                                                <span>· @parcel.Carrier, číslo zásilky @parcel.TrackingNumber</span>
+                                            }
+                                        </div>
+                                        @if (tracking is { Steps.Count: > 0 })
+                                        {
+                                            <ul class="list-unstyled small text-muted mb-0">
+                                                @foreach (var step in tracking.Steps)
+                                                {
+                                                    <li>@MiniShop.Web.Shipping.ShipmentStatusLabels.Label(step.Status) · @step.OccurredAtUtc.ToCzechString()</li>
+                                                }
+                                            </ul>
+                                        }
+                                    </li>
+                                }
+                            </ul>
+                        </div>
+                    }
+                    else if (order.Carrier is not null)
                     {
                         @* E-shop krok 6: vyplní admin při odeslání. *@
                         <div class="col-sm-6">

@@ -35,6 +35,8 @@ public sealed class PublishOrderIntegrationEventsHandler(
     IDomainEventHandler<OrderPartialReturnRejected>,
     IDomainEventHandler<OrderPartialReturnCompleted>,
     IDomainEventHandler<OrderShipmentRequested>,
+    IDomainEventHandler<OrderParcelShipmentRequested>,   // e-shop krok 28C
+    IDomainEventHandler<OrderParcelShipped>,
     IDomainEventHandler<OrderReturnedToSender>,
     IDomainEventHandler<OrderStatusChanged>
 {
@@ -189,6 +191,64 @@ public sealed class PublishOrderIntegrationEventsHandler(
             address.PostalCode,
             order.PaymentMethod == PaymentMethod.CashOnDelivery ? order.TotalPrice : null));
         await unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// E-shop krok 28C: předat dopravci jeden balík = příkaz <see cref="CreateShipmentV2"/>. Dobírka po balících: každý
+    /// balík vybere hodnotu svých položek (po slevě), první balík navíc dopravu – dohromady celá objednávka.
+    /// </summary>
+    public async Task HandleAsync(OrderParcelShipmentRequested domainEvent, CancellationToken cancellationToken)
+    {
+        var order = domainEvent.Order;
+        var address = order.DeliveryAddress
+            ?? throw new InvalidOperationException($"Objednávka {order.Id} předaná dopravci nemá adresu.");
+        var parcel = order.Parcels.First(p => p.Number == domainEvent.ParcelNumber);
+
+        decimal? cashOnDelivery = null;
+        if (order.PaymentMethod == PaymentMethod.CashOnDelivery)
+        {
+            cashOnDelivery = parcel.Lines.Sum(l => LineValue(order, l.ProductId, l.Quantity))
+                + (parcel.Number == order.Parcels.Min(p => p.Number) ? order.ShippingPrice : 0m);
+        }
+
+        TraceTags.Tag("minishop.shipment.parcel", parcel.Number);
+        publisher.Send(new CreateShipmentV2(
+            Guid.NewGuid(),
+            domainEvent.OccurredAtUtc,
+            order.Id,
+            parcel.Number,
+            parcel.WarehouseName,
+            order.CustomerName,
+            address.Street,
+            address.City,
+            address.PostalCode,
+            cashOnDelivery));
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>E-shop krok 28C: balík je na cestě – <see cref="ParcelShippedV1"/> (e-mail „balík 1 ze 2“).</summary>
+    public Task HandleAsync(OrderParcelShipped domainEvent, CancellationToken cancellationToken)
+    {
+        var order = domainEvent.Order;
+        var parcel = order.Parcels.First(p => p.Number == domainEvent.ParcelNumber);
+        return PublishAsync(cancellationToken, new ParcelShippedV1(
+            Guid.NewGuid(),
+            domainEvent.OccurredAtUtc,
+            order.Id,
+            parcel.Number,
+            order.Parcels.Count,
+            parcel.WarehouseName,
+            order.CustomerEmail,
+            parcel.Carrier ?? string.Empty,
+            parcel.TrackingNumber ?? string.Empty));
+    }
+
+    /// <summary>Hodnota kusů produktu po slevě (sleva je rozpočítaná do položek – e-shop krok 13).</summary>
+    private static decimal LineValue(Order order, int productId, int quantity)
+    {
+        var items = order.Items.Where(i => i.ProductId == productId).ToList();
+        var pieces = items.Sum(i => i.Quantity);
+        return pieces == 0 ? 0m : Math.Round(items.Sum(i => i.LineTotal) * quantity / pieces, 2);
     }
 
     /// <summary>

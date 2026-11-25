@@ -152,7 +152,11 @@ za každý sklad (číslo, kód a název skladu jako text ze zprávy, položky).
 - **Objednávka bez balíků** (z doby před krokem 28B, nebo zpráva ještě nedorazila) = jeden balík z Prahy se všemi položkami
   (`Order.EffectiveParcels`) – do kroku 28A byly všechny zásoby v Praze.
 - **Expedice** (`/Admin/Fulfilment`) ukazuje u objednávky štítky balíků (`Balík 1: Brno · 3 ks`) a má filtr **Sklad**
-  (`?warehouse=BRQ`, akce ho zachovají). Předání dopravci je zatím za celou objednávku (balíky po zásilkách = krok 28C).
+  (`?warehouse=BRQ`, akce ho zachovají).
+- **Zásilka za každý balík (e-shop krok 28C):** u rozdělené objednávky předává každý sklad svůj balík (tlačítko u balíku),
+  balík má vlastní dopravce, číslo zásilky a stav (`OrderParcel` – předává se / na cestě / doručen / vrácen). Odeslaná je
+  objednávka s posledním balíkem, doručená až po všech; zrušit jen dokud žádný balík nešel k dopravci. Detail objednávky
+  ukazuje oddíl **Balíky** s průběhem každé zásilky. Podrobně [Shipping – Zásilka za každý balík](shipping.md).
 
 ## Proč je košík v Orderingu (a ne ve vlastním modulu)
 

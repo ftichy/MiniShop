@@ -122,12 +122,17 @@ public sealed class IndexModel(IOrderService orderService, ShipmentQueryService 
     /// E-shop krok 26B: předat zabalenou objednávku (kurýr) dopravci. Číslo zásilky přidělí dopravce – přijde zprávou
     /// za pár sekund (stránka se sama obnoví); odmítnutí se ukáže u objednávky s možností zkusit znovu.
     /// </summary>
-    public async Task<IActionResult> OnPostHandOverAsync(int id, CancellationToken cancellationToken)
+    /// <param name="parcel">E-shop krok 28C: číslo balíku (sklad předává svůj balík); bez čísla = všechny balíky, které ještě u dopravce nejsou.</param>
+    public async Task<IActionResult> OnPostHandOverAsync(int id, int? parcel, CancellationToken cancellationToken)
     {
         var errors = new List<string>();
-        if (await TryAsync(id, () => orderService.RequestShipmentAsync(id, User.ToActingUserId(), cancellationToken), errors))
+        if (await TryAsync(id, () => parcel is { } number
+                ? orderService.RequestParcelShipmentAsync(id, number, User.ToActingUserId(), cancellationToken)
+                : orderService.RequestShipmentAsync(id, User.ToActingUserId(), cancellationToken), errors))
         {
-            StatusMessage = $"Objednávka č. {id} se předává dopravci – číslo zásilky přijde za chvíli.";
+            StatusMessage = parcel is { } handed
+                ? $"Balík {handed} objednávky č. {id} se předává dopravci – číslo zásilky přijde za chvíli."
+                : $"Objednávka č. {id} se předává dopravci – číslo zásilky přijde za chvíli.";
         }
 
         ErrorMessage = errors.FirstOrDefault();

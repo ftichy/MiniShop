@@ -355,7 +355,7 @@ public sealed partial class OrderServiceTests
         Assert.Null(again.ShipmentError);
         await ProcessOutboxAsync();
         Assert.Equal("Shipped", await StatusAsync(order.Id));
-        Assert.Equal(2, _bus.Published.OfType<CreateShipmentV1>().Select(c => c.CommandId).Distinct().Count());
+        Assert.Equal(2, _bus.Published.OfType<CreateShipmentV2>().Select(c => c.CommandId).Distinct().Count());
     }
 
     [Fact]

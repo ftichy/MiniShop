@@ -250,6 +250,30 @@ public sealed class IntegrationContractTests
             json);
     }
 
+    /// <summary>E-shop krok 28C: zásilka za každý balík – příkaz, odpověď a „balík je na cestě“.</summary>
+    [Fact]
+    public void ZasilkaZaBalik_TvarJsonuSeNezmenil()
+    {
+        var command = new MiniShop.Contracts.Shipping.CreateShipmentV2(EventId, OccurredAtUtc, 42, 2, "Brno", "Jan Novak", "Dlouha 5",
+            "Praha", "11000", 200m);
+        var created = new MiniShop.Contracts.Shipping.ShipmentCreatedV2(EventId, OccurredAtUtc, 42, 2, "PPL", "CS1");
+        var failed = new MiniShop.Contracts.Shipping.ShipmentFailedV2(EventId, OccurredAtUtc, 42, 2, "Nedorucujeme");
+        var shipped = new ParcelShippedV1(EventId, OccurredAtUtc, 42, 2, 2, "Brno", "jan@example.com", "PPL", "CS1");
+
+        Assert.Equal(
+            """{"CommandId":"11111111-2222-3333-4444-555555555555","OccurredAtUtc":"2026-01-15T10:00:00Z","OrderId":42,"ParcelNumber":2,"SenderWarehouse":"Brno","RecipientName":"Jan Novak","Street":"Dlouha 5","City":"Praha","PostalCode":"11000","CashOnDelivery":200}""",
+            OutboxMessageFactory.Create(command).Payload);
+        Assert.Equal(
+            """{"EventId":"11111111-2222-3333-4444-555555555555","OccurredAtUtc":"2026-01-15T10:00:00Z","OrderId":42,"ParcelNumber":2,"Carrier":"PPL","TrackingNumber":"CS1"}""",
+            OutboxMessageFactory.Create(created).Payload);
+        Assert.Equal(
+            """{"EventId":"11111111-2222-3333-4444-555555555555","OccurredAtUtc":"2026-01-15T10:00:00Z","OrderId":42,"ParcelNumber":2,"Reason":"Nedorucujeme"}""",
+            OutboxMessageFactory.Create(failed).Payload);
+        Assert.Equal(
+            """{"EventId":"11111111-2222-3333-4444-555555555555","OccurredAtUtc":"2026-01-15T10:00:00Z","OrderId":42,"ParcelNumber":2,"ParcelCount":2,"WarehouseName":"Brno","CustomerEmail":"jan@example.com","Carrier":"PPL","TrackingNumber":"CS1"}""",
+            OutboxMessageFactory.Create(shipped).Payload);
+    }
+
     [Fact]
     public void StockReservationFailedV1_TvarJsonuSeNezmenil()
     {

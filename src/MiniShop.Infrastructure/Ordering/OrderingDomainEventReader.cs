@@ -55,6 +55,10 @@ public sealed class OrderingDomainEventReader(IOrderRepository orders) : IDomain
                 ReturnNumber(message), message.OccurredAtUtc) { EventId = message.Id },
             nameof(OrderPartialReturnCompleted) => new OrderPartialReturnCompleted(await LoadOrderAsync(message, cancellationToken),
                 ReturnNumber(message), message.OccurredAtUtc) { EventId = message.Id },
+            nameof(OrderParcelShipmentRequested) => new OrderParcelShipmentRequested(await LoadOrderAsync(message, cancellationToken),
+                ParcelNumber(message), message.OccurredAtUtc) { EventId = message.Id },   // e-shop krok 28C
+            nameof(OrderParcelShipped) => new OrderParcelShipped(await LoadOrderAsync(message, cancellationToken),
+                ParcelNumber(message), message.OccurredAtUtc) { EventId = message.Id },
             _ => throw new InvalidOperationException($"Neznámý typ zprávy v outboxu: {message.Type}.")
         };
 
@@ -62,6 +66,11 @@ public sealed class OrderingDomainEventReader(IOrderRepository orders) : IDomain
     private static int ReturnNumber(OutboxMessage message) =>
         JsonSerializer.Deserialize<OrderPayload>(message.Payload)?.ReturnNumber
         ?? throw new InvalidOperationException($"Zpráva {message.Id} ({message.Type}) nemá číslo vratky.");
+
+    /// <summary>E-shop krok 28C: číslo balíku z payloadu (události balíku ho nesou vždy).</summary>
+    private static int ParcelNumber(OutboxMessage message) =>
+        JsonSerializer.Deserialize<OrderPayload>(message.Payload)?.ParcelNumber
+        ?? throw new InvalidOperationException($"Zpráva {message.Id} ({message.Type}) nemá číslo balíku.");
 
     private async Task<Order> LoadOrderAsync(OutboxMessage message, CancellationToken cancellationToken)
     {

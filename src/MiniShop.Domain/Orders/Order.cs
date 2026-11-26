@@ -685,8 +685,27 @@ public class Order : Entity
         }
 
         Version++;
+        if (_parcels.Count > 1)
+        {
+            StartParcelReturn(parcel, returnedAtUtc);   // e-shop krok 28D: kompenzace jen tohoto balíku
+        }
+
         CompleteIfAllParcelsFinished(returnedAtUtc);
         return true;
+    }
+
+    /// <summary>
+    /// E-shop krok 28D: vrácený balík rozdělené objednávky = <b>automatická vratka po částech</b> s jeho položkami (sleva poměrně,
+    /// doprava se nevrací). Sága vratky začne rovnou naskladněním – zboží už je zpátky (vrátil ho dopravce) – a dál jde
+    /// stávající cestou: sklad naskladní, kartou se vrátí peníze, Invoicing vystaví dobropis, Reporting odečte tržbu.
+    /// </summary>
+    private void StartParcelReturn(OrderParcel parcel, DateTime returnedAtUtc)
+    {
+        var quantities = parcel.Lines.GroupBy(l => l.ProductId).ToDictionary(g => g.Key, g => g.Sum(l => l.Quantity));
+        var orderReturn = OrderReturn.Request(_returns.Count + 1, $"Balík {parcel.Number} ze skladu {parcel.WarehouseName} vrátil dopravce – nedoručen.",
+            BuildReturnLines(quantities), returnedAtUtc);
+        _returns.Add(orderReturn);
+        Raise(new OrderParcelReturnedToSender(this, orderReturn.Number, returnedAtUtc));
     }
 
     /// <summary>
@@ -704,9 +723,15 @@ public class Order : Entity
         {
             MarkDelivered(atUtc);
         }
+        else if (_parcels.Count == 1)
+        {
+            ReturnToSender(atUtc);   // jeden balík = celá objednávka (krok 26D – OrderReturnedToSenderV1)
+        }
         else
         {
-            ReturnToSender(atUtc);
+            // E-shop krok 28D: každý vrácený balík už má svou automatickou vratku (peníze, sklad, dobropis) – událost
+            // OrderReturnedToSender by vše kompenzovala podruhé. Jen stav.
+            ChangeStatus(OrderStatus.ReturnedToSender, atUtc, "Dopravce nedoručil žádný balík – vracíme je po částech.");
         }
     }
 
@@ -786,6 +811,20 @@ public class Order : Entity
                             : $"Vrátit lze do {window.TotalDays:0} dní od doručení.");
         }
 
+        var orderReturn = OrderReturn.Request(_returns.Count + 1, reason, BuildReturnLines(selected), requestedAtUtc);
+        _returns.Add(orderReturn);
+        Version++;   // souběh: dva formuláře naráz – druhý zápis selže na verzi objednávky
+        Raise(new OrderPartialReturnRequested(this, orderReturn.Number, requestedAtUtc));
+        return orderReturn.Number;
+    }
+
+    /// <summary>
+    /// Řádky vratky po částech z kusů (produkt → kusy): nejvýš tolik, kolik jde ještě vrátit; sleva z kuponu poměrně.
+    /// Společné pro vratku zákazníka (e-shop krok 22) i vrácený balík (e-shop krok 28D).
+    /// </summary>
+    private List<OrderReturnLine> BuildReturnLines(IReadOnlyDictionary<int, int> selected)
+    {
+        var products = _items.GroupBy(i => i.ProductId).ToDictionary(g => g.Key, g => g.ToList());
         var lines = new List<OrderReturnLine>();
         foreach (var (productId, quantity) in selected)
         {
@@ -808,11 +847,7 @@ public class Order : Entity
             lines.Add(new OrderReturnLine(productId, items[0].ProductName, quantity, items[0].UnitPrice, share));
         }
 
-        var orderReturn = OrderReturn.Request(_returns.Count + 1, reason, lines, requestedAtUtc);
-        _returns.Add(orderReturn);
-        Version++;   // souběh: dva formuláře naráz – druhý zápis selže na verzi objednávky
-        Raise(new OrderPartialReturnRequested(this, orderReturn.Number, requestedAtUtc));
-        return orderReturn.Number;
+        return lines;
     }
 
     /// <summary>E-shop krok 22: vratka po částech je hotová (kusy na skladu, peníze vrácené) – objednávka zůstává doručená.</summary>

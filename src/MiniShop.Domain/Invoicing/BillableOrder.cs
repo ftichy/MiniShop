@@ -85,6 +85,59 @@ public sealed class BillableOrder
         _lines.AddRange(lines);
     }
 
+    private List<int> _returnsBeforeInvoice = [];
+
+    /// <summary>E-shop krok 28D: vratky po částech odečtené z kopie dřív, než vznikla faktura (každá jen jednou).</summary>
+    public IReadOnlyList<int> ReturnsBeforeInvoice => _returnsBeforeInvoice.AsReadOnly();
+
+    /// <summary>
+    /// E-shop krok 28D: vratka po částech přišla dřív, než je objednávka zaplacená a fakturovaná – vrácený balík dobírky
+    /// (zákazník ho nepřevzal ani nezaplatil). Kusy se odečtou z kopie, takže faktura po zaplacení zbytku bude jen za to,
+    /// co zákazník opravdu převzal – dobropis není potřeba. Vrátí se všechno = nic k fakturaci.
+    /// </summary>
+    /// <returns>false, když vratka už odečtená je (opakovaná zpráva).</returns>
+    public bool ApplyReturnBeforeInvoice(int returnNumber, IEnumerable<InvoiceLine> returned, decimal amount)
+    {
+        if (_returnsBeforeInvoice.Contains(returnNumber))
+        {
+            return false;
+        }
+
+        foreach (var item in returned)
+        {
+            var index = _lines.FindIndex(l => l.ProductName == item.ProductName && l.Quantity > 0);
+            if (index < 0)
+            {
+                continue;
+            }
+
+            var line = _lines[index];
+            var quantity = line.Quantity - Math.Min(item.Quantity, line.Quantity);
+            if (quantity == 0)
+            {
+                _lines.RemoveAt(index);
+            }
+            else
+            {
+                _lines[index] = line with
+                {
+                    Quantity = quantity,
+                    Discount = Math.Max(0m, line.Discount - item.Discount),
+                    LineTotal = Math.Max(0m, line.LineTotal - item.LineTotal)
+                };
+            }
+        }
+
+        Total = Math.Max(0m, Total - amount);
+        _returnsBeforeInvoice = [.. _returnsBeforeInvoice, returnNumber];
+        if (_lines.Count == 0)
+        {
+            IsVoided = true;   // vrátilo se všechno – fakturovat se nebude
+        }
+
+        return true;
+    }
+
     /// <summary>Zaplaceno – platí první zpráva (karta dřív než doručení), další nic nemění.</summary>
     public void MarkPaid(DateTime paidAtUtc, string paymentNote)
     {

@@ -109,9 +109,27 @@ public sealed class InvoicingHandler(
             return;   // dobropis k této vratce už je (opakované doručení s jiným ID zprávy)
         }
 
-        var invoice = await invoices.GetByOrderAsync(message.OrderId, cancellationToken)
-            ?? throw new InvalidOperationException(
+        var invoice = await invoices.GetByOrderAsync(message.OrderId, cancellationToken);
+        if (invoice is null)
+        {
+            // E-shop krok 28D: vrácený balík dobírky – objednávka ještě není zaplacená ani fakturovaná. Odečíst z kopie: faktura
+            // pak bude jen za převzaté zboží a dobropis není potřeba. Zaplacená bez faktury (nemělo by nastat) = zkusit znovu.
+            if (await orders.GetAsync(message.OrderId, cancellationToken) is { PaidAtUtc: null } unpaid)
+            {
+                if (unpaid.ApplyReturnBeforeInvoice(message.ReturnNumber,
+                        message.Items.Select(item => new InvoiceLine(item.ProductName, item.Quantity, item.UnitPrice, item.Discount, item.LineTotal)),
+                        message.Items.Sum(item => item.LineTotal) + message.ShippingRefund))
+                {
+                    TraceTags.Tag("minishop.invoice.return_before_invoice", message.ReturnNumber);
+                    await unitOfWork.SaveChangesAsync(cancellationToken);
+                }
+
+                return;
+            }
+
+            throw new InvalidOperationException(
                 $"Faktura k objednávce {message.OrderId} zatím není – dobropis k vratce {message.ReturnNumber} se zkusí znovu.");
+        }
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var creditNote = CreditNote.IssueForReturn(

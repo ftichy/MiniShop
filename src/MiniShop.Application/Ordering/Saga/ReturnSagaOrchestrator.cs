@@ -27,6 +27,7 @@ public sealed class ReturnSagaOrchestrator(
     TimeProvider timeProvider) :
     IDomainEventHandler<OrderReturnRequested>,
     IDomainEventHandler<OrderPartialReturnRequested>,
+    IDomainEventHandler<OrderParcelReturnedToSender>,   // e-shop krok 28D
     IIntegrationMessageHandler<ReturnedGoodsRestockedV1>,
     IIntegrationMessageHandler<ReturnedGoodsRestockedV2>,
     IIntegrationMessageHandler<PaymentRefundedV1>,
@@ -39,6 +40,28 @@ public sealed class ReturnSagaOrchestrator(
     /// <summary>E-shop krok 22: start ságy vratky po částech.</summary>
     public Task HandleAsync(OrderPartialReturnRequested domainEvent, CancellationToken cancellationToken) =>
         StartAsync(domainEvent.Order, domainEvent.ReturnNumber, domainEvent.OccurredAtUtc, cancellationToken);
+
+    /// <summary>
+    /// E-shop krok 28D: dopravce vrátil balík rozdělené objednávky – automatická vratka po částech. Zboží už je zpátky:
+    /// sága začne naskladněním a ve STEJNÉ transakci odejde příkaz skladu (bez čekání na zákazníka a bez termínu).
+    /// </summary>
+    public async Task HandleAsync(OrderParcelReturnedToSender domainEvent, CancellationToken cancellationToken)
+    {
+        var order = domainEvent.Order;
+        TraceTags.TagOrder(order.Id);
+        TraceTags.Tag("minishop.return.number", domainEvent.ReturnNumber);
+        if (await sagas.GetAsync(order.Id, domainEvent.ReturnNumber, cancellationToken) is not null)
+        {
+            return;   // sága už běží
+        }
+
+        sagas.Add(ReturnSaga.StartWithGoodsBack(order.Id, domainEvent.OccurredAtUtc,
+            requiresRefund: order.PaymentMethod == PaymentMethod.Card, domainEvent.ReturnNumber));
+        var lines = order.GetReturn(domainEvent.ReturnNumber).Lines;
+        publisher.Send(new RestockReturnedGoodsV2(Guid.NewGuid(), UtcNow, order.Id, domainEvent.ReturnNumber,
+            lines.Select(l => new StockLineV1(l.ProductId, l.Quantity)).ToList()));
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+    }
 
     /// <summary>Admin převzal vrácené zboží v pořádku. Vrací false, když vratka na zboží nečeká (už vyřízená).</summary>
     /// <remarks>Účty krok 12C: <paramref name="actingUserId"/> = zaměstnanec – vlastní vratku nepřevezme (střet zájmů).</remarks>

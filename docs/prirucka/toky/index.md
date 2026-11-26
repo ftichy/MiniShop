@@ -26,6 +26,7 @@ order: 30
 | [Pokladna](pokladna.md) | košík → objednávka v jedné transakci; dvojí odeslání, souběh, změna ceny |
 | [Opuštěný košík](opusteny-kosik.md) | reakce na „ticho“: worker → `CartAbandonedV1` → připomínka jen se souhlasem |
 | [Vrácení zboží](vraceni-zbozi.md) | druhá sága: žádost → převzetí adminem → naskladnění → vrácení peněz; zamítnutí a vypršení |
+| [Dělená objednávka](delena-objednavka.md) | víc skladů: balíky (`StockReservedV2`), zásilka za balík (`CreateShipmentV2`), doručeno po všech; vrácený balík = automatická vratka po částech (e-shop krok 28) |
 | [Slevové kódy](slevove-kody.md) | kód v pokladně, poslední použití při souběhu (verze kuponu), vrácení použití po zamítnutí/zrušení |
 | [Hodnocení produktu](hodnoceni-produktu.md) | kopie nákupů rozhodne, kdo smí hodnotit; souhrn hodnocení do kopie katalogu a výlohy |
 | [Vystavení faktury a dobropisu](faktura.md) | po zaplacení (karta) nebo doručení (dobírka) faktura z nepřerušené řady, po zrušení či vrácení dobropis, e-mail s PDF v příloze |

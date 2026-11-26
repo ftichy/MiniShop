@@ -13,3 +13,12 @@ public sealed record OrderParcelShipped(Order Order, int ParcelNumber, DateTime 
 {
     public Guid EventId { get; init; } = Guid.NewGuid();
 }
+
+/// <summary>
+/// E-shop krok 28D: dopravce vrátil jeden balík rozdělené objednávky – vznikla automatická vratka po částech
+/// (<see cref="ReturnNumber"/>). Sága vratky začne rovnou naskladněním (zboží už je zpátky), zákazník nic neposílá.
+/// </summary>
+public sealed record OrderParcelReturnedToSender(Order Order, int ReturnNumber, DateTime OccurredAtUtc) : IDomainEvent
+{
+    public Guid EventId { get; init; } = Guid.NewGuid();
+}

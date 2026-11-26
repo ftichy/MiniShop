@@ -27,12 +27,22 @@ Před zveřejněním se prošla celá historie nástrojem **gitleaks** – nena�
 
 [.github/dependabot.yml](code:.github/dependabot.yml) – každé pondělí zkontroluje:
 
-- **NuGet** balíčky (ve skupinách `microsoft`, `opentelemetry`, `serilog`, `tests` – související balíčky v jednom PR,
-  jinak by build padal na konfliktu verzí),
+- **NuGet** balíčky všech projektů,
 - **GitHub Actions** použité ve workflow,
-- **Docker** základní image v Dockerfile.
+- **Docker** základní image v Dockerfile všech služeb.
 
-Každý jeho PR projde stejným CI jako jakákoli jiná změna; sloučení je ruční.
+**Všechno přijde v jednom PR** (od 26. 11. 2026 skupina `weekly` napříč ekosystémy – `multi-ecosystem-groups`).
+Dřív chodil PR za každou skupinu a každý balík mimo skupinu; každý se musel sloučit zvlášť, po sloučení prvního byly
+ostatní v konfliktu (stejné `.csproj`), Dependabot je přebasoval a CI i nasazení běžely znovu. Jeden PR = jedno CI, jedno
+nasazení. Související balíčky (`Microsoft.Extensions.*`) tak navíc vždy přijdou ve stejné verzi – jinak by build padal na
+konfliktu verzí. PR projde stejným CI jako jakákoli jiná změna; sloučení je ruční.
+
+- **Jedna aktualizace rozbije build:** opravu pushnout rovnou do větve PR, nebo komentář
+  `@dependabot ignore <balík> <verze>` – PR se přegeneruje bez ní a balík se vyřeší zvlášť.
+- **Víc PR najednou** (bezpečnostní opravy chodí samostatně a hned; PR ze starší konfigurace): skript
+  [tools/merge-dependabot.ps1](code:tools/merge-dependabot.ps1) je spojí do jedné větve `deps/<datum>`
+  (`git merge` každého PR, PR s konfliktem přeskočí a vypíše). Bez přepínače jen lokálně – pak `dotnet build` a `dotnet test`;
+  s `-CreatePullRequest` větev pushne a otevře jeden PR se seznamem nahrazených. Po sloučení Dependabot své PR sám zavře.
 
 **Hlavní verze .NET Dependabot nenabízí** (`ignore` … `semver-major` pro `Microsoft.AspNetCore.*`,
 `Microsoft.EntityFrameworkCore*`, `Microsoft.Extensions.*`, `System.*`, `Npgsql*` a image `dotnet/*`). Přechod z .NET 10

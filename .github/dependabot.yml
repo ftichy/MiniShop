@@ -1,18 +1,25 @@
 # Cloud krok 10: Dependabot – jednou týdně zkontroluje závislosti a na nové verze otevře PR.
-# PR projde stejným CI jako každý jiný (Build a testy, zkušební build image); sloučení je ruční.
-# Bezpečnostní opravy (Dependabot security updates) chodí hned, nezávisle na tomto rozvrhu.
+# Od 26. 11. 2026 přijdou všechny týdenní aktualizace (NuGet, GitHub Actions, Docker) v JEDNOM PR (skupina `weekly`
+# napříč ekosystémy) → jedno CI, jedno nasazení. Sloučení je dál ruční.
+# Bezpečnostní opravy (Dependabot security updates) chodí hned a samostatně, nezávisle na tomto rozvrhu –
+# když se jich nasbírá víc, spojí je skript tools/merge-dependabot.ps1 do jednoho PR.
 version: 2
-updates:
-  # NuGet balíčky všech projektů. Skupiny = související balíčky v jednom PR – jinak by např. Microsoft.Extensions.*
-  # přišly v různých verzích a build by spadl na NU1605 (konflikt verzí, viz CLAUDE.md).
-  - package-ecosystem: nuget
-    directories: ["/src/*", "/tests/*"]
+
+multi-ecosystem-groups:
+  weekly:
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 5
     commit-message:
       prefix: deps
+
+updates:
+  # NuGet balíčky všech projektů. Všechny v jednom PR – Microsoft.Extensions.* tak vždy přijdou ve stejné verzi
+  # (jinak by build spadl na NU1605 – konflikt verzí, viz CLAUDE.md).
+  - package-ecosystem: nuget
+    directories: ["/src/*", "/tests/*"]
+    multi-ecosystem-group: weekly
+    patterns: ["*"]
     # Přechod na novou hlavní verzi .NET (10 → 11) je vědomý krok (SDK, image, všechny balíčky naráz), ne týdenní PR –
     # jeden balíček z .NET 11 mezi ostatními z .NET 10 rozbije sladěné verze. Opravy (10.0.x) chodí dál.
     ignore:
@@ -26,40 +33,23 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "Npgsql*"
         update-types: ["version-update:semver-major"]
-    groups:
-      microsoft:
-        patterns: ["Microsoft.*", "Aspire.*"]
-        # Test.Sdk patří do skupiny tests – jinak by ho nabízely dva PR najednou.
-        exclude-patterns: ["Microsoft.NET.Test.Sdk"]
-      opentelemetry:
-        patterns: ["OpenTelemetry*"]
-      serilog:
-        patterns: ["Serilog*"]
-      tests:
-        patterns: ["xunit*", "Microsoft.NET.Test.Sdk", "NetArchTest*"]
 
   # Akce ve workflows (actions/checkout, docker/*, tailscale/github-action…).
   - package-ecosystem: github-actions
     directory: /
-    schedule:
-      interval: weekly
-      day: monday
-    commit-message:
-      prefix: ci
-    groups:
-      actions:
-        patterns: ["*"]
+    multi-ecosystem-group: weekly
+    patterns: ["*"]
 
   # Základní image v Dockerfile (.NET SDK a runtime).
   - package-ecosystem: docker
     directories:
       - /src/MiniShop.Web
       - /src/MiniShop.Inventory.Api
-    schedule:
-      interval: weekly
-      day: monday
-    commit-message:
-      prefix: docker
+      - /src/MiniShop.Reporting.Api
+      - /src/MiniShop.Notifications.Api
+      - /src/MiniShop.CarrierSimulator
+    multi-ecosystem-group: weekly
+    patterns: ["*"]
     # Runtime/SDK .NET 11 aplikaci pro .NET 10 nespustí – hlavní verze jen spolu s přechodem celé aplikace.
     ignore:
       - dependency-name: "dotnet/*"

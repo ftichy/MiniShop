@@ -139,6 +139,7 @@ public sealed partial class OrderServiceTests : IDisposable
         services.AddDomainEventHandler<OrderPartialReturnRejected, PublishOrderIntegrationEventsHandler>();
         services.AddDomainEventHandler<OrderPartialReturnCompleted, PublishOrderIntegrationEventsHandler>();
         services.AddDomainEventHandler<OrderPartialReturnRequested, ReturnSagaOrchestrator>();
+        services.AddDomainEventHandler<OrderParcelReturnedToSender, ReturnSagaOrchestrator>();   // e-shop krok 28D: vrácený balík = vratka po částech
         services.AddIntegrationMessageHandler<ReturnedGoodsRestockedV2, ReturnSagaOrchestrator>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<PaymentRefundedV2, ReturnSagaOrchestrator>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<ProductUpdatedV1, CatalogProjectionHandler>(IntegrationModules.Ordering);
@@ -162,6 +163,7 @@ public sealed partial class OrderServiceTests : IDisposable
         services.AddIntegrationMessageHandler<RestockReturnedGoodsV1, RestockReturnedGoodsHandler>(IntegrationModules.Inventory);   // e-shop krok 12
         services.AddIntegrationMessageHandler<RestockReturnedGoodsV2, RestockReturnedGoodsHandler>(IntegrationModules.Inventory);   // e-shop krok 22
         services.AddIntegrationMessageHandler<OrderShippedV1, FulfilReservationHandler>(IntegrationModules.Inventory);
+        services.AddIntegrationMessageHandler<ParcelShippedV1, FulfilReservationHandler>(IntegrationModules.Inventory);   // e-shop krok 28D
         services.AddIntegrationMessageHandler<OrderReturnedToSenderV1, RestockReturnedGoodsHandler>(IntegrationModules.Inventory);   // e-shop krok 26D
         services.AddIntegrationMessageHandler<SyncCatalogV1, SyncCatalogHandler>(IntegrationModules.Inventory);
         services.AddScoped<CatalogSyncService>();

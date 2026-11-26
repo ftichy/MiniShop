@@ -73,8 +73,12 @@ Objednávka z víc skladů má víc **balíků** ([Ordering – Balíky](orderin
    `OrderShippedV1` jednou, beze změny – sklad vydá rezervace).
 5. Doručení a vrácení hlásí dopravce **číslem zásilky** (`ShipmentDeliveredV1`, `ShipmentReturnedV1` – bez nových verzí):
    Ordering najde balík (`Order.ParcelByTrackingNumber`). Doručená je objednávka, až skončí **všechny** balíky – aspoň jeden
-   doručený = doručeno, všechny vrácené = vráceno dopravcem (jako krok 26D). Vrácený jeden z víc balíků se zatím jen označí –
-   kompenzaci jeho části dělá krok 28D.
+   doručený = doručeno; jeden balík vrácený = vráceno dopravcem (jako krok 26D).
+6. **Vrácený balík rozdělené objednávky (e-shop krok 28D)** = automatická vratka po částech s položkami balíku
+   (`OrderParcelReturnedToSender` → sága vratky začne rovnou naskladněním → sklad, kartou refund, dobropis / u dobírky odečtení
+   z kopie před fakturou). Vrátí-li se všechny balíky, objednávka je „vráceno dopravcem“ **bez** `OrderReturnedToSenderV1`.
+   Sklad vydává rezervace už s každým balíkem (`ParcelShippedV1`), aby vrácený balík šlo naskladnit. Sekvenční diagram:
+   [Dělená objednávka](../../toky/delena-objednavka.md).
 
 ## Proč Idempotency-Key, když máme inbox
 

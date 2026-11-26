@@ -36,6 +36,7 @@ public static class OrderingDomainEvents
         OrderPartialReturnCompleted e => OutboxMessageFactory.Create(e, ToPayload(e.Order, e.ReturnNumber)),
         OrderParcelShipmentRequested e => OutboxMessageFactory.Create(e, ToPayload(e.Order, parcelNumber: e.ParcelNumber)),   // e-shop krok 28C
         OrderParcelShipped e => OutboxMessageFactory.Create(e, ToPayload(e.Order, parcelNumber: e.ParcelNumber)),
+        OrderParcelReturnedToSender e => OutboxMessageFactory.Create(e, ToPayload(e.Order, e.ReturnNumber)),   // e-shop krok 28D
         _ => throw new InvalidOperationException(
             $"Událost {domainEvent.GetType().Name} nemá převod do outboxu. Doplňte ji do {nameof(OrderingDomainEvents)}.")
     };

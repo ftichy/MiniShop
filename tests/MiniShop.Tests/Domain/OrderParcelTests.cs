@@ -45,4 +45,41 @@ public sealed class OrderParcelTests
         Assert.Equal([(1, "BRQ", 3), (2, "PRG", 1)],
             order.EffectiveParcels().Select(p => (p.Number, p.WarehouseCode, p.Lines.Sum(l => l.Quantity))));
     }
+
+    /// <summary>
+    /// E-shop krok 28D: jeden ze dvou balíků se vrátí, druhý dorazí – objednávka je doručená a vrácený balík má automatickou
+    /// vratku po částech s jeho položkami (sága začne naskladněním – událost OrderParcelReturnedToSender).
+    /// </summary>
+    [Fact]
+    public void JedenBalikVracen_DruhyDorucen_ObjednavkaDorucena_VracenyMaVratkuPoCastech()
+    {
+        var order = ShippedSplitOrder();
+
+        Assert.True(order.ReturnParcelToSender("CS-2", Now.AddHours(1)));
+        Assert.False(order.ReturnParcelToSender("CS-2", Now.AddHours(1)));   // opakovaná zpráva
+        Assert.Equal(OrderStatus.Shipped, order.Status);                      // balík 1 ještě jede
+        var orderReturn = Assert.Single(order.Returns);
+        Assert.Equal([(2, 3)], orderReturn.Lines.Select(l => (l.ProductId, l.Quantity)));
+        Assert.Contains(order.DomainEvents, e => e is MiniShop.Domain.Orders.Events.OrderParcelReturnedToSender { ReturnNumber: 1 });
+
+        Assert.True(order.MarkParcelDelivered("CS-1", Now.AddHours(2)));
+
+        Assert.Equal(OrderStatus.Completed, order.Status);
+        Assert.DoesNotContain(order.DomainEvents, e => e is MiniShop.Domain.Orders.Events.OrderReturnedToSender);
+    }
+
+    /// <summary>Objednávka kurýrem se dvěma balíky (Praha: produkt 1, Brno: produkt 2 × 3), oba u dopravce.</summary>
+    private static Order ShippedSplitOrder()
+    {
+        var order = OrderWith((1, 1), (2, 3));
+        order.SetShipping(ShippingMethod.Courier, 99m, new DeliveryAddress("Dlouhá 5", "Praha", "11000"));
+        order.Confirm(Now);
+        order.SetParcels([new ParcelPlan("PRG", "Praha", [new(1, 1)]), new ParcelPlan("BRQ", "Brno", [new(2, 3)])]);
+        order.StartPacking(Now);
+        order.RequestPendingParcelShipments(Now);
+        Assert.True(order.ConfirmParcelShipment(1, "PPL", "CS-2", Now));   // balík 1 = Brno (BRQ)
+        Assert.True(order.ConfirmParcelShipment(2, "PPL", "CS-1", Now));
+        Assert.Equal(OrderStatus.Shipped, order.Status);
+        return order;
+    }
 }

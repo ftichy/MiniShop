@@ -224,6 +224,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddDomainEventHandler<OrderPartialReturnRejected, PublishOrderIntegrationEventsHandler>();
         services.AddDomainEventHandler<OrderPartialReturnCompleted, PublishOrderIntegrationEventsHandler>();
         services.AddDomainEventHandler<OrderPartialReturnRequested, ReturnSagaOrchestrator>();
+        services.AddDomainEventHandler<OrderParcelReturnedToSender, ReturnSagaOrchestrator>();   // e-shop krok 28D: vrácený balík = vratka po částech
         services.AddIntegrationMessageHandler<ReturnedGoodsRestockedV2, ReturnSagaOrchestrator>(IntegrationModules.Ordering);
         services.AddIntegrationMessageHandler<PaymentRefundedV2, ReturnSagaOrchestrator>(IntegrationModules.Ordering);
 

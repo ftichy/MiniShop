@@ -15,7 +15,7 @@ public sealed partial class OrderServiceTests
     [Fact]
     public async Task Baliky_KazdyVlastniZasilka_OdeslanoSPoslednim_DorucenoAzPoVsech()
     {
-        var order = await PackedSplitOrderAsync();   // myš z Prahy, kabel z Brna → dva balíky
+        var (order, _, _) = await PackedSplitOrderAsync();   // myš z Prahy, kabel z Brna → dva balíky
 
         await Orders(s => s.RequestParcelShipmentAsync(order.Id, 1, Petra.CustomerId));
         await ProcessOutboxAsync();
@@ -50,7 +50,7 @@ public sealed partial class OrderServiceTests
     [Fact]
     public async Task Baliky_PredatBezCisla_PredaVsechny_DvojklikChyba()
     {
-        var order = await PackedSplitOrderAsync();
+        var (order, _, _) = await PackedSplitOrderAsync();
 
         await Orders(s => s.RequestShipmentAsync(order.Id, Petra.CustomerId));   // generátor provozu, starší tlačítko
         await Assert.ThrowsAsync<DomainException>(() => Orders(s => s.RequestShipmentAsync(order.Id, Petra.CustomerId)));
@@ -60,8 +60,43 @@ public sealed partial class OrderServiceTests
         Assert.Equal(2, _bus.Published.OfType<CreateShipmentV2>().Count());
     }
 
+    /// <summary>
+    /// E-shop krok 28D: dopravce vrátí oba balíky rozdělené objednávky. Každý vrácený balík = automatická vratka po částech
+    /// (sklad naskladní do skladu původu, ReturnCompletedV2); objednávka skončí „vráceno dopravcem“ BEZ OrderReturnedToSenderV1 –
+    /// ta by vše kompenzovala podruhé.
+    /// </summary>
+    [Fact]
+    public async Task Baliky_VracenyDopravcem_KazdyVlastniVratkaPoCastech_BezDvojiKompenzace()
+    {
+        UseCarrier(("Carrier:Chaos:UndeliverableRate", "1"));
+        var (order, mouseId, cableId) = await PackedSplitOrderAsync();
+        await Orders(s => s.RequestShipmentAsync(order.Id, Petra.CustomerId));
+        await ProcessOutboxAsync();
+        Assert.Equal("Shipped", await StatusAsync(order.Id));
+
+        await AdvanceCarrierAsync(UndeliverableSteps);
+        await ProcessOutboxAsync();   // dokončení vratek (sklad → sága → ReturnCompletedV2)
+
+        var returned = await Orders(s => s.GetDetailAsync(order.Id, OrderAccess.AllOrders));
+        Assert.Equal("ReturnedToSender", returned.Order.Status);
+        Assert.All(returned.Order.Parcels!, p => Assert.Equal("ReturnedToSender", p.Status));
+        Assert.Equal(2, returned.Returns!.Count);
+        Assert.All(returned.Returns!, r => Assert.Equal("Completed", r.Status));   // dobírka: bez refundu rovnou hotovo
+        Assert.Equal(2, _bus.Published.OfType<ReturnCompletedV2>().Count());
+        Assert.Empty(_bus.Published.OfType<OrderReturnedToSenderV1>());
+        Assert.DoesNotContain(_bus.Published.OfType<ReturnRequestedV2>(), _ => true);   // zákazník nic neposílá – žádný e-mail „pošlete zboží“
+
+        // Zboží zpět do skladů původu: myš do Prahy, kabely do Brna.
+        var stocks = await Products(s => s.GetAllAsync());
+        Assert.Equal([(Warehouse.DefaultId, 5)], StocksOf(stocks, mouseId));
+        Assert.Equal([(Warehouse.BrnoId, 5)], StocksOf(stocks, cableId));
+    }
+
+    private static IEnumerable<(int, int)> StocksOf(IReadOnlyList<MiniShop.Application.Inventory.ProductDto> products, int productId) =>
+        products.Single(p => p.Id == productId).Stocks!.Select(s => (s.WarehouseId, s.Quantity));
+
     /// <summary>Zabalená objednávka kurýrem na dobírku: myš jen v Praze, kabel jen v Brně – sklad ji rozdělí na dva balíky.</summary>
-    private async Task<OrderDto> PackedSplitOrderAsync()
+    private async Task<(OrderDto Order, int MouseId, int CableId)> PackedSplitOrderAsync()
     {
         var mouse = await AddProductAsync(price: 300m, stock: 5);                     // Praha
         var cable = await AddProductAsync(price: 100m, stock: 0);
@@ -76,6 +111,6 @@ public sealed partial class OrderServiceTests
         Assert.Equal("Confirmed", await StatusAsync(order.Id));
         await Orders(s => s.StartPackingAsync(order.Id));
         Assert.Equal(2, (await Orders(s => s.GetByIdAsync(order.Id, OrderAccess.AllOrders))).Parcels!.Count);
-        return order;
+        return (order, mouse.Id, cable.Id);
     }
 }

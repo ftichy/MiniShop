@@ -29,7 +29,7 @@ a „doručeno“ je až po té druhé.
 | --- | --- | --- |
 | C1 | Sklady v Inventory: `Warehouse`, zásoba po skladech (`WarehouseStock`), migrace dnešních zásob do Prahy, `StockQuantity` = součet (výloha beze změny), naskladnění do vybraného skladu, rezervace s `WarehouseId` (přidělení), vrácení do skladu původu. Zákazník nic nepozná. | hotovo (23. 11. 2026, ověřeno v produkci) |
 | C2 | Balíky v objednávce (expand): `StockReservedV2` s rozdělením → `OrderParcel` v Orderingu, Expedice po skladech; předání zatím za celou objednávku. | hotovo (25. 11. 2026, ověřeno v produkci) |
-| C3 | Dělené zásilky: předání po balících `CreateShipmentV2`, `Shipment` podle `OrderId + ParcelNumber`, odesláno = poslední balík odešel, doručeno = dorazily všechny; detail s balíky, e-mail a push za balík. | v PR |
-| C4 | Výjimky a úklid: vrácený balík `ParcelReturnedToSenderV1` (naskladnit, refund a dobropis jen jeho část), zrušení jen před prvním balíkem, contract starých cest, generátor provozu, příručka a sekvenční diagram. | plán |
+| C3 | Dělené zásilky: předání po balících `CreateShipmentV2`, `Shipment` podle `OrderId + ParcelNumber`, odesláno = poslední balík odešel, doručeno = dorazily všechny; detail s balíky, e-mail a push za balík. | hotovo (26. 11. 2026, ověřeno v produkci) |
+| C4 | Vrácený balík = automatická vratka po částech (sága vratky od naskladnění – sklad, refund a dobropis jen jeho část, u dobírky odečtení před fakturou), bez dvojí kompenzace, sekvenční diagram `toky/delena-objednavka.md`. Generátor provozu beze změny. | v PR (contract starých V1 cest odložen – samostatný úklid) |
 
 Souhrny kroků: `docs/kroky-eshop/krok-28…` (C1 = e-shop krok 28A, C2 = 28B, C3 = 28C, C4 = 28D).

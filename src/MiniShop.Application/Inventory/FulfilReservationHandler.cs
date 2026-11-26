@@ -13,9 +13,37 @@ namespace MiniShop.Application.Inventory;
 /// </remarks>
 public sealed class FulfilReservationHandler(
     IStockReservationRepository reservations,
+    IProductRepository products,
     IInventoryUnitOfWork unitOfWork,
-    TimeProvider timeProvider) : IIntegrationMessageHandler<OrderShippedV1>
+    TimeProvider timeProvider) :
+    IIntegrationMessageHandler<OrderShippedV1>,
+    IIntegrationMessageHandler<ParcelShippedV1>
 {
+    /// <summary>
+    /// E-shop krok 28D: odešel jeden balík rozdělené objednávky → vydat rezervace jeho skladu hned (ne až s posledním
+    /// balíkem). Vrácený balík se pak dá naskladnit (vratka bere jen vydané rezervace), i když druhý balík ještě čeká.
+    /// Sklad pozná podle názvu ve zprávě; neznámý název = nic (vydá se s OrderShippedV1).
+    /// </summary>
+    public async Task HandleAsync(ParcelShippedV1 message, CancellationToken cancellationToken)
+    {
+        TraceTags.TagOrder(message.OrderId);
+        var warehouse = (await products.GetWarehousesAsync(cancellationToken)).FirstOrDefault(w => w.Name == message.WarehouseName);
+        if (warehouse is null)
+        {
+            return;
+        }
+
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        foreach (var reservation in (await reservations.GetActiveByOrderIdAsync(message.OrderId, cancellationToken))
+                     .Where(r => r.WarehouseId == warehouse.Id))
+        {
+            reservation.Fulfil(now);
+        }
+
+        TraceTags.Tag("minishop.stock.result", "fulfilled");
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task HandleAsync(OrderShippedV1 message, CancellationToken cancellationToken)
     {
         TraceTags.TagOrder(message.OrderId);   // span "process OrderShippedV1" ve skladu

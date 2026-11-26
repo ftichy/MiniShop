@@ -82,6 +82,17 @@ public sealed class ReturnSaga
         };
     }
 
+    /// <summary>
+    /// E-shop krok 28D: vratka vráceného balíku – zboží už je zpátky (vrátil ho dopravce), na zákazníka ani admina se nečeká.
+    /// Sága začne rovnou ve stavu <see cref="ReturnSagaState.Restocking"/>; orchestrátor hned pošle naskladnění.
+    /// </summary>
+    public static ReturnSaga StartWithGoodsBack(int orderId, DateTime startedAtUtc, bool requiresRefund, int returnNumber)
+    {
+        var saga = Start(orderId, startedAtUtc, TimeSpan.Zero, requiresRefund, returnNumber);
+        saga.State = ReturnSagaState.Restocking;
+        return saga;
+    }
+
     /// <summary>Admin převzal zásilku v pořádku → sklad naskladní.</summary>
     public ReturnSagaAction GoodsReceived(DateTime nowUtc) => State == ReturnSagaState.AwaitingGoods
         ? MoveTo(ReturnSagaState.Restocking, nowUtc, ReturnSagaAction.RestockGoods)

@@ -26,6 +26,11 @@ internal sealed class BillableOrderConfiguration : IEntityTypeConfiguration<Bill
         builder.Property(o => o.CreditReason).HasConversion<string>().HasMaxLength(20);
         builder.Property(o => o.RefundNote).HasMaxLength(100);
 
+        // E-shop krok 28D: vratky odečtené před fakturou – pole s výchozí hodnotou v DB (starší verze kódu sloupec nezná).
+        builder.Ignore(o => o.ReturnsBeforeInvoice);
+        builder.Property<List<int>>("_returnsBeforeInvoice").HasColumnName("ReturnsBeforeInvoice")
+            .IsRequired().HasDefaultValueSql("'{}'::integer[]");
+
         builder.OwnsMany(o => o.Lines, line =>
         {
             line.ToTable("BillableOrderLines");
